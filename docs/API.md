@@ -24,6 +24,8 @@
 ### 1.2 通用响应格式
 
 > **`code` 字段类型约定**：`code` 字段**统一为字符串类型**。成功时 `"0"`，错误时 `"E2001"` 等错误码字符串。前端解析时勿作整数类型判断。
+>
+> **[Deviation]** ResearchMind 的 `detail` 为**结构化 JSON 对象**（`error_type` + `error_description` + 可选 `recoverable`/`retry_after_ms`），与 docmind 基类 `AppException.detail: str`（扁平字符串）不同。实现时需扩展 `AppException` 构造函数，支持 `detail: dict | str` 并据此序列化响应。
 
 **成功响应：**
 
@@ -72,6 +74,8 @@
 ### 1.4 统一错误码
 
 #### 认证与权限错误（E1xxx）
+
+> **[Deviation]** 认证错误码段从 docmind 的 E5xxx（E5001-E5010）重新编号为 E1xxx（E1001-E1011）。`PasswordSameAsCurrentException` 从 E7004 移入 E1011。错误码语义与 HTTP 状态码保持一致，编号规则为 ResearchMind 自行设计。
 
 | 错误码 | HTTP 状态码 | 说明 |
 |:---|:---|:---|

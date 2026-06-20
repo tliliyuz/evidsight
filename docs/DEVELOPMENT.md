@@ -384,10 +384,12 @@ def database_url(self) -> str:
 
 | 层级 | 机制 |
 |:---|:---|
-| MySQL | 连接串 `SET time_zone='+00:00'` + 服务器 `default_time_zone='+00:00'` |
-| 后端 (ORM) | SQLAlchemy `DateTime(timezone=True)` 确保读写带 UTC tzinfo |
+| MySQL | 连接建立钩子 `SET time_zone='+00:00'` + 服务器 `default_time_zone='+00:00'` |
+| 后端 (ORM) | `UTCDateTime` TypeDecorator（`app/models/_types.py`，复制自 docmind）——写入转 UTC 剥离 tzinfo 存 naive、读取附 UTC tzinfo 返回 aware；默认值 `func.current_timestamp()`，`updated_at` 由 ORM `onupdate` 维护 |
 | API | Pydantic 将 aware datetime 序列化为 ISO 8601 `+00:00` |
 | 前端 | `new Date(isoString)` 自动转换为本地时区显示 |
+
+> **权威定义**：[INFRASTRUCTURE_REUSE.md §5.1](../INFRASTRUCTURE_REUSE.md#51-时间字段与时区策略) 为时区实现的唯一规格。**禁止**裸 `DateTime`/`DateTime(timezone=True)`、**禁止** `(UTC_TIMESTAMP())`。
 
 ### 6.3 代码中时间处理
 
@@ -493,7 +495,9 @@ now = datetime.utcnow()  # 已弃用且不带 tzinfo
 #### 时区规范
 
 - **禁止**使用 `datetime.utcnow()`；必须统一使用 `datetime.now(timezone.utc)`。
-- ORM 中使用 `DateTime(timezone=True)`。
+- 时间列**必须**使用 `UTCDateTime` TypeDecorator（`app/models/_types.py`），**禁止**裸 `DateTime`/`DateTime(timezone=True)`。
+- 服务端默认值用 `func.current_timestamp()`，**禁止** `(UTC_TIMESTAMP())`；`updated_at` 自动更新用 ORM `onupdate=func.current_timestamp()`，DDL 层不声明 `ON UPDATE`。
+- 权威规格见 [INFRASTRUCTURE_REUSE.md §5.1](../INFRASTRUCTURE_REUSE.md#51-时间字段与时区策略)。
 
 详见 §6.2 和 [DATABASE.md §0](DATABASE.md#0-时区约定)。
 

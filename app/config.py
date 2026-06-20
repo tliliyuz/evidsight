@@ -68,16 +68,17 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """
-        动态拼接 MySQL 异步连接串。
+        动态拼接 MySQL 异步连接串（FastAPI 运行时 + Alembic 迁移共用）。
 
         - 通过 quote_plus 安全处理密码中的特殊字符
-        - 连接时强制设置 time_zone='+00:00' 确保四层 UTC 统一
         - charset=utf8mb4 支持完整 Unicode 字符集
+        - time_zone='+00:00' 由 core/database.py 的 connect 钩子统一设置，
+          确保四层 UTC 统一（此处不再重复通过 init_command 设置）
         """
         return (
             f"mysql+aiomysql://{self.MYSQL_USER}:{quote_plus(self.MYSQL_PASSWORD)}"
             f"@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}"
-            f"?charset=utf8mb4&init_command=SET time_zone='%2B00:00'"
+            f"?charset=utf8mb4"
         )
 
 

@@ -13,7 +13,12 @@
 
 > **所有 DATETIME 列均存储 UTC 时间。** 四层 UTC 统一策略（MySQL → 后端 → API → 前端）详见 [ARCHITECTURE.md §6](ARCHITECTURE.md#6-部署与运维)。
 
-MySQL 连接串强制 `time_zone='+00:00'`，ORM 层使用 `DateTime(timezone=True)` 确保读写带 UTC tzinfo。Pydantic 收到 aware datetime 后自动序列化为 `2026-06-19T10:00:00+00:00`。前端 `new Date(isoString)` 自动转换为本地时区显示。
+`app/models/_types.py` 中的 `UTCDateTime` TypeDecorator 在 ORM 层完成 aware ↔ naive 双向转换——写入时转为 UTC 并剥离 tzinfo 存 naive UTC，读取时附加 UTC tzinfo 返回 aware datetime。Pydantic 收到 aware datetime 后自动序列化为 `2026-06-19T10:00:00+00:00`。前端 `new Date(isoString)` 自动转换为本地时区显示。底层列依然是 `DATETIME`，不需要数据迁移。
+
+- **列类型**：所有时间列声明为 `UTCDateTime`（底层 `DATETIME`，MySQL 不存储时区）
+- **服务端默认值**：`created_at` / `updated_at` 使用 `CURRENT_TIMESTAMP`（连接级 `time_zone='+00:00'` 保证其为 UTC），**禁止** `(UTC_TIMESTAMP())`——其在 `ON UPDATE` 子句中需额外括号易致语法错误，且与 docmind 统一
+- **updated_at 自动更新**：由 ORM 层 `onupdate=func.current_timestamp()` 维护（经 service/ORM 发起的 UPDATE 自动刷新）；DDL 层不再声明 `ON UPDATE` 子句，对齐 docmind 模型层实现
+- **连接时区**：`core/database.py` 连接建立钩子执行 `SET time_zone='+00:00'`
 
 ---
 
@@ -69,7 +74,7 @@ CREATE TABLE users (
     role            ENUM('user','admin') DEFAULT 'user',
     status          ENUM('active','disabled') DEFAULT 'active',  -- disabled 后拒绝登录与 Token 刷新
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP  -- 自动更新由 ORM onupdate 维护
 );
 ```
 
@@ -119,7 +124,7 @@ CREATE TABLE research_tasks (
     recoverable     BOOLEAN DEFAULT NULL,                       -- 是否可以断点续跑
 
     -- 时间
-    created_at      DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     started_at      DATETIME DEFAULT NULL,                      -- Worker 拾取时间
     completed_at    DATETIME DEFAULT NULL,
 
@@ -265,7 +270,7 @@ CREATE TABLE evidence_items (
     -- 用于哪些章节
     used_in_sections JSON DEFAULT NULL,                         -- ["1", "2.1"]
 
-    created_at      DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (task_id) REFERENCES research_tasks(id) ON DELETE CASCADE,
     FOREIGN KEY (source_id) REFERENCES research_sources(id) ON DELETE CASCADE,

@@ -57,16 +57,16 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 说明 |
 |:---|:---|:---|
-| ⏳ | Alembic 初始化 | `alembic init` + `env.py` 配置（`target_metadata` 指向 ResearchMind Model） |
-| ⏳ | `users` 表 | `id BIGINT PK` / `username VARCHAR(64) UNIQUE` / `password_hash VARCHAR(256)` / `role ENUM(user,admin)` / `status ENUM(active,disabled)` |
-| ⏳ | `refresh_tokens` 表 | `id BIGINT PK` / `user_id FK→users` / `token_hash VARCHAR(256)` (SHA-256) / `expires_at` / `revoked_at` / 复合索引 `(user_id, revoked_at, expires_at)` |
-| ⏳ | `research_tasks` 表 | `id UUID PK` / `user_id FK→users(RESTRICT)` / `topic` / `requirements JSON` / `status ENUM(7态)` / `current_phase ENUM(7阶段)` / `execution_context JSON` / 统计字段 / 错误字段 / 时间字段 |
-| ⏳ | `research_steps` 表 | `id UUID PK` / `task_id FK→tasks(CASCADE)` / `step_type ENUM(7类)` / `parent_step_id FK→steps(SET NULL)` / `status ENUM(6态)` / `input/output JSON` / 重试/错误/性能字段 |
-| ⏳ | `research_sources` 表 | `id INT PK AUTO_INCREMENT` / `task_id FK→tasks(CASCADE)` / `url` / `title` / `domain` / `fetch_status` / `UNIQUE(task_id, url(255))` |
-| ⏳ | `evidence_items` 表 | `id INT PK AUTO_INCREMENT` / `task_id FK→tasks(CASCADE)` / `source_id FK→sources(CASCADE)` / `step_id FK→steps(SET NULL)` / `content TEXT` / `relevance_score` / `used_in_sections JSON` |
-| ⏳ | `report_sections` 表 | `id INT PK AUTO_INCREMENT` / `task_id FK→tasks(CASCADE)` / `parent_section_id FK→sections(CASCADE)` / `heading` / `content MEDIUMTEXT` / `sort_order` |
-| ⏳ | `section_evidence` 表 | `section_id FK→sections(CASCADE)` / `evidence_id FK→evidence(CASCADE)` / `PRIMARY KEY (section_id, evidence_id)` |
-| ⏳ | 初始迁移脚本 | `alembic revision --autogenerate -m "init"` + `alembic upgrade head` |
+| ✅ | Alembic 初始化 | `alembic init` + `env.py` 配置（`target_metadata` 指向 ResearchMind Model） |
+| ✅ | `users` 表 | `id BIGINT PK` / `username VARCHAR(64) UNIQUE` / `password_hash VARCHAR(256)` / `role ENUM(user,admin)` / `status ENUM(active,disabled)` |
+| ✅ | `refresh_tokens` 表 | `id BIGINT PK` / `user_id FK→users` / `token_hash VARCHAR(256)` (SHA-256) / `expires_at` / `revoked_at` / 复合索引 `(user_id, revoked_at, expires_at)` |
+| ✅ | `research_tasks` 表 | `id UUID PK` / `user_id FK→users(RESTRICT)` / `topic` / `requirements JSON` / `status ENUM(7态)` / `current_phase ENUM(7阶段)` / `execution_context JSON` / 统计字段 / 错误字段 / 时间字段 |
+| ✅ | `research_steps` 表 | `id UUID PK` / `task_id FK→tasks(CASCADE)` / `step_type ENUM(7类)` / `parent_step_id FK→steps(SET NULL)` / `status ENUM(6态)` / `input/output JSON` / 重试/错误/性能字段 |
+| ✅ | `research_sources` 表 | `id INT PK AUTO_INCREMENT` / `task_id FK→tasks(CASCADE)` / `url` / `title` / `domain` / `fetch_status` / `UNIQUE(task_id, url(255))` |
+| ✅ | `evidence_items` 表 | `id INT PK AUTO_INCREMENT` / `task_id FK→tasks(CASCADE)` / `source_id FK→sources(CASCADE)` / `step_id FK→steps(SET NULL)` / `content TEXT` / `relevance_score` / `used_in_sections JSON` |
+| ✅ | `report_sections` 表 | `id INT PK AUTO_INCREMENT` / `task_id FK→tasks(CASCADE)` / `parent_section_id FK→sections(CASCADE)` / `heading` / `content MEDIUMTEXT` / `sort_order` |
+| ✅ | `section_evidence` 表 | `section_id FK→sections(CASCADE)` / `evidence_id FK→evidence(CASCADE)` / `PRIMARY KEY (section_id, evidence_id)` |
+| ✅ | 初始迁移脚本 | `alembic revision --autogenerate -m "init"` + `alembic upgrade head` |
 
 > **表结构权威定义**：[DATABASE.md §2](DATABASE.md#2-表结构)。外键策略详见 [DATABASE.md §4](DATABASE.md#4-外键策略)。
 
@@ -81,7 +81,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ⏳ | Token 估算 | `app/core/token_counter.py` — 中英文自适应算法（中文>30%→1.5，否则 4.0） | 直接复制函数，零改动 |
 | ⏳ | JWT 安全模块 | `app/core/security.py` — `hash_password` / `verify_password` / `create_access_token` / `decode_access_token` / `create_refresh_token` | 直接复制，微调 `users` 表字段映射 |
 | ⏳ | 权限中间件 | `app/core/permissions.py` — `require_task_accessible` / `require_admin` 两层分离 | 直接复制模式，替换 Task 级权限检查逻辑 |
-| ⏳ | 时区策略 | `app/core/database.py` — MySQL `time_zone='+00:00'` + `DateTime(timezone=True)` + 四层 UTC 统一 | 直接复制四层 UTC 策略 |
+| ⏳ | 时区策略 | `app/models/_types.py`（`UTCDateTime`）+ `app/core/database.py`（`SET time_zone='+00:00'`）+ 四层 UTC 统一 | 直接复制 `UTCDateTime` 与四层 UTC 策略，规格见 [INFRASTRUCTURE_REUSE.md §5.1](../INFRASTRUCTURE_REUSE.md#51-时间字段与时区策略) |
 | ⏳ | SSE 流式框架 | `app/services/sse_stream.py` — 手动 `StreamingResponse` + 15s 心跳注释帧 + `seq` 序号有序保证 | 保留 SSE 框架，Phase 2-3 替换全部事件类型 |
 | ⏳ | Trace 追踪器 | `app/core/trace_recorder.py` — Per-stage 计时 + JSON 字段 + context manager 模式 | 直接复制，改阶段名称为 Pipeline 七阶段 |
 | ⏳ | BM25 核心（轻量版） | `app/pipeline/bm25.py` — `BM25Okapi` + `jieba.lcut` 核心，~60 行纯内存计算 | 不复用 DocMind 的 ~400 行版（含三级缓存），重写轻量版 |
