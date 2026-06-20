@@ -1811,7 +1811,7 @@ app.use(ElementPlus)
 - [架构设计文档](ARCHITECTURE.md)
 - [接口文档](API.md)
 - [前端交互文档](FRONTEND.md)
-- [前端基础设施复用](INFRASTRUCTURE_REUSE_FRONTEND.md)
+- [前端共享工具模块](FRONTEND.md#14-共享工具模块)
 - [排期](ROADMAP.md)
 
 > **权威定义**：本文档是 ResearchMind 前端样式领域的唯一真理源。所有 CSS 变量、组件样式、布局规范以本文档为准。Vue 组件中禁止硬编码颜色/字号/间距值，必须引用 `--rm-*` Design Token。

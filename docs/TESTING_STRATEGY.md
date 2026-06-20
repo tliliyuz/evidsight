@@ -652,4 +652,4 @@ cd frontend && npm run test -- --coverage
 - [RESEARCH_PIPELINE.md](RESEARCH_PIPELINE.md) — Pipeline 各阶段设计
 - [DEVELOPMENT.md](DEVELOPMENT.md) — 开发指南（项目结构、命令速查）
 - [ROADMAP.md](ROADMAP.md) — 开发排期（Phase 准入规则）
-- [INFRASTRUCTURE_REUSE.md](INFRASTRUCTURE_REUSE.md) — 后端基础设施复用
+- [RESEARCH_PIPELINE.md](RESEARCH_PIPELINE.md) — Pipeline 各阶段设计（含各模块锚点）

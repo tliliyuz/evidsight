@@ -16,7 +16,7 @@ ResearchMind 是**完全独立的项目**，不与 DocMind 共享数据库、代
 | 输出 | 流式答案 + 源文档引用 | 结构化研究报告 + 段落级 URL 引用映射 |
 | 核心链路 | 意图识别→双路检索→RRF→Rerank→LLM SSE | 任务规划→搜索→解析→证据排序→综合→证据图谱→报告渲染 |
 
-ResearchMind 在工程结构（分层、表设计、Auth、错误码体例）上借鉴了 DocMind 的设计思路，但已全部内化为自有实现。详见 [PRD.md §1.1](docs/PRD.md#11-与-docmind-的关系) 和 [INFRASTRUCTURE_REUSE.md](docs/INFRASTRUCTURE_REUSE.md)。
+ResearchMind 在工程结构（分层、表设计、Auth、错误码体例）上借鉴了 DocMind 的设计思路，核心基础设施（JWT、异常体系、中间件、时区策略、Design Token 等）已从 DocMind 复制并适配为自有实现，各模块锚点分散在对应的设计文档中（API.md / DATABASE.md / RESEARCH_PIPELINE.md / FRONTEND.md）。详见 [PRD.md §1.1](docs/PRD.md#11-与-docmind-的关系)。
 
 ---
 
@@ -80,7 +80,6 @@ celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
 | [RESEARCH_PIPELINE.md](docs/RESEARCH_PIPELINE.md) | 管线深度设计 — 7 阶段 Prompt 模板、算法策略、SSE 事件映射 |
 | [API.md](docs/API.md) | 接口规范真理源 — REST 端点、SSE 协议、请求/响应模型、错误码 |
 | [DATABASE.md](docs/DATABASE.md) | 数据库设计真理源 — 表结构、索引、外键、级联策略 |
-| [INFRASTRUCTURE_REUSE.md](docs/INFRASTRUCTURE_REUSE.md) | 基础设施复用清单 — 从 DocMind 可复用的模块及适配说明 |
 | [ROADMAP.md](docs/ROADMAP.md) | 版本演进路线 — v1.0 / v1.5 / v2.0 |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 开发环境搭建、项目结构、编码约定 |
 | [CHANGELOG.md](docs/CHANGELOG.md) | 变更日志（Keep a Changelog 格式） |

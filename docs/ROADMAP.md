@@ -15,7 +15,7 @@
 >
 > 🚫 推迟项统一编号，放在 `[测试]` 之后、`[索引]` 之前。
 >
-> ✅ **前端设计文档已完成**（FRONTEND.md / UIDESIGN.md / INFRASTRUCTURE_REUSE_FRONTEND.md），前端任务已纳入各 Phase 排期。
+> ✅ **前端设计文档已完成**（FRONTEND.md / UIDESIGN.md），前端任务已纳入各 Phase 排期。基础设施复用快照已删除，各模块锚点已迁移至对应设计文档。
 
 
 ---
@@ -72,7 +72,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 ### 2.3 [后端] 基础设施复用落地
 
-> 依据 [INFRASTRUCTURE_REUSE.md](INFRASTRUCTURE_REUSE.md)，从 DocMind 复制以下基础设施模块并适配。
+> 从 DocMind 复制以下基础设施模块并适配（各模块锚点现见对应设计文档：API.md / DATABASE.md / RESEARCH_PIPELINE.md / FRONTEND.md §1.4）。
 
 | 状态 | 任务 | 说明 | 复用方式 |
 |:---|:---|:---|:---|
@@ -107,7 +107,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 ### 2.5 [前端] 项目脚手架 + Auth + 布局框架
 
-> **复用策略**：Phase 1 前端约 80% 代码可从 DocMind 直接复用或微调（工程配置 / Auth 体系 / 布局框架 / Design Token 系统），详见 [INFRASTRUCTURE_REUSE_FRONTEND.md](../INFRASTRUCTURE_REUSE_FRONTEND.md)。
+> **复用策略**：Phase 1 前端约 80% 代码可从 DocMind 直接复用或微调（工程配置 / Auth 体系 / 布局框架 / Design Token 系统），各模块锚点见 [FRONTEND.md §1.4](../frontend/docs/FRONTEND.md#14-共享工具模块)。
 
 | 状态 | 任务 | 说明 | 依赖决策 |
 |:---|:---|:---|:---|
@@ -229,8 +229,8 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ⏳ | ResearchPage 状态切换 | 根据 `taskStore.current.status` 切换三种 UI：创建态（`null`）/ 运行态（`pending`/`running`）/ 完成态（`completed`/`partially_completed`/`failed`/`canceled`） | FRONTEND.md §4.2 |
 | ⏳ | TaskStore (Pinia) | `stores/task.js` — `taskList` / `current` / `sseStatus`(5态：disconnected/connecting/connected/reconnecting/error) / `progress` / `create()` / `fetchList()` / `fetchDetail()` / `cancel()` / `retry()` / `connectSSE()` / `disconnect()` | FRONTEND.md §1.2 |
 | ⏳ | Research API 封装 | `api/research.js` — `createTask()` / `getTaskList()` / `getTaskDetail()` / `deleteTask()` / `cancelTask()` / `retryTask()` / `getReport()` | — |
-| ⏳ | SSE 解析工具 | `utils/sse.js` — `fetch` + `ReadableStream` + `response.body.getReader()` 逐块读取 + buffer 按 `\n\n` 分割 + 注释帧跳过（`: ping`）+ `event:`/`data:` 行解析 → 回调 dispatch。从 DocMind 复制解析框架（~80 行），替换全部 17 种事件处理器 | FRONTEND.md §8, INFRASTRUCTURE_REUSE_FRONTEND.md §4.1 |
-| ⏳ | 格式化工具 | `utils/format.js` — `formatDate()` / `relativeTime()` / `formatNumber()` / `formatDuration()`（耗时格式化：<1s→ms，≥1s→s，≥60s→m+s）。从 DocMind 直接复制 | INFRASTRUCTURE_REUSE_FRONTEND.md §6.1 |
+| ⏳ | SSE 解析工具 | `utils/sse.js` — `fetch` + `ReadableStream` + `response.body.getReader()` 逐块读取 + buffer 按 `\n\n` 分割 + 注释帧跳过（`: ping`）+ `event:`/`data:` 行解析 → 回调 dispatch。从 DocMind 复制解析框架（~80 行），替换全部 17 种事件处理器 | FRONTEND.md §8, FRONTEND.md §1.4 |
+| ⏳ | 格式化工具 | `utils/format.js` — `formatDateTime()` / `formatRelativeTime()` / `formatNumber()` / `formatDuration()` / `formatBytes()`。已从 DocMind 复制并扩展 `formatNumber`/`formatDuration` | FRONTEND.md §1.4 |
 | ⏳ | HistoryPage | `views/HistoryPage.vue` — 表格（研究主题截取前 40 字符 + tooltip / task_type 标签 / 状态标签 / 来源数 / 证据数 / 创建时间 / 操作[查看/删除]）+ 状态筛选 `el-select` + 主题搜索 `el-input` + 分页 `el-pagination` + 空状态「暂无研究任务」+ 引导按钮 → `/research` | FRONTEND.md §5 |
 | ⏳ | History API 封装 | `api/research.js` 中 `getTaskList()` — 分页 + `status` 筛选 + `search` 搜索 + `sort_by=created_at` + `order=desc` | — |
 | ⏳ | Sidebar 历史任务列表 | Sidebar 内历史任务区域：调用 `taskStore.fetchList()` → 按时间分组（今天/昨天/近7天/更早）+ 状态图标（✅completed / ⚠️partially_completed / ❌failed / 🚫canceled / ⏳running / 🔄pending）+ 点击加载任务详情 + 高亮当前任务 | FRONTEND.md §4.6.1 |
@@ -342,7 +342,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ⏳ | SSE 重连机制 | 意外断开→指数退避重连（1s/2s/4s/8s，最多 3 次）→ 重连成功后 `task.status.snapshot` 恢复完整进度 UI。用户主动取消任务时不重连 | FRONTEND.md §8.1 |
 | ⏳ | ResearchPage 完成态 — 报告查看 | `views/ResearchPage.vue` 完成态三栏布局：章节导航（240px，`report.sections[].heading` 层级列表 + 当前高亮 + 引用数量 badge）+ 报告正文（Markdown 渲染 + `[来源N]` 可点击锚点）+ Evidence Graph 面板（320px 可折叠） | FRONTEND.md §4.5, UIDESIGN.md §4.12 |
 | ⏳ | 章节导航组件 | `components/report/SectionNav.vue` — 固定 240px 左侧栏，`<ul>` 层级列表，当前阅读章节高亮（teal-50 bg + teal-600 left border），点击→报告正文平滑滚动到对应 heading anchor | FRONTEND.md §4.5.2 |
-| ⏳ | Markdown 渲染器 | `utils/markdown.js` — `markdown-it` 配置（tables / linkify / 代码块行号）+ `highlight.js` 代码高亮（github-dark 主题）+ 安全 sanitize（`html: false`）+ 自定义 plugin：匹配 `[来源N]` 正则→渲染为 `<a class="citation-link" data-evidence-index="N">[来源N]</a>` + 代码块一键复制按钮。从 DocMind 复制渲染器，新增引用锚点解析 | FRONTEND.md §4.5.3, INFRASTRUCTURE_REUSE_FRONTEND.md §5.1 |
+| ⏳ | Markdown 渲染器 | `utils/markdown.js` — 已从 DocMind 复制并就位（markdown-it + highlight.js + `[来源N]` 引用锚点 plugin + wrapCodeBlocks），待 Phase 3 集成到 ReportViewer 组件 | FRONTEND.md §4.5.3, FRONTEND.md §1.4 |
 | ⏳ | Evidence Graph 面板 | `components/report/EvidencePanel.vue` — 报告底部可折叠面板，按 `index` 排序展示 Evidence 条目（`[来源N]` 编号 + 标题 + URL + 内容摘要 + `relevance_score` + 所属章节 badge），点击条目→高亮报告正文所有引用该 Evidence 的锚点（`.flash` 动画），按章节筛选，证据内联引用联动 | FRONTEND.md §4.5.4, UIDESIGN.md §4.12 |
 | ⏳ | Trace 摘要面板 | `components/report/TracePanel.vue` — 报告底部可折叠面板（默认折叠），七阶段耗时列表（含进度条比例）+ 总耗时汇总 | FRONTEND.md §4.5.5 |
 | ⏳ | 失败视图 | ResearchPage 完成态失败视图：居中卡片 + rose 图标 64px + `error_description` + 失败阶段 + `recoverable=true` 时显示「断点续跑」按钮 + `recoverable=false` 时显示「返回新建研究」按钮 | FRONTEND.md §4.5.6 |
@@ -478,7 +478,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | 29 | Checkpoint 保存时机：每 Phase 完成后 + 每个 Fetch URL 后 + Synthesis 后 | RESEARCH_PIPELINE.md §10.3 |
 | 30 | Retry：从 `last_completed_step_id` 的下一个 Step 恢复，复用已完成 output | ARCHITECTURE.md §3.3 |
 | 31 | CAS 状态更新：`WHERE status = 'old_value'`，并发 Worker 防覆盖 | ARCHITECTURE.md §5.7 |
-| 32 | 限流阈值 Phase 5 最终确定：Phase 4 先实现中间件框架，压测后调整 | — |
+| 32 | 限流阈值：创建任务 5/min/user → E9004 / 登录 10/min → E1012 / 全局默认 120/min → E9004。压测后调整 | API.md §1.4 |
 
 ---
 
@@ -511,9 +511,9 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ⏳ | AdminTaskList 任务管理 | `views/admin/AdminTaskList.vue` — 跨用户全部研究任务表格（含 `username` 列，筛选：`user_id`/`status`/`task_type`/搜索，分页 + 操作[查看详情/取消/删除]）。删除二次确认 + `ElLoading` 全屏遮罩 + 本地 `filter()` 移除 + 空页回退 | FRONTEND.md §6.3 |
 | ⏳ | AdminTaskDetail 任务详情 | `views/admin/AdminTaskDetail.vue` — 任务信息卡片 + Pipeline 阶段 + Step 列表 + Trace 摘要 | — |
 | ⏳ | Admin API 封装 | `api/admin.js` — `getStats()` / `getAllTasks()` / `getTaskDetail()` / `deleteTask()` / `getAllUsers()` / `getUserDetail()` / `changeUserStatus()` / `resetUserPassword()` | — |
-| ⏳ | AdminUserList 用户管理 | `views/admin/AdminUserList.vue` — 用户列表（表格：用户名/角色/状态/任务数/最后活跃/操作，筛选：角色/状态/搜索，分页 + 操作菜单[查看详情/禁用启用/重置密码]）。从 DocMind 直接复制，替换统计列（KB数/文档数/会话数→任务数/完成数/失败数） | FRONTEND.md §6.4, INFRASTRUCTURE_REUSE_FRONTEND.md §8.1 |
+| ⏳ | AdminUserList 用户管理 | `views/admin/AdminUserList.vue` — 用户列表（表格：用户名/角色/状态/任务数/最后活跃/操作，筛选：角色/状态/搜索，分页 + 操作菜单[查看详情/禁用启用/重置密码]）。从 DocMind 直接复制，替换统计列（KB数/文档数/会话数→任务数/完成数/失败数） | FRONTEND.md §6.4 |
 | ⏳ | AdminUserDetail 用户详情 | `views/admin/AdminUserDetail.vue` — 用户信息卡片 + 统计卡片（任务总数/完成数/失败数/证据数）+ 快捷操作（禁用/启用 + 重置密码）。从 DocMind 直接复制，替换统计维度 | FRONTEND.md §6.4 |
-| ⏳ | ECharts 组合式函数 | `composables/useECharts.js` — 响应式 resize 监听（ResizeObserver）+ `dispose()` 清理 + 主题配置。从 DocMind 直接复制 | INFRASTRUCTURE_REUSE_FRONTEND.md §6.2 |
+| ⏳ | ECharts 组合式函数 | `composables/useECharts.js` — 已从 DocMind 直接复制并就位（响应式 resize + ResizeObserver + dispose），待 Phase 6 集成到 StatsPage | FRONTEND.md §1.4 |
 | ⏳ | 图表配置常量 | `constants/charts.js` — 颜色/样式/tooltip 配置（对齐 `--rm-*` Design Token）。从 DocMind 复制骨架，重写图表配置 | — |
 | ⏳ | D3.js Evidence Graph 可视化 [可选] | Evidence Graph 节点关系力导向图（D3.js force simulation）：Evidence items → nodes / cluster → groups / conflicts → dashed edges。低优先级，Phase 5 时间允许则做 | — |
 
@@ -571,7 +571,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | P1 | SearXNG 搜索降级后端 | ARCHITECTURE §5.6 | 双路搜索（Tavily + SearXNG）→ RRF 融合（激活已复制的 `fusion.py`） |
 | P1 | 多报告模板 | PRD §1.3 | 同一 Evidence Graph → 技术版 / 学术版两种报告模板 |
 | P2 | 审计日志 | ARCHITECTURE §4.3 | `audit_log` hook 激活（`require_task_accessible` 中记录访问） |
-| P2 | 句级 Evidence Auditor | INFRASTRUCTURE_REUSE §4.4 | 三层证据审计激活（引用存在性→来源一致性→句级证据回溯） |
+| P2 | 句级 Evidence Auditor | RESEARCH_PIPELINE §8.8 | 三层证据审计激活（引用存在性→来源一致性→句级证据回溯），模块 `app/core/evidence_auditor.py` 已就位 |
 | P3 | Task-level Rerun | — | 全新 Execution Context，不复用旧数据 |
 
 ### 7.2 [高级功能] v2.0 — Full Deep Research
@@ -621,6 +621,5 @@ Phase 1 ──→ Phase 2 ──→ Phase 3 ──→ Phase 4 ──→ Phase 5 
 - [研究管线设计文档](RESEARCH_PIPELINE.md)
 - [接口文档](API.md)
 - [数据库设计文档](DATABASE.md)
-- [基础设施复用清单](INFRASTRUCTURE_REUSE.md)
 - [开发指南](DEVELOPMENT.md)
 - [变更日志](CHANGELOG.md)

@@ -379,6 +379,10 @@ FetchedDoc[] (最多 15 篇, 每篇 ≤ 100KB)
 Evidence[] (top-K, K = min(max_sources, 候选数))
 ```
 
+> **实现模块**：
+> - `app/pipeline/reranker.py`（待改造）：`BaseReranker` ABC 抽象基类 + Claude Rerank 实现。ABC 定义 `rerank(query, candidates, top_k)` 方法签名。v1.0 使用 LLM Rerank（Claude API Prompt 内打分），v1.5 可替换为专用 Rerank API 实现。来源：DocMind `backend/app/rag/reranker.py` 的 ABC 模式。
+> - `app/pipeline/fusion.py`：RRF 多路融合排序（`rrf_fusion()`），v1.5 引入 SearXNG 作为降级后端后用于 Tavily + SearXNG 双路结果融合。算法 `score = Σ 1/(60 + rank_i)`。**v1.0 代码已就位，不激活**。来源：DocMind `backend/app/rag/fusion.py`，适配 ResearchMind 自有 SearchResult/SearchOutput 类型。
+
 ### 5.3 Stage 1：BM25 粗筛
 
 | 参数 | 值 | 说明 |
@@ -389,6 +393,8 @@ Evidence[] (top-K, K = min(max_sources, 候选数))
 | 候选总数上限 | 45 | = 15 docs × 3 segments |
 
 > **为什么 Stage 1 不用纯向量检索？** 向量检索依赖 Embedding 模型质量，且额外增加 API 调用延迟。BM25 是纯本地计算（jieba 分词 + NumPy 矩阵），对 15 篇文档的段落级评分在 50ms 内完成，零 API 成本。
+>
+> **v1.5 句级匹配**：`app/pipeline/sentence_matcher.py` 提供句级 BM25 定位 + 修辞角色过滤（`match_sentences()` / `filter_chunk_sentences()`），在段落内部定位最佳证据句并过滤引用性句子（示例/测试/TODO 等）。**v1.0 代码已就位，v1.5 激活**。来源：DocMind `backend/app/rag/sentence_matcher.py`，适配 ResearchMind 自有类型。
 
 ### 5.4 Stage 2：LLM Rerank
 
@@ -520,6 +526,8 @@ Evidence 按 relevance_score 降序排列
 最多传入 K = min(max_sources, evidence_count) 条
 单条 Evidence 内容截断至 1500 字符（LLM context 窗口有限）
 ```
+
+> **Token 预算控制**：`app/pipeline/prompt_builder.py`（待改造）提供软上限 + 相关性优先填充算法，确保每阶段传入 LLM 的内容不超过 Token 预算。System Prompt 模板需替换为本文档各节定义的 Prompt。单条 Evidence 截断至 1500 字符是 ResearchMind 自行实现的策略（DocMind 无此功能）。来源：DocMind `backend/app/rag/prompt_builder.py` 的 Token 预算算法。
 
 ### 6.4 参数
 
@@ -784,6 +792,8 @@ Report Render 输出
 5. 组装最终 Report JSON（含 Evidence Graph + Trace）
 ```
 
+> **引用审计**：`app/core/evidence_auditor.py` 提供程序级三层证据审计（`audit_evidence()`）：第一层引用存在性检查（正则提取 `[来源N]` 并验证是否缺失引用）；第二层来源一致性检查（引用来源是否集中在可信源）；第三层句级证据回溯（逐句验证事实性断言能否在来源中找到原文支撑）。v1.0 MVP 使用第一层；v1.5 启用全部三层。来源：DocMind `backend/app/rag/evidence_auditor.py`，适配 ResearchMind 自有 SearchResult 类型。
+
 ### 8.9 状态转换
 
 | 事件 | SSE 事件 | 携带数据 |
@@ -800,6 +810,8 @@ Report Render 输出
 ### 9.1 事件总览
 
 > SSE 事件协议、wire format、心跳机制见 [API.md §4 SSE 事件协议](API.md#4-sse-事件协议)（API 真理源）。本节仅描述 Pipeline 各阶段如何映射到 SSE 事件。
+>
+> **SSE 事件发射器**：`app/pipeline/sse_stream.py`（待改造）封装 `StreamingResponse` 传输层 + 17 种事件类型发射逻辑 + `seq` 序号（保证事件有序）+ 重连快照（`task.status.snapshot`）。基于 DocMind `backend/app/services/sse_stream.py` 的 SSE 传输框架（15s `:ping` 心跳 + `event: type\ndata: json\n\n` 格式），事件类型全部替换为 ResearchMind 的 Pipeline 事件体系。
 
 ```
 Pipeline 阶段推进

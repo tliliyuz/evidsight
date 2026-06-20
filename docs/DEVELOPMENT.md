@@ -5,7 +5,7 @@
 | 文档版本 | v1.0 |
 | 最后更新 | 2026-06-20 |
 
-> 本文档为 ResearchMind 的开发环境搭建、项目结构、编码约定与常用命令参考。架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)，基础设施复用策略见 [INFRASTRUCTURE_REUSE.md](INFRASTRUCTURE_REUSE.md)。
+> 本文档为 ResearchMind 的开发环境搭建、项目结构、编码约定与常用命令参考。架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ---
 
@@ -37,8 +37,6 @@ ResearchMind/
 │   ├── RESEARCH_PIPELINE.md        # 研究管线的深度设计
 │   ├── API.md                      # 接口文档
 │   ├── DATABASE.md                 # 数据库设计文档
-│   ├── INFRASTRUCTURE_REUSE.md     # 基础设施复用清单（后端）
-│   ├── INFRASTRUCTURE_REUSE_FRONTEND.md  # 基础设施复用清单（前端）
 │   ├── FRONTEND.md                 # 前端交互文档
 │   ├── UIDESIGN.md                 # UI 设计规范
 │   ├── ROADMAP.md                  # 开发排期
@@ -389,7 +387,7 @@ def database_url(self) -> str:
 | API | Pydantic 将 aware datetime 序列化为 ISO 8601 `+00:00` |
 | 前端 | `new Date(isoString)` 自动转换为本地时区显示 |
 
-> **权威定义**：[INFRASTRUCTURE_REUSE.md §5.1](../INFRASTRUCTURE_REUSE.md#51-时间字段与时区策略) 为时区实现的唯一规格。**禁止**裸 `DateTime`/`DateTime(timezone=True)`、**禁止** `(UTC_TIMESTAMP())`。
+> **权威定义**：[DATABASE.md §0](DATABASE.md#0-时区约定) 为时区实现的唯一规格。**禁止**裸 `DateTime`/`DateTime(timezone=True)`、**禁止** `(UTC_TIMESTAMP())`。
 
 ### 6.3 代码中时间处理
 
@@ -437,7 +435,7 @@ now = datetime.utcnow()  # 已弃用且不带 tzinfo
 | 架构决策 | [ARCHITECTURE.md](ARCHITECTURE.md) — 技术选型、状态机、权限模型、非功能需求 |
 | 产品需求 | [PRD.md](PRD.md) — MVP 范围、任务类型、验收标准 |
 | 排期 | [ROADMAP.md](ROADMAP.md) — 阶段顺序、任务依赖 |
-| 基础设施复用 | [INFRASTRUCTURE_REUSE.md](INFRASTRUCTURE_REUSE.md) — 从 DocMind 复用的模块及适配说明 |
+| 基础设施 | [DATABASE.md](DATABASE.md) — 数据库、时区、索引、外键策略 |
 
 > **实现偏差必须上报**：当代码因技术限制无法完全对齐设计文档时，**必须**在 [CHANGELOG.md](CHANGELOG.md) 中记录偏差及原因，并在对应设计文档中标注 `[Deviation]` 标记。**禁止**反向修改文档来迁就代码。
 
@@ -497,7 +495,7 @@ now = datetime.utcnow()  # 已弃用且不带 tzinfo
 - **禁止**使用 `datetime.utcnow()`；必须统一使用 `datetime.now(timezone.utc)`。
 - 时间列**必须**使用 `UTCDateTime` TypeDecorator（`app/models/_types.py`），**禁止**裸 `DateTime`/`DateTime(timezone=True)`。
 - 服务端默认值用 `func.current_timestamp()`，**禁止** `(UTC_TIMESTAMP())`；`updated_at` 自动更新用 ORM `onupdate=func.current_timestamp()`，DDL 层不声明 `ON UPDATE`。
-- 权威规格见 [INFRASTRUCTURE_REUSE.md §5.1](../INFRASTRUCTURE_REUSE.md#51-时间字段与时区策略)。
+- 权威规格见 [DATABASE.md §0](DATABASE.md#0-时区约定)。
 
 详见 §6.2 和 [DATABASE.md §0](DATABASE.md#0-时区约定)。
 
@@ -532,7 +530,6 @@ now = datetime.utcnow()  # 已弃用且不带 tzinfo
 ## 9. 相关文档
 
 - [架构设计文档](ARCHITECTURE.md)
-- [基础设施复用清单](INFRASTRUCTURE_REUSE.md)
 - [产品需求文档](PRD.md)
 - [接口文档](API.md)
 - [数据库设计文档](DATABASE.md)

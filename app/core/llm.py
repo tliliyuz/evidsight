@@ -136,7 +136,7 @@ async def stream_chat_completion(
         LLMChunk: 流式输出的 content 和 reasoning_content
 
     Raises:
-        LLMCallFailedException: 调用失败（重试耗尽后）
+        LLMUnknownException: 调用返回未预期错误（重试耗尽后）
     """
     client = _get_llm_client()
     llm_model = model or settings.LLM_MODEL
@@ -227,7 +227,7 @@ async def chat_completion(
         LLMResult: 包含 content、reasoning_content、token 使用量
 
     Raises:
-        LLMCallFailedException: 调用失败（重试耗尽后）
+        LLMUnknownException: 调用返回未预期错误（重试耗尽后）
     """
     client = _get_llm_client()
     llm_model = model or settings.LLM_FLASH_MODEL
