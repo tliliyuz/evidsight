@@ -111,16 +111,16 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 说明 | 依赖决策 |
 |:---|:---|:---|:---|
-| ⏳ | 项目脚手架 | `package.json`（Vue 3 + Vite + Pinia + Element Plus + Axios + Font Awesome + markdown-it + highlight.js + Vitest）+ `vite.config.js`（`@/` alias + proxy `/api` → `localhost:8000`）+ `index.html`（title「ResearchMind」）+ 目录结构（`api/` / `stores/` / `router/` / `views/` / `components/` / `utils/` / `styles/`） | — |
-| ⏳ | Design Token 系统 | `styles/global.css` — `--rm-*` CSS 变量全量定义（品牌色 / 语义色 / 中性色 / 字体 / 间距 / 圆角 / 阴影 / 过渡 / Element Plus 覆盖）。从 DocMind 复制全部变量定义，改前缀 `--dm-` → `--rm-`，移除 `--dm-evidence-highlight-bg` / `--dm-orphan-*` 系列 | UIDESIGN.md §1 |
-| ⏳ | Axios 实例 + 拦截器 | `api/index.js` — Axios 实例（baseURL + 30s 超时）+ 请求拦截器（附 `Authorization: Bearer <access_token>`）+ 响应拦截器（401+E1003 → `authStore.refresh()` → 重放原请求 + `isRefreshing` 并发防抖 + `scheduleRefresh` 定时器）。从 DocMind 直接复制，Token 过期错误码 E5003→E1003（单行改动） | FRONTEND.md §1.3 |
-| ⏳ | Auth API 封装 | `api/auth.js` — `login()` / `register()` / `refresh()` / `logout()` / `changePassword()` 五个函数。从 DocMind 直接复制 | FRONTEND.md §3 |
-| ⏳ | AuthStore (Pinia) | `stores/auth.js` — `user` / `token` / `isAdmin` / `login()` / `logout()` / `refresh()` / `register()`。从 DocMind 直接复制 | FRONTEND.md §1.2 |
-| ⏳ | 路由骨架 + 守卫 | `router/index.js` — 路由表（§2.1 全部路由）+ 三级路由守卫（公开/需登录/需管理员）。从 DocMind 复制守卫逻辑，替换路由表 | FRONTEND.md §2 |
-| ⏳ | LoginPage | `views/LoginPage.vue` — 品牌区（Logo + 标题「ResearchMind」+ 副标题「可审计的结构化研究引擎」）+ Tab 切换（登录/注册）+ 表单（用户名+密码，图标前缀）+ 错误提示 + 提交按钮 loading + 底部互转链接。从 DocMind 直接复制，替换品牌区文案 | FRONTEND.md §3 |
-| ⏳ | AppLayout + Sidebar | `components/layout/AppLayout.vue` + `Sidebar.vue` — 双栏布局（Sidebar 260px/64px 收起 + 主内容区）+ 侧边栏（Logo + 新建研究按钮 + 历史任务列表 + 导航链接 + 用户栏头像/用户名 + 用户菜单卡片 + 展开/收起切换动画）。从 DocMind 复制布局骨架，替换侧边栏导航项（知识库→历史任务） | FRONTEND.md §4.6 |
-| ⏳ | 用户菜单卡片 + 修改密码对话框 | Sidebar 内嵌用户菜单（修改密码 / 管理后台[admin] / 退出登录）+ `el-dialog` 修改密码弹窗（420px，旧密码+新密码+确认新密码，含一致性校验）。从 DocMind 直接复制 | FRONTEND.md §4.6.4 / §4.7 |
-| ⏳ | App.vue 根组件 | `<router-view />` + 全局样式引入 | — |
+| ✅ | 项目脚手架 | `package.json`（Vue 3 + Vite + Pinia + Element Plus + Axios + Font Awesome + markdown-it + highlight.js + Vitest）+ `vite.config.js`（`@/` alias + proxy `/api` → `localhost:8000`）+ `index.html`（title「ResearchMind」）+ 目录结构（`api/` / `stores/` / `router/` / `views/` / `components/` / `utils/` / `styles/`） | — |
+| ✅ | Design Token 系统 | `styles/global.css` — `--rm-*` CSS 变量全量定义（品牌色 / 语义色 / 中性色 / 字体 / 间距 / 圆角 / 阴影 / 过渡 / Element Plus 覆盖）。从 DocMind 复制全部变量定义，改前缀 `--dm-` → `--rm-`，移除 `--dm-evidence-highlight-bg` / `--dm-orphan-*` 系列 | UIDESIGN.md §1 |
+| ✅ | Axios 实例 + 拦截器 | `api/index.js` — Axios 实例（baseURL + 30s 超时）+ 请求拦截器（附 `Authorization: Bearer <access_token>`）+ 响应拦截器（401+E1003 → `authStore.refresh()` → 重放原请求 + `isRefreshing` 并发防抖 + `scheduleRefresh` 定时器）。从 DocMind 直接复制，Token 过期错误码 E5003→E1003（单行改动） | FRONTEND.md §1.3 |
+| ✅ | Auth API 封装 | `api/auth.js` — `login()` / `register()` / `refresh()` / `logout()` / `changePassword()` 五个函数。从 DocMind 直接复制 | FRONTEND.md §3 |
+| ✅ | AuthStore (Pinia) | `stores/auth.js` — `user` / `token` / `isAdmin` / `login()` / `logout()` / `refresh()` / `register()`。从 DocMind 直接复制 | FRONTEND.md §1.2 |
+| ✅ | 路由骨架 + 守卫 | `router/index.js` — 路由表（§2.1 全部路由）+ 三级路由守卫（公开/需登录/需管理员）。从 DocMind 复制守卫逻辑，替换路由表 | FRONTEND.md §2 |
+| ✅ | LoginPage | `views/LoginPage.vue` — 品牌区（Logo + 标题「ResearchMind」+ 副标题「可审计的结构化研究引擎」）+ Tab 切换（登录/注册）+ 表单（用户名+密码，图标前缀）+ 错误提示 + 提交按钮 loading + 底部互转链接。从 DocMind 直接复制，替换品牌区文案 | FRONTEND.md §3 |
+| ✅ | AppLayout + Sidebar | `components/layout/AppLayout.vue` + `Sidebar.vue` — 双栏布局（Sidebar 260px/64px 收起 + 主内容区）+ 侧边栏（Logo + 新建研究按钮 + 历史任务列表 + 导航链接 + 用户栏头像/用户名 + 用户菜单卡片 + 展开/收起切换动画）。从 DocMind 复制布局骨架，替换侧边栏导航项（知识库→历史任务） | FRONTEND.md §4.6 |
+| ✅ | 用户菜单卡片 + 修改密码对话框 | Sidebar 内嵌用户菜单（修改密码 / 管理后台[admin] / 退出登录）+ `el-dialog` 修改密码弹窗（420px，旧密码+新密码+确认新密码，含一致性校验）。从 DocMind 直接复制 | FRONTEND.md §4.6.4 / §4.7 |
+| ✅ | App.vue 根组件 | `<router-view />` + 全局样式引入 | — |
 
 ### 2.6 🚫 本阶段不做的
 
