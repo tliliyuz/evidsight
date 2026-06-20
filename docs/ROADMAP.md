@@ -135,19 +135,19 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 测试类型 | 说明 |
 |:---|:---|:---|:---|
-| ⏳ | 密码哈希 & JWT 单元测试 | 单元测试 | `hash_password` / `verify_password` / `create_access_token` / `decode_access_token` / `create_refresh_token` |
-| ⏳ | Auth Service 单元测试 | 单元测试 | `register`（用户名重复/正常注册/密码<6字符）/ `login`（密码错误/正常登录/用户禁用）/ `refresh`（正常刷新/Rotation/旧token重用→E1009）/ `logout` / `change_password` |
-| ⏳ | Auth API 接口测试 | 接口测试 | POST `/api/auth/register` + `/api/auth/login` + `/api/auth/refresh` + `/api/auth/logout` + `PUT /api/auth/password` 正常流程 + 错误码（E1001/E1002/E1006-E1011） |
-| ⏳ | Pydantic Schema 校验测试 | 单元测试 | `RegisterRequest` / `LoginRequest` 字段校验（用户名长度/密码长度） |
-| ⏳ | 用户模型测试 | 单元测试 | `User` ORM 字段默认值、`relationship` 关联 |
-| ⏳ | 异常处理器测试 | 单元测试 | `AppException` → HTTP 状态码映射 / `RequestValidationError` → 422/E9003 / 生产环境堆栈屏蔽 / 未知异常兜底 |
-| ⏳ | 基础设施复用模块测试 | 单元测试 | Token 估计算法（中英文自适应）/ LLM 客户端 Mock 调用 / 时区策略（UTC tzinfo 读写一致性） |
-| ⏳ | 前端 LoginPage 组件测试 | 组件测试 | 表单渲染 / Tab 切换（登录↔注册）/ 提交按钮 + loading / 错误提示 / 登录成功跳转 / 注册成功切回登录 |
-| ⏳ | 前端 AppLayout 组件测试 | 组件测试 | 布局渲染 / Sidebar 存在性 / `<slot />` 内容区 |
-| ⏳ | Refresh Token 接口测试 | 接口测试 | Token 刷新 / Rotation（旧 token 失效）/ 主动吊销（logout/改密）/ 泄露检测 E1009 / 过期 E1006 / 禁用用户 E1010 |
-| ⏳ | 前端路由守卫测试 | 组件测试 | 未登录重定向到 `/login` / 已登录访问 `/login` 重定向 `/research` / 非 admin 访问 `/admin/*` 重定向 |
-| ⏳ | 前端 AuthStore 测试 | 单元测试 | `login()` token 存储 / `logout()` token 清除 / `refresh()` 自动刷新 / `isAdmin` 计算属性 |
-| ⏳ | 前端 Token 刷新测试 | 单元+组件 | Axios 拦截器请求/响应 / authStore Token 管理 / `scheduleRefresh` 定时器 / `isRefreshing` 并发防抖 / 刷新失败→跳转 `/login` |
+| ✅ | 密码哈希 & JWT 单元测试 | 单元测试 | `hash_password` / `verify_password` / `create_access_token` / `decode_access_token` / `create_refresh_token` |
+| ✅ | Auth Service 单元测试 | 单元测试 | `register`（用户名重复/正常注册/密码<6字符）/ `login`（密码错误/正常登录/用户禁用）/ `refresh`（正常刷新/Rotation/旧token重用→E1009）/ `logout` / `change_password` |
+| ✅ | Auth API 接口测试 | 接口测试 | POST `/api/auth/register` + `/api/auth/login` + `/api/auth/refresh` + `/api/auth/logout` + `PUT /api/auth/password` 正常流程 + 错误码（E1001/E1002/E1006-E1011） |
+| ✅ | Pydantic Schema 校验测试 | 单元测试 | `RegisterRequest` / `LoginRequest` 字段校验（用户名长度/密码长度） |
+| ✅ | 用户模型测试 | 单元测试 | `User` ORM 字段默认值、`relationship` 关联 |
+| ✅ | 异常处理器测试 | 单元测试 | `AppException` → HTTP 状态码映射 / `RequestValidationError` → 422/E9003 / 生产环境堆栈屏蔽 / 未知异常兜底 |
+| ✅ | 基础设施复用模块测试 | 单元测试 | Token 估计算法（中英文自适应）/ LLM 客户端 Mock 调用 / 时区策略（UTC tzinfo 读写一致性） |
+| ✅ | 前端 LoginPage 组件测试 | 组件测试 | 表单渲染 / Tab 切换（登录↔注册）/ 提交按钮 + loading / 错误提示 / 登录成功跳转 / 注册成功切回登录 |
+| ✅ | 前端 AppLayout 组件测试 | 组件测试 | 布局渲染 / Sidebar 存在性 / `<slot />` 内容区 |
+| ✅ | Refresh Token 接口测试 | 接口测试 | Token 刷新 / Rotation（旧 token 失效）/ 主动吊销（logout/改密）/ 泄露检测 E1009 / 过期 E1006 / 禁用用户 E1010 |
+| ✅ | 前端路由守卫测试 | 组件测试 | 未登录重定向到 `/login` / 已登录访问 `/login` 重定向 `/research` / 非 admin 访问 `/admin/*` 重定向 |
+| ✅ | 前端 AuthStore 测试 | 单元测试 | `login()` token 存储 / `logout()` token 清除 / `refresh()` 自动刷新 / `isAdmin` 计算属性 |
+| ✅ | 前端 Token 刷新测试 | 单元+组件 | Axios 拦截器请求/响应 / authStore Token 管理 / `scheduleRefresh` 定时器 / `isRefreshing` 并发防抖 / 刷新失败→跳转 `/login` |
 
 ---
 

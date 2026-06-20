@@ -29,6 +29,45 @@ os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 
 # ═══════════════════════════════════════════════════════════════
+# MySQL 专有类型 → SQLite 兼容渲染（仅测试环境）
+# ═══════════════════════════════════════════════════════════════
+
+from sqlalchemy.dialects.mysql import MEDIUMTEXT  # noqa: E402
+from sqlalchemy.ext.compiler import compiles  # noqa: E402
+from sqlalchemy import BigInteger  # noqa: E402
+
+
+# SQLite 不支持 MEDIUMTEXT，注册编译降级为 TEXT（仅影响测试 DB DDL，
+# 不改动生产模型 — report_sections.content 在 MySQL 仍为 MEDIUMTEXT）
+@compiles(MEDIUMTEXT)
+def _compile_mediumtext_sqlite(element, compiler, **kw):  # noqa: D401
+    return "TEXT"
+
+
+# SQLite 的 AUTOINCREMENT 仅对 INTEGER PRIMARY KEY 生效；BIGINT 主键不会
+# 自增（NOT NULL constraint failed）。注册 BigInteger→INTEGER（仅 sqlite 方言），
+# 使主键自增在测试库可用。生产 MySQL 仍为 BIGINT。
+@compiles(BigInteger, "sqlite")
+def _compile_biginteger_sqlite(element, compiler, **kw):  # noqa: D401
+    return "INTEGER"
+
+
+def _dedupe_index_names(metadata) -> None:
+    """SQLite 索引名全局唯一，按表名前缀重命名重复索引。
+
+    DATABASE.md 在多表复用同名索引（如 idx_task），MySQL 表级作用域合法，
+    但 SQLite 报 OperationalError: index already exists。此处仅修改测试用
+    metadata 的索引名，不触碰生产模型。
+    """
+    seen: set[str] = set()
+    for table in metadata.tables.values():
+        for index in table.indexes:
+            if index.name in seen:
+                index.name = f"ix_{table.name}_{index.name}"
+            seen.add(index.name)
+
+
+# ═══════════════════════════════════════════════════════════════
 # Event Loop
 # ═══════════════════════════════════════════════════════════════
 
@@ -71,6 +110,12 @@ async def test_engine():
         from app.models.report_section import ReportSection  # noqa: F401
         from app.models.section_evidence import SectionEvidence  # noqa: F401
         from app.core.database import Base
+
+        # SQLite 索引名为全局命名空间（MySQL 为表级作用域），
+        # DATABASE.md 在多表上复用 idx_task/idx_parent 等同名索引，
+        # 此处为测试环境按表名前缀重命名以保证唯一性，不改动生产模型。
+        _dedupe_index_names(Base.metadata)
+
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
@@ -79,7 +124,11 @@ async def test_engine():
 
 @pytest.fixture
 async def db_session(test_engine):
-    """测试数据库会话 —— 每个测试函数独立会话，结束时自动回滚。
+    """测试数据库会话 —— 每个测试函数独立事务，结束时自动回滚。
+
+    使用「单连接 + 单事务」模式：所有写操作进入同一事务，
+    测试结束统一 rollback，确保测试间零状态泄漏，且 API 层与
+    Service 层在同测试内共享同一事务（互相可见未提交数据）。
 
     用法：
         async def test_xxx(db_session: AsyncSession):
@@ -87,14 +136,17 @@ async def db_session(test_engine):
             await db_session.flush()
             # 测试结束后全部回滚
     """
-    session_factory = async_sessionmaker(
-        test_engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-    async with session_factory() as session:
-        yield session
-        await session.rollback()
+    async with test_engine.connect() as conn:
+        trans = await conn.begin()
+        session_factory = async_sessionmaker(
+            bind=conn,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            join_transaction_mode="create_savepoint",
+        )
+        async with session_factory() as session:
+            yield session
+        await trans.rollback()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -103,30 +155,37 @@ async def db_session(test_engine):
 
 
 @pytest.fixture
-async def async_client(test_engine):
-    """FastAPI 异步测试客户端 —— 覆盖 `get_db` 依赖为测试 SQLite。
+async def async_client(db_session: AsyncSession):
+    """FastAPI 异步测试客户端 —— 复用测试 `db_session` 的事务。
 
-    所有 API 层测试通过此客户端发起 HTTP 请求，无需真实服务器。
+    - `get_db` 覆盖为返回同一 `db_session`（API 写入进入测试事务，
+      与 Service 层共享、随测试回滚，避免跨请求不可见问题）。
+    - `get_current_user` 覆盖为直接读取 request.state（由 AuthMiddleware
+      注入），避免生产 `get_current_user` 经 `async_session_factory()`
+      打开真实 MySQL 连接。
 
     用法：
         async def test_login(async_client):
             response = await async_client.post("/api/auth/login", json={...})
             assert response.status_code == 200
     """
+    from fastapi import Request
     from app.main import app
-    from app.dependencies import get_db
-
-    session_factory = async_sessionmaker(
-        test_engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
+    from app.dependencies import get_current_user, get_db
 
     async def override_get_db():
-        async with session_factory() as session:
-            yield session
+        # 复用测试会话 —— 不 commit，写入随测试事务回滚
+        yield db_session
+
+    async def override_get_current_user(request: Request) -> dict:
+        return {
+            "user_id": getattr(request.state, "user_id", None),
+            "username": getattr(request.state, "username", None),
+            "role": getattr(request.state, "role", None),
+        }
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

@@ -21,7 +21,6 @@ from openai import AsyncOpenAI
 from app.config import settings
 from app.core.exceptions import (
     LLMAuthFailedException,
-    LLMCallFailedException,
     LLMRateLimitException,
     LLMTimeoutException,
     LLMUnknownException,
@@ -256,7 +255,7 @@ async def chat_completion(
             t_api = time.perf_counter()
 
             if not response.choices:
-                raise LLMCallFailedException(detail="LLM 返回空结果")
+                raise LLMUnknownException(detail="LLM 返回空结果")
 
             choice = response.choices[0]
             content = choice.message.content or ""
@@ -280,7 +279,8 @@ async def chat_completion(
                 total_tokens=total_tokens,
             )
 
-        except (LLMCallFailedException, LLMAuthFailedException):
+        except (LLMUnknownException, LLMAuthFailedException):
+            # 空结果 / 认证失败不重试，直接抛出
             raise
         except Exception as e:
             error_msg = str(e)

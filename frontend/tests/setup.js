@@ -1,11 +1,11 @@
 // 前端测试全局配置 — Mock localStorage、Element Plus、清理 DOM
 
 import { afterEach, vi } from 'vitest'
-import { cleanup } from '@vue/test-utils'
 
-// 每个测试后清理 DOM（vue/test-utils）
+// 每个测试后清理 jsdom document body，防止组件残留污染下一个测试
+// （@vue/test-utils 2.4.x 未导出 cleanup，手动清空 body 替代）
 afterEach(() => {
-  cleanup()
+  document.body.innerHTML = ''
 })
 
 // ── Mock localStorage ────────────────────────────────────────
@@ -26,8 +26,11 @@ Object.defineProperty(globalThis, 'localStorage', {
 })
 
 // ── Mock Element Plus ────────────────────────────────────────
+// 提供 default（install no-op）使 app.use(ElementPlus) 可用，
+// 同时 mock 消息/加载组件。el-* 组件以未注册自定义元素渲染（不报错）。
 
 vi.mock('element-plus', () => ({
+  default: { install: () => {} },
   ElMessage: {
     success: vi.fn(),
     error: vi.fn(),

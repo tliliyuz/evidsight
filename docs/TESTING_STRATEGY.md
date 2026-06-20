@@ -215,7 +215,7 @@ class TestCreateAccessToken:
 | timeout 错误 → 3 次重试 | 最终抛出 `LLMTimeoutException`，中间 sleep 2 次 |
 | auth 错误 → 0 次重试 | 仅调用 1 次 API，直接抛出 `LLMAuthFailedException` |
 | rate_limit → 指数退避 3 次 | sleep 参数依次为 5.0、10.0，最终抛出 `LLMRateLimitException` |
-| 非流式空 choices | 抛出 `LLMCallFailedException` |
+| 非流式空 choices | 抛出 `LLMUnknownException`（E3111，不重试）[Deviation] 原述 `LLMCallFailedException` 该类未在 exceptions.py / API.md §5 定义，已映射到已定义的 `LLMUnknownException` |
 
 ```python
 # 模式示例：重试策略验证
