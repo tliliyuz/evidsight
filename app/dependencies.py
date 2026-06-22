@@ -1,22 +1,30 @@
-"""依赖注入模块 — DB 会话、当前用户、管理员权限。
+"""依赖注入模块 — DB 会话、当前用户、管理员权限、Task 访问权限。
 
 提供 FastAPI 路由所需的通用依赖：
   - get_db: 异步数据库会话（yield session + 自动 commit/rollback）
   - get_current_user: 从 request.state 读取已认证用户 + DB 状态校验
   - require_admin: 要求当前用户为 admin 角色
+  - require_task_accessible: 校验当前用户有权访问指定研究任务
 
 对齐 ARCHITECTURE.md §4 权限模型：
   - AuthMiddleware（ASGI）先验证 JWT 并将 user_id/username/role 写入 request.state
   - get_current_user 从 request.state 读取 + 查 DB 校验 status=active
   - require_admin 在 get_current_user 基础上校验 role=admin
+  - require_task_accessible：owner→允许 / admin→允许（审计）/ 其他→E2002
 """
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session_factory
-from app.core.exceptions import PermissionDeniedException, UserDisabledException
+from app.core.exceptions import (
+    PermissionDeniedException,
+    TaskAccessDeniedException,
+    TaskNotFoundException,
+    UserDisabledException,
+)
 from app.models.user import User
+from app.models.research_task import ResearchTask
 
 
 # ── DB 会话依赖注入 ──────────────────────────────────────────
@@ -92,3 +100,40 @@ def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
     if current_user.get("role") != "admin":
         raise PermissionDeniedException()
     return current_user
+
+
+# ── Task 访问权限依赖注入 ─────────────────────────────────────
+
+
+async def require_task_accessible(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> ResearchTask:
+    """依赖注入：校验当前用户有权访问指定研究任务。
+
+    Task 级权限：
+    - owner → 允许
+    - admin → 允许（审计权限）
+    - 其他 → E2002 (TaskAccessDenied)
+
+    通过 FastAPI 路径参数 {task_id} 自动注入。
+
+    用法：
+        @router.get("/api/research/{task_id}")
+        async def detail(task: ResearchTask = Depends(require_task_accessible)):
+            ...
+
+    对齐 ARCHITECTURE.md §4.3 与 API.md §7 权限矩阵。
+    """
+    task = await db.get(ResearchTask, task_id)
+    if task is None:
+        raise TaskNotFoundException(task_id)
+
+    if task.user_id != current_user["user_id"] and current_user["role"] != "admin":
+        raise TaskAccessDeniedException()
+
+    # [Planned: v1.5] 审计日志 hook
+    # await audit_log("task_access", user_id=current_user["user_id"], task_id=task_id)
+
+    return task

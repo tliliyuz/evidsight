@@ -117,7 +117,8 @@ class ResearchStep(Base):
     parent_step = relationship(
         "ResearchStep", remote_side="ResearchStep.id", backref="child_steps"
     )
-    evidence_items = relationship("EvidenceItem", back_populates="step", lazy="selectin")
+    evidence_items = relationship("EvidenceItem", back_populates="step", lazy="selectin",
+                                  passive_deletes=True)
 
     def __repr__(self):
         return f"<ResearchStep(id={self.id}, type={self.step_type}, status={self.status})>"

@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # ═══════════════════════════════════════════════════════════════
@@ -99,6 +100,14 @@ async def test_engine():
         "sqlite+aiosqlite:///:memory:",
         echo=False,
     )
+
+    # SQLite 默认不启用外键约束，在引擎级别通过事件为每个连接启用
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.close()
+
     async with engine.begin() as conn:
         # 确保所有模型在导入链中已注册到 Base.metadata
         from app.models.user import User  # noqa: F401

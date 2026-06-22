@@ -131,7 +131,7 @@ async def health_check():
 
 
 # ── 路由注册 ──────────────────────────────────────────────
-from app.api import auth
+from app.api import auth, research
 
 app.include_router(auth.router, prefix="/api/auth")
-# app.include_router(research.router, prefix="/api/research", tags=["研究任务"])  # Phase 2
+app.include_router(research.router, prefix="/api/research")

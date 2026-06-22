@@ -117,10 +117,14 @@ class ResearchTask(Base):
     # ── 关联 ──
     user = relationship("User", back_populates="research_tasks")
     steps = relationship("ResearchStep", back_populates="task", lazy="selectin",
-                         order_by="ResearchStep.started_at")
-    sources = relationship("ResearchSource", back_populates="task", lazy="selectin")
-    evidence_items = relationship("EvidenceItem", back_populates="task", lazy="selectin")
-    report_sections = relationship("ReportSection", back_populates="task", lazy="selectin")
+                         order_by="ResearchStep.started_at",
+                         passive_deletes=True)
+    sources = relationship("ResearchSource", back_populates="task", lazy="selectin",
+                           passive_deletes=True)
+    evidence_items = relationship("EvidenceItem", back_populates="task", lazy="selectin",
+                                  passive_deletes=True)
+    report_sections = relationship("ReportSection", back_populates="task", lazy="selectin",
+                                   passive_deletes=True)
 
     def __repr__(self):
         return f"<ResearchTask(id={self.id}, topic={self.topic[:30]!r}, status={self.status})>"

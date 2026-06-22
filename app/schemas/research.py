@@ -1,0 +1,133 @@
+"""研究任务相关请求/响应模型 — 对齐 API.md §3
+
+提供创建、列表、详情、删除研究任务所需的 Pydantic Schema。
+"""
+
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+# ── 研究要求子模型 ──────────────────────────────────────────────
+
+VALID_TASK_TYPES = ("comparison", "explainer", "analysis")
+VALID_DEPTHS = ("quick",)
+
+
+class RequirementsSchema(BaseModel):
+    """研究要求配置 — 决定 Planner 策略、Rerank 维度、Report 模板。
+
+    task_type 必填：直接决定 Planner 拆解策略 / Rerank 排序维度 / Report 模板选择。
+    """
+
+    task_type: Literal["comparison", "explainer", "analysis"] = Field(
+        ..., description="研究类型：comparison / explainer / analysis"
+    )
+    depth: Literal["quick"] = Field(
+        "quick", description="研究深度，MVP 仅支持 quick"
+    )
+    max_sources: int = Field(
+        10, ge=1, le=50, description="信息源数量上限（1-50）"
+    )
+    language: str = Field(
+        "zh", min_length=2, max_length=10, description="报告语言，如 zh / en"
+    )
+
+
+# ── 创建请求 ────────────────────────────────────────────────────
+
+
+class ResearchCreateRequest(BaseModel):
+    """创建研究任务请求 — 对齐 API.md §3.1 POST /api/research。"""
+
+    topic: str = Field(
+        ..., min_length=1, max_length=500, description="研究主题（≤ 500 字符）"
+    )
+    requirements: RequirementsSchema = Field(
+        ..., description="研究要求配置（task_type / depth / max_sources / language）"
+    )
+
+    @field_validator("topic")
+    @classmethod
+    def validate_topic_not_blank(cls, v: str) -> str:
+        """拒绝纯空白主题。"""
+        if not v.strip():
+            raise ValueError("研究主题不能为空")
+        return v
+
+
+# ── 进度子模型 ──────────────────────────────────────────────────
+
+
+class ProgressSchema(BaseModel):
+    """任务进度快照 — 从 execution_context.progress 提取。
+
+    API 响应中的顶层便利字段，前端不应直接访问 execution_context。
+    """
+
+    completed_steps: int = Field(0, ge=0, description="已完成步骤数")
+    total_steps: int = Field(0, ge=0, description="总步骤数")
+    progress: float = Field(0.0, ge=0.0, le=1.0, description="进度比例 0.0-1.0")
+
+
+# ── 详情响应 ────────────────────────────────────────────────────
+
+
+class ResearchTaskResponse(BaseModel):
+    """研究任务详情响应 — 对齐 API.md §3.1 GET /api/research/{task_id}。"""
+
+    task_id: str = Field(..., description="任务 UUID")
+    topic: str = Field(..., description="研究主题")
+    status: str = Field(..., description="Task 状态：pending / running / completed 等")
+    current_phase: str | None = Field(None, description="当前 Pipeline 阶段")
+    requirements: dict = Field(..., description="研究要求配置")
+    progress: ProgressSchema = Field(default_factory=ProgressSchema, description="进度快照")
+    total_sources: int = Field(0, description="来源总数")
+    total_evidence: int = Field(0, description="证据总数")
+    error_code: str | None = Field(None, description="错误码")
+    error_message: str | None = Field(None, description="错误详情")
+    recoverable: bool | None = Field(None, description="是否可断点续跑")
+    created_at: datetime = Field(..., description="创建时间（ISO 8601 UTC）")
+    started_at: datetime | None = Field(None, description="Worker 拾取时间")
+    completed_at: datetime | None = Field(None, description="完成时间")
+
+    model_config = {"from_attributes": True}
+
+
+# ── 列表项响应 ──────────────────────────────────────────────────
+
+
+class ResearchTaskListItem(BaseModel):
+    """研究任务列表项 — 对齐 API.md §3.1 GET /api/research。"""
+
+    task_id: str = Field(..., description="任务 UUID")
+    topic: str = Field(..., description="研究主题")
+    status: str = Field(..., description="Task 状态")
+    task_type: str = Field(..., description="研究类型")
+    total_sources: int = Field(0, description="来源总数")
+    total_evidence: int = Field(0, description="证据总数")
+    created_at: datetime = Field(..., description="创建时间")
+    completed_at: datetime | None = Field(None, description="完成时间")
+
+    model_config = {"from_attributes": True}
+
+
+class ResearchTaskListResponse(BaseModel):
+    """研究任务分页列表响应。"""
+
+    total: int = Field(..., ge=0, description="总记录数")
+    page: int = Field(..., ge=1, description="当前页码")
+    page_size: int = Field(..., ge=1, description="每页条数")
+    items: list[ResearchTaskListItem] = Field(default_factory=list, description="任务列表")
+
+
+# ── 创建响应 ────────────────────────────────────────────────────
+
+
+class ResearchCreateResponse(BaseModel):
+    """创建研究任务响应 — 对齐 API.md §3.1 POST /api/research。"""
+
+    task_id: str = Field(..., description="任务 UUID")
+    status: str = Field(..., description="初始状态，固定为 pending")
+    created_at: datetime = Field(..., description="创建时间（ISO 8601 UTC）")

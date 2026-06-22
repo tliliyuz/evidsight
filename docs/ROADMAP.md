@@ -37,7 +37,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 > **状态标记**：⏳ 待开始 | 🔲 进行中 | ✅ 已完成 | ❌ 已废弃
 >
-> ResearchMind 当前处于设计阶段，全部任务标记为 ⏳。
+> Phase 1 ✅ 完成 | Phase 2 进行中：§3.1 研究任务 CRUD + 状态机 ✅。
 
 ---
 ## 2. Phase 1：骨架搭建 + 认证系统（3-4 天）
@@ -159,13 +159,13 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 说明 | 依赖决策 |
 |:---|:---|:---|:---|
-| ⏳ | 研究任务 Pydantic Schema | `ResearchCreateRequest`（`topic`≤500字符 + `requirements` 含 `task_type`/`depth`/`max_sources`/`language`）/ `ResearchTaskResponse`（含 `status`/`current_phase`/`progress`）/ `ResearchTaskListResponse`（分页） | — |
-| ⏳ | 研究任务 Service | `create_task()` 校验 + 写入 `research_tasks` + 写入首个 `research_step` (planning, pending) → `commit()` → `task.delay(task_id)` 分发 Celery | 决策 #1 |
-| ⏳ | 研究任务列表 API | `GET /api/research` — 当前用户任务列表，分页 + `status` 筛选，按 `created_at DESC` | 决策 #2 |
-| ⏳ | 研究任务详情 API | `GET /api/research/{task_id}` — 任务状态 + `current_phase` + `progress` 快照 | 决策 #3 |
-| ⏳ | 研究任务删除 API | `DELETE /api/research/{task_id}` — FK CASCADE 级联清理全部派生数据 | 决策 #4 |
-| ⏳ | Task 状态机 | `TaskStateResolver` — 所有 Step 终态后统一推导 Task State（FATAL→FAILED / all COMPLETED→COMPLETED / 部分失败→Evidence Threshold 判定） | 决策 #5 |
-| ⏳ | `require_task_accessible` 依赖注入 | Task 级权限：owner→允许 / admin→允许（审计）/ 其他→E2002 | 决策 #6 |
+| ✅ | 研究任务 Pydantic Schema | `app/schemas/research.py` — `ResearchCreateRequest`（`topic`≤500字符 + `requirements` 含 `task_type`/`depth`/`max_sources`/`language`）/ `ResearchTaskResponse`（含 `status`/`current_phase`/`progress`）/ `ResearchTaskListResponse`（分页）/ `ProgressSchema` | — |
+| ✅ | 研究任务 Service | `app/services/research_service.py` — `create_task()` 校验 + 写入 `research_tasks` + 写入首个 `research_step` (planning, pending) → `flush()`；显式 `commit()` + `task.delay(task_id)` 推迟至 §3.2 与 Celery 分发一起激活 [Deviation] | 决策 #1 |
+| ✅ | 研究任务列表 API | `GET /api/research` — 当前用户任务列表，分页 + `status` 筛选，按 `created_at DESC`，`page_size` 上限 100 | 决策 #2 |
+| ✅ | 研究任务详情 API | `GET /api/research/{task_id}` — 任务状态 + `current_phase` + `progress` 快照（`execution_context.progress` 优先，fallback 统计列） | 决策 #3 |
+| ✅ | 研究任务删除 API | `DELETE /api/research/{task_id}` — FK CASCADE 级联清理全部派生数据（bulk `sa_delete` 绕过 ORM 关系处理） | 决策 #4 |
+| ✅ | Task 状态机 | `app/core/task_state_resolver.py` — `TaskStateResolver`：所有 Step 终态后统一推导 Task State（FATAL→FAILED / all COMPLETED→COMPLETED / 部分失败→Evidence Threshold 判定：`min_evidence = max(5, ceil(max_sources * 0.4))`） | 决策 #5 |
+| ✅ | `require_task_accessible` 依赖注入 | `app/dependencies.py` — Task 级权限：owner→允许 / admin→允许（审计）/ 其他→E2002 | 决策 #6 |
 
 ### 3.2 [后端] Celery 异步 Pipeline 编排
 
@@ -252,8 +252,10 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 测试类型 | 说明 |
 |:---|:---|:---|:---|
-| ⏳ | 研究任务 CRUD API 接口测试 | 接口测试 | POST `/api/research` 正常创建 + topic 超长(E2005) + task_type 非法(E2006) + depth 非法(E2007) + requirements 缺失(E2008)；GET 列表（分页+状态筛选）；GET 详情（E2001/E2002）；DELETE（级联清理验证） |
-| ⏳ | TaskStateResolver 测试 | 单元测试 | FATAL failure → FAILED / all COMPLETED → COMPLETED / partial with sufficient evidence → PARTIALLY_COMPLETED / partial with insufficient → E3103 / all SKIPPED → FAILED |
+| ✅ | 研究任务 CRUD API 接口测试 | 接口测试 | POST `/api/research` 正常创建(201) + topic 超长(422) + task_type 非法(422) + 缺少 requirements(422)；GET 列表（空列表/分页/status 筛选/按 created_at DESC）；GET 详情（含完整字段/错误信息/progress/E2001/E2002/admin 审计）；DELETE（正常删除/级联清理步骤/不存在 E2001/无权 E2002）；未登录 401。共 27 用例 |
+| ✅ | TaskStateResolver 测试 | 单元测试 | FATAL→FAILED / all COMPLETED→COMPLETED / 部分完成含充分证据→PARTIALLY_COMPLETED / 部分完成证据不足→FAILED(E3103) / all SKIPPED→FAILED / 空步骤保持原状态 / 未终态不触发推导。共 19 用例 |
+| ✅ | 研究任务 Schema 校验测试 | 单元测试 | `ResearchCreateRequest` topic 长度/纯空格/task_type 枚举/depth 枚举/max_sources 范围/language 默认值 / `ProgressSchema` progress 范围/边界值。共 21 用例 |
+| ✅ | 研究任务 Service 单元测试 | 单元测试 | `create_task` 正常创建+DB 写入+首个 planning step+三种 task_type+requirements 存储+用户隔离+topic 超长 422 / `get_task_list` 空列表/单条/多条 DESC/分页第一页+第二页+超出范围/status 筛选/用户隔离/page_size 上限 100/page 自动修正 / `get_task_detail` 完整字段/running 含 phase/failed 含错误/execution_context 优先/fallback 统计列/进度为 0 / `delete_task` 删除后不存在/级联删除步骤/仅删除指定任务。共 27 用例 |
 | ⏳ | Planner 单元测试 | 单元测试 | LLM 调用 Mock：正常拆解（3-5 SubQuestions）/ 输出校验失败重试 / 3 次重试耗尽→E3101 / task_type 策略注入验证（3 种 × Prompt 含策略段落） |
 | ⏳ | Searcher 单元测试 | 单元测试 | Tavily API Mock：正常搜索 / 单子问题 0 结果→SKIPPED / API 失败重试→恢复 / 重试耗尽→SKIPPED / 全失败→E3102 / 跨子问题 URL 去重 / 总结果>25 截断 |
 | ⏳ | Fetcher 单元测试 | 单元测试 | HTTP Mock：正常抓取+正文提取 / 超时重试→恢复 / 403→直接 SKIPPED / DNS 失败→SKIPPED / SSRF 防护（内网 IP 拒绝）/ 正文为空→SKIPPED |
