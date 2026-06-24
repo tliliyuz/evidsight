@@ -37,7 +37,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 > **状态标记**：⏳ 待开始 | 🔲 进行中 | ✅ 已完成 | ❌ 已废弃
 >
-> Phase 1 ✅ 完成 | Phase 2 进行中：§3.1 研究任务 CRUD + 状态机 ✅ | §3.2 Celery 异步 Pipeline 编排 ✅。
+> Phase 1 ✅ 完成 | Phase 2 ✅ 完成：§3.1 研究任务 CRUD + 状态机 ✅ | §3.2 Celery 异步 Pipeline 编排 ✅ | §3.3 Planning ✅ | §3.4 Search ✅ | §3.5 Fetch ✅ | §3.6 SSE 端点 ✅。
 
 ---
 ## 2. Phase 1：骨架搭建 + 认证系统（3-4 天）
@@ -183,10 +183,10 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 说明 | 依赖决策 |
 |:---|:---|:---|:---|
-| ⏳ | Planner 实现 | `app/pipeline/planner.py` — LLM 调用（deepseek-v4-pro，`deep_thinking=True`，`temperature=0.3`），注入 `task_type` 策略段落，输出 `SubQuestion[]`（3-5 个）+ `rationale` | 决策 #9 |
-| ⏳ | Planner 输出校验 | Pydantic 校验：`sub_questions` 长度 3-5、每个 ≤200 字符、每个 ≥2 实体/关键词。不满足→重试（最多 3 次）→仍失败→E3101 | 决策 #10 |
-| ⏳ | `task_type` 策略注入 | `comparison` → 对比矩阵拆解 / `explainer` → 研究方向聚类 / `analysis` → 因果链拆解 | 决策 #11 |
-| ⏳ | Planning Step 状态流转 | `step.started` → `step.progress`(含 `sub_questions_generated`) → `step.completed`(含 sub_questions 摘要) + `phase.completed` | — |
+| ✅ | Planner 实现 | `app/pipeline/planner.py` — LLM 调用（deepseek-v4-pro，`deep_thinking=True`，`temperature=0.3`），注入 `task_type` 策略段落，输出 `SubQuestion[]`（3-5 个）+ `rationale` | 决策 #9 |
+| ✅ | Planner 输出校验 | Pydantic 校验：`sub_questions` 长度 3-5、每个 ≤200 字符、每个 ≥2 实体/关键词。不满足→重试（最多 3 次）→仍失败→E3101 | 决策 #10 |
+| ✅ | `task_type` 策略注入 | `comparison` → 对比矩阵拆解 / `explainer` → 研究方向聚类 / `analysis` → 因果链拆解 | 决策 #11 |
+| ✅ | Planning Step 状态流转 | `step.started` → `step.progress`(含 `sub_questions_generated`) → `step.completed`(含 sub_questions 摘要) + `phase.completed` | — |
 
 > **Planning Prompt 模板**：[RESEARCH_PIPELINE.md §2.3](RESEARCH_PIPELINE.md#23-system-prompt)。`task_type` 策略：[RESEARCH_PIPELINE.md §2.4](RESEARCH_PIPELINE.md#24-task_type-驱动的拆解策略)。
 
@@ -194,9 +194,9 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 说明 | 依赖决策 |
 |:---|:---|:---|:---|
-| ⏳ | Searcher 实现 | `app/pipeline/searcher.py` — 对每个 SubQuestion 调用 Tavily API（`search_depth=advanced`，`max_results=5`），跨子问题 URL 去重，总结果上限 25 | 决策 #12 |
-| ⏳ | Search 失败策略 | 单个子问题 0 结果→SKIPPED / 单次 API 失败→重试 2 次（指数退避 1s/2s）→仍失败→SKIPPED / 全部子问题失败→E3102 | 决策 #13 |
-| ⏳ | Search Step 状态流转 | 每个子问题独立 Step：`step.started`(含 `label: "搜索子问题 N: ..."`) → `step.completed`(含 `results_count`) / `step.skipped` | — |
+| ✅ | Searcher 实现 | `app/pipeline/searcher.py` — 对每个 SubQuestion 调用 Tavily API（`search_depth=advanced`，`max_results=5`），跨子问题 URL 去重，总结果上限 25 | 决策 #12 |
+| ✅ | Search 失败策略 | 单个子问题 0 结果→SKIPPED / 单次 API 失败→重试 2 次（指数退避 1s/2s）→仍失败→SKIPPED / 全部子问题失败→E3102 | 决策 #13 |
+| ✅ | Search Step 状态流转 | 每个子问题独立 Step：`step.started`(含 `label: "搜索子问题 N: ..."`) → `step.completed`(含 `results_count`) / `step.skipped` | — |
 
 > **Search 策略详设**：[RESEARCH_PIPELINE.md §3](RESEARCH_PIPELINE.md#3-search--多子问题搜索)。
 
@@ -204,9 +204,9 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 说明 | 依赖决策 |
 |:---|:---|:---|:---|
-| ⏳ | Fetcher 实现 | `app/pipeline/fetcher.py` — URL 安全检查（协议白名单 http/https + IP 黑名单 SSRF 防护）→ HTTP GET（timeout=15s，User-Agent: ResearchMind/1.0）→ `trafilatura` 正文提取 → 内容截断（100KB） | 决策 #14 |
-| ⏳ | Fetch 失败策略 | 超时→重试 1 次→仍失败→SKIPPED / HTTP 403/404/5xx→不重试直接 SKIPPED / DNS 失败→SKIPPED / 正文为空→SKIPPED | 决策 #15 |
-| ⏳ | Fetch Step 状态流转 | 每个 URL 独立 Step：`step.started`(含 `url`) → `step.completed`(含 `content_length`) / `step.skipped`(含 `reason`) | — |
+| ✅ | Fetcher 实现 | `app/pipeline/fetcher.py` — URL 安全检查（协议白名单 http/https + IP 黑名单 SSRF 防护）→ HTTP GET（timeout=15s，User-Agent: ResearchMind/1.0）→ `trafilatura` 正文提取 → 内容截断（100KB） | 决策 #14 |
+| ✅ | Fetch 失败策略 | 超时→重试 1 次→仍失败→SKIPPED / HTTP 403/404/5xx→不重试直接 SKIPPED / DNS 失败→SKIPPED / 正文为空→SKIPPED | 决策 #15 |
+| ✅ | Fetch Step 状态流转 | 每个 URL 独立 Step：`step.started`(含 `url`) → `step.completed`(含 `content_length`) / `step.skipped`(含 `reason`) | — |
 
 > **Fetch 安全约束**：[RESEARCH_PIPELINE.md §4.4](RESEARCH_PIPELINE.md#44-安全约束)。
 
@@ -214,10 +214,10 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 说明 | 依赖决策 |
 |:---|:---|:---|:---|
-| ⏳ | 16 种 SSE 事件类型实现 | `task.created` / `task.status.snapshot` / `phase.started` / `phase.completed` / `step.started` / `step.progress` / `step.completed` / `step.failed` / `step.skipped` / `task.progress` / `checkpoint.saved` / `task.warning` / `task.completed` / `task.failed` / `task.canceled` | 决策 #16 |
-| ⏳ | `GET /api/research/{task_id}/stream` | SSE 连接端点，`text/event-stream`，15s 心跳 `: ping\n\n`，`seq` 序号有序保证 | 决策 #17 |
-| ⏳ | SSE 重连恢复 | 客户端重连时立即推送 `task.status.snapshot`（含当前 Task State / Phase / 所有已完成 Step 摘要 / `progress`），后续恢复正常增量推送 | 决策 #18 |
-| ⏳ | `GET /api/research/{task_id}/state` | REST 版状态快照（SSE `task.status.snapshot` 的等价物），供客户端轮询降级 | — |
+| ✅ | 16 种 SSE 事件类型实现 | `task.created` / `task.status.snapshot` / `phase.started` / `phase.completed` / `step.started` / `step.progress` / `step.completed` / `step.failed` / `step.skipped` / `task.progress` / `checkpoint.saved` / `task.warning` / `task.completed` / `task.failed` / `task.canceled` | 决策 #16 |
+| ✅ | `GET /api/research/{task_id}/stream` | SSE 连接端点，`text/event-stream`，15s 心跳 `: ping\n\n`，`seq` 序号有序保证 | 决策 #17 |
+| ✅ | SSE 重连恢复 | 客户端重连时立即推送 `task.status.snapshot`（含当前 Task State / Phase / 所有已完成 Step 摘要 / `progress`），后续恢复正常增量推送 | 决策 #18 |
+| ✅ | `GET /api/research/{task_id}/state` | REST 版状态快照（SSE `task.status.snapshot` 的等价物），供客户端轮询降级 | — |
 
 > **SSE 事件协议**：[API.md §4](API.md#4-sse-事件协议)。事件映射：[RESEARCH_PIPELINE.md §9](RESEARCH_PIPELINE.md#9-pipeline-sse-事件映射)。
 
@@ -258,12 +258,12 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ✅ | TaskStateResolver 测试 | 单元测试 | FATAL→FAILED / all COMPLETED→COMPLETED / 部分完成含充分证据→PARTIALLY_COMPLETED / 部分完成证据不足→FAILED(E3103) / all SKIPPED→FAILED / 空步骤保持原状态 / 未终态不触发推导。共 19 用例 |
 | ✅ | 研究任务 Schema 校验测试 | 单元测试 | `ResearchCreateRequest` topic 长度/纯空格/task_type 枚举/depth 枚举/max_sources 范围/language 默认值 / `ProgressSchema` progress 范围/边界值。共 21 用例 |
 | ✅ | 研究任务 Service 单元测试 | 单元测试 | `create_task` 正常创建+DB 写入+首个 planning step+三种 task_type+requirements 存储+用户隔离+topic 超长 422 / `get_task_list` 空列表/单条/多条 DESC/分页第一页+第二页+超出范围/status 筛选/用户隔离/page_size 上限 100/page 自动修正 / `get_task_detail` 完整字段/running 含 phase/failed 含错误/execution_context 优先/fallback 统计列/进度为 0 / `delete_task` 删除后不存在/级联删除步骤/仅删除指定任务。共 27 用例 |
-| ⏳ | Planner 单元测试 | 单元测试 | LLM 调用 Mock：正常拆解（3-5 SubQuestions）/ 输出校验失败重试 / 3 次重试耗尽→E3101 / task_type 策略注入验证（3 种 × Prompt 含策略段落） |
-| ⏳ | Searcher 单元测试 | 单元测试 | Tavily API Mock：正常搜索 / 单子问题 0 结果→SKIPPED / API 失败重试→恢复 / 重试耗尽→SKIPPED / 全失败→E3102 / 跨子问题 URL 去重 / 总结果>25 截断 |
-| ⏳ | Fetcher 单元测试 | 单元测试 | HTTP Mock：正常抓取+正文提取 / 超时重试→恢复 / 403→直接 SKIPPED / DNS 失败→SKIPPED / SSRF 防护（内网 IP 拒绝）/ 正文为空→SKIPPED |
-| ⏳ | SSE 事件流测试 | 单元测试 | `StreamingResponse` 事件序列 / 16 种事件 type 格式校验 / 15s 心跳帧 / `seq` 递增 / 重连 snapshot 数据结构 |
+| ✅ | Planner 单元测试 | 单元测试 | LLM 调用 Mock：正常拆解（3-5 SubQuestions）/ 输出校验失败重试 / 3 次重试耗尽→E3101 / task_type 策略注入验证（3 种 × Prompt 含策略段落） |
+| ✅ | Searcher 单元测试 | 单元测试 | Tavily API Mock：正常搜索 / 单子问题 0 结果→SKIPPED / API 失败重试→恢复 / 重试耗尽→SKIPPED / 全失败→E3102 / 跨子问题 URL 去重 / 总结果>25 截断 |
+| ✅ | Fetcher 单元测试 | 单元测试 | HTTP Mock：正常抓取+正文提取 / 超时重试→恢复 / 403→直接 SKIPPED / DNS 失败→SKIPPED / SSRF 防护（内网 IP 拒绝）/ 正文为空→SKIPPED |
+| ✅ | SSE 事件流测试 | 单元测试 | `StreamingResponse` 事件序列 / 16 种事件 type 格式校验 / 15s 心跳帧 / `seq` 递增 / 重连 snapshot 数据结构 |
 | ⏳ | Celery 幂等锁测试 | 单元测试 | Redis `SET NX` 获取锁 / 已存在拒绝 / TTL 过期后重新获取 / 阶段完成后释放 |
-| ⏳ | Pipeline 端到端集成测试（前半段） | 集成测试 | Planning→Search→Fetch 三阶段 Mock 全链路 + SSE 事件序列完整 + Fetch 结果持久化验证 |
+| ✅ | Pipeline 端到端集成测试（前半段） | 集成测试 | Planning→Search→Fetch 三阶段 Mock 全链路 + SSE 事件序列完整 + Fetch 结果持久化验证 |
 | ⏳ | 前端 ResearchPage 创建态组件测试 | 组件测试 | 表单渲染 / topic 字数校验（>500字符拒绝）/ task_type 卡片选中高亮 / 高级选项折叠展开 / 提交 loading / 快捷示例卡片点击填入 / 提交成功切换到运行态 |
 | ⏳ | 前端 TypeCard 组件测试 | 组件测试 | 三卡渲染 / 点击选中（border-teal-600 + bg-teal-50）/ 三选一互斥 / 再次点击取消 |
 | ⏳ | 前端 HistoryPage 组件测试 | 组件测试 | 表格渲染 / 状态筛选 / 搜索防抖 / 分页 / 空状态 + 引导按钮 / 点击行加载任务 / 删除确认→行移除→空页回退 |

@@ -29,6 +29,9 @@ passlib[bcrypt]==1.7.*
 jieba==0.42.*
 rank-bm25==0.2.*
 
+# Web Content Extraction
+trafilatura>=1.12
+
 # Utils
 python-multipart==0.0.18
 python-dotenv==1.0.*

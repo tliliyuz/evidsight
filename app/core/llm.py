@@ -123,6 +123,7 @@ async def stream_chat_completion(
     deep_thinking: bool = False,
     reasoning_effort: str = "high",
     model: str | None = None,
+    temperature: float | None = None,
 ) -> AsyncIterator[LLMChunk]:
     """流式调用 LLM chat/completions。
 
@@ -152,6 +153,8 @@ async def stream_chat_completion(
     }
     if deep_thinking:
         request_kwargs["reasoning_effort"] = reasoning_effort
+    if temperature is not None:
+        request_kwargs["temperature"] = temperature
 
     last_exc_type = LLMUnknownException
     for attempt in range(1, 4):  # 最多 3 次尝试（含首次）
@@ -213,6 +216,7 @@ async def chat_completion(
     reasoning_effort: str = "high",
     max_tokens: int | None = None,
     model: str | None = None,
+    temperature: float | None = None,
 ) -> LLMResult:
     """非流式调用 LLM chat/completions（用于 Planning / Synthesis / Rerank 等场景）。
 
@@ -244,6 +248,8 @@ async def chat_completion(
         request_kwargs["reasoning_effort"] = reasoning_effort
     if max_tokens is not None:
         request_kwargs["max_tokens"] = max_tokens
+    if temperature is not None:
+        request_kwargs["temperature"] = temperature
 
     last_exc_type = LLMUnknownException
     for attempt in range(1, 4):

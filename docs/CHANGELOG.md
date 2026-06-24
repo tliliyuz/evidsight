@@ -13,8 +13,16 @@
 > Phase 1 骨架搭建完成（后端 §2.1-2.4 + 前端 §2.5 ✅，测试 §2.7 待执行）。
 > Phase 2.3.1 研究任务 CRUD + 状态机完成（ROADMAP §3.1 ✅）。
 > Phase 2.3.2 Celery 异步 Pipeline 编排基础设施完成（ROADMAP §3.2 ✅）。
+> Phase 2.3.3-§3.6 Pipeline 前半段完成：Planning（LLM）+ Search（Tavily）+ Fetch（HTTP+trafilatura）+ SSE 端点（ROADMAP §3.3-§3.6 ✅）。
 
 ### Added
+- **Phase 2.3.3-§3.6 Pipeline 前半段完整实现（ROADMAP §3.3-§3.6）**——10 个文件 + 82 新测试：
+  - `app/pipeline/planner.py` — Planning 阶段完整实现（~200 行）：System Prompt 构建（含 task_type 策略注入）、deepseek-v4-pro LLM 调用（deep_thinking=True, temperature=0.3, max_tokens=1000）、JSON 解析（处理 markdown 代码块包装）、Pydantic 式输出校验（sub_questions 数量 3-5 / ≤200 字符 / ≥2 实体关键词）、校验失败重试（最多 3 次，传递反馈信息）、重试耗尽 → E3101 PlanningFailed
+  - `app/pipeline/searcher.py` — Search 阶段完整实现（~200 行）：读取 Planning 产出的 sub_questions、对每个子问题调 Tavily Search API（POST /search + 重试 2 次指数退避 1s/2s）、子 step 管理（每个子问题创建独立 ResearchStep + SSE 事件）、跨子问题 URL 去重（保留首次归属）、写入 ResearchSource 行、失败策略（单子问题可降级 SKIPPED / 全部失败 → E3102 SearchFailed）
+  - `app/pipeline/fetcher.py` — Fetch 阶段完整实现（~220 行）：读取 Search 创建的待 fetch URL 列表、URL 安全检查（协议白名单 http/https + IP 黑名单 SSRF 防护 / 9 段内网 CIDR 拒绝）、HTTP GET（httpx, timeout=15s, User-Agent: ResearchMind/1.0）、trafilatura 正文提取（Markdown 格式, favor_precision=True）、内容截断（100KB）、子 step 管理（每个 URL 独立 ResearchStep）、更新 ResearchSource 行（fetch_status + title + domain + fetched_at）、失败策略（超时重试 1 次 / 403/404/5xx/DNS→直接 SKIPPED）
+  - `app/api/research.py` — 新增 SSE 事件流端点 `GET /api/research/{task_id}/stream`（StreamingResponse + text/event-stream + task.status.snapshot 初始推送）+ 新增 REST 状态快照端点 `GET /api/research/{task_id}/state`（SSE 等价物，轮询降级）
+  - `app/core/llm.py` — 新增 `temperature` 可选参数（`chat_completion` + `stream_chat_completion`），向后兼容
+  - 测试覆盖：`tests/unit/pipeline/test_planner.py`（20 用例：JSON 提取+实体计数+校验+LLM Mock 成功/重试/E3101+3 种 task_type 策略注入验证+SSE 事件）+ `tests/unit/pipeline/test_searcher.py`（12 用例：域名提取+子问题读取+正常搜索+去重+ResearchSource 创建+SSE 事件+单子问题 SKIPPED+全失败 E3102+重试恢复）+ `tests/unit/pipeline/test_fetcher.py`（15 用例：安全校验 9 场景+正常抓取+超时+403+SSRF+空正文+DNS 失败）+ `tests/unit/api/test_sse.py`（9 用例：状态快照 API 正常+404+403+401+错误信息+SSE 流权限+快照结构完整性+进度计算）+ `tests/unit/pipeline/test_integration.py`（6 用例：Planning→Search 数据流+失败阻断+Search→Fetch 持久化+全失败终止+SSE 事件序列完整性）
 - **Phase 2.3.2 Celery 异步 Pipeline 编排（ROADMAP §3.2）**——7 个源文件 + Celery 分发激活：
   - `app/pipeline/sse_bridge.py` — SSE Bridge（~300 行）：Redis Pub/Sub 桥接 Celery Worker ↔ FastAPI ↔ SSE Stream。发布层 `SSEBridge` 类（同步 publish + seq 序号单调递增）+ 订阅层 `sse_event_stream()` 异步生成器（连接时推送 `task.status.snapshot`，循环获取 Redis 消息 yield SSE 格式事件，`stream_with_heartbeat` 包裹）。17 种 SSE 事件类型常量（`EVENT_TASK_CREATED` 等）。跨平台 Pub/Sub（Linux 原生 `redis.asyncio` / Windows `_SyncPubSubWrapper` 线程池包装）
   - `app/services/pipeline_orchestrator.py` — Pipeline Orchestrator（~450 行）：`PipelineOrchestrator` 类，七阶段串行调度。每 Phase：创建 ResearchStep → 幂等锁检查（`acquire_step_lock_async`）→ 更新 step status→running → 发送 SSE 事件（`phase.started` / `step.started`）→ 调用 Phase handler → 更新 output + status→completed → 原子更新 `execution_context` → 发送 SSE 事件（`step.completed` / `phase.completed` / `task.progress` / `checkpoint.saved`）→ `TaskStateResolver` 检查提前终止 → 释放锁。含 `build_default_phase_handlers()` 注册表（planning/search/fetch → Phase 2 stub，rerank/synthesis/evidence_graph/render → Phase 3 待实现自动跳过）。`TaskFatalException` 不可恢复错误
