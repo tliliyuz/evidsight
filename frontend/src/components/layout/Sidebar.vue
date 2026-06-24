@@ -50,7 +50,7 @@
       </button>
     </div>
 
-    <!-- 中间：导航区域 -->
+    <!-- 中间：导航区域 + 历史任务列表 -->
     <div class="sidebar-middle">
       <!-- 导航链接 -->
       <nav class="rm-nav">
@@ -65,6 +65,35 @@
           <span v-show="!collapsed">历史任务</span>
         </router-link>
       </nav>
+
+      <!-- 历史任务列表（仅展开态） -->
+      <div class="history-section" v-show="!collapsed">
+        <div class="nav-group-label">最近任务</div>
+        <div
+          v-for="group in groupedTasks"
+          :key="group.label"
+        >
+          <div class="time-group-label">{{ group.label }}</div>
+          <div
+            v-for="task in group.tasks"
+            :key="task.task_id"
+            class="nav-item task-item"
+            :class="{ active: taskStore.current?.task_id === task.task_id }"
+            @click="handleLoadTask(task)"
+            :title="task.topic"
+          >
+            <i :class="taskStatusIcon(task.status)"></i>
+            <span class="task-topic-sidebar">{{ task.topic }}</span>
+          </div>
+        </div>
+        <!-- 加载中或无任务 -->
+        <div
+          v-if="taskStore.taskList.length === 0 && !taskStore.listLoading"
+          class="history-empty"
+        >
+          <span class="history-empty-text">暂无任务</span>
+        </div>
+      </div>
     </div>
 
     <!-- 底部：用户信息 -->
@@ -169,18 +198,87 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { useTaskStore } from '@/stores/task'
 import { changePassword } from '@/api/auth'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const taskStore = useTaskStore()
 
 /** 侧边栏折叠状态 */
 const collapsed = ref(false)
+
+// ===== 历史任务列表（侧边栏内） =====
+
+/** 按时间分组的任务列表 */
+const groupedTasks = computed(() => {
+  const tasks = taskStore.taskList || []
+  if (tasks.length === 0) return []
+
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterdayStart = new Date(todayStart.getTime() - 86400000)
+  const weekStart = new Date(todayStart.getTime() - 7 * 86400000)
+
+  const groups = [
+    { label: '今天', tasks: [] },
+    { label: '昨天', tasks: [] },
+    { label: '近 7 天', tasks: [] },
+    { label: '更早', tasks: [] },
+  ]
+
+  for (const task of tasks) {
+    const created = new Date(task.created_at)
+    if (created >= todayStart) {
+      groups[0].tasks.push(task)
+    } else if (created >= yesterdayStart) {
+      groups[1].tasks.push(task)
+    } else if (created >= weekStart) {
+      groups[2].tasks.push(task)
+    } else {
+      groups[3].tasks.push(task)
+    }
+  }
+
+  return groups.filter(g => g.tasks.length > 0)
+})
+
+/** 任务状态图标映射 */
+function taskStatusIcon(status) {
+  const map = {
+    completed: 'fas fa-circle-check',
+    partially_completed: 'fas fa-triangle-exclamation',
+    failed: 'fas fa-times-circle',
+    canceled: 'fas fa-ban',
+    running: 'fas fa-spinner fa-spin',
+    pending: 'fas fa-clock',
+  }
+  return map[status] || 'fas fa-question-circle'
+}
+
+/** 点击历史任务 → 加载详情并跳转研究页 */
+async function handleLoadTask(task) {
+  try {
+    await taskStore.fetchDetail(task.task_id)
+    router.push('/research')
+  } catch {
+    ElMessage.error('加载任务失败')
+  }
+}
+
+// 挂载时加载最近任务
+onMounted(async () => {
+  try {
+    await taskStore.fetchList({ page: 1, page_size: 10 })
+  } catch {
+    // 侧边栏列表加载失败非关键，静默处理
+  }
+})
 
 // ===== 用户菜单卡片 =====
 const showUserMenu = ref(false)
@@ -691,5 +789,66 @@ async function handleChangePassword() {
   width: calc(var(--rm-space-4) + var(--rm-space-1) / 2);
   text-align: center;
   font-size: var(--rm-text-sm);
+}
+
+/* ===== 历史任务列表 ===== */
+.history-section {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  margin-top: var(--rm-space-3);
+  padding-bottom: var(--rm-space-2);
+}
+
+.nav-group-label {
+  font-size: var(--rm-text-3xs);
+  font-weight: var(--rm-weight-bold);
+  color: var(--rm-text-inverse-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--rm-space-2) var(--rm-space-3);
+}
+
+.time-group-label {
+  font-size: var(--rm-text-3xs);
+  color: var(--rm-text-inverse-dim);
+  padding: var(--rm-space-1) var(--rm-space-3);
+  margin-top: var(--rm-space-1);
+}
+
+.task-item {
+  padding: var(--rm-space-1_5) var(--rm-space-3);
+}
+
+.task-item i {
+  flex-shrink: 0;
+  font-size: var(--rm-text-3xs);
+}
+
+/* 任务主题截断 */
+.task-topic-sidebar {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 状态图标颜色 */
+.task-item i.fa-circle-check { color: var(--rm-success); }
+.task-item i.fa-triangle-exclamation { color: var(--rm-warning); }
+.task-item i.fa-times-circle { color: var(--rm-danger); }
+.task-item i.fa-ban { color: var(--rm-text-inverse-dim); }
+.task-item i.fa-spinner { color: var(--rm-secondary); }
+.task-item i.fa-clock { color: var(--rm-text-inverse-dim); }
+
+.history-empty {
+  padding: var(--rm-space-4) var(--rm-space-3);
+  text-align: center;
+}
+
+.history-empty-text {
+  font-size: var(--rm-text-2xs);
+  color: var(--rm-text-inverse-dim);
 }
 </style>

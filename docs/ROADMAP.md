@@ -37,7 +37,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 > **状态标记**：⏳ 待开始 | 🔲 进行中 | ✅ 已完成 | ❌ 已废弃
 >
-> Phase 1 ✅ 完成 | Phase 2 ✅ 完成：§3.1 研究任务 CRUD + 状态机 ✅ | §3.2 Celery 异步 Pipeline 编排 ✅ | §3.3 Planning ✅ | §3.4 Search ✅ | §3.5 Fetch ✅ | §3.6 SSE 端点 ✅。
+> Phase 1 ✅ 完成 | Phase 2 ✅ 完成：§3.1 研究任务 CRUD + 状态机 ✅ | §3.2 Celery 异步 Pipeline 编排 ✅ | §3.3 Planning ✅ | §3.4 Search ✅ | §3.5 Fetch ✅ | §3.6 SSE 端点 ✅ | §3.7 前端研究任务创建+历史列表+SSE框架 ✅。
 
 ---
 ## 2. Phase 1：骨架搭建 + 认证系统（3-4 天）
@@ -225,17 +225,17 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 说明 | 依赖决策 |
 |:---|:---|:---|:---|
-| ⏳ | ResearchPage 创建态 | `views/ResearchPage.vue` — 任务提交表单（`topic` textarea ≤500字符 + 字数统计 + `task_type` 三选一可选卡片 + 高级选项折叠区 `max_sources` slider / `language` select）+ 提交按钮 loading + 3 个快捷示例卡片（点击自动填入）。提交成功→切换到运行态→自动连接 SSE | FRONTEND.md §4.3 |
-| ⏳ | 研究类型选择卡片组件 | `components/task/TypeCard.vue` — 三张可选卡片（comparison `fa-balance-scale` / explainer `fa-lightbulb` / analysis `fa-chart-line`），含标题+描述+示例，点击选中高亮（border-teal-600 + bg-teal-50），三选一不可多选 | FRONTEND.md §4.3.3 |
-| ⏳ | 快捷示例卡片组件 | `components/task/ExampleCard.vue` — 3 个预设示例，hover teal-500/50 border，点击自动填入 topic + 选中对应 task_type | FRONTEND.md §4.3.5 |
-| ⏳ | ResearchPage 状态切换 | 根据 `taskStore.current.status` 切换三种 UI：创建态（`null`）/ 运行态（`pending`/`running`）/ 完成态（`completed`/`partially_completed`/`failed`/`canceled`） | FRONTEND.md §4.2 |
-| ⏳ | TaskStore (Pinia) | `stores/task.js` — `taskList` / `current` / `sseStatus`(5态：disconnected/connecting/connected/reconnecting/error) / `progress` / `create()` / `fetchList()` / `fetchDetail()` / `cancel()` / `retry()` / `connectSSE()` / `disconnect()` | FRONTEND.md §1.2 |
-| ⏳ | Research API 封装 | `api/research.js` — `createTask()` / `getTaskList()` / `getTaskDetail()` / `deleteTask()` / `cancelTask()` / `retryTask()` / `getReport()` | — |
-| ⏳ | SSE 解析工具 | `utils/sse.js` — `fetch` + `ReadableStream` + `response.body.getReader()` 逐块读取 + buffer 按 `\n\n` 分割 + 注释帧跳过（`: ping`）+ `event:`/`data:` 行解析 → 回调 dispatch。从 DocMind 复制解析框架（~80 行），替换全部 17 种事件处理器 | FRONTEND.md §8, FRONTEND.md §1.4 |
-| ⏳ | 格式化工具 | `utils/format.js` — `formatDateTime()` / `formatRelativeTime()` / `formatNumber()` / `formatDuration()` / `formatBytes()`。已从 DocMind 复制并扩展 `formatNumber`/`formatDuration` | FRONTEND.md §1.4 |
-| ⏳ | HistoryPage | `views/HistoryPage.vue` — 表格（研究主题截取前 40 字符 + tooltip / task_type 标签 / 状态标签 / 来源数 / 证据数 / 创建时间 / 操作[查看/删除]）+ 状态筛选 `el-select` + 主题搜索 `el-input` + 分页 `el-pagination` + 空状态「暂无研究任务」+ 引导按钮 → `/research` | FRONTEND.md §5 |
-| ⏳ | History API 封装 | `api/research.js` 中 `getTaskList()` — 分页 + `status` 筛选 + `search` 搜索 + `sort_by=created_at` + `order=desc` | — |
-| ⏳ | Sidebar 历史任务列表 | Sidebar 内历史任务区域：调用 `taskStore.fetchList()` → 按时间分组（今天/昨天/近7天/更早）+ 状态图标（✅completed / ⚠️partially_completed / ❌failed / 🚫canceled / ⏳running / 🔄pending）+ 点击加载任务详情 + 高亮当前任务 | FRONTEND.md §4.6.1 |
+| ✅ | ResearchPage 创建态 | `views/ResearchPage.vue` — 任务提交表单（`topic` textarea ≤500字符 + 字数统计 + `task_type` 三选一可选卡片 + 高级选项折叠区 `max_sources` slider / `language` select）+ 提交按钮 loading + 3 个快捷示例卡片（点击自动填入）。提交成功→切换到运行态→自动连接 SSE | FRONTEND.md §4.3 |
+| ✅ | 研究类型选择卡片组件 | `components/task/TypeCard.vue` — 三张可选卡片（comparison `fa-balance-scale` / explainer `fa-lightbulb` / analysis `fa-chart-line`），含标题+描述+示例，点击选中高亮（border-teal-600 + bg-teal-50），三选一不可多选 | FRONTEND.md §4.3.3 |
+| ✅ | 快捷示例卡片组件 | `components/task/ExampleCard.vue` — 3 个预设示例，hover teal-500/50 border，点击自动填入 topic + 选中对应 task_type | FRONTEND.md §4.3.5 |
+| ✅ | ResearchPage 状态切换 | 根据 `taskStore.current.status` 切换三种 UI：创建态（`null`）/ 运行态（`pending`/`running`）/ 完成态（`completed`/`partially_completed`/`failed`/`canceled`） | FRONTEND.md §4.2 |
+| ✅ | TaskStore (Pinia) | `stores/task.js` — `taskList` / `current` / `sseStatus`(5态：disconnected/connecting/connected/reconnecting/error) / `progress` / `create()` / `fetchList()` / `fetchDetail()` / `cancel()` / `retry()` / `connectSSE()` / `disconnect()` | FRONTEND.md §1.2 |
+| ✅ | Research API 封装 | `api/research.js` — `createTask()` / `getTaskList()` / `getTaskDetail()` / `deleteTask()` / `cancelTask()` / `retryTask()` / `getReport()` | — |
+| ✅ | SSE 解析工具 | `utils/sse.js` — `fetch` + `ReadableStream` + `response.body.getReader()` 逐块读取 + buffer 按 `\n\n` 分割 + 注释帧跳过（`: ping`）+ `event:`/`data:` 行解析 → 回调 dispatch。从 DocMind 复制解析框架（~80 行），替换全部 17 种事件处理器 | FRONTEND.md §8, FRONTEND.md §1.4 |
+| ✅ | 格式化工具 | `utils/format.js` — `formatDateTime()` / `formatRelativeTime()` / `formatNumber()` / `formatDuration()` / `formatBytes()`。已从 DocMind 复制并扩展 `formatNumber`/`formatDuration` | FRONTEND.md §1.4 |
+| ✅ | HistoryPage | `views/HistoryPage.vue` — 表格（研究主题截取前 40 字符 + tooltip / task_type 标签 / 状态标签 / 来源数 / 证据数 / 创建时间 / 操作[查看/删除]）+ 状态筛选 `el-select` + 主题搜索 `el-input` + 分页 `el-pagination` + 空状态「暂无研究任务」+ 引导按钮 → `/research` | FRONTEND.md §5 |
+| ✅ | History API 封装 | `api/research.js` 中 `getTaskList()` — 分页 + `status` 筛选 + `search` 搜索 + `sort_by=created_at` + `order=desc` | — |
+| ✅ | Sidebar 历史任务列表 | Sidebar 内历史任务区域：调用 `taskStore.fetchList()` → 按时间分组（今天/昨天/近7天/更早）+ 状态图标（✅completed / ⚠️partially_completed / ❌failed / 🚫canceled / ⏳running / 🔄pending）+ 点击加载任务详情 + 高亮当前任务 | FRONTEND.md §4.6.1 |
 
 ### 3.8 🚫 本阶段不做的
 
