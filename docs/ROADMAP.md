@@ -262,13 +262,13 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ✅ | Searcher 单元测试 | 单元测试 | Tavily API Mock：正常搜索 / 单子问题 0 结果→SKIPPED / API 失败重试→恢复 / 重试耗尽→SKIPPED / 全失败→E3102 / 跨子问题 URL 去重 / 总结果>25 截断 |
 | ✅ | Fetcher 单元测试 | 单元测试 | HTTP Mock：正常抓取+正文提取 / 超时重试→恢复 / 403→直接 SKIPPED / DNS 失败→SKIPPED / SSRF 防护（内网 IP 拒绝）/ 正文为空→SKIPPED |
 | ✅ | SSE 事件流测试 | 单元测试 | `StreamingResponse` 事件序列 / 16 种事件 type 格式校验 / 15s 心跳帧 / `seq` 递增 / 重连 snapshot 数据结构 |
-| ⏳ | Celery 幂等锁测试 | 单元测试 | Redis `SET NX` 获取锁 / 已存在拒绝 / TTL 过期后重新获取 / 阶段完成后释放 |
+| ✅ | Celery 幂等锁测试 | 单元测试 | Redis `SET NX` 获取锁 / 已存在拒绝 / TTL 过期后重新获取 / 阶段完成后释放 / 异步版 acquire/release。共 19 用例 |
 | ✅ | Pipeline 端到端集成测试（前半段） | 集成测试 | Planning→Search→Fetch 三阶段 Mock 全链路 + SSE 事件序列完整 + Fetch 结果持久化验证 |
-| ⏳ | 前端 ResearchPage 创建态组件测试 | 组件测试 | 表单渲染 / topic 字数校验（>500字符拒绝）/ task_type 卡片选中高亮 / 高级选项折叠展开 / 提交 loading / 快捷示例卡片点击填入 / 提交成功切换到运行态 |
-| ⏳ | 前端 TypeCard 组件测试 | 组件测试 | 三卡渲染 / 点击选中（border-teal-600 + bg-teal-50）/ 三选一互斥 / 再次点击取消 |
-| ⏳ | 前端 HistoryPage 组件测试 | 组件测试 | 表格渲染 / 状态筛选 / 搜索防抖 / 分页 / 空状态 + 引导按钮 / 点击行加载任务 / 删除确认→行移除→空页回退 |
-| ⏳ | 前端 SSE 解析工具测试 | 单元测试 | `sse.js` 各 event 类型解析 / 注释帧跳过 / buffer 分割 / 异常格式容错 / 多行 data 拼接 |
-| ⏳ | 前端 TaskStore 测试 | 单元测试 | `create()` → `current` 更新 → SSE 自动连接 / `fetchList()` 分页 / `cancel()` → SSE 断开 / `sseStatus` 5 态流转 |
+| ✅ | 前端 ResearchPage 创建态组件测试 | 组件测试 | 表单渲染 / topic 字数校验（>500字符拒绝）/ task_type 卡片选中高亮 / 高级选项折叠展开 / 提交 loading / 快捷示例卡片点击填入 / 提交成功切换到运行态。共 15 用例 |
+| ✅ | 前端 TypeCard 组件测试 | 组件测试 | 三卡渲染 / 点击选中（border-teal-600 + bg-teal-50）/ 三选一互斥 / 再次点击取消。共 13 用例 |
+| ✅ | 前端 HistoryPage 组件测试 | 组件测试 | 表格渲染 / 状态筛选 / 搜索防抖 / 分页 / 空状态 + 引导按钮 / 点击行加载任务 / 删除确认→行移除→空页回退。共 13 用例 |
+| ✅ | 前端 SSE 解析工具测试 | 单元测试 | `sse.js` 各 event 类型解析 / 注释帧跳过 / buffer 分割 / 异常格式容错 / 多行 data 拼接。共 18 用例 |
+| ✅ | 前端 TaskStore 测试 | 单元测试 | `create()` → `current` 更新 → SSE 自动连接 / `fetchList()` 分页 / `cancel()` → SSE 断开 / `sseStatus` 5 态流转。共 27 用例 |
 
 ---
 

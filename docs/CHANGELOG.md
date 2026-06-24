@@ -14,8 +14,19 @@
 > Phase 2.3.1 研究任务 CRUD + 状态机完成（ROADMAP §3.1 ✅）。
 > Phase 2.3.2 Celery 异步 Pipeline 编排基础设施完成（ROADMAP §3.2 ✅）。
 > Phase 2.3.3-§3.6 Pipeline 前半段完成：Planning（LLM）+ Search（Tavily）+ Fetch（HTTP+trafilatura）+ SSE 端点（ROADMAP §3.3-§3.6 ✅）。
+> Phase 2 §3.7 前端实现完成：ResearchPage + HistoryPage + Sidebar 历史任务 + SSE 框架（ROADMAP §3.7 ✅）。
+> Phase 2 §3.9 测试完成：Celery 幂等锁 + 5 个前端测试全绿，Phase 2 全部关闭准入 Phase 3（ROADMAP §3.9 ✅）。
 
 ### Added
+- **Phase 2 §3.9 测试完成（ROADMAP §3.9）**——6 个新测试文件 + 105 个新测试用例：
+  - `tests/unit/tasks/test_lock.py` — Celery 幂等锁单元测试（19 用例：Key 格式验证 / SET NX 获取成功+拒绝 / 自定义 TTL / 不同 step_type·task_id Key 隔离 / 七阶段全类型 / 释放锁+重复释放 / check_step_lock 存在+不存在 / 完整生命周期 / 并发拒绝 / 异步版 acquire+release+自定义 TTL）。Mock Redis 客户端在函数边界截断
+  - `frontend/tests/unit/sse.test.js` — SSE 解析工具单元测试（18 用例：单行 event+data 解析 / 注释帧跳过 / 纯注释帧过滤 / 多行 data 拼接 / 跨 chunk buffer 保留 / JSON 解析失败容错+onError / event/data 无空格前缀兼容 / 空帧跳过 / 14 种事件类型全量遍历 / 连接状态机 connecting→connected / close→disconnected / 无 token→无 Authorization 头 / 有 token→Bearer 携带 / HTTP 500→reconnecting / close 阻止重连 / 重试耗尽→error / 重连成功后恢复 connected）。Mock fetch + ReadableStream（悬空流模式避免递归重连）
+  - `frontend/tests/unit/taskStore.test.js` — TaskStore 单元测试（27 用例：createTask 成功 current 字段+SSE 重置+失败 loading 恢复 / fetchList 正常+空列表+status 筛选+分页参数 / fetchDetail 满字段+不存在 404 / deleteTask 本地移除+total 减 1+清空 current+不清空非当前 / cancelTask do SSE+更新状态+非当前任务不更新 / connectSSE 状态流转 / disconnectSSE close+重复调用不报错 / clearCurrent 清空 current+progress / handleSSEEvent task.created·task.status.snapshot·phase.started·task.progress·task.completed·task.failed·task.canceled·未知事件）。Mock API + SSE 模块在边界截断
+  - `frontend/tests/components/TypeCard.test.js` — TypeCard 组件测试（13 用例：comparison/explainer/analysis 三卡独立渲染+图标+标题+描述+示例 / selected class 开关 / 勾标 icon 显示隐藏 / click emit select 三种 type / selected=true 再次点击仍 emit / 父组件 selected prop 控制三选一互斥 / 非法 type validator 警告）
+  - `frontend/tests/components/ResearchPage.test.js` — ResearchPage 创建态组件测试（15 用例：el-input textarea 渲染 / 三张 TypeCard / 提交按钮初始 disabled / 三张 ExampleCard / 高级选项默认折叠+展开+再折叠 / 示例卡片点击填入 topic+task_type / topic 为空·未选 type·两者齐全 按钮 disabled+enabled / 提交中 loading+disabled / 提交成功→切运行态+API 参数校验+SSE 连接 / TypeCard 选中状态切换 / 422 错误 ElMessage.error）。ElementPlus mocked 场景使用 `wrapper.vm.form` 直接设值
+  - `frontend/tests/components/HistoryPage.test.js` — HistoryPage 组件测试（13 用例：列表加载 store 数据 / 状态筛选重置 currentPage=1 / 搜索 300ms 防抖验证 / 空状态文字+引导 / 查看→fetchDetail→router.push / 删除取消→不调 API / 删除确认→API 调用+ElMessage.success+本地移除 / 空页回退 / 分页组件显示+隐藏 / 挂载自动 loadList / 分页换页+pageSize 变更 reset）。所有 el-* 组件 stubbed（scoped slots 兼容）
+  - 后端全量回归 380 passed（+19 新增）/ 前端全量回归 131 passed（+86 新增）
+
 - **Phase 2 §3.7 前端实现：研究任务创建 + 历史列表 + SSE 框架（ROADMAP §3.7）**——5 新建文件 + 2 重写文件 + 1 修改文件：
   - `frontend/src/api/research.js` — 研究任务 API 封装（6 个函数）：`createTask()` / `getTaskList()`（分页+status 筛选）/ `getTaskDetail()` / `deleteTask()` / `cancelTask()` / `getTaskState()`。模式对齐 `api/auth.js`，统一使用 Axios 拦截器处理 Token 刷新
   - `frontend/src/utils/sse.js` — SSE 流式解析工具（~120 行）：`connectSSE(url, options)` → 返回 `{ close }`。`fetch` + `ReadableStream` + `response.body.getReader()` 逐块读取 → buffer 按 `\n\n` 分割事件帧 → 跳过注释帧（`: ping`）→ 解析 `event:`/`data:` 行 → JSON.parse → 回调 `onEvent(eventName, data)`。连接状态机 5 态（`connecting`→`connected`→`reconnecting`→`error`→`disconnected`）。断线指数退避重连（1s/2s/4s/8s，最多 3 次，可配）。`close()` 调 `abortController.abort()` + `reader.cancel()` 并阻止重连。对齐 FRONTEND.md §8 + API.md §4
