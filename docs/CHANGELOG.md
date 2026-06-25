@@ -16,6 +16,20 @@
 > Phase 2.3.3-§3.6 Pipeline 前半段完成：Planning（LLM）+ Search（Tavily）+ Fetch（HTTP+trafilatura）+ SSE 端点（ROADMAP §3.3-§3.6 ✅）。
 > Phase 2 §3.7 前端实现完成：ResearchPage + HistoryPage + Sidebar 历史任务 + SSE 框架（ROADMAP §3.7 ✅）。
 > Phase 2 §3.9 测试完成：Celery 幂等锁 + 5 个前端测试全绿，Phase 2 全部关闭准入 Phase 3（ROADMAP §3.9 ✅）。
+> Phase 3 §4.1 Rerank ✅ | §4.2 Synthesis ✅。
+
+### Added
+- **Phase 3 §4.2 Synthesis 阶段实现（ROADMAP §4.2 / RESEARCH_PIPELINE §6）**——跨源综合：
+  - `app/pipeline/synthesizer.py` — Synthesis 阶段完整实现（~340 行）：`ConflictPosition`/`SynthesisCluster`/`SynthesisConflict`/`SynthesisNotes` 内存类型定义；从 `evidence_items` 表读取 Rerank 产出的 Evidence（`selectinload(EvidenceItem.source)`），按 `relevance_score` 降序 + `max_sources` 截断 + 单条内容截断至 1500 字符；使用 0-based evidence 索引构建 Prompt；LLM 调用 `deepseek-v4-pro`（`deep_thinking=True`，`temperature=0.3`，`max_tokens=5000`）；严格 JSON 解析与校验（clusters 必填 + theme/summary/consensus_level 校验 + supporting/conflicting indices 校验；conflicts 允许 null → 空数组；knowledge_gaps 数组；overall_assessment 字符串）；越界索引过滤不阻断，非整数索引触发重试；重试 3 次耗尽 → `SynthesisFailedException(E3104, recoverable=true)`；空 Evidence → E3104 `"没有可供综合的证据"`；输出 SSE `step.progress`(clusters_count) + `step.completed`(clusters/conflicts/gaps_count)
+  - `app/services/pipeline_orchestrator.py` — `build_default_phase_handlers()` 注册 `synthesis` handler，import `app.pipeline.synthesizer.run_synthesis`
+  - `tests/unit/pipeline/test_synthesizer.py` — Synthesis 单元测试（10 用例：正常产出完整 output + SSE / Evidence 降序+1500 截断+0-based 索引 / max_sources=3 截断 / 3 种 task_type Prompt 注入 / conflicts:null → 空数组 / 越界索引过滤 / 无效 JSON 重试后成功 / 无效 JSON 重试耗尽→E3104 call_count=3 / LLM 异常重试耗尽→E3104 call_count=3 / 空 evidence→E3104 且不调用 LLM）
+
+### Fixed
+- **失败模型修正：解耦「致命停止」与「不可恢复」两个维度**：
+  - `app/core/task_state_resolver.py` — `FATAL_STEP_ERROR_CODES` 从 5 码扩展至 10 码（新增 E3104/E3107/E3108/E3109/E3111，E3103 仍由 Resolver 生成故不入集）；新增 `RECOVERABLE_STEP_ERROR_CODES`（E3102/E3104/E3107/E3108/E3109/E3111，对齐 API.md §5 recoverable 列）；`_check_fatal()` 的 `recoverable` 字段按异常自身定义传播（致命停止 ≠ 不可恢复）
+  - `app/services/pipeline_orchestrator.py` — 新增 `_extract_recoverable()` 从 `AppException.error_detail` 提取 recoverable、`_get_last_checkpoint()` 防御性读取 `execution_context.last_completed_step_id`、`_build_task_failed_payload()` 构造 task.failed payload（仅 recoverable=true 时附带 `last_checkpoint`）；替换 3 处硬编码 `recoverable=False`：`_handle_step_error` FATAL 分支 / `_handle_fatal_error` CAS + SSE / `_check_early_termination` 与 `_finalize_task` failed 分支
+  - `tests/unit/core/test_task_state_resolver.py` — 更新 FATAL 集测试（10 码完整 + E3103 不入集 + RECOVERABLE 集完整）；所有原用 E3104 模拟「可降级失败」的用例改为 `error_code=None`（修复后裸异常才是可降级）；新增 `test_Fatal失败_E3104_返回failed且recoverable为True` 与 `test_Fatal失败_E3101_返回failed且recoverable为False`
+  - `tests/unit/services/test_pipeline_orchestrator.py` — 重写 `test_可恢复致命错误_emit_task_failed_recoverable为True_终止Pipeline`：从 planning handler 抛 `SynthesisFailedException`，断言 `task.failed` 中 `recoverable=True` + 附带 `last_checkpoint` + Pipeline 终止（search 未执行）+ `task.warning` 为 0
 
 ### Added
 - **`research_sources` 表新增 `content` 列，Fetcher 持久化正文供 Rerank 复用**：

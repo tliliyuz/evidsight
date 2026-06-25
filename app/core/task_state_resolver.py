@@ -19,15 +19,32 @@
 import math
 from typing import Any
 
-# ── 不可恢复（FATAL）的 Step 错误码 ────────────────────────────
-# 这些错误一旦发生，任务无法通过断点续跑恢复，直接判定 FAILED。
+# ── 致命停止（FATAL）的 Step 错误码 ────────────────────────────
+# 这些错误一旦发生，Pipeline 立即停止，Task 判定 FAILED。
+# 但"致命停止"≠"不可恢复"：recoverable 由异常自身携带，orchestrator 据实传播。
 # 定义来源：ARCHITECTURE.md §5.5 Failure Model + API.md §5.3
 FATAL_STEP_ERROR_CODES = frozenset({
     "E3101",   # PlanningFailed — LLM 无法拆解研究主题
     "E3102",   # SearchFailed — Tavily API 完全不可用（全部搜索失败）
+    "E3104",   # SynthesisFailed — LLM 综合失败
     "E3105",   # RerankFailed — Rerank 输入格式错误或计算失败
     "E3106",   # EvidenceGraphBuildFailed — Evidence Graph 构建失败
+    "E3107",   # RenderFailed — 报告渲染失败
+    "E3108",   # LLMTimeout — LLM 调用超时
+    "E3109",   # LLMRateLimit — LLM API 限流
     "E3110",   # LLMAuthFailed — LLM 认证失败（重试无意义）
+    "E3111",   # LLMUnknown — LLM 调用返回未预期错误
+})
+
+# ── recoverable=true 的 Step 错误码（API.md §5 recoverable 列）────────────────
+# 这些错误虽导致 Pipeline 致命停止，但用户可在修复外部原因后断点续跑 / 重试。
+RECOVERABLE_STEP_ERROR_CODES = frozenset({
+    "E3102",   # SearchFailed
+    "E3104",   # SynthesisFailed
+    "E3107",   # RenderFailed
+    "E3108",   # LLMTimeout
+    "E3109",   # LLMRateLimit
+    "E3111",   # LLMUnknown
 })
 
 
@@ -89,15 +106,16 @@ class TaskStateResolver:
     def _check_fatal(self, steps: list[Any]) -> dict | None:
         """检查是否存在 FATAL 错误。
 
-        遍历所有 Step，若存在不可恢复的失败（错误码在 FATAL_STEP_ERROR_CODES 中），
+        遍历所有 Step，若存在致命停止的失败（错误码在 FATAL_STEP_ERROR_CODES 中），
         立即返回 error_info，不再评估 Evidence Threshold。
+        recoverable 按异常自身定义传播（致命停止 ≠ 不可恢复）。
         """
         for step in steps:
             if step.status == "failed" and step.error_code in FATAL_STEP_ERROR_CODES:
                 return {
                     "error_code": step.error_code,
                     "error_message": step.error_message or "致命错误，任务无法继续",
-                    "recoverable": False,
+                    "recoverable": step.error_code in RECOVERABLE_STEP_ERROR_CODES,
                 }
         return None
 

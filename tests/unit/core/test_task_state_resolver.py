@@ -11,7 +11,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.task_state_resolver import TaskStateResolver, FATAL_STEP_ERROR_CODES
+from app.core.task_state_resolver import (
+    TaskStateResolver,
+    FATAL_STEP_ERROR_CODES,
+    RECOVERABLE_STEP_ERROR_CODES,
+)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -129,11 +133,11 @@ class TestTaskStateResolver:
     # ── 部分失败 → Evidence Threshold ─────────────────────────
 
     def test_部分失败_证据充足_返回partially_completed(self):
-        """证据 >= min_evidence → PARTIALLY_COMPLETED。"""
+        """failed + error_code=None（可降级）且证据 >= min_evidence → PARTIALLY_COMPLETED。"""
         task = _make_task(max_sources=10)  # min_evidence = max(5, ceil(10*0.4)) = 5
         steps = [
             _make_step("completed"),
-            _make_step("failed", error_code="E3104", error_message="Synthesis 失败"),  # recoverable
+            _make_step("failed", error_code=None, error_message="裸异常失败"),  # 可降级
             _make_step("completed"),
             _make_step("skipped"),
         ]
@@ -142,11 +146,11 @@ class TestTaskStateResolver:
         assert err is None
 
     def test_部分失败_证据不足_返回failed_E3103(self):
-        """证据 < min_evidence → FAILED E3103。"""
+        """可降级失败但证据 < min_evidence → FAILED E3103。"""
         task = _make_task(max_sources=10)  # min_evidence = 5
         steps = [
             _make_step("completed"),
-            _make_step("failed", error_code="E3104", error_message="Synthesis 失败"),
+            _make_step("failed", error_code=None, error_message="裸异常失败"),
             _make_step("skipped"),
             _make_step("skipped"),
         ]
@@ -161,7 +165,7 @@ class TestTaskStateResolver:
         task = _make_task(max_sources=1)  # ceil(1*0.4)=1, max(5,1)=5
         steps = [
             _make_step("completed"),
-            _make_step("failed", error_code="E3104"),
+            _make_step("failed", error_code=None, error_message="裸异常失败"),
         ]
         status, err = self.resolver.resolve(task, steps, evidence_count=4)
         assert status == "failed"
@@ -175,7 +179,7 @@ class TestTaskStateResolver:
         task = _make_task(max_sources=50)
         steps = [
             _make_step("completed"),
-            _make_step("failed", error_code="E3104"),
+            _make_step("failed", error_code=None, error_message="裸异常失败"),
         ]
         status, err = self.resolver.resolve(task, steps, evidence_count=19)
         assert status == "failed"
@@ -222,21 +226,48 @@ class TestTaskStateResolver:
         task.requirements = None
         steps = [
             _make_step("completed"),
-            _make_step("failed", error_code="E3104"),
+            _make_step("failed", error_code=None, error_message="裸异常失败"),
         ]
         status, err = self.resolver.resolve(task, steps, evidence_count=5)
         assert status == "partially_completed"
 
-    def test_非致命失败_可恢复_降级判断(self):
-        """E3104 (SynthesisFailed) → recoverable=True → 降级到 PARTIALLY_COMPLETED。"""
+    def test_非致命失败_error_code为None_证据充足_降级到partially_completed(self):
+        """failed + error_code=None（裸异常，可降级）且证据充足 → PARTIALLY_COMPLETED。"""
         task = _make_task()
         steps = [
             _make_step("completed"),
             _make_step("completed"),
-            _make_step("failed", error_code="E3104", error_message="Synthesis 失败"),
+            _make_step("failed", error_code=None, error_message="裸异常失败"),
         ]
         status, err = self.resolver.resolve(task, steps, evidence_count=6)
         assert status == "partially_completed"
+        assert err is None
+
+    def test_Fatal失败_E3104_返回failed且recoverable为True(self):
+        """E3104 (SynthesisFailed) 在 FATAL 集中，recoverable=True，直接 FAILED。"""
+        task = _make_task()
+        steps = [
+            _make_step("completed"),
+            _make_step("failed", error_code="E3104", error_message="Synthesis 失败"),
+            _make_step("completed"),
+        ]
+        status, err = self.resolver.resolve(task, steps, evidence_count=10)
+        assert status == "failed"
+        assert err is not None
+        assert err["error_code"] == "E3104"
+        assert err["recoverable"] is True
+
+    def test_Fatal失败_E3101_返回failed且recoverable为False(self):
+        """E3101 (PlanningFailed) 在 FATAL 集中，recoverable=False，直接 FAILED。"""
+        task = _make_task()
+        steps = [
+            _make_step("failed", error_code="E3101", error_message="Planning 失败"),
+        ]
+        status, err = self.resolver.resolve(task, steps, evidence_count=10)
+        assert status == "failed"
+        assert err is not None
+        assert err["error_code"] == "E3101"
+        assert err["recoverable"] is False
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -247,14 +278,33 @@ class TestTaskStateResolver:
 class TestFatalStepErrorCodes:
     """验证 FATAL_STEP_ERROR_CODES 常量完整性"""
 
-    def test_包含全部5个不可恢复错误码(self):
+    def test_包含全部致命停止错误码(self):
+        """FATAL 集应包含全部 10 个 handler 抛出的 E31xx（E3103 由 Resolver 生成，不入集）。"""
         assert "E3101" in FATAL_STEP_ERROR_CODES  # PlanningFailed
-        assert "E3102" in FATAL_STEP_ERROR_CODES  # SearchFailed（全部搜索失败→致命）
+        assert "E3102" in FATAL_STEP_ERROR_CODES  # SearchFailed
+        assert "E3104" in FATAL_STEP_ERROR_CODES  # SynthesisFailed
         assert "E3105" in FATAL_STEP_ERROR_CODES  # RerankFailed
         assert "E3106" in FATAL_STEP_ERROR_CODES  # EvidenceGraphBuildFailed
+        assert "E3107" in FATAL_STEP_ERROR_CODES  # RenderFailed
+        assert "E3108" in FATAL_STEP_ERROR_CODES  # LLMTimeout
+        assert "E3109" in FATAL_STEP_ERROR_CODES  # LLMRateLimit
         assert "E3110" in FATAL_STEP_ERROR_CODES  # LLMAuthFailed
+        assert "E3111" in FATAL_STEP_ERROR_CODES  # LLMUnknown
 
-    def test_不包含可恢复错误码(self):
-        assert "E3104" not in FATAL_STEP_ERROR_CODES  # SynthesisFailed → recoverable
-        assert "E3107" not in FATAL_STEP_ERROR_CODES  # RenderFailed → recoverable
-        assert "E3108" not in FATAL_STEP_ERROR_CODES  # LLMTimeout → recoverable
+    def test_不包含E3103_由resolver生成(self):
+        """E3103 由 TaskStateResolver 在证据不足时生成，不应被 handler 抛出。"""
+        assert "E3103" not in FATAL_STEP_ERROR_CODES
+
+    def test_可恢复错误码集合完整(self):
+        """RECOVERABLE 集对齐 API.md §5 recoverable 列。"""
+        assert "E3102" in RECOVERABLE_STEP_ERROR_CODES
+        assert "E3104" in RECOVERABLE_STEP_ERROR_CODES
+        assert "E3107" in RECOVERABLE_STEP_ERROR_CODES
+        assert "E3108" in RECOVERABLE_STEP_ERROR_CODES
+        assert "E3109" in RECOVERABLE_STEP_ERROR_CODES
+        assert "E3111" in RECOVERABLE_STEP_ERROR_CODES
+        assert "E3101" not in RECOVERABLE_STEP_ERROR_CODES
+        assert "E3103" not in RECOVERABLE_STEP_ERROR_CODES
+        assert "E3105" not in RECOVERABLE_STEP_ERROR_CODES
+        assert "E3106" not in RECOVERABLE_STEP_ERROR_CODES
+        assert "E3110" not in RECOVERABLE_STEP_ERROR_CODES

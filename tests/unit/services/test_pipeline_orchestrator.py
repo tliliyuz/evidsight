@@ -223,11 +223,12 @@ class TestFatalErrorTermination:
         assert "E3101" in FATAL_STEP_ERROR_CODES
 
     @pytest.mark.asyncio
-    async def test_可恢复错误_emit_warning_不终止(self):
-        """非 FATAL 错误（E3104）→ emit warning + Pipeline 继续。"""
+    async def test_可恢复致命错误_emit_task_failed_recoverable为True_终止Pipeline(self):
+        """FATAL 但 recoverable=true 的错误（E3104）→ emit task.failed(recoverable=True) + Pipeline 终止。"""
         from app.core.exceptions import SynthesisFailedException
 
         task = _make_task()
+        task.execution_context = {"last_completed_step_id": "some-step-uuid"}
         session = AsyncMock()
         sse_bridge = MagicMock()
         sse_bridge.task_id = str(task.id)
@@ -235,7 +236,7 @@ class TestFatalErrorTermination:
         call_order = []
         async def failing_planning(t, s, sess, sb):
             call_order.append("planning")
-            raise SynthesisFailedException("模拟可恢复失败")
+            raise SynthesisFailedException("模拟可恢复致命失败")
 
         async def ok_search(t, s, sess, sb):
             call_order.append("search")
@@ -252,14 +253,25 @@ class TestFatalErrorTermination:
             with patch("app.services.pipeline_orchestrator.release_step_lock_async"):
                 await orchestrator.run()
 
-        # 验证 warning 事件被发送
+        # 验证 task.failed 事件被发送且 recoverable=True
+        failed_calls = [
+            c for c in sse_bridge.publish.call_args_list
+            if c[0][0] == EVENT_TASK_FAILED
+        ]
+        assert len(failed_calls) >= 1
+        payload = failed_calls[0][0][1]
+        assert payload["recoverable"] is True
+        assert payload.get("last_checkpoint") == "some-step-uuid"
+
+        # 验证没有 warning 事件（所有 E31xx 均致命）
         warning_calls = [
             c for c in sse_bridge.publish.call_args_list
             if c[0][0] == EVENT_TASK_WARNING
         ]
-        assert len(warning_calls) >= 1
-        # 验证 Pipeline 继续执行 search
-        assert "search" in call_order
+        assert len(warning_calls) == 0
+
+        # 验证 Pipeline 在 planning 后终止，search 未执行
+        assert call_order == ["planning"]
 
 
 # ═══════════════════════════════════════════════════════════════

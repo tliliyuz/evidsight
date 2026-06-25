@@ -8,7 +8,8 @@ Execution Context → SSE 事件推送 → TaskStateResolver 评估。
 
 Phase 函数注册表：
 - planning / search / fetch → Phase 2 stub（§3.3-§3.5 实现）
-- rerank / synthesis / evidence_graph / render → 自动跳过（Phase 3 实现）
+- rerank / synthesis → Phase 3 实现
+- evidence_graph / render → 自动跳过（Phase 3 后续实现）
 """
 
 import logging
@@ -42,6 +43,17 @@ from app.pipeline.sse_bridge import (
 from app.tasks.lock import acquire_step_lock_async, release_step_lock_async
 
 logger = logging.getLogger(__name__)
+
+# ── 工具函数 ────────────────────────────────────────────────
+
+
+def _extract_recoverable(error: Exception) -> bool:
+    """从 AppException 的 error_detail 中提取 recoverable 字段。"""
+    detail = getattr(error, "error_detail", None)
+    if isinstance(detail, dict):
+        return bool(detail.get("recoverable", False))
+    return False
+
 
 # ── Phase 函数类型 ──────────────────────────────────────────
 
@@ -273,6 +285,39 @@ class PipelineOrchestrator:
             # 7. 释放幂等锁
             await release_step_lock_async(str(self._task.id), step_type)
 
+    # ── 工具方法 ──────────────────────────────────────────────
+
+    def _get_last_checkpoint(self) -> str | None:
+        """从 execution_context 中安全读取 last_completed_step_id。"""
+        context = getattr(self._task, "execution_context", None) or {}
+        if isinstance(context, dict):
+            last = context.get("last_completed_step_id")
+            if last:
+                return str(last)
+        return None
+
+    def _build_task_failed_payload(
+        self,
+        error_type: str,
+        error_description: str,
+        recoverable: bool,
+    ) -> dict:
+        """构造 task.failed SSE payload。
+
+        仅 recoverable=true 时附带 last_checkpoint，供客户端断点续跑。
+        """
+        payload: dict = {
+            "task_id": str(self._task.id),
+            "error_type": error_type,
+            "error_description": error_description,
+            "recoverable": recoverable,
+        }
+        if recoverable:
+            last_checkpoint = self._get_last_checkpoint()
+            if last_checkpoint:
+                payload["last_checkpoint"] = last_checkpoint
+        return payload
+
     # ── Step 生命周期 ───────────────────────────────────────
 
     async def _create_step(self, step_type: str) -> ResearchStep:
@@ -453,12 +498,13 @@ class PipelineOrchestrator:
 
         # 判断是否致命：检查 error_code 是否在 FATAL 集合中
         if error_code and error_code in FATAL_STEP_ERROR_CODES:
-            self._sse.publish(EVENT_TASK_FAILED, {
-                "task_id": str(self._task.id),
-                "error_type": error.__class__.__name__,
-                "error_description": error_msg,
-                "recoverable": False,
-            })
+            recoverable = _extract_recoverable(error)
+            payload = self._build_task_failed_payload(
+                error_type=error.__class__.__name__,
+                error_description=error_msg,
+                recoverable=recoverable,
+            )
+            self._sse.publish(EVENT_TASK_FAILED, payload)
             raise  # 重新抛出，由 run() 的顶层 try/except 处理
 
         # 可降级失败 → warning
@@ -561,12 +607,12 @@ class PipelineOrchestrator:
             )
             await self._session.flush()
 
-            self._sse.publish(EVENT_TASK_FAILED, {
-                "task_id": str(self._task.id),
-                "error_type": error_info.get("error_code", "Unknown"),
-                "error_description": error_info.get("error_message", ""),
-                "recoverable": error_info.get("recoverable", False),
-            })
+            payload = self._build_task_failed_payload(
+                error_type=error_info.get("error_code", "Unknown"),
+                error_description=error_info.get("error_message", ""),
+                recoverable=error_info.get("recoverable", False),
+            )
+            self._sse.publish(EVENT_TASK_FAILED, payload)
 
             raise TaskFatalException(
                 f"Task 提前终止: {error_info.get('error_code')} - {error_info.get('error_message')}",
@@ -630,12 +676,12 @@ class PipelineOrchestrator:
                 "trace": self._task.trace,
             })
         elif new_status == "failed":
-            self._sse.publish(EVENT_TASK_FAILED, {
-                "task_id": str(self._task.id),
-                "error_type": error_info.get("error_code", "Unknown") if error_info else "Unknown",
-                "error_description": error_info.get("error_message", "") if error_info else "",
-                "recoverable": error_info.get("recoverable", False) if error_info else False,
-            })
+            payload = self._build_task_failed_payload(
+                error_type=error_info.get("error_code", "Unknown") if error_info else "Unknown",
+                error_description=error_info.get("error_message", "") if error_info else "",
+                recoverable=error_info.get("recoverable", False) if error_info else False,
+            )
+            self._sse.publish(EVENT_TASK_FAILED, payload)
 
         logger.info(
             "Pipeline 完成: task_id=%s, status=%s, steps=%d, evidence=%d",
@@ -649,6 +695,7 @@ class PipelineOrchestrator:
             error_code = getattr(error, "error_code", None) or "E3999"
             error_msg = str(error)
             trace_data = self._trace.finish()
+            recoverable = _extract_recoverable(error)
 
             # CAS: 仅当 status='running' 时才更新为 failed
             await self._session.execute(
@@ -659,18 +706,18 @@ class PipelineOrchestrator:
                     completed_at=now,
                     error_code=error_code,
                     error_message=error_msg,
-                    recoverable=False,
+                    recoverable=recoverable,
                     trace=trace_data,
                 )
             )
             await self._session.flush()
 
-            self._sse.publish(EVENT_TASK_FAILED, {
-                "task_id": str(self._task.id),
-                "error_type": error.__class__.__name__,
-                "error_description": error_msg,
-                "recoverable": False,
-            })
+            payload = self._build_task_failed_payload(
+                error_type=error.__class__.__name__,
+                error_description=error_msg,
+                recoverable=recoverable,
+            )
+            self._sse.publish(EVENT_TASK_FAILED, payload)
         except Exception as inner:
             logger.exception("写入致命错误时再次失败: %s", inner)
 
@@ -725,6 +772,12 @@ def build_default_phase_handlers() -> dict[str, PhaseFunc]:
     except ImportError:
         logger.warning("reranker.py 未找到，rerank 阶段将跳过")
 
-    # synthesis / evidence_graph / render 未注册 → Orchestrator 自动 skip
+    try:
+        from app.pipeline.synthesizer import run_synthesis
+        handlers["synthesis"] = run_synthesis
+    except ImportError:
+        logger.warning("synthesizer.py 未找到，synthesis 阶段将跳过")
+
+    # evidence_graph / render 未注册 → Orchestrator 自动 skip
 
     return handlers

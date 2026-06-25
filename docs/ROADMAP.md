@@ -38,7 +38,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 > **状态标记**：⏳ 待开始 | 🔲 进行中 | ✅ 已完成 | ❌ 已废弃
 >
 > Phase 1 ✅ 完成 | Phase 2 ✅ 完成：§3.1 研究任务 CRUD + 状态机 ✅ | §3.2 Celery 异步 Pipeline 编排 ✅ | §3.3 Planning ✅ | §3.4 Search ✅ | §3.5 Fetch ✅ | §3.6 SSE 端点 ✅ | §3.7 前端研究任务创建+历史列表+SSE框架 ✅。
-> Phase 3 🔲 进行中：§4.1 Rerank ✅ | §4.2 Synthesis ⏳ | §4.3 Evidence Graph Build ⏳ | §4.4 Report Render ⏳ | §4.5 Cancel ⏳ | §4.6 成本追踪 ⏳ | §4.7 前端运行态/完成态 ⏳。
+> Phase 3 🔲 进行中：§4.1 Rerank ✅ | §4.2 Synthesis ✅ | §4.3 Evidence Graph Build ⏳ | §4.4 Report Render ⏳ | §4.5 Cancel ⏳ | §4.6 成本追踪 ⏳ | §4.7 前端运行态/完成态 ⏳。
 
 ---
 ## 2. Phase 1：骨架搭建 + 认证系统（3-4 天）
@@ -292,9 +292,9 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 说明 | 依赖决策 |
 |:---|:---|:---|:---|
-| ⏳ | Synthesizer 实现 | `app/pipeline/synthesizer.py` — deepseek-v4-pro（`deep_thinking=True`，`temperature=0.3`，`max_tokens=5000`）：观点聚类 + 共识识别 + 冲突发现 + 信息缺口 | 决策 #22 |
-| ⏳ | Synthesis Prompt 模板 | Evidence[] 按 `relevance_score` 降序排列，单条截断至 1500 字符，输出 `clusters[]` / `conflicts[]` / `knowledge_gaps[]` / `overall_assessment` | 决策 #23 |
-| ⏳ | Synthesis 失败策略 | LLM 失败→重试 3 次→仍失败→E3104 (`recoverable=true`) / 输出 JSON 无效→重试（计入次数） / conflicts 为 null→不阻断 | — |
+| ✅ | Synthesizer 实现 | `app/pipeline/synthesizer.py` — deepseek-v4-pro（`deep_thinking=True`，`temperature=0.3`，`max_tokens=5000`）：观点聚类 + 共识识别 + 冲突发现 + 信息缺口。读取 `EvidenceItem[]`（含 source 关系）按 `relevance_score` 降序 + `max_sources` 截断 + 单条内容截断至 1500 字符；0-based evidence 索引；LLM 失败→重试 3 次→仍失败→E3104 (`recoverable=true`) / 输出 JSON 无效→重试（计入次数） / conflicts 为 null→不阻断；越界索引过滤，非整数索引触发重试 | 决策 #22 |
+| ✅ | Synthesis Prompt 模板 | Evidence[] 按 `relevance_score` 降序排列，单条截断至 1500 字符，输出 `clusters[]` / `conflicts[]` / `knowledge_gaps[]` / `overall_assessment` | 决策 #23 |
+| ✅ | Synthesis 失败策略 | LLM 失败→重试 3 次→仍失败→E3104 (`recoverable=true`) / 输出 JSON 无效→重试（计入次数） / conflicts 为 null→不阻断 | — |
 
 > **Synthesis Prompt**：[RESEARCH_PIPELINE.md §6.2](RESEARCH_PIPELINE.md#62-system-prompt)。
 
@@ -371,7 +371,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 |:---|:---|:---|:---|
 | ✅ | BM25 粗筛测试 | 单元测试 | BM25Okapi 初始化 / jieba 分词 / 段落级评分 / top-3 选取 / 候选总数上限 45 / 空文档处理 |
 | ✅ | LLM Rerank 测试 | 单元测试 | DeepSeek API Mock：正常评分 / task_type 加权维度验证（3 种）/ 无效 JSON 重试 / 重试耗尽→E3105 / 分数范围 0-10 校验 |
-| ⏳ | Synthesis 单元测试 | 单元测试 | DeepSeek API Mock：观点聚类 / 共识识别 / 冲突检测 / 信息缺口 / 无效 JSON 重试 / 重试耗尽→E3104 |
+| ✅ | Synthesis 单元测试 | 单元测试 | DeepSeek API Mock：观点聚类 / 共识识别 / 冲突检测 / 信息缺口 / 无效 JSON 重试 / 重试耗尽→E3104 / 空 evidence→E3104 / max_sources 截断 / task_type 注入 / 越界索引过滤 / conflicts null→空数组。共 10 用例 |
 | ⏳ | Evidence Graph Build 测试 | 单元测试 | 数据导入完整性 / items 排序 / cluster 写回 / sources 聚合 / 空输入处理 / E3106 触发条件 |
 | ⏳ | Report Render 测试 | 单元测试 | 模板选择（3 种 task_type）/ LLM 渲染 Mock / `[来源N]` 正则提取 / `sources[]` 去重排序 / 引用缺失标记 / E3107 |
 | ⏳ | Report API 接口测试 | 接口测试 | `GET /api/research/{task_id}/report` 完整 JSON 结构校验（`report.sections[]` + `evidence_graph` + `trace`）+ E2001/E2002/E2003 |
