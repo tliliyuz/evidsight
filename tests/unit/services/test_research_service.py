@@ -18,14 +18,20 @@ from app.core.exceptions import (
     InvalidRequirementsException,
     TaskNotFoundException,
     TaskAccessDeniedException,
+    TaskStatusConflictException,
 )
 from app.core.security import hash_password
 from app.models.user import User
+from app.models.evidence_item import EvidenceItem
+from app.models.report_section import ReportSection
+from app.models.research_source import ResearchSource
 from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
+from app.models.section_evidence import SectionEvidence
 from app.schemas.research import ResearchCreateRequest
 from app.services.research_service import (
     create_task,
+    get_report,
     get_task_list,
     get_task_detail,
     delete_task,
@@ -420,3 +426,155 @@ class TestDeleteTask:
         assert await db_session.get(ResearchTask, t1.id) is None
         # t2 仍在
         assert await db_session.get(ResearchTask, t2.id) is not None
+
+
+# ═══════════════════════════════════════════════════════════════
+# get_report()
+# ═══════════════════════════════════════════════════════════════
+
+
+async def _seed_report_task(db: AsyncSession, status: str = "completed") -> ResearchTask:
+    """工厂函数：预置一个含 Evidence Graph 与 ReportSection 的任务。"""
+    task = ResearchTask(
+        id="task-report-service-001",
+        user_id=1,
+        topic="量子计算对密码学的影响",
+        requirements={"task_type": "analysis", "depth": "quick", "max_sources": 10, "language": "zh"},
+        status=status,
+        total_steps=7,
+        completed_steps=7,
+        completed_at=datetime(2026, 1, 1, 0, 0, 10, tzinfo=timezone.utc),
+    )
+    db.add(task)
+    await db.flush()
+
+    source = ResearchSource(
+        task_id=task.id,
+        url="https://example.com/source-0",
+        title="来源 0",
+        domain="example.com",
+        content="量子计算对 RSA 算法构成严重威胁。",
+        fetch_status="success",
+        fetched_at=datetime(2026, 1, 1, 0, 0, 3, tzinfo=timezone.utc),
+    )
+    db.add(source)
+    await db.flush()
+
+    ev = EvidenceItem(
+        task_id=task.id,
+        source_id=source.id,
+        content="量子计算对 RSA 算法构成严重威胁。",
+        relevance_score=0.95,
+    )
+    db.add(ev)
+    await db.flush()
+
+    evidence_graph_step = ResearchStep(
+        id="step-eg-report-service-001",
+        task_id=task.id,
+        step_type="evidence_graph",
+        status="completed",
+        output={
+            "graph": {
+                "task_id": task.id,
+                "generated_at": datetime(2026, 1, 1, 0, 0, 7, tzinfo=timezone.utc).isoformat(),
+                "items": [
+                    {
+                        "index": 0,
+                        "evidence_item_id": ev.id,
+                        "source_id": source.id,
+                        "source_url": source.url,
+                        "source_title": source.title,
+                        "domain": source.domain,
+                        "content": ev.content,
+                        "relevance_score": 0.95,
+                        "used_in_sections": [],
+                    }
+                ],
+                "clusters": [],
+                "conflicts": [],
+                "knowledge_gaps": [],
+                "sources": [
+                    {
+                        "id": source.id,
+                        "url": source.url,
+                        "title": source.title,
+                        "domain": source.domain,
+                        "evidence_count": 1,
+                    }
+                ],
+            }
+        },
+        started_at=datetime(2026, 1, 1, 0, 0, 6, tzinfo=timezone.utc),
+        completed_at=datetime(2026, 1, 1, 0, 0, 7, tzinfo=timezone.utc),
+        duration_ms=1000,
+    )
+    db.add(evidence_graph_step)
+
+    section = ReportSection(
+        task_id=task.id,
+        heading="1. 概述",
+        content="量子计算威胁[来源0]。",
+        sort_order=0,
+    )
+    db.add(section)
+    await db.flush()
+
+    db.add(SectionEvidence(section_id=section.id, evidence_id=ev.id))
+    await db.flush()
+
+    return task
+
+
+class TestGetReport:
+    """获取研究报告"""
+
+    async def test_已完成任务返回完整报告(self, db_session: AsyncSession):
+        task = await _seed_report_task(db_session, status="completed")
+
+        result = await get_report(db_session, task)
+
+        assert result.task_id == task.id
+        assert result.status == "completed"
+        assert result.report.title == task.topic
+        assert len(result.report.sections) == 1
+        assert result.report.sections[0].heading == "1. 概述"
+        assert len(result.report.sections[0].sources) == 1
+        assert result.report.sections[0].sources[0].id == 1
+        assert result.report.sections[0].sources[0].evidence_index == 0
+        assert len(result.report.sources) == 1
+        assert result.report.sources[0].domain == "example.com"
+        assert result.evidence_graph["items"][0]["index"] == 0
+        assert result.trace is None
+
+    async def test_partially_completed任务可获取报告(self, db_session: AsyncSession):
+        task = await _seed_report_task(db_session, status="partially_completed")
+
+        result = await get_report(db_session, task)
+
+        assert result.status == "partially_completed"
+        assert len(result.report.sections) == 1
+
+    async def test_运行中任务_抛出E2003(self, db_session: AsyncSession):
+        task = await _seed_report_task(db_session, status="running")
+
+        with pytest.raises(TaskStatusConflictException) as exc_info:
+            await get_report(db_session, task)
+
+        assert exc_info.value.error_code == "E2003"
+
+    async def test_无EvidenceGraphStep_抛出E2003(self, db_session: AsyncSession):
+        task = ResearchTask(
+            id="task-report-no-eg-001",
+            user_id=1,
+            topic="无证据图",
+            requirements={"task_type": "analysis"},
+            status="completed",
+        )
+        db_session.add(task)
+        await db_session.flush()
+
+        with pytest.raises(TaskStatusConflictException) as exc_info:
+            await get_report(db_session, task)
+
+        assert exc_info.value.error_code == "E2003"

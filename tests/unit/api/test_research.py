@@ -1,10 +1,11 @@
-"""研究任务 API 接口测试 — 覆盖 POST / GET / DELETE 四个端点。
+"""研究任务 API 接口测试 — 覆盖 POST / GET / DELETE / REPORT 端点。
 
-对齐 API.md §3.1：
+对齐 API.md §3.1 / §3.3：
 - POST /api/research — 创建（201）+ 错误码（E2005-E2008）
 - GET /api/research — 列表（分页+状态筛选）
 - GET /api/research/{task_id} — 详情（E2001/E2002）
 - DELETE /api/research/{task_id} — 删除（级联验证）
+- GET /api/research/{task_id}/report — 报告获取（E2001/E2002/E2003）
 """
 
 from datetime import datetime, timezone
@@ -15,8 +16,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
+from app.models.evidence_item import EvidenceItem
+from app.models.report_section import ReportSection
+from app.models.research_source import ResearchSource
 from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
+from app.models.section_evidence import SectionEvidence
 from app.models.user import User
 
 
@@ -401,3 +406,184 @@ class TestDeleteResearchAPI:
         )
         assert response.status_code == 403
         assert response.json()["code"] == "E2002"
+
+
+# ═══════════════════════════════════════════════════════════════
+# GET /api/research/{task_id}/report — 报告获取
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestGetResearchReportAPI:
+    """GET /api/research/{task_id}/report"""
+
+    async def _seed_completed_task_with_report(
+        self,
+        db_session: AsyncSession,
+        user_id: int = 1,
+        task_id: str = "task-report-001",
+    ) -> ResearchTask:
+        """预置一个 completed 任务，含 Evidence Graph Step 与 ReportSection。"""
+        task = ResearchTask(
+            id=task_id,
+            user_id=user_id,
+            topic="量子计算对密码学的影响",
+            requirements={"task_type": "analysis", "depth": "quick", "max_sources": 10, "language": "zh"},
+            status="completed",
+            total_steps=7,
+            completed_steps=7,
+            total_sources=1,
+            total_evidence=2,
+            completed_at=datetime(2026, 1, 1, 0, 0, 10, tzinfo=timezone.utc),
+        )
+        db_session.add(task)
+        await db_session.flush()
+
+        source = ResearchSource(
+            task_id=task.id,
+            url="https://example.com/source-0",
+            title="来源 0",
+            domain="example.com",
+            content="量子计算对 RSA 算法构成严重威胁。",
+            fetch_status="success",
+            fetched_at=datetime(2026, 1, 1, 0, 0, 3, tzinfo=timezone.utc),
+        )
+        db_session.add(source)
+        await db_session.flush()
+
+        ev1 = EvidenceItem(
+            task_id=task.id,
+            source_id=source.id,
+            content="量子计算对 RSA 算法构成严重威胁。",
+            relevance_score=0.95,
+            used_in_sections=["1"],
+        )
+        ev2 = EvidenceItem(
+            task_id=task.id,
+            source_id=source.id,
+            content="NIST 推进后量子密码标准化。",
+            relevance_score=0.85,
+            used_in_sections=["1"],
+        )
+        db_session.add(ev1)
+        db_session.add(ev2)
+        await db_session.flush()
+
+        evidence_graph_step = ResearchStep(
+            id="step-eg-report-001",
+            task_id=task.id,
+            step_type="evidence_graph",
+            status="completed",
+            output={
+                "graph": {
+                    "task_id": task.id,
+                    "generated_at": datetime(2026, 1, 1, 0, 0, 7, tzinfo=timezone.utc).isoformat(),
+                    "items": [
+                        {
+                            "index": 0,
+                            "evidence_item_id": ev1.id,
+                            "source_id": source.id,
+                            "source_url": source.url,
+                            "source_title": source.title,
+                            "domain": source.domain,
+                            "content": ev1.content,
+                            "relevance_score": 0.95,
+                            "used_in_sections": ["1"],
+                        },
+                        {
+                            "index": 1,
+                            "evidence_item_id": ev2.id,
+                            "source_id": source.id,
+                            "source_url": source.url,
+                            "source_title": source.title,
+                            "domain": source.domain,
+                            "content": ev2.content,
+                            "relevance_score": 0.85,
+                            "used_in_sections": ["1"],
+                        },
+                    ],
+                    "clusters": [],
+                    "conflicts": [],
+                    "knowledge_gaps": [],
+                    "sources": [
+                        {
+                            "id": source.id,
+                            "url": source.url,
+                            "title": source.title,
+                            "domain": source.domain,
+                            "evidence_count": 2,
+                        }
+                    ],
+                }
+            },
+            started_at=datetime(2026, 1, 1, 0, 0, 6, tzinfo=timezone.utc),
+            completed_at=datetime(2026, 1, 1, 0, 0, 7, tzinfo=timezone.utc),
+            duration_ms=1000,
+        )
+        db_session.add(evidence_graph_step)
+
+        section = ReportSection(
+            task_id=task.id,
+            heading="1. 概述",
+            content="量子计算威胁[来源0]，NIST 推进标准化[来源1]。",
+            sort_order=0,
+        )
+        db_session.add(section)
+        await db_session.flush()
+
+        db_session.add(SectionEvidence(section_id=section.id, evidence_id=ev1.id))
+        db_session.add(SectionEvidence(section_id=section.id, evidence_id=ev2.id))
+        await db_session.flush()
+
+        return task
+
+    async def test_已完成任务返回完整报告JSON(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
+        task = await self._seed_completed_task_with_report(db_session)
+
+        response = await async_client.get(f"/api/research/{task.id}/report", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["task_id"] == task.id
+        assert data["status"] == "completed"
+        assert data["report"]["title"] == task.topic
+        assert len(data["report"]["sections"]) == 1
+        assert data["report"]["sections"][0]["heading"] == "1. 概述"
+        assert len(data["report"]["sections"][0]["sources"]) == 2
+        assert data["report"]["sections"][0]["sources"][0] == {"id": 1, "evidence_index": 0}
+        assert data["report"]["sections"][0]["sources"][1] == {"id": 1, "evidence_index": 1}
+        assert len(data["report"]["sources"]) == 1
+        assert data["evidence_graph"]["items"][0]["index"] == 0
+        assert "trace" in data
+
+    async def test_任务不存在_返回404_E2001(self, async_client: AsyncClient, auth_headers: dict):
+        response = await async_client.get(
+            "/api/research/00000000-0000-0000-0000-000000000000/report",
+            headers=auth_headers,
+        )
+        assert response.status_code == 404
+        assert response.json()["code"] == "E2001"
+
+    async def test_无权访问他人任务_返回403_E2002(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
+        task = await self._seed_completed_task_with_report(db_session, user_id=999, task_id="task-report-002")
+
+        response = await async_client.get(f"/api/research/{task.id}/report", headers=auth_headers)
+        assert response.status_code == 403
+        assert response.json()["code"] == "E2002"
+
+    async def test_未完成任务_返回409_E2003(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
+        task = ResearchTask(
+            id="task-report-003",
+            user_id=1,
+            topic="进行中的任务",
+            requirements={"task_type": "analysis"},
+            status="running",
+        )
+        db_session.add(task)
+        await db_session.flush()
+
+        response = await async_client.get(f"/api/research/{task.id}/report", headers=auth_headers)
+        assert response.status_code == 409
+        assert response.json()["code"] == "E2003"
