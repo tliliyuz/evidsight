@@ -305,9 +305,9 @@ class PipelineOrchestrator:
 
     # ── 工具方法 ──────────────────────────────────────────────
 
-    def _get_last_checkpoint(self) -> str | None:
+    def _get_last_checkpoint(self, execution_context: dict | None) -> str | None:
         """从 execution_context 中安全读取 last_completed_step_id。"""
-        context = getattr(self._task, "execution_context", None) or {}
+        context = execution_context or {}
         if isinstance(context, dict):
             last = context.get("last_completed_step_id")
             if last:
@@ -316,22 +316,24 @@ class PipelineOrchestrator:
 
     def _build_task_failed_payload(
         self,
+        task_id: str,
         error_type: str,
         error_description: str,
         recoverable: bool,
+        execution_context: dict | None = None,
     ) -> dict:
         """构造 task.failed SSE payload。
 
         仅 recoverable=true 时附带 last_checkpoint，供客户端断点续跑。
         """
         payload: dict = {
-            "task_id": str(self._task.id),
+            "task_id": task_id,
             "error_type": error_type,
             "error_description": error_description,
             "recoverable": recoverable,
         }
         if recoverable:
-            last_checkpoint = self._get_last_checkpoint()
+            last_checkpoint = self._get_last_checkpoint(execution_context)
             if last_checkpoint:
                 payload["last_checkpoint"] = last_checkpoint
         return payload
@@ -598,11 +600,17 @@ class PipelineOrchestrator:
                 error_code = "E3999"
                 step.error_code = error_code
 
+            # flush 前读取 task 属性，避免 flush 后对象过期触发 lazy load
+            task_id = str(self._task.id)
+            execution_context = getattr(self._task, "execution_context", None)
+
             recoverable = _extract_recoverable(error) if is_known_fatal else False
             payload = self._build_task_failed_payload(
+                task_id=task_id,
                 error_type=error.__class__.__name__,
                 error_description=error_msg,
                 recoverable=recoverable,
+                execution_context=execution_context,
             )
             self._sse.publish(EVENT_TASK_FAILED, payload)
             raise  # 重新抛出，由 run() 的顶层 try/except 处理
@@ -738,9 +746,13 @@ class PipelineOrchestrator:
         if new_status == "failed" and error_info:
             # 致命失败 → 提前终止（CAS）
             now = datetime.now(timezone.utc)
+            # flush 前读取 task 属性，避免 flush 后对象过期触发 lazy load
+            task_id = str(self._task.id)
+            execution_context = getattr(self._task, "execution_context", None)
+
             result = await self._session.execute(
                 sa_update(ResearchTask)
-                .where(ResearchTask.id == self._task.id, ResearchTask.status == "running")
+                .where(ResearchTask.id == task_id, ResearchTask.status == "running")
                 .values(
                     status="failed",
                     error_code=error_info.get("error_code"),
@@ -755,14 +767,16 @@ class PipelineOrchestrator:
                 await self._session.refresh(self._task, ["status"])
                 logger.warning(
                     "CAS 失败：提前终止时任务状态已变更: task_id=%s, current_status=%s",
-                    self._task.id, self._task.status,
+                    task_id, self._task.status,
                 )
                 return
 
             payload = self._build_task_failed_payload(
+                task_id=task_id,
                 error_type=error_info.get("error_code", "Unknown"),
                 error_description=error_info.get("error_message", ""),
                 recoverable=error_info.get("recoverable", False),
+                execution_context=execution_context,
             )
             self._sse.publish(EVENT_TASK_FAILED, payload)
 
@@ -795,9 +809,17 @@ class PipelineOrchestrator:
             values["error_message"] = error_info.get("error_message")
             values["recoverable"] = error_info.get("recoverable", False)
 
+        # flush 前读取 task 属性，避免 flush 后对象过期触发 lazy load
+        task_id = str(self._task.id)
+        task_started_at = self._task.started_at
+        task_total_sources = self._task.total_sources
+        task_total_evidence = self._task.total_evidence
+        task_trace = self._task.trace
+        execution_context = getattr(self._task, "execution_context", None)
+
         result = await self._session.execute(
             sa_update(ResearchTask)
-            .where(ResearchTask.id == self._task.id, ResearchTask.status == "running")
+            .where(ResearchTask.id == task_id, ResearchTask.status == "running")
             .values(**values)
         )
         await self._session.flush()
@@ -806,52 +828,55 @@ class PipelineOrchestrator:
             await self._session.refresh(self._task, ["status"])
             logger.warning(
                 "CAS 失败：最终化时任务状态已非 running: task_id=%s, current_status=%s",
-                self._task.id, self._task.status,
+                task_id, self._task.status,
             )
             if self._task.status == "running":
                 raise RuntimeError(
-                    f"CAS 更新失败但任务仍为 running: task_id={self._task.id}"
+                    f"CAS 更新失败但任务仍为 running: task_id={task_id}"
                 )
             return
 
         # SSE 最终事件
         if new_status == "completed":
             self._sse.publish(EVENT_TASK_COMPLETED, {
-                "task_id": str(self._task.id),
+                "task_id": task_id,
                 "status": "completed",
                 "trace": {
                     "total_duration_ms": (
-                        int((now - self._task.started_at).total_seconds() * 1000)
-                        if self._task.started_at else 0
+                        int((now - task_started_at).total_seconds() * 1000)
+                        if task_started_at else 0
                     ),
-                    "sources": self._task.total_sources or 0,
-                    "evidence": self._task.total_evidence or 0,
+                    "sources": task_total_sources or 0,
+                    "evidence": task_total_evidence or 0,
                 },
             })
         elif new_status == "partially_completed":
             self._sse.publish(EVENT_TASK_COMPLETED, {
-                "task_id": str(self._task.id),
+                "task_id": task_id,
                 "status": "partially_completed",
-                "trace": self._task.trace,
+                "trace": task_trace,
             })
         elif new_status == "failed":
             payload = self._build_task_failed_payload(
+                task_id=task_id,
                 error_type=error_info.get("error_code", "Unknown") if error_info else "Unknown",
                 error_description=error_info.get("error_message", "") if error_info else "",
                 recoverable=error_info.get("recoverable", False) if error_info else False,
+                execution_context=execution_context,
             )
             self._sse.publish(EVENT_TASK_FAILED, payload)
 
         logger.info(
             "Pipeline 完成: task_id=%s, status=%s, steps=%d, evidence=%d",
-            self._task.id, new_status, len(steps), evidence_count,
+            task_id, new_status, len(steps), evidence_count,
         )
 
     async def _handle_fatal_error(self, error: Exception) -> None:
         """处理未捕获的致命错误：CAS 更新 task status 为 failed。"""
-        # 先捕获 task_id，避免 session 失效/对象过期后访问 self._task.id 触发懒加载。
+        # 先捕获 task 属性，避免 session 失效/对象过期后访问 self._task 触发懒加载。
         # Celery Worker 运行在同步 greenlet 中，懒加载会导致 MissingGreenlet。
         task_id = str(self._task.id)
+        execution_context = getattr(self._task, "execution_context", None)
 
         # 若之前的数据库异常导致 session 进入 rollback-only（如 DataError），
         # 先回滚使 session 恢复可用。
@@ -912,9 +937,11 @@ class PipelineOrchestrator:
         # SSE 发送失败不应阻断状态更新
         try:
             payload = self._build_task_failed_payload(
+                task_id=task_id,
                 error_type=error.__class__.__name__,
                 error_description=error_msg,
                 recoverable=recoverable,
+                execution_context=execution_context,
             )
             self._sse.publish(EVENT_TASK_FAILED, payload)
         except Exception:
