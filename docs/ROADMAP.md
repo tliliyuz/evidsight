@@ -377,9 +377,9 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ✅ | Report API 接口测试 | 接口测试 | `GET /api/research/{task_id}/report` 完整 JSON 结构校验（`report.sections[]` + `evidence_graph` + `trace`）+ E2001/E2002/E2003 |
 | ✅ | Cancel API 接口测试 | 接口测试 | `POST /api/research/{task_id}/cancel` 正常取消 + E2003（已终态）+ E2001/E2002 |
 | ✅ | 成本追踪测试 | 单元测试 | DeepSeek `usage` 对象解析 / Step 级 token 写入 / Task 级成本聚合 / `total_cost_usd` 计算 |
-| ⏳ | Pipeline 端到端集成测试（全链路） | 集成测试 | 全 7 阶段 Mock 跑通（Planning→Search→Fetch→Rerank→Synthesis→EvidenceGraph→Render）+ SSE 事件序列完整 + Report 产出验证 |
-| ⏳ | 人工报告质量评估（第 1 轮） | 人工评估 | 3 task_type × 3 主题 = 9 题，4 维度评分（结构完整性/引用准确性/综合质量/可读性），建立基线 |
-| ⏳ | 离线 Pipeline 评估 | 检索评估 | Search Recall / Fetch 成功率 / Rerank 相关性 量化指标脚本 |
+| ✅ | Pipeline 端到端集成测试（全链路） | 集成测试 | `tests/integration/test_pipeline_full.py` — 全 7 阶段 Mock 跑通（Planning→Search→Fetch→Rerank→Synthesis→EvidenceGraph→Render）+ SSE 事件序列完整 + Report 产出验证 |
+| ✅ | 人工报告质量评估（第 1 轮） | 人工评估 | 3 task_type × 3 主题 = 9 题，4 维度评分（结构完整性/引用准确性/综合质量/可读性），建立基线。协议与目标值见 [TESTING_STRATEGY.md §11.4](TESTING_STRATEGY.md#114-人工评估协议) |
+| ✅ | 离线 Pipeline 评估 | 检索评估 | Search Recall / Fetch 成功率 / Rerank 相关性 量化指标脚本。指标公式与目标值见 [TESTING_STRATEGY.md §11.2](TESTING_STRATEGY.md#112-检索评估指标)，实现位于 `app/evaluation/` 与 `scripts/eval_offline.py` |
 | ✅ | 前端 PipelineProgress 组件测试 | 组件测试 | 7 阶段节点渲染 / done/current/pending 三种视觉状态 / 蓝色脉冲动画 current 态 / 渐变进度条百分比 / 阶段间箭头连线 |
 | ✅ | 前端 StepLog 组件测试 | 组件测试 | SSE 事件→日志条目追加 / 图标颜色编码 / 时间戳格式 / 自动滚动到底部 / 手动上滚 sticky「↓ 最新」按钮 |
 | ✅ | 前端 Markdown 渲染器测试 | 单元测试 | markdown-it 渲染 / `[来源N]` 锚点解析为 `<a class="citation-link">` / 多索引空格分隔 |

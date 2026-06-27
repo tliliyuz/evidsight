@@ -2,8 +2,8 @@
 
 | 属性 | 值 |
 |:---|:---|
-| 文档版本 | v2.0 |
-| 最后更新 | 2026-06-20 |
+| 文档版本 | v2.1 |
+| 最后更新 | 2026-06-28 |
 
 > 本文档定义了 ResearchMind 的测试分层策略、基础设施配置、各层覆盖范围与编写规范。测试进度追踪（各 Phase 测试任务、完成状态）见 [ROADMAP.md](ROADMAP.md)。
 
@@ -645,6 +645,350 @@ cd frontend && npm run test -- --coverage
 
 ---
 
+## 11. 检索评估与人工评估策略
+
+> **权威归属**：Pipeline 各阶段输出格式、字段含义见 [RESEARCH_PIPELINE.md](RESEARCH_PIPELINE.md)；系统级可靠性目标见 [ARCHITECTURE.md](ARCHITECTURE.md) §5.4；本章节只定义评估方法、指标公式与目标值。
+
+### 11.1 目标与范围
+
+离线 Pipeline 评估用于在**不依赖人工标注**的前提下，量化 7 阶段 Pipeline 中检索相关阶段（Search / Fetch / Rerank）的产出质量，为 Phase 准入、性能调优和 Regression 测试提供数据依据。
+
+人工评估用于在**真实用户视角**下评判最终报告质量，弥补自动化指标无法覆盖的「结构合理性」「综合深度」「可读性」等维度。
+
+两类评估的关系：
+
+- **离线检索评估**覆盖 Pipeline 中段（Search→Fetch→Rerank），每轮发布/重大变更后运行。
+- **人工报告评估**覆盖 Pipeline 末段（Synthesis→Render），在 Phase 3 建立基线，Phase 5 再次执行以验证优化效果。
+
+### 11.2 检索评估指标
+
+#### 11.2.1 Search Recall / Coverage
+
+v1.0 没有人工标注的相关性标签，因此 Search Recall 采用「覆盖率」作为代理指标，衡量 Planning 产出的 SubQuestion 是否被 Search 阶段有效覆盖。
+
+**Search Coverage Rate**
+
+```
+coverage_rate = (# sub_questions with results_count > 0) / (# total sub_questions)
+```
+
+**Search Recall@K**（默认 `K = 5`，与 `TAVILY_MAX_RESULTS_PER_QUERY` 一致）
+
+```
+recall_at_k(sub_q) = min(results_count, K) / K
+recall_at_k        = mean(recall_at_k(sub_q)) across all sub_questions
+```
+
+> **输入**：`ResearchStep.output["sub_question_results"]`（`step_type='search'`）。  
+> **输出**：`SearchMetrics`（coverage_rate、recall_at_k、sub_question_count、total_results、avg_results_per_sub_question）。
+
+#### 11.2.2 Fetch Success Rate
+
+衡量 Search 返回的 URL 经过 Fetch 阶段后成功抓取的比率。被 SSRF 安全策略拦截的 URL 不计入分母（它们从未真正发起网络请求）。
+
+```
+total_attempted    = successful + failed
+fetch_success_rate = successful / total_attempted
+```
+
+- `successful` = `fetch_status == "success"` 的 `ResearchSource` 数量。
+- `failed` = `fetch_status in {"timeout", "blocked", "empty", "dns_error"}` 的数量。
+- 安全拦截（`skipped_safety`）单独统计，不进入分母。
+
+> **输入**：`ResearchStep.output`（`step_type='fetch'`）或直接查询 `ResearchSource.fetch_status`。  
+> **输出**：`FetchMetrics`（success_rate、successful、failed、skipped_safety、status_distribution）。
+
+#### 11.2.3 Rerank Relevance
+
+衡量 Rerank 阶段输出的 Evidence 质量，直接复用 LLM 精排给出的 `relevance_score`（已归一化到 0-1）。
+
+```
+mean_score         = mean(relevance_score)
+median_score       = median(relevance_score)
+min_score          = min(relevance_score)
+max_score          = max(relevance_score)
+high_quality_ratio = (# evidence with score >= 0.60) / (# evidence)
+```
+
+分布按以下区间统计：
+
+| 区间 | 含义 |
+|:---|:---|
+| [0.00, 0.20) | 低质量 |
+| [0.20, 0.40) | 较低质量 |
+| [0.40, 0.60) | 中等质量 |
+| [0.60, 0.80) | 较高质量 |
+| [0.80, 1.00] | 高质量 |
+
+> **输入**：`EvidenceItem.relevance_score`（按 `task_id` 查询 `evidence_items` 表）。  
+> **输出**：`RerankMetrics`（evidence_count、mean_score、median_score、min_score、max_score、high_quality_ratio、score_distribution）。
+
+### 11.3 v1.0 目标值
+
+| 指标 | 目标 | 依据 |
+|:---|:---|:---|
+| Search Coverage Rate | ≥ 0.90 | 90% 子问题至少返回 1 个结果 |
+| Search Recall@5 | ≥ 0.80 | 平均每子问题填满 4/5 个结果槽位 |
+| Fetch Success Rate | > 0.70 | 与 [ARCHITECTURE.md](ARCHITECTURE.md) §5.4 可靠性目标一致 |
+| Rerank Mean Score | ≥ 0.65 | LLM 原始均分 ≥ 6.5/10 |
+| Rerank High-Quality Ratio | ≥ 0.60 | ≥ 60% 证据得分 ≥ 0.60 |
+| Task Completion Rate | > 0.90 | 与 [ARCHITECTURE.md](ARCHITECTURE.md) §5.4 可靠性目标一致 |
+| LLM Call Success Rate | > 0.99 | 与 [ARCHITECTURE.md](ARCHITECTURE.md) §5.4 可靠性目标一致 |
+
+**通过标准**：一次离线检索评估中，所有适用指标均达到各自目标值，才判定 `overall_pass = true`。
+
+### 11.4 人工评估协议
+
+#### 11.4.1 评估维度
+
+从最终报告出发，按 4 个维度评分：
+
+| 维度 | 考察点 |
+|:---|:---|
+| **结构完整性** | 报告章节组织是否符合 `task_type` 预期（comparison 有对比矩阵、explainer 有研究方向章节、analysis 有因果链/时间线），标题层级清晰，无关键章节缺失。 |
+| **引用准确性** | `[来源N]` 锚点真实存在于 Evidence Graph 中；每个关键论断均有来源支撑；引用与原文语义一致，无断章取义。 |
+| **综合质量** | 是否整合多来源观点、识别冲突、指出信息缺口；结论是否超出简单摘要，具备研究深度。 |
+| **可读性** | Markdown 格式规范、语言流畅、段落长度适中、技术术语使用准确；目标读者无需额外背景即可理解核心结论。 |
+
+#### 11.4.2 评分量表
+
+采用 1-5 Likert 量表：
+
+| 分值 | 含义 |
+|:---|:---|
+| 5 | 优秀，几乎无改进空间 |
+| 4 | 良好，仅存在轻微不足 |
+| 3 | 合格，满足基本要求但有明显改进空间 |
+| 2 | 较差，影响使用 |
+| 1 | 不可接受 |
+
+#### 11.4.3 抽样策略
+
+- **总样本量**：3 轮 × 3 种 `task_type` = **9 题**。
+- **每轮样本量**：3 种 `task_type` × 1 个主题 = **3 题**。
+- `task_type`：comparison、explainer、analysis。
+- 主题覆盖：技术趋势、政策法规、产品/方案对比三类领域，每轮聚焦一类领域，确保对不同类型查询的泛化能力。
+- 每个评分者可独立打分，最终取平均分；多人评分时报告标准差以衡量分歧。
+
+#### 11.4.4 轮次安排
+
+轮次按**主题领域**划分，每轮在 Phase 3 完成时建立该领域基线；后续优化迭代可在相同领域主题上复评，对比维度得分变化。
+
+| 轮次 | 主题领域 | 时机 | 目的 |
+|:---|:---|:---|:---|
+| 第 1 轮 | 技术趋势 | Phase 3 完成时 | 建立技术趋势类主题的报告质量基线，识别最弱维度 |
+| 第 2 轮 | 政策法规 | Phase 3 完成时 | 建立政策法规类主题的报告质量基线 |
+| 第 3 轮 | 产品/方案对比 | Phase 3 完成时 | 建立产品/方案对比类主题的报告质量基线 |
+
+#### 11.4.5 目标值
+
+- 各维度平均分 ≥ 3.5
+- 总体平均分 ≥ 3.5
+- **任一维度平均分不得低于 3.0**
+
+#### 11.4.6 记录格式
+
+每条人工评估记录保存为 JSON：
+
+```json
+{
+  "round": 1,
+  "task_id": "uuid",
+  "topic": "...",
+  "task_type": "analysis",
+  "rater": "evaluator-1",
+  "scores": [
+    {"dimension": "结构完整性", "score": 4, "comment": ""},
+    {"dimension": "引用准确性", "score": 3, "comment": ""},
+    {"dimension": "综合质量", "score": 4, "comment": ""},
+    {"dimension": "可读性", "score": 4, "comment": ""}
+  ],
+  "overall_score": 3.75,
+  "evaluated_at": "2026-06-27T10:00:00+00:00"
+}
+```
+
+### 11.5 执行方式
+
+#### 11.5.1 离线检索评估
+
+通过 CLI 对已完成任务执行评估：
+
+```bash
+# 单任务评估（人类可读）
+python scripts/eval_offline.py --task-id <uuid>
+
+# 单任务评估（JSON 输出，适合 CI）
+python scripts/eval_offline.py --task-id <uuid> --json
+
+# 批量评估最近 50 个已完成任务
+python scripts/eval_offline.py --all-completed --limit 50
+```
+
+#### 11.5.2 人工评估
+
+1. 从 `GET /api/research/{task_id}/report` 导出报告与 Evidence Graph。
+2. 评分者按 §11.4 维度在 `eval/manual/round{N}/` 目录下写入 JSON 记录，命名约定：`<task_type>_<topic_slug>_<rater>.json`。
+3. 使用 `app/evaluation/manual.py` 的聚合函数生成轮次汇总：
+
+```bash
+# 单轮聚合
+python scripts/eval_offline.py --manual-round eval/manual/round1
+
+# 聚合所有轮次（eval/manual/round*）
+python scripts/eval_offline.py --manual-all-rounds
+```
+
+### 11.6 结果报告
+
+#### 11.6.1 单任务报告
+
+```json
+{
+  "task_id": "uuid",
+  "topic": "...",
+  "status": "completed",
+  "evaluated_at": "2026-06-27T10:00:00+00:00",
+  "search": {
+    "coverage_rate": 1.0,
+    "recall_at_5": 1.0,
+    "sub_question_count": 3,
+    "total_results": 15,
+    "avg_results_per_sub_question": 5.0
+  },
+  "fetch": {
+    "success_rate": 0.8,
+    "successful": 4,
+    "failed": 1,
+    "skipped_safety": 0
+  },
+  "rerank": {
+    "evidence_count": 4,
+    "mean_score": 0.725,
+    "median_score": 0.75,
+    "high_quality_ratio": 0.75
+  },
+  "targets": {
+    "search_coverage_rate": 0.90,
+    "search_recall_at_5": 0.80,
+    "fetch_success_rate": 0.70,
+    "rerank_mean_score": 0.65,
+    "rerank_high_quality_ratio": 0.60
+  },
+  "overall_pass": true
+}
+```
+
+#### 11.6.2 批量聚合报告
+
+对多任务评估结果聚合：
+
+```json
+{
+  "task_count": 50,
+  "search": {
+    "mean_coverage_rate": 0.95,
+    "mean_recall_at_5": 0.88
+  },
+  "fetch": {
+    "mean_success_rate": 0.74
+  },
+  "rerank": {
+    "mean_mean_score": 0.68,
+    "mean_high_quality_ratio": 0.63
+  },
+  "pass_rate": 0.86
+}
+```
+
+### 11.6.3 Phase 3 人工评估基线（已记录）
+
+2026-06-28 使用 `python scripts/eval_offline.py --manual-all-rounds` 聚合三轮人工评估记录，形成 Phase 3 基线：
+
+```text
+记录数: 9
+总体平均分: 3.81
+
+--- 维度平均分 ---
+  结构完整性: 3.78
+  引用准确性: 4.00
+  综合质量: 3.44
+  可读性: 4.00
+
+--- task_type 平均分 ---
+  analysis: 3.98
+  comparison: 3.67
+  explainer: 3.77
+
+--- 轮次平均分 ---
+  第 1 轮: 3.67
+  第 2 轮: 3.85
+  第 3 轮: 3.90
+
+最低维度: 综合质量 (3.44)
+```
+
+**与 §11.4.5 目标对比**：
+
+| 检查项 | 目标 | 基线 | 结论 |
+|:---|:---|:---|:---|
+| 总体平均分 | ≥ 3.5 | 3.81 | ✅ 达标 |
+| 结构完整性 | ≥ 3.5 | 3.78 | ✅ 达标 |
+| 引用准确性 | ≥ 3.5 | 4.00 | ✅ 达标 |
+| 综合质量 | ≥ 3.5 | 3.44 | ❌ 低于目标，为后续优化重点 |
+| 可读性 | ≥ 3.5 | 4.00 | ✅ 达标 |
+| 任一维度 ≥ 3.0 | — | 3.44（最低） | ✅ 达标 |
+
+### 11.6.4 系统可靠性基线（已记录）
+
+同批次任务系统级可靠性指标：
+
+```text
+--- 系统可靠性 ---
+  Task Completion Rate: 100.00% (✅ 目标 > 90%)
+    completed=9 partially_completed=0 failed=0 canceled=0
+  LLM Call Success Rate: 100.00% (✅ 目标 > 99%)
+    completed=36 failed=0
+```
+
+### 11.6.5 单任务检索评估示例（已记录）
+
+任务 `60181837-d2b7-419b-8400-1c617c6a1b44`，主题「解释 LLM 可观测性（LLM Observability）的概念框架：Trace / Span / Evaluation 三层模型，并介绍 2026 年主流工具的核心能力与最佳实践」，任务类型 `explainer`，状态 `completed`：
+
+```text
+--- Search ---
+  子问题数: 5
+  总结果数: 25
+  Coverage Rate: 100.00%
+  Recall@5: 100.00%
+
+--- Fetch ---
+  成功: 17
+  失败: 5
+  安全拦截: 0
+  Success Rate: 77.27%
+
+--- Rerank ---
+  Evidence 数: 10
+  平均分: 0.775
+  中位数: 0.775
+  高质量占比: 100.00%
+
+整体通过: ✅
+```
+
+**与 §11.3 目标对比**：
+
+| 指标 | 目标 | 示例值 | 结论 |
+|:---|:---|:---|:---|
+| Search Coverage Rate | ≥ 0.90 | 100.00% | ✅ 达标 |
+| Search Recall@5 | ≥ 0.80 | 100.00% | ✅ 达标 |
+| Fetch Success Rate | > 0.70 | 77.27% | ✅ 达标 |
+| Rerank Mean Score | ≥ 0.65 | 0.775 | ✅ 达标 |
+| Rerank High-Quality Ratio | ≥ 0.60 | 100.00% | ✅ 达标 |
+
+---
+
 ## 相关文档
 
 - [CLAUDE.md](../CLAUDE.md) — 测试约定
@@ -654,4 +998,3 @@ cd frontend && npm run test -- --coverage
 - [RESEARCH_PIPELINE.md](RESEARCH_PIPELINE.md) — Pipeline 各阶段设计
 - [DEVELOPMENT.md](DEVELOPMENT.md) — 开发指南（项目结构、命令速查）
 - [ROADMAP.md](ROADMAP.md) — 开发排期（Phase 准入规则）
-- [RESEARCH_PIPELINE.md](RESEARCH_PIPELINE.md) — Pipeline 各阶段设计（含各模块锚点）

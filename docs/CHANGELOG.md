@@ -11,6 +11,9 @@
 ## [Unreleased]
 
 ### Changed
+- **TESTING_STRATEGY.md 记录 Phase 3 评估基线（§11.6.3-§11.6.5）**：写入三轮人工评估聚合结果（9 条记录，总体均分 3.81，最低维度为综合质量 3.44）、系统可靠性基线（Task Completion Rate 100%、LLM Call Success Rate 100%）以及单任务检索评估示例（LLM Observability，Search Coverage/Recall@5 100%、Fetch Success Rate 77.27%、Rerank Mean 0.775），并附与 §11.3 / §11.4.5 目标的达标对比。
+- **人工评估轮次定义对齐 sample（TESTING_STRATEGY.md §11.4.3 / §11.4.4）**：将每轮样本量从 9 题修正为 3 题、总样本量为 9 题；轮次表从 2 轮扩展为 3 轮，分别对应技术趋势 / 政策法规 / 产品/方案对比三类主题领域，与 `app/evaluation/eval_question_sample.md` 及 `eval/manual/round{N}/` 目录结构一致。
+- **人工评估目录加载与聚合**：`app/evaluation/manual.py` 新增 `load_manual_records()` 与 `load_all_manual_rounds()`，支持从 `eval/manual/round{N}/` 读取单个对象或对象数组形式的 JSON 记录，并支持聚合所有 `round*` 子目录；`scripts/eval_offline.py` 新增 `--manual-round` 与 `--manual-all-rounds` 参数输出聚合结果；`tests/unit/evaluation/test_manual.py` 补充 `TestLoadManualRecords` 与 `TestLoadAllManualRounds` 覆盖单文件、数组文件、无效 JSON、校验失败、多轮加载、非 round 目录过滤、目录不存在等分支。
 - **HistoryPage 列表列合并（FRONTEND.md §5.1 / §5.2）**：删除「证据数」列，仅保留「来源数」列；该列实际取 `total_evidence` 值，与用户侧「来源」即 Evidence Graph 内部「证据」的概念统一。
 - **前端用户侧文案统一：所有面向用户的「证据」改为「来源」**：
   - 运行态阶段名：`证据图谱` → `来源图谱`（`frontend/src/utils/phase.js`）
@@ -27,6 +30,7 @@
   - 失败视图居中显示，错误信息保留换行与滚动，并支持解析 JSON 字符串提取 `message` / `error_description`。
 
 ### Fixed
+- **`app/evaluation/__init__.py` 移除未实现模块导入**：`question_bank` 模块尚未创建，但 `__init__.py` 已导出其符号，导致导入 `app.evaluation` 报 `ModuleNotFoundError`。暂时移除相关导入与 `__all__` 条目，使现有评估功能可正常导入；题目样本库功能待后续实现时再加回。
 - **报告页右侧面板固定分区与 Trace 常驻底部修复**：[Deviation/修复] 由于 `.research-page` 未声明高度，`.completed-state` / `.report-viewer` / `.report-body` 的 `height: 100%` / `flex: 1` 失去参照，导致来源过多时右侧面板无限增长、Trace 摘要被压到最底部。修复：`ResearchPage.vue` 增加 `.research-page { height: 100% }` 贯通高度链；`ReportViewer.vue` 将 `.report-side-panel` 改为 `overflow: hidden` 并给 `EvidencePanel`/`TracePanel` 分配固定 flex 分区；`EvidencePanel.vue` 移除 `flex-shrink: 0` 与 `justify-content: space-between`，增加 `min-height: 0`，使来源列表在侧栏上半部分内部滚动，Trace 始终可见。
 - **报告页三栏布局回归修复**：SectionNav / ReportArticle / EvidencePanel / ReportViewer 通过压缩内边距与增加卡片溢出约束适配窄栏，不再缩小字体导致不可读；Evidence 卡片改为「窄而长」垂直滚动，避免撑破容器。[Deviation]
 - **进度条分母跳变修复**：`searcher.py` / `fetcher.py` 创建子 step 时不再递增 `task.total_steps`；前端 `task.js` 移除 `step.completed` 本地进度累加；`PipelineProgress.vue` 维护 `maxTotalSeen` 防御分母收缩，杜绝 `100% → 33%` 回退。[Deviation]
@@ -54,9 +58,16 @@
 - **侧边栏无限滚动到底仍显示「加载更多」修复**：`taskStore.js` 的 `hasMore` 改为优先信任后端 `total`；`total` 异常时根据最后一页是否满载兜底，避免总数等于整页数量或空页返回时仍提示继续滚动。
 
 ### Added
+- **Pipeline 端到端集成测试（全链路）**：新增 `tests/integration/test_pipeline_full.py`，使用真实 SQLite 测试数据库 + Mock 外部 API（Tavily / HTTP / LLM），通过 `PipelineOrchestrator` 跑通 Planning→Search→Fetch→Rerank→Synthesis→EvidenceGraph→Render 全 7 阶段，验证 SSE 事件序列完整性与 Report 产出（`report_sections` / `section_evidence` / `evidence_items.used_in_sections`）。
 - 侧边栏「最近任务」支持无限滚动加载：`taskStore` 新增 `append` 模式、`hasMore`、`fetchMore()`；`Sidebar.vue` 滚动距底部 `40px` 且仍有数据时自动加载下一页，底部显示「加载中…」/「没有更多任务了」提示；首次加载与新建任务后重置为第 1 页并回到顶部。
 - CSS Design Token 新增 `--rm-report-article-width` / `--rm-evidence-highlight-*` / `--rm-evidence-flash-border`；`body.sidebar-collapsed` 下 `--rm-report-article-width` 加宽至 `800px`、`--rm-evidence-panel-width` 加宽至 `194px`，章节导航保持 `160px`。
 - `TracePanel.vue` 新增各阶段耗时比例进度条，以总耗时为 100% 显示单阶段耗时占比。
+- **离线 Pipeline 评估与人工评估策略**：
+  - 新增 `docs/TESTING_STRATEGY.md` §11「检索评估与人工评估策略」，定义 Search Recall / Fetch Success Rate / Rerank Relevance 指标公式与 v1.0 目标值，以及人工评估 4 维度、1-5 Likert 量表、抽样策略与轮次安排。
+  - 新增 `app/evaluation/` 模块：`search_eval.py` / `fetch_eval.py` / `rerank_eval.py` 实现三阶段指标计算；`loader.py` / `aggregator.py` 支持按 `task_id` 生成完整 `PipelineEvaluationReport` 并与目标值对比；`manual.py` 支持人工评估 JSON 记录校验、聚合与轮次对比；`cli.py` 提供 argparse CLI。
+  - 新增 `scripts/eval_offline.py` 离线评估脚本，支持 `--task-id`、`--all-completed`、`--limit`、`--json`。
+  - 新增测试：`tests/unit/evaluation/test_search_eval.py`、`test_fetch_eval.py`、`test_rerank_eval.py`、`test_aggregator.py`、`test_manual.py`；`tests/integration/test_pipeline_evaluation.py` 复用全链路 Mock 验证 Pipeline 完成后评估指标正确。
+  - 更新 `docs/ROADMAP.md` §4.9，将 Phase 3「人工报告质量评估（第 1 轮）」与「离线 Pipeline 评估」标为完成，并交叉引用 TESTING_STRATEGY.md。
 
 > Phase 1 骨架搭建完成（后端 §2.1-2.4 + 前端 §2.5 ✅，测试 §2.7 待执行）。
 > Phase 2.3.1 研究任务 CRUD + 状态机完成（ROADMAP §3.1 ✅）。
