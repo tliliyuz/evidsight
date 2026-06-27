@@ -32,15 +32,15 @@
         </el-input>
       </div>
 
-      <el-button type="primary" @click="router.push('/research')">
+      <el-button type="primary" @click="handleNewResearch">
         <i class="fas fa-plus"></i> 新建研究
       </el-button>
     </div>
 
     <!-- ===== 表格 ===== -->
     <el-table
-      :data="taskStore.taskList"
-      v-loading="taskStore.listLoading"
+      :data="historyList"
+      v-loading="historyLoading"
       stripe
       style="width: 100%"
     >
@@ -50,7 +50,7 @@
           <i class="fas fa-inbox empty-icon"></i>
           <p class="empty-title">暂无研究任务</p>
           <p class="empty-desc">开始你的第一次深度研究</p>
-          <el-button type="primary" @click="router.push('/research')">
+          <el-button type="primary" @click="handleNewResearch">
             <i class="fas fa-plus"></i> 新建研究
           </el-button>
         </div>
@@ -84,11 +84,8 @@
         </template>
       </el-table-column>
 
-      <!-- 来源数 -->
-      <el-table-column label="来源" width="70" align="center" prop="total_sources" />
-
-      <!-- 证据数 -->
-      <el-table-column label="证据" width="70" align="center" prop="total_evidence" />
+      <!-- 来源数（面向用户称「来源」，对应内部 Evidence Graph 的 total_evidence） -->
+      <el-table-column label="来源" width="70" align="center" prop="total_evidence" />
 
       <!-- 创建时间 -->
       <el-table-column label="创建时间" width="160" align="center">
@@ -111,11 +108,11 @@
     </el-table>
 
     <!-- ===== 分页 ===== -->
-    <div v-if="taskStore.total > 0" class="history-pagination">
+    <div v-if="historyTotal > 0" class="history-pagination">
       <el-pagination
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
-        :total="taskStore.total"
+        :total="historyTotal"
         :page-sizes="[10, 20, 50]"
         layout="total, sizes, prev, pager, next"
         @current-change="onPageChange"
@@ -130,6 +127,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElLoading, ElMessage, ElMessageBox } from 'element-plus'
 import { useTaskStore } from '@/stores/task'
+import * as researchApi from '@/api/research'
 import { formatDateTime } from '@/utils/format'
 
 const router = useRouter()
@@ -140,6 +138,11 @@ const filterStatus = ref('')
 const searchKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
+
+// ===== 历史页本地列表状态（与侧边栏解耦）=====
+const historyList = ref([])
+const historyTotal = ref(0)
+const historyLoading = ref(false)
 
 // ===== 搜索防抖（300ms） =====
 let searchTimer = null
@@ -171,12 +174,28 @@ function onPageSizeChange(size) {
 
 // ===== 加载列表 =====
 async function loadList() {
-  await taskStore.fetchList({
-    page: currentPage.value,
-    page_size: pageSize.value,
-    status: filterStatus.value || undefined,
-    keyword: searchKeyword.value || undefined,
-  })
+  historyLoading.value = true
+  try {
+    const res = await researchApi.getTaskList({
+      page: currentPage.value,
+      page_size: pageSize.value,
+      status: filterStatus.value || undefined,
+      keyword: searchKeyword.value || undefined,
+    })
+    const data = res.data.data
+    historyList.value = data.items || []
+    historyTotal.value = data.total || 0
+  } catch (err) {
+    ElMessage.error(err.response?.data?.message || '加载列表失败')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+// ===== 新建研究：清空当前任务后跳转 =====
+function handleNewResearch() {
+  taskStore.clearCurrent()
+  router.push('/research')
 }
 
 // ===== 查看任务 → 加载详情并跳转研究页 =====
@@ -215,8 +234,12 @@ async function handleDelete(row) {
     await taskStore.deleteTask(row.task_id)
     ElMessage.success('删除成功')
 
+    // 本地移除并更新分页
+    historyList.value = historyList.value.filter(t => t.task_id !== row.task_id)
+    historyTotal.value = Math.max(0, historyTotal.value - 1)
+
     // 删除当前页最后一条且不在第 1 页 → 自动回退
-    if (taskStore.taskList.length === 0 && currentPage.value > 1) {
+    if (historyList.value.length === 0 && currentPage.value > 1) {
       currentPage.value--
       await loadList()
     }

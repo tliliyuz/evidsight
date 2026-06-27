@@ -10,13 +10,96 @@
 
 ## [Unreleased]
 
+### Changed
+- **HistoryPage 列表列合并（FRONTEND.md §5.1 / §5.2）**：删除「证据数」列，仅保留「来源数」列；该列实际取 `total_evidence` 值，与用户侧「来源」即 Evidence Graph 内部「证据」的概念统一。
+- **前端用户侧文案统一：所有面向用户的「证据」改为「来源」**：
+  - 运行态阶段名：`证据图谱` → `来源图谱`（`frontend/src/utils/phase.js`）
+  - 运行态日志：`task.completed` 消息改为「研究完成！共 N 个参考来源」；后端生成给前端展示的 Synthesis / Evidence Graph 阶段 label 同步改为「来源」
+  - 完成态面板：`ReportViewer.vue` 右侧面板标题 `Evidence Graph` → `来源图谱`
+  - 错误文案：`E3103` / `E3106` 用户可见 message / error_description 中的「证据」改为「来源」
+  - 文档同步：`FRONTEND.md`、`UIDESIGN.md` 中所有用户视角的「证据图谱 / 证据卡片 / 证据 N」改为「来源图谱 / 来源卡片 / 来源 N」
+- **前端 UI/UX 优化（FRONTEND.md §4.4-§5.4）**：
+  - 报告页三栏布局：章节导航固定 `160px`；报告正文展开态 `620px`、收起态（`body.sidebar-collapsed`）`800px`；Evidence/Trace 面板展开态 `184px`、收起态 `194px`。[Deviation]
+  - Pipeline 进度条：Planning 阶段显示「任务规划中…」，完成后恢复百分比与步骤数。
+  - 阶段标签中文化（任务规划 / 搜索 / 抓取 / 重排 / 综合 / 来源图谱 / 报告渲染）。
+  - Evidence Graph 面板：来源标题可点击跳转新标签页，编号统一为「来源 N」。
+  - HistoryPage 列表状态与侧边栏解耦：使用本地 `historyList` / `historyTotal` / `historyLoading`；新建研究按钮先 `clearCurrent()` 再跳转。[Deviation]
+  - 失败视图居中显示，错误信息保留换行与滚动，并支持解析 JSON 字符串提取 `message` / `error_description`。
+
+### Fixed
+- **报告页右侧面板固定分区与 Trace 常驻底部修复**：[Deviation/修复] 由于 `.research-page` 未声明高度，`.completed-state` / `.report-viewer` / `.report-body` 的 `height: 100%` / `flex: 1` 失去参照，导致来源过多时右侧面板无限增长、Trace 摘要被压到最底部。修复：`ResearchPage.vue` 增加 `.research-page { height: 100% }` 贯通高度链；`ReportViewer.vue` 将 `.report-side-panel` 改为 `overflow: hidden` 并给 `EvidencePanel`/`TracePanel` 分配固定 flex 分区；`EvidencePanel.vue` 移除 `flex-shrink: 0` 与 `justify-content: space-between`，增加 `min-height: 0`，使来源列表在侧栏上半部分内部滚动，Trace 始终可见。
+- **报告页三栏布局回归修复**：SectionNav / ReportArticle / EvidencePanel / ReportViewer 通过压缩内边距与增加卡片溢出约束适配窄栏，不再缩小字体导致不可读；Evidence 卡片改为「窄而长」垂直滚动，避免撑破容器。[Deviation]
+- **进度条分母跳变修复**：`searcher.py` / `fetcher.py` 创建子 step 时不再递增 `task.total_steps`；前端 `task.js` 移除 `step.completed` 本地进度累加；`PipelineProgress.vue` 维护 `maxTotalSeen` 防御分母收缩，杜绝 `100% → 33%` 回退。[Deviation]
+- **Trace 搜索/抓取/证据图谱无耗时修复**：`PipelineOrchestrator._complete_step` 新增 Search / Fetch / Evidence Graph 的 `TraceRecorder` 埋点；`TracePanel.vue` 字段与后端对齐，七阶段均显示耗时与摘要数字。[Deviation]
+- **失败视图居中修复**：`ResearchPage.vue` 的 `.completed-state` 仅对 `report-viewer` / `state-placeholder` 拉伸，`FailedView` / `CanceledView` 卡片加 `margin: auto` 兜底居中。
+- **失败信息 JSON 字符串修复**：`FailedView.vue` 的 `displayMessage` 支持去掉 `500: ` 前缀、解析单引号 JSON、提取 `message` / `error_description` / `detail.message`。
+- **Step 日志细化与切页丢失修复**：`taskStore.js` 修正 `buildLogsFromSnapshot` 字段名并为 step 事件写入 `message`；`StepLog.vue` 消息兜底；`ResearchPage.vue` 切回运行态时自动重连 SSE。[Deviation]
+- Trace 执行摘要无值：在 `reportStore.normalize()` 中将后端嵌套 trace 扁平化为 `TracePanel` 期望的结构。[Deviation]
+- 章节导航点击无滚动：`ReportArticle.vue` 监听 `selectedSectionId` 并平滑滚动到对应 section。
+- 新建任务后侧边栏不刷新：`taskStore.createTask()` 成功后刷新最近任务列表。
+- 前端测试对齐最新 UI/UX 修复：`SectionNav` / `EvidencePanel` / `TracePanel` / `FailedView` / `CanceledView` / `PipelineProgress` / `StepLog` / `ResearchPage` / `taskStore.sse` 补充/更新断言，前端测试 222 用例全绿。
+- **报告页三栏布局第三轮修复**：展开态三栏宽度为章节导航 160px + 报告正文 620px + Evidence/Trace 面板 184px；`body.sidebar-collapsed` 下报告正文加宽至 800px、右面板加宽至 194px，以释放更多主内容区空间。`EvidencePanel.vue` 与 `ReportViewer.vue` 的 `:deep(.evidence-panel)` 改为 `width: 100%` 由 grid 列宽控制，避免 Evidence 内容因 `width: auto` 撑出容器或偏右隐藏。[Deviation]
+- **进度条分母固定为七阶段**：`research_service.create_task()` 初始化 `task.total_steps = len(PHASE_ORDER)`；`PipelineOrchestrator._create_step()` 不再递增 `task.total_steps`；前端 `PipelineProgress.vue` 分母固定为 7，杜绝创建任务即 100% 与执行中分母跳变到 30 的问题。[Deviation]
+- **失败信息 JSON 字符串第三轮修复**：`FailedView.vue` 的 `displayMessage` 改为正则优先提取最外层 `message` / `error_description`，避免嵌套单引号 JSON 导致 `JSON.parse` 失败后整串外露。[Deviation]
+- **Step 日志切页后时间戳与细化内容修复**：后端 `_build_snapshot()` 增加 `started_at` 与 `progress_label`；前端 `buildLogsFromSnapshot()` 恢复 `timestamp` / `icon` / `progress.label`；`upsertStepLog` / `updateStepLog` 为无时间戳日志补充当前时间；`StepLog.vue` 对 completed/skipped/failed 状态也显示 progress label；后端 `step.started` SSE 事件携带 `timestamp`。[Deviation]
+- 前端测试对齐第三轮修复：`PipelineProgress` / `FailedView` / `taskStore.sse` 更新断言，前端测试 223 用例全绿；后端 `test_research_service.py` 更新 total_steps 断言。
+- **失败视图布局与错误信息一致性修复**：`FailedView.vue` 错误消息改为居中、卡片加宽至 `560px`、增加垂直间距；新增 `.failed-detail` 区域展示异常类名等多行补充信息；`standardErrorCode` 仅展示 E 系列标准码，异常类名下沉到 detail。`taskStore.js` 的 `fetchDetail()` 按 API.md 从 `data.error` 嵌套对象读取错误信息，并兼容顶层字段；`task.failed` SSE 事件处理增加 `normalizeErrorCode`，在 `error_type` 为异常类名时从描述中提取标准错误码。`FailedView.test.js` / `taskStore.test.js` 补充对应断言，前端测试 230 用例全绿。[Deviation]
+- **侧边栏最近任务滚动修复**：`Sidebar.vue` 显式设置 `height: 100%` / `max-height: 100vh`；`.history-section` 拆分为 `.history-section-scroll` + `.history-view-all`，独立 `overflow-y: auto` 与 `overscroll-behavior: contain`，避免滚动事件穿透；新增 Webkit 细滚动条样式与底部「查看全部历史任务」链接。
+- **侧边栏最近任务数量修复**：`Sidebar.vue` 挂载时 `fetchList` 的 `page_size` 从 `10` 调整到 `50`，确保「今天 / 昨天 / 近 7 天」时间分组不会因为今日任务过多而被截断，滚动条可正常滚动到更早分组。
+- **取消视图布局同步修复**：`CanceledView.vue` 卡片加宽至 `560px`、padding 与图标尺寸对齐失败页、按钮尺寸统一，避免取消状态卡片与失败页视觉不一致。[Deviation]
+- **失败/取消视图固定卡片布局修复**：`FailedView.vue` 与 `CanceledView.vue` 改为固定宽度 `560px`、最小高度 `520px`；卡片内部拆分为 `.card-body`（错误内容垂直居中，过长时独立滚动）与 `.card-footer`（「返回新建研究」按钮固定在底部），两页结构一致，避免弹性布局导致视觉大小不一。[Deviation]
+- **切页后运行态日志样式统一修复**：`taskStore.js` 的 `fetchDetail()` 在同一任务重新加载时保留已有 `stepLogs`；`buildLogsFromSnapshot()` 按 phase 分组并插入「进入阶段 / 阶段完成」日志，合并快照状态与现有 rich step 日志，使 SSE 快照/重连后的日志样式接近实时 SSE 事件渲染效果。
+- **取消页已完成阶段切页后丢失修复**：`taskStore.js` 的 `fetchDetail()` 对 `canceled` / `failed` / `completed` / `partially_completed` 等终态任务调用 `GET /api/research/{task_id}/state` 获取含 `steps` 的快照，重建 `phaseStates` / `phaseDurations` / `stepLogs`；`frontend/src/utils/phase.js` 新增 `buildPhaseStatesFromSteps()` 从 completed steps 推断各 phase 状态，保证取消页「已完成阶段」在切页/重载后仍一致显示。
+- **侧边栏最近任务状态图标实时刷新修复**：`taskStore.js` 新增 `watch` 监听 `current`，在 SSE 事件、`cancelTask()`、`fetchDetail()` 等场景下自动同步 `status` / `current_phase` / `completed_at` 回 `taskList`，侧边栏图标无需刷新页面即可随任务状态变化（pending → running → completed）。
+- **侧边栏无限滚动到底仍显示「加载更多」修复**：`taskStore.js` 的 `hasMore` 改为优先信任后端 `total`；`total` 异常时根据最后一页是否满载兜底，避免总数等于整页数量或空页返回时仍提示继续滚动。
+
+### Added
+- 侧边栏「最近任务」支持无限滚动加载：`taskStore` 新增 `append` 模式、`hasMore`、`fetchMore()`；`Sidebar.vue` 滚动距底部 `40px` 且仍有数据时自动加载下一页，底部显示「加载中…」/「没有更多任务了」提示；首次加载与新建任务后重置为第 1 页并回到顶部。
+- CSS Design Token 新增 `--rm-report-article-width` / `--rm-evidence-highlight-*` / `--rm-evidence-flash-border`；`body.sidebar-collapsed` 下 `--rm-report-article-width` 加宽至 `800px`、`--rm-evidence-panel-width` 加宽至 `194px`，章节导航保持 `160px`。
+- `TracePanel.vue` 新增各阶段耗时比例进度条，以总耗时为 100% 显示单阶段耗时占比。
+
 > Phase 1 骨架搭建完成（后端 §2.1-2.4 + 前端 §2.5 ✅，测试 §2.7 待执行）。
 > Phase 2.3.1 研究任务 CRUD + 状态机完成（ROADMAP §3.1 ✅）。
 > Phase 2.3.2 Celery 异步 Pipeline 编排基础设施完成（ROADMAP §3.2 ✅）。
 > Phase 2.3.3-§3.6 Pipeline 前半段完成：Planning（LLM）+ Search（Tavily）+ Fetch（HTTP+trafilatura）+ SSE 端点（ROADMAP §3.3-§3.6 ✅）。
 > Phase 2 §3.7 前端实现完成：ResearchPage + HistoryPage + Sidebar 历史任务 + SSE 框架（ROADMAP §3.7 ✅）。
 > Phase 2 §3.9 测试完成：Celery 幂等锁 + 5 个前端测试全绿，Phase 2 全部关闭准入 Phase 3（ROADMAP §3.9 ✅）。
-> Phase 3 §4.1 Rerank ✅ | §4.2 Synthesis ✅ | §4.3 Evidence Graph Build ✅ | §4.4 Report Render ✅ | §4.5 Cancel 基础实现 ✅ | §4.6 成本追踪 ✅。
+> Phase 3 §4.1 Rerank ✅ | §4.2 Synthesis ✅ | §4.3 Evidence Graph Build ✅ | §4.4 Report Render ✅ | §4.5 Cancel 基础实现 ✅ | §4.6 成本追踪 ✅ | §4.7 前端运行态进度可视化 + 完成态报告查看 ✅。
+
+### Added
+- **Phase 3 §4.7 前端运行态进度可视化 + 完成态报告查看（ROADMAP §4.7 / FRONTEND.md §4.4-§4.5 / UIDESIGN.md §4.9-§4.14）**：
+  - `frontend/src/api/research.js` — 新增 `getReport(taskId)` 封装 `GET /api/research/{task_id}/report`
+  - `frontend/src/utils/phase.js` — 新建 Pipeline 七阶段元数据与 key 归一化：`PHASE_ORDER` / `PHASE_LABELS` / `PHASE_ICONS` / `normalizePhaseKey()` / `buildPhaseStates()`，统一 SSE 长 key（searching/fetching/...）与 UI 短 key（search/fetch/...）
+  - `frontend/src/utils/format.js` — 新增 `formatElapsedTime(ms)`：<1h 返回 `MM:SS`，≥1h 返回 `HH:MM:SS`
+  - `frontend/src/stores/report.js` — 新建 Pinia Store：管理报告数据、章节导航、Evidence 双向高亮、按章节筛选；Actions `fetch()` / `selectSection()` / `highlightEvidence()` / `setEvidenceFilter()` / `clear()`；Computed `filteredEvidence`
+  - `frontend/src/stores/task.js` — **扩展运行态实时状态**：新增 `stepLogs` / `phaseStates` / `phaseDurations` / `lastCheckpoint` / `warnings` / `completedStepIds`；补全 `handleSSEEvent` 对 15 种 SSE 事件的处理（phase.started/completed、step.started/progress/completed/failed/skipped、checkpoint.saved、task.warning、task.status.snapshot 重建 logs）；新增 `resetRuntimeState()` / `buildLogsFromSnapshot()`
+  - `frontend/src/views/ResearchPage.vue` — **重写运行态与完成态 UI**：运行态接入 `RunningHeader` / `PipelineProgress` / `StepLog` / `CheckpointBanner`；完成态接入 `ReportViewer` / `FailedView` / `CanceledView`；新增已用时 `elapsedMs` 定时器
+  - 运行态组件（`frontend/src/components/task/`）：
+    - `RunningHeader.vue` — 深色顶栏：任务标题、状态标签、当前阶段、已用时计时器、取消按钮
+    - `PipelineProgress.vue` — 七阶段横向进度条：done/current/pending 三态 + 渐变进度条 + 阶段耗时
+    - `StepLog.vue` — 暗色终端日志面板：SSE 事件追加、自动滚动、sticky「↓ 最新」按钮
+    - `CheckpointBanner.vue` — checkpoint.saved 提示横幅
+  - 完成态报告组件（`frontend/src/components/report/`）：
+    - `ReportViewer.vue` — 三栏布局容器（章节导航 240px + 报告正文 + Evidence/Trace 面板 320px），进入完成态自动 `reportStore.fetch(taskId)`；新增报告加载态：章节导航骨架屏 + 正文区 spinning + Evidence Graph 面板骨架屏
+    - `SectionNav.vue` — 章节导航：层级列表、当前高亮、badge 引用计数、点击平滑滚动
+    - `ReportArticle.vue` — Markdown 报告正文 + `[来源N]` 引用锚点点击 → EvidencePanel 联动
+    - `EvidencePanel.vue` — Evidence Graph 面板：按 `index` 排序、点击高亮正文锚点、按章节筛选、`.flash` 动画
+    - `TracePanel.vue` — Trace 摘要折叠面板：七阶段耗时 + 总耗时
+    - `FailedView.vue` — 失败视图：错误描述、失败阶段、`recoverable=true` 时展示禁用态「断点续跑」按钮
+    - `CanceledView.vue` — 取消视图：已完成阶段摘要 +「返回新建研究」按钮
+  - 测试覆盖（前端新增 11 个测试文件 + 扩展 `ResearchPage.test.js`）：
+    - `frontend/tests/unit/reportStore.test.js` — ReportStore fetch / selectSection / highlightEvidence / filter / clear（14 用例）
+    - `frontend/tests/unit/taskStore.sse.test.js` — SSE 运行态事件映射、step 幂等、snapshot 重建 logs（12 用例）
+    - `frontend/tests/components/PipelineProgress.test.js`（6 用例）/ `StepLog.test.js`（5 用例）/ `SectionNav.test.js`（4 用例）/ `ReportArticle.test.js`（3 用例）/ `EvidencePanel.test.js`（4 用例）/ `TracePanel.test.js`（3 用例）/ `FailedView.test.js`（4 用例）/ `CanceledView.test.js`（3 用例）
+    - `frontend/tests/components/ResearchPage.test.js` — 扩展运行态/完成态/失败态/取消态切换（4 用例）
+
+### Changed
+- **`frontend/src/utils/markdown.js` [Deviation]**： `[来源N]` 渲染的 `data-evidence-index` 由逗号分隔改为空格分隔（如 `data-evidence-index="0 1"`），支持精确 CSS 选择器 `[data-evidence-index~="N"]`。原计划为逗号分隔，见 FRONTEND.md §4.5.3 / UIDESIGN.md §4.12
+- **`frontend/src/utils/sse.js` [Deviation/修复]**：重连成功后连接状态由 `reconnecting` 修正为 `connected`，与 FRONTEND.md §8 5 态状态机一致（首次连接 `connecting→connected`，重连成功后也应恢复 `connected`）
+
+### Fixed
+- **`frontend/tests/components/HistoryPage.test.js` 搜索防抖测试断言修复**：测试设置 `searchKeyword = '量子'` 后，断言 `getTaskList` 调用参数应包含 `keyword: '量子'`（原断言遗漏 `keyword` 字段导致失败）
+- **`app/services/pipeline_orchestrator.py` 修复 flush 后访问 `self._task` 触发 `MissingGreenlet` 的致命错误处理崩溃**：在 `_handle_step_error` / `_check_early_termination` / `_finalize` / `_handle_fatal_error` 中，flush/rollback 前提前读取 `task_id` / `execution_context` / `started_at` / `total_sources` / `total_evidence` / `trace` 等属性；`_build_task_failed_payload` 与 `_get_last_checkpoint` 改为接收本地参数，不再访问 `self._task`。修复 Render 阶段 LLM `Connection error` 导致任务失败时，SSE 发送与状态回滚二次崩溃的问题
 
 ### Added
 - **Phase 3 §4.6 成本追踪实现（ROADMAP §4.6 / RESEARCH_PIPELINE §11.2）**——LLM token 成本写入 Step 并聚合到 Task Trace：

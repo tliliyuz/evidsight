@@ -117,8 +117,9 @@
     --rm-header-height: 56px;
     --rm-content-max-width: 672px;
     --rm-report-max-width: 768px;
-    --rm-evidence-panel-width: 320px;
-    --rm-section-nav-width: 240px;
+    --rm-report-article-width: 620px;
+    --rm-evidence-panel-width: 184px;
+    --rm-section-nav-width: 160px;
     --rm-input-height: 40px;
     --rm-empty-icon-size: 48px;
     --rm-welcome-icon-size: 56px;
@@ -135,6 +136,12 @@
     --rm-code-inline-font-size: 0.9em;
     --rm-code-copy-btn-bg: rgba(255, 255, 255, 0.1);
     --rm-code-copy-btn-hover-bg: rgba(255, 255, 255, 0.2);
+
+    /* ===== Evidence Graph 高亮 ===== */
+    --rm-evidence-highlight-bg: #F0FDFA;
+    --rm-evidence-highlight-text: #0F766E;
+    --rm-evidence-highlight-border: rgba(15, 118, 110, 0.2);
+    --rm-evidence-flash-border: #F59E0B;
 
     /* ===== 其他 ===== */
     --rm-welcome-logo-size: 56px;
@@ -182,6 +189,14 @@ body {
 #app {
     height: 100vh;
     display: flex;
+}
+
+/* 报告页三栏宽度固定，不随侧边栏展开/收起变化；
+   Evidence Graph 保持窄面板，主内容区自适应剩余空间 */
+body.sidebar-collapsed {
+    --rm-section-nav-width: 160px;
+    --rm-report-article-width: 800px;
+    --rm-evidence-panel-width: 194px;
 }
 
 /* ===== 滚动条 ===== */

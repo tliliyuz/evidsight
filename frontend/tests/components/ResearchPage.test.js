@@ -30,6 +30,7 @@ vi.mock('@/api/research', () => ({
   deleteTask: vi.fn(),
   cancelTask: vi.fn(),
   getTaskState: vi.fn(),
+  getReport: vi.fn(),
 }))
 
 vi.mock('@/utils/sse', () => ({
@@ -49,13 +50,13 @@ function makeRouter() {
   })
 }
 
-async function mountResearch() {
+async function mountResearch({ pinia = createPinia() } = {}) {
   const r = makeRouter()
   await r.push('/research')
   await r.isReady()
   const wrapper = mount(ResearchPage, {
     global: {
-      plugins: [r, createPinia(), ElementPlus],
+      plugins: [r, pinia, ElementPlus],
       stubs: { transition: false },
     },
   })
@@ -249,5 +250,129 @@ describe('ResearchPage — 创建态', () => {
     await flushPromises()
 
     expect(ElMessage.error).toHaveBeenCalled()
+  })
+})
+
+describe('ResearchPage — 状态切换', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.clearAllMocks()
+  })
+
+  it('运行态且 SSE 未连接时 mount 自动恢复 SSE', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useTaskStore()
+    store.current = {
+      task_id: 'task-running',
+      topic: '运行中主题',
+      status: 'running',
+      current_phase: 'search',
+      created_at: '2026-06-24T10:00:00Z',
+      started_at: '2026-06-24T10:00:01Z',
+    }
+    store.sseStatus = 'disconnected'
+
+    const { wrapper } = await mountResearch({ pinia })
+    await flushPromises()
+
+    expect(connectSSE).toHaveBeenCalledWith('/api/research/task-running/stream', expect.any(Object))
+  })
+
+  it('运行态_渲染 RunningHeader/PipelineProgress/StepLog', async () => {
+    const { wrapper } = await mountResearch()
+    const store = useTaskStore()
+    store.current = {
+      task_id: 'task-running',
+      topic: '运行中主题',
+      status: 'running',
+      current_phase: 'search',
+      progress: { completed_steps: 3, total_steps: 10, progress: 0.3 },
+      created_at: '2026-06-24T10:00:00Z',
+      started_at: '2026-06-24T10:00:01Z',
+    }
+    store.phaseStates = {
+      planning: 'done',
+      search: 'running',
+      fetch: 'pending',
+      rerank: 'pending',
+      synthesis: 'pending',
+      evidence_graph: 'pending',
+      render: 'pending',
+    }
+    store.stepLogs = [{ id: 'l1', type: 'system', icon: 'fa-play', level: 'info', message: '任务已创建' }]
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'RunningHeader' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'PipelineProgress' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'StepLog' }).exists()).toBe(true)
+    expect(wrapper.find('.running-state').exists()).toBe(true)
+  })
+
+  it('完成态_渲染 ReportViewer', async () => {
+    researchApi.getReport.mockResolvedValue({
+      data: {
+        data: {
+          report: { title: '报告标题', sections: [] },
+          evidence_graph: { items: [] },
+          trace: {},
+        },
+      },
+    })
+
+    const { wrapper } = await mountResearch()
+    const store = useTaskStore()
+    store.current = {
+      task_id: 'task-completed',
+      topic: '完成主题',
+      status: 'completed',
+      total_sources: 5,
+      total_evidence: 3,
+      completed_at: '2026-06-24T10:05:00Z',
+    }
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'ReportViewer' }).exists()).toBe(true)
+    expect(researchApi.getReport).toHaveBeenCalledWith('task-completed')
+  })
+
+  it('失败态_渲染 FailedView', async () => {
+    const { wrapper } = await mountResearch()
+    const store = useTaskStore()
+    store.current = {
+      task_id: 'task-failed',
+      topic: '失败主题',
+      status: 'failed',
+      error_code: 'E3104',
+      error_message: 'Synthesis 失败',
+      current_phase: 'synthesis',
+      recoverable: true,
+    }
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'FailedView' }).exists()).toBe(true)
+  })
+
+  it('取消态_渲染 CanceledView', async () => {
+    const { wrapper } = await mountResearch()
+    const store = useTaskStore()
+    store.current = {
+      task_id: 'task-canceled',
+      topic: '取消主题',
+      status: 'canceled',
+    }
+    store.phaseStates = {
+      planning: 'done',
+      search: 'done',
+      fetch: 'pending',
+      rerank: 'pending',
+      synthesis: 'pending',
+      evidence_graph: 'pending',
+      render: 'pending',
+    }
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'CanceledView' }).exists()).toBe(true)
   })
 })

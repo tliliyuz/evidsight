@@ -16,6 +16,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
 import { useTaskStore } from '@/stores/task'
 import * as researchApi from '@/api/research'
 
@@ -99,6 +100,31 @@ describe('TaskStore', () => {
 
       expect(store.loading).toBe(false)
     })
+
+    it('创建成功_刷新侧边栏最近任务', async () => {
+      researchApi.createTask.mockResolvedValue(
+        mockApiResponse({ task_id: 'task-003', status: 'pending', created_at: '2026-06-24T10:00:00Z' })
+      )
+      researchApi.getTaskList.mockResolvedValue(
+        mockApiResponse({
+          items: [{ task_id: 'task-003', topic: '量子计算的影响', status: 'pending' }],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        })
+      )
+
+      const store = useTaskStore()
+      await store.createTask('量子计算的影响', {
+        task_type: 'analysis',
+        depth: 'quick',
+        max_sources: 10,
+        language: 'zh',
+      })
+
+      expect(researchApi.getTaskList).toHaveBeenCalledWith({ page: 1, page_size: 20 })
+      expect(store.taskList).toHaveLength(1)
+    })
   })
 
   // ===== fetchList =====
@@ -169,6 +195,154 @@ describe('TaskStore', () => {
       expect(store.currentPage).toBe(3)
       expect(store.total).toBe(45)
     })
+
+    it('append=true_追加到已有列表', async () => {
+      const store = useTaskStore()
+      store.taskList = [{ task_id: 't1', topic: '主题A', status: 'completed' }]
+      store.total = 3
+      store.currentPage = 1
+      store.pageSize = 20
+
+      researchApi.getTaskList.mockResolvedValue(
+        mockApiResponse({
+          items: [{ task_id: 't2', topic: '主题B', status: 'running' }],
+          total: 3,
+          page: 2,
+          page_size: 20,
+        })
+      )
+
+      await store.fetchList({ page: 2, page_size: 20, append: true })
+
+      expect(store.taskList).toHaveLength(2)
+      expect(store.taskList[0].task_id).toBe('t1')
+      expect(store.taskList[1].task_id).toBe('t2')
+      expect(store.currentPage).toBe(2)
+    })
+  })
+
+  // ===== fetchMore =====
+
+  describe('fetchMore', () => {
+    it('hasMore为true_加载下一页并追加', async () => {
+      const store = useTaskStore()
+      store.taskList = [{ task_id: 't1', topic: '主题A', status: 'completed' }]
+      store.total = 3
+      store.currentPage = 1
+      store.pageSize = 20
+
+      researchApi.getTaskList.mockResolvedValue(
+        mockApiResponse({
+          items: [
+            { task_id: 't2', topic: '主题B', status: 'running' },
+            { task_id: 't3', topic: '主题C', status: 'pending' },
+          ],
+          total: 3,
+          page: 2,
+          page_size: 20,
+        })
+      )
+
+      await store.fetchMore()
+
+      expect(researchApi.getTaskList).toHaveBeenCalledWith({ page: 2, page_size: 20 })
+      expect(store.taskList).toHaveLength(3)
+      expect(store.hasMore).toBe(false)
+    })
+
+    it('hasMore为false_不发起请求', async () => {
+      const store = useTaskStore()
+      store.taskList = [{ task_id: 't1', topic: '主题A', status: 'completed' }]
+      store.total = 1
+      store.currentPage = 1
+      store.pageSize = 20
+
+      await store.fetchMore()
+
+      expect(researchApi.getTaskList).not.toHaveBeenCalled()
+    })
+
+    it('加载中_不重复请求', async () => {
+      const store = useTaskStore()
+      store.taskList = [{ task_id: 't1', topic: '主题A', status: 'completed' }]
+      store.total = 3
+      store.currentPage = 1
+      store.pageSize = 20
+      store.listLoading = true
+
+      await store.fetchMore()
+
+      expect(researchApi.getTaskList).not.toHaveBeenCalled()
+    })
+
+    it('total异常但当前页满载_仍可尝试加载下一页', async () => {
+      const store = useTaskStore()
+      store.taskList = Array.from({ length: 20 }, (_, i) => ({
+        task_id: `t${i + 1}`,
+        topic: `主题${i + 1}`,
+        status: 'completed',
+      }))
+      store.total = 0
+      store.currentPage = 1
+      store.pageSize = 20
+
+      researchApi.getTaskList.mockResolvedValue(
+        mockApiResponse({
+          items: [{ task_id: 't21', topic: '主题21', status: 'pending' }],
+          total: 0,
+          page: 2,
+          page_size: 20,
+        })
+      )
+
+      await store.fetchMore()
+
+      expect(researchApi.getTaskList).toHaveBeenCalledWith({ page: 2, page_size: 20 })
+      expect(store.taskList).toHaveLength(21)
+    })
+
+    it('total等于已加载数量时_hasMore为false不再加载', async () => {
+      const store = useTaskStore()
+      store.taskList = Array.from({ length: 20 }, (_, i) => ({
+        task_id: `t${i + 1}`,
+        topic: `主题${i + 1}`,
+        status: 'completed',
+      }))
+      store.total = 20
+      store.currentPage = 1
+      store.pageSize = 20
+
+      await store.fetchMore()
+
+      expect(researchApi.getTaskList).not.toHaveBeenCalled()
+      expect(store.hasMore).toBe(false)
+    })
+
+    it('total异常时加载到不满页后_hasMore变为false', async () => {
+      const store = useTaskStore()
+      store.taskList = Array.from({ length: 20 }, (_, i) => ({
+        task_id: `t${i + 1}`,
+        topic: `主题${i + 1}`,
+        status: 'completed',
+      }))
+      store.total = 0
+      store.currentPage = 1
+      store.pageSize = 20
+
+      researchApi.getTaskList.mockResolvedValue(
+        mockApiResponse({
+          items: [],
+          total: 0,
+          page: 2,
+          page_size: 20,
+        })
+      )
+
+      await store.fetchMore()
+
+      expect(researchApi.getTaskList).toHaveBeenCalledWith({ page: 2, page_size: 20 })
+      expect(store.hasMore).toBe(false)
+    })
   })
 
   // ===== fetchDetail =====
@@ -185,9 +359,6 @@ describe('TaskStore', () => {
           progress: { completed_steps: 3, total_steps: 10, progress: 30 },
           total_sources: 5,
           total_evidence: 2,
-          error_code: null,
-          error_message: null,
-          recoverable: false,
           created_at: '2026-06-24T08:00:00Z',
           started_at: '2026-06-24T08:00:05Z',
           completed_at: null,
@@ -203,6 +374,55 @@ describe('TaskStore', () => {
       expect(data.status).toBe('running')
     })
 
+    it('失败任务按 API.md 嵌套 error 对象读取错误信息', async () => {
+      researchApi.getTaskDetail.mockResolvedValue(
+        mockApiResponse({
+          task_id: 'task-failed-1',
+          topic: '失败的研究',
+          status: 'failed',
+          current_phase: 'planning',
+          progress: { completed_steps: 1, total_steps: 10, progress: 10 },
+          error: {
+            error_code: 'E3101',
+            error_message: 'Planning 阶段重试耗尽',
+            recoverable: false,
+          },
+          created_at: '2026-06-24T08:00:00Z',
+          started_at: '2026-06-24T08:00:05Z',
+          completed_at: '2026-06-24T08:00:15Z',
+        })
+      )
+
+      const store = useTaskStore()
+      await store.fetchDetail('task-failed-1')
+
+      expect(store.current.status).toBe('failed')
+      expect(store.current.error_code).toBe('E3101')
+      expect(store.current.error_message).toBe('Planning 阶段重试耗尽')
+      expect(store.current.recoverable).toBe(false)
+    })
+
+    it('失败任务兼容顶层错误字段', async () => {
+      researchApi.getTaskDetail.mockResolvedValue(
+        mockApiResponse({
+          task_id: 'task-failed-2',
+          topic: '旧格式失败任务',
+          status: 'failed',
+          error_code: 'E3102',
+          error_message: 'Tavily API 不可用',
+          recoverable: true,
+          created_at: '2026-06-24T08:00:00Z',
+        })
+      )
+
+      const store = useTaskStore()
+      await store.fetchDetail('task-failed-2')
+
+      expect(store.current.error_code).toBe('E3102')
+      expect(store.current.error_message).toBe('Tavily API 不可用')
+      expect(store.current.recoverable).toBe(true)
+    })
+
     it('不存在的任务_API 异常抛出', async () => {
       researchApi.getTaskDetail.mockRejectedValue({
         response: { status: 404, data: { code: 'E2001' } },
@@ -210,6 +430,194 @@ describe('TaskStore', () => {
 
       const store = useTaskStore()
       await expect(store.fetchDetail('non-existent')).rejects.toBeDefined()
+    })
+
+    it('同一任务重新获取时保留已有 stepLogs', async () => {
+      researchApi.getTaskDetail.mockResolvedValue(
+        mockApiResponse({
+          task_id: 'task-same',
+          topic: '同一任务',
+          status: 'running',
+          current_phase: 'search',
+          progress: { completed_steps: 1, total_steps: 10, progress: 10 },
+          created_at: '2026-06-24T08:00:00Z',
+          started_at: '2026-06-24T08:00:05Z',
+        })
+      )
+
+      const store = useTaskStore()
+      store.current = {
+        task_id: 'task-same',
+        topic: '同一任务',
+        status: 'running',
+        current_phase: 'planning',
+      }
+      store.stepLogs = [{ id: 'live-log-1', type: 'phase', message: '进入 任务规划 阶段' }]
+
+      await store.fetchDetail('task-same')
+
+      expect(store.current.task_id).toBe('task-same')
+      expect(store.stepLogs).toHaveLength(1)
+      expect(store.stepLogs[0].id).toBe('live-log-1')
+    })
+
+    it('切换不同任务时重置 stepLogs', async () => {
+      researchApi.getTaskDetail.mockResolvedValue(
+        mockApiResponse({
+          task_id: 'task-new',
+          topic: '新任务',
+          status: 'running',
+          current_phase: 'search',
+          progress: { completed_steps: 1, total_steps: 10, progress: 10 },
+          created_at: '2026-06-24T08:00:00Z',
+          started_at: '2026-06-24T08:00:05Z',
+        })
+      )
+
+      const store = useTaskStore()
+      store.current = {
+        task_id: 'task-old',
+        topic: '旧任务',
+        status: 'running',
+      }
+      store.stepLogs = [{ id: 'old-log', type: 'phase', message: '旧日志' }]
+
+      await store.fetchDetail('task-new')
+
+      expect(store.current.task_id).toBe('task-new')
+      expect(store.stepLogs).toEqual([])
+    })
+
+    it('终态 canceled 任务通过 state 端点重建 phaseStates 与 phaseDurations', async () => {
+      researchApi.getTaskDetail.mockResolvedValue(
+        mockApiResponse({
+          task_id: 'task-canceled-1',
+          topic: '已取消的研究',
+          status: 'canceled',
+          current_phase: 'fetch',
+          progress: { completed_steps: 2, total_steps: 7, progress: 0.29 },
+          created_at: '2026-06-24T08:00:00Z',
+          started_at: '2026-06-24T08:00:05Z',
+        })
+      )
+      researchApi.getTaskState.mockResolvedValue(
+        mockApiResponse({
+          task_id: 'task-canceled-1',
+          status: 'canceled',
+          current_phase: 'fetch',
+          steps: [
+            { step_id: 's1', step_type: 'planning', status: 'completed', started_at: '2026-06-24T08:00:05Z', completed_at: '2026-06-24T08:00:10Z', duration_ms: 5000, label: '任务规划' },
+            { step_id: 's2', step_type: 'search', status: 'completed', started_at: '2026-06-24T08:00:10Z', completed_at: '2026-06-24T08:00:28Z', duration_ms: 17900, label: '搜索' },
+            { step_id: 's3', step_type: 'fetch', status: 'running', started_at: '2026-06-24T08:00:28Z', label: '抓取' },
+          ],
+        })
+      )
+
+      const store = useTaskStore()
+      await store.fetchDetail('task-canceled-1')
+
+      expect(researchApi.getTaskState).toHaveBeenCalledWith('task-canceled-1')
+      expect(store.phaseStates.planning).toBe('done')
+      expect(store.phaseStates.search).toBe('done')
+      expect(store.phaseStates.fetch).toBe('running')
+      expect(store.phaseStates.rerank).toBe('pending')
+      expect(store.phaseDurations.planning).toBe(5000)
+      expect(store.phaseDurations.search).toBe(17900)
+      expect(store.stepLogs.length).toBeGreaterThan(0)
+    })
+
+    it('终态 completed 任务通过 state 端点标记所有阶段为 done', async () => {
+      researchApi.getTaskDetail.mockResolvedValue(
+        mockApiResponse({
+          task_id: 'task-completed-1',
+          topic: '完成的研究',
+          status: 'completed',
+          current_phase: null,
+          progress: { completed_steps: 7, total_steps: 7, progress: 1 },
+          created_at: '2026-06-24T08:00:00Z',
+          started_at: '2026-06-24T08:00:05Z',
+          completed_at: '2026-06-24T08:02:30Z',
+        })
+      )
+      researchApi.getTaskState.mockResolvedValue(
+        mockApiResponse({
+          task_id: 'task-completed-1',
+          status: 'completed',
+          current_phase: null,
+          steps: [
+            { step_id: 's1', step_type: 'planning', status: 'completed', duration_ms: 1000 },
+            { step_id: 's2', step_type: 'search', status: 'completed', duration_ms: 2000 },
+            { step_id: 's3', step_type: 'fetch', status: 'completed', duration_ms: 3000 },
+            { step_id: 's4', step_type: 'rerank', status: 'completed', duration_ms: 4000 },
+            { step_id: 's5', step_type: 'synthesis', status: 'completed', duration_ms: 5000 },
+            { step_id: 's6', step_type: 'evidence_graph', status: 'completed', duration_ms: 6000 },
+            { step_id: 's7', step_type: 'render', status: 'completed', duration_ms: 7000 },
+          ],
+        })
+      )
+
+      const store = useTaskStore()
+      await store.fetchDetail('task-completed-1')
+
+      expect(store.phaseStates.planning).toBe('done')
+      expect(store.phaseStates.search).toBe('done')
+      expect(store.phaseStates.fetch).toBe('done')
+      expect(store.phaseStates.rerank).toBe('done')
+      expect(store.phaseStates.synthesis).toBe('done')
+      expect(store.phaseStates.evidence_graph).toBe('done')
+      expect(store.phaseStates.render).toBe('done')
+    })
+
+    it('running 任务不调用 state 端点_直接连接 SSE', async () => {
+      researchApi.getTaskDetail.mockResolvedValue(
+        mockApiResponse({
+          task_id: 'task-running-1',
+          topic: '运行中研究',
+          status: 'running',
+          current_phase: 'search',
+          progress: { completed_steps: 2, total_steps: 7, progress: 0.29 },
+          created_at: '2026-06-24T08:00:00Z',
+          started_at: '2026-06-24T08:00:05Z',
+        })
+      )
+
+      const store = useTaskStore()
+      await store.fetchDetail('task-running-1')
+
+      expect(researchApi.getTaskState).not.toHaveBeenCalled()
+      expect(store.sseConnection).not.toBeNull()
+    })
+
+    it('fetchDetail 加载任务后同步更新 taskList 中对应条目', async () => {
+      researchApi.getTaskDetail.mockResolvedValue(
+        mockApiResponse({
+          task_id: 't1',
+          topic: '主题A',
+          status: 'completed',
+          current_phase: null,
+          progress: { completed_steps: 7, total_steps: 7, progress: 1 },
+          created_at: '2026-06-24T08:00:00Z',
+          started_at: '2026-06-24T08:00:05Z',
+          completed_at: '2026-06-24T08:02:30Z',
+        })
+      )
+      researchApi.getTaskState.mockResolvedValue(
+        mockApiResponse({
+          task_id: 't1',
+          status: 'completed',
+          current_phase: null,
+          steps: [],
+        })
+      )
+
+      const store = useTaskStore()
+      store.taskList = [{ task_id: 't1', topic: '主题A', status: 'running', current_phase: 'search' }]
+
+      await store.fetchDetail('t1')
+      await nextTick()
+
+      expect(store.taskList[0].status).toBe('completed')
+      expect(store.taskList[0].completed_at).toBe('2026-06-24T08:02:30Z')
     })
   })
 
@@ -281,6 +689,20 @@ describe('TaskStore', () => {
       expect(store.sseStatus).toBe('disconnected')
       expect(store.current.status).toBe('canceled')
       expect(researchApi.cancelTask).toHaveBeenCalledWith('t1')
+    })
+
+    it('取消成功后同步更新 taskList 中该任务状态', async () => {
+      researchApi.cancelTask.mockResolvedValue({})
+
+      const store = useTaskStore()
+      store.current = { task_id: 't1', topic: 'A', status: 'running' }
+      store.taskList = [{ task_id: 't1', topic: 'A', status: 'running' }]
+      store.sseConnection = { close: vi.fn() }
+
+      await store.cancelTask('t1')
+      await nextTick()
+
+      expect(store.taskList[0].status).toBe('canceled')
     })
 
     it('取消非当前任务_不更新 current', async () => {
@@ -369,6 +791,17 @@ describe('TaskStore', () => {
       expect(store.current.status).toBe('pending')
     })
 
+    it('task.created 同步更新 taskList 中对应任务状态', async () => {
+      const store = makeStore()
+      store.current.status = 'pending'
+      store.taskList = [{ task_id: 'task-001', topic: '测试', status: 'pending' }]
+
+      store.handleSSEEvent('task.created', { task_id: 'task-001', status: 'running' })
+      await nextTick()
+
+      expect(store.taskList[0].status).toBe('running')
+    })
+
     it('task.status.snapshot 恢复完整进度', () => {
       const store = makeStore()
       store.handleSSEEvent('task.status.snapshot', {
@@ -407,6 +840,16 @@ describe('TaskStore', () => {
       expect(store.sseStatus).toBe('disconnected')
     })
 
+    it('task.completed 同步更新 taskList 中对应任务状态', async () => {
+      const store = makeStore()
+      store.taskList = [{ task_id: 'task-001', topic: '测试', status: 'running' }]
+
+      store.handleSSEEvent('task.completed', { trace: { sources: 1, evidence: 1 } })
+      await nextTick()
+
+      expect(store.taskList[0].status).toBe('completed')
+    })
+
     it('task.failed 设置错误信息并断开 SSE', () => {
       const store = makeStore()
       store.handleSSEEvent('task.failed', {
@@ -419,6 +862,19 @@ describe('TaskStore', () => {
       expect(store.current.error_message).toContain('Planning 失败')
       expect(store.current.recoverable).toBe(true)
       expect(store.sseStatus).toBe('disconnected')
+    })
+
+    it('task.failed error_type 为异常类名时_尝试从描述提取标准错误码', () => {
+      const store = makeStore()
+      store.handleSSEEvent('task.failed', {
+        error_type: 'LLMAuthFailedException',
+        error_description: "500: {'code': 'E3110', 'message': 'LLM 认证失败'}",
+        recoverable: false,
+      })
+      expect(store.current.status).toBe('failed')
+      expect(store.current.error_code).toBe('E3110')
+      expect(store.current.error_message).toContain('LLM 认证失败')
+      expect(store.current.recoverable).toBe(false)
     })
 
     it('task.canceled 设置状态并断开 SSE', () => {

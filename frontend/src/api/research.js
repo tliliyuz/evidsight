@@ -54,3 +54,12 @@ export function cancelTask(taskId) {
 export function getTaskState(taskId) {
   return api.get(`/research/${taskId}/state`)
 }
+
+/**
+ * 获取任务完整研究报告（含 Evidence Graph 与 Trace）
+ * @param {string} taskId - 任务 UUID
+ * @returns {Promise} response.data.data = ResearchReportResponse
+ */
+export function getReport(taskId) {
+  return api.get(`/research/${taskId}/report`)
+}

@@ -68,31 +68,62 @@
 
       <!-- 历史任务列表（仅展开态） -->
       <div class="history-section" v-show="!collapsed">
-        <div class="nav-group-label">最近任务</div>
         <div
-          v-for="group in groupedTasks"
-          :key="group.label"
+          ref="historyScrollRef"
+          class="history-section-scroll"
+          @scroll="onHistoryScroll"
         >
-          <div class="time-group-label">{{ group.label }}</div>
+          <div class="nav-group-label">最近任务</div>
           <div
-            v-for="task in group.tasks"
-            :key="task.task_id"
-            class="nav-item task-item"
-            :class="{ active: taskStore.current?.task_id === task.task_id }"
-            @click="handleLoadTask(task)"
-            :title="task.topic"
+            v-for="group in groupedTasks"
+            :key="group.label"
           >
-            <i :class="taskStatusIcon(task.status)"></i>
-            <span class="task-topic-sidebar">{{ task.topic }}</span>
+            <div class="time-group-label">{{ group.label }}</div>
+            <div
+              v-for="task in group.tasks"
+              :key="task.task_id"
+              class="nav-item task-item"
+              :class="{ active: taskStore.current?.task_id === task.task_id }"
+              @click="handleLoadTask(task)"
+              :title="task.topic"
+            >
+              <i :class="taskStatusIcon(task.status)"></i>
+              <span class="task-topic-sidebar">{{ task.topic }}</span>
+            </div>
+          </div>
+          <!-- 加载中或无任务 -->
+          <div
+            v-if="taskStore.taskList.length === 0 && !taskStore.listLoading"
+            class="history-empty"
+          >
+            <span class="history-empty-text">暂无任务</span>
+          </div>
+
+          <!-- 滚动加载提示 -->
+          <div
+            v-if="taskStore.taskList.length > 0"
+            class="history-load-more"
+          >
+            <span v-if="taskStore.listLoading" class="history-load-more-text">
+              <i class="fas fa-spinner fa-spin"></i> 加载中…
+            </span>
+            <span v-else-if="taskStore.hasMore" class="history-load-more-text">
+              继续向下滚动加载更多
+            </span>
+            <span v-else class="history-load-more-text">没有更多任务了</span>
           </div>
         </div>
-        <!-- 加载中或无任务 -->
-        <div
-          v-if="taskStore.taskList.length === 0 && !taskStore.listLoading"
-          class="history-empty"
+
+        <!-- 查看更多 -->
+        <router-link
+          v-if="taskStore.taskList.length > 0"
+          to="/history"
+          class="history-view-all"
+          :class="{ active: route.path === '/history' }"
         >
-          <span class="history-empty-text">暂无任务</span>
-        </div>
+          <span>查看全部历史任务</span>
+          <i class="fas fa-chevron-right"></i>
+        </router-link>
       </div>
     </div>
 
@@ -248,6 +279,36 @@ const groupedTasks = computed(() => {
   return groups.filter(g => g.tasks.length > 0)
 })
 
+// ===== 无限滚动加载 =====
+
+const historyScrollRef = ref(null)
+const SCROLL_THRESHOLD = 40
+let loadMoreLock = false
+
+/** 滚动触底时加载下一页 */
+function onHistoryScroll() {
+  if (loadMoreLock || taskStore.listLoading || !taskStore.hasMore) return
+  const el = historyScrollRef.value
+  if (!el) return
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+  if (distance <= SCROLL_THRESHOLD) {
+    loadMoreLock = true
+    taskStore.fetchMore().finally(() => {
+      loadMoreLock = false
+    })
+  }
+}
+
+/** 重置到第 1 页时滚动到顶部 */
+watch(
+  () => taskStore.currentPage,
+  (page) => {
+    if (page === 1 && historyScrollRef.value) {
+      historyScrollRef.value.scrollTop = 0
+    }
+  }
+)
+
 /** 任务状态图标映射 */
 function taskStatusIcon(status) {
   const map = {
@@ -271,10 +332,10 @@ async function handleLoadTask(task) {
   }
 }
 
-// 挂载时加载最近任务
+// 挂载时加载最近任务（第 1 页，滚动到底部自动加载更多）
 onMounted(async () => {
   try {
-    await taskStore.fetchList({ page: 1, page_size: 10 })
+    await taskStore.fetchList({ page: 1, page_size: 20 })
   } catch {
     // 侧边栏列表加载失败非关键，静默处理
   }
@@ -371,6 +432,7 @@ const passwordFormRules = {
 
 function toggleCollapse() {
   collapsed.value = !collapsed.value
+  document.body.classList.toggle('sidebar-collapsed', collapsed.value)
 }
 
 /** 新建研究 — 跳转到研究页 */
@@ -438,6 +500,8 @@ async function handleChangePassword() {
 <style scoped>
 .sidebar {
   width: var(--rm-sidebar-width);
+  height: 100%;
+  max-height: 100vh;
   background: var(--rm-bg-sidebar);
   border-right: 1px solid var(--rm-border-dark);
   display: flex;
@@ -795,10 +859,63 @@ async function handleChangePassword() {
 /* ===== 历史任务列表 ===== */
 .history-section {
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   margin-top: var(--rm-space-3);
+  position: relative;
+  overflow: hidden;
+}
+
+.history-section-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
   padding-bottom: var(--rm-space-2);
+  overscroll-behavior: contain;
+}
+
+.history-section-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.history-section-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.history-section-scroll::-webkit-scrollbar-thumb {
+  background: var(--rm-border-dark);
+  border-radius: var(--rm-radius-full);
+}
+
+.history-section-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--rm-text-inverse-dim);
+}
+
+.history-view-all {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rm-space-2);
+  padding: var(--rm-space-2) var(--rm-space-3);
+  margin-top: var(--rm-space-1);
+  border-top: 1px solid var(--rm-border-dark);
+  font-size: var(--rm-text-2xs);
+  font-weight: var(--rm-weight-semibold);
+  color: var(--rm-text-inverse-dim);
+  text-decoration: none;
+  transition: all var(--rm-transition-fast);
+  flex-shrink: 0;
+}
+
+.history-view-all:hover {
+  color: var(--rm-text-inverse);
+  background: var(--rm-bg-sidebar-hover);
+}
+
+.history-view-all.active {
+  color: var(--rm-primary);
 }
 
 .nav-group-label {
@@ -849,6 +966,27 @@ async function handleChangePassword() {
 }
 
 .history-empty-text {
+  font-size: var(--rm-text-2xs);
+  color: var(--rm-text-inverse-dim);
+}
+
+.history-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--rm-space-3) var(--rm-space-3);
+  margin-top: var(--rm-space-1);
+}
+
+.history-load-more-text {
+  font-size: var(--rm-text-2xs);
+  color: var(--rm-text-inverse-dim);
+  display: flex;
+  align-items: center;
+  gap: var(--rm-space-2);
+}
+
+.history-load-more-text i {
   font-size: var(--rm-text-2xs);
   color: var(--rm-text-inverse-dim);
 }
