@@ -485,6 +485,13 @@ async def run_synthesis(
         task_id, len(evidence_items), evidence_count,
     )
 
+    sse_bridge.publish(EVENT_STEP_PROGRESS, {
+        "step_id": step_id,
+        "phase": "synthesizing",
+        "label": f"正在对 {evidence_count} 条来源进行跨源综合...",
+        "evidence_count": evidence_count,
+    })
+
     # 3. 调用 LLM 综合
     notes, prompt_tokens, completion_tokens, retry_count = await _llm_synthesize(
         topic=task.topic,
@@ -497,6 +504,7 @@ async def run_synthesis(
     sse_bridge.publish(EVENT_STEP_PROGRESS, {
         "step_id": step_id,
         "phase": "synthesizing",
+        "label": f"综合完成，生成 {len(notes.clusters)} 个观点聚类",
         "clusters_count": len(notes.clusters),
     })
 

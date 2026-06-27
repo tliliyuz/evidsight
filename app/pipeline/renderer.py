@@ -527,6 +527,7 @@ async def run_render(
     sse.publish(EVENT_STEP_PROGRESS, {
         "step_id": step_id,
         "phase": "rendering",
+        "label": f"正在渲染报告（预计 {expected_sections} 个章节）...",
         "sections_completed": 0,
         "total_sections": expected_sections,
     })
@@ -552,6 +553,7 @@ async def run_render(
     sse.publish(EVENT_STEP_PROGRESS, {
         "step_id": step_id,
         "phase": "rendering",
+        "label": f"报告渲染完成：{len(sections)} 个章节，{citations_count} 处引用",
         "sections_completed": len(sections),
         "total_sections": len(sections),
     })

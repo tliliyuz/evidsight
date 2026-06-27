@@ -531,11 +531,19 @@ async def run_rerank(
     sse_bridge.publish(EVENT_STEP_PROGRESS, {
         "step_id": step_id,
         "phase": "reranking",
+        "label": f"BM25 粗筛完成，{len(candidates)} 个候选进入精排",
         "candidates_count": len(candidates),
     })
 
     if not candidates:
         raise RerankFailedException(detail="BM25 粗筛后候选为空")
+
+    sse_bridge.publish(EVENT_STEP_PROGRESS, {
+        "step_id": step_id,
+        "phase": "reranking",
+        "label": f"正在对 {len(candidates)} 个候选进行 LLM 精排...",
+        "candidates_count": len(candidates),
+    })
 
     # 3. LLM 精排
     evidence_list, prompt_tokens, completion_tokens, retry_count = await _llm_rerank(

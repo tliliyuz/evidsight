@@ -208,6 +208,7 @@ async def _build_snapshot(
             "step_type": s.step_type,
             "status": s.status,
             "label": s.label,
+            "started_at": s.started_at.isoformat() if s.started_at else None,
         }
         if s.status == "completed" and s.output:
             # 根据 step_type 提取关键摘要字段
@@ -226,6 +227,12 @@ async def _build_snapshot(
             summary["error_message"] = s.error_message
         if s.duration_ms is not None:
             summary["duration_ms"] = s.duration_ms
+
+        # 步骤进度摘要（切页重连后恢复日志的细化内容）
+        progress_label = _extract_progress_label(s)
+        if progress_label:
+            summary["progress_label"] = progress_label
+
         steps_summary.append(summary)
 
     # 进度
@@ -264,3 +271,28 @@ async def _build_snapshot(
     }
 
     return snapshot
+
+
+def _extract_progress_label(step: ResearchStep) -> str | None:
+    """从 Step output 提取一个简短的进度摘要，供前端日志恢复时显示细化内容。"""
+    output = step.output
+    if not isinstance(output, dict):
+        return None
+
+    if step.step_type == "search":
+        results_found = output.get("results_found")
+        if results_found is not None:
+            return f"{results_found} 条结果"
+
+    if step.step_type == "fetch":
+        status = output.get("status")
+        if status == "success":
+            content_length = output.get("content_length")
+            if content_length:
+                return f"正文 {content_length} 字符"
+            return "抓取成功"
+        error = output.get("error")
+        if error:
+            return error
+
+    return None

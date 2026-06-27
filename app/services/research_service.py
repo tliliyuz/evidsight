@@ -29,6 +29,7 @@ from app.models.report_section import ReportSection
 from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
 from app.models.section_evidence import SectionEvidence
+from app.services.pipeline_orchestrator import PHASE_ORDER
 from app.schemas.research import (
     ProgressSchema,
     ReportSchema,
@@ -92,8 +93,8 @@ async def create_task(
     )
     db.add(planning_step)
 
-    # 3. 更新 task 的步骤计数
-    task.total_steps = 1
+    # 3. 初始化 task 的步骤计数为七阶段总数（全局进度分母固定）
+    task.total_steps = len(PHASE_ORDER)
 
     # 4. flush 获取 ID（Celery 分发由 API 层在 commit 后执行，
     #    以避免 Service 层 commit 破坏测试事务隔离）

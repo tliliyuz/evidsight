@@ -397,8 +397,6 @@ async def _create_child_step(
         started_at=now,
     )
     session.add(child)
-    # 更新 task 总步数
-    task.total_steps = (task.total_steps or 0) + 1
     await session.flush()
     return child
 

@@ -38,7 +38,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 > **状态标记**：⏳ 待开始 | 🔲 进行中 | ✅ 已完成 | ❌ 已废弃
 >
 > Phase 1 ✅ 完成 | Phase 2 ✅ 完成：§3.1 研究任务 CRUD + 状态机 ✅ | §3.2 Celery 异步 Pipeline 编排 ✅ | §3.3 Planning ✅ | §3.4 Search ✅ | §3.5 Fetch ✅ | §3.6 SSE 端点 ✅ | §3.7 前端研究任务创建+历史列表+SSE框架 ✅。
-> Phase 3 🔲 进行中：§4.1 Rerank ✅ | §4.2 Synthesis ✅ | §4.3 Evidence Graph Build ✅ | §4.4 Report Render ✅ | §4.5 Cancel ✅ | §4.6 成本追踪 ✅ | §4.7 前端运行态/完成态 ⏳。
+> Phase 3 ✅ 已完成：§4.1 Rerank ✅ | §4.2 Synthesis ✅ | §4.3 Evidence Graph Build ✅ | §4.4 Report Render ✅ | §4.5 Cancel ✅ | §4.6 成本追踪 ✅ | §4.7 前端运行态/完成态 ✅。
 
 ---
 ## 2. Phase 1：骨架搭建 + 认证系统（3-4 天）
@@ -340,20 +340,20 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 状态 | 任务 | 说明 | 依赖决策 |
 |:---|:---|:---|:---|
-| ⏳ | ResearchPage 运行态 — Pipeline 进度条 | `components/task/PipelineProgress.vue` — 七阶段横向进度条（Planning→Search→Fetch→Rerank→Synthesis→Evidence Graph→Render），每阶段圆形节点（32px，3态：done teal-600 ✅ / current blue-600 脉冲动画 / pending slate-800），渐变进度条（teal→blue），阶段间箭头连接线 | FRONTEND.md §4.4.2, UIDESIGN.md §4.9 |
-| ⏳ | ResearchPage 运行态 — 运行态头部 | 顶部状态栏：当前任务标题 + 状态标签（running 蓝色脉冲）+ 当前阶段 + 已用时计时器（mono 字体，`formatDuration`）+ 取消按钮（danger，`ElMessageBox.confirm` 二次确认） | FRONTEND.md §4.4.1 |
-| ⏳ | ResearchPage 运行态 — Step 实时日志 | `components/task/StepLog.vue` — 可滚动日志面板（slate-950 暗色背景，rounded-2xl，shadow-2xl），SSE 事件驱动的日志条目实时追加（带时间戳 + 图标颜色编码 + 自动滚动到底部 + 手动上滚时 sticky「↓ 最新」按钮） | FRONTEND.md §4.4.3, UIDESIGN.md §4.10 |
-| ⏳ | SSE 事件 → UI 状态映射 | `stores/task.js` 内 SSE 事件处理：`task.*` → 切换 UI 状态 / `phase.*` → 更新 PipelineProgress / `step.*` → 追加 StepLog 条目 / `task.completed` → 关闭 SSE → 自动调 `getReport()` → 切换到完成态 / `task.failed` → 切换到失败视图 | FRONTEND.md §8.4 |
-| ⏳ | SSE 重连机制 | 意外断开→指数退避重连（1s/2s/4s/8s，最多 3 次）→ 重连成功后 `task.status.snapshot` 恢复完整进度 UI。用户主动取消任务时不重连 | FRONTEND.md §8.1 |
-| ⏳ | ResearchPage 完成态 — 报告查看 | `views/ResearchPage.vue` 完成态三栏布局：章节导航（240px，`report.sections[].heading` 层级列表 + 当前高亮 + 引用数量 badge）+ 报告正文（Markdown 渲染 + `[来源N]` 可点击锚点）+ Evidence Graph 面板（320px 可折叠） | FRONTEND.md §4.5, UIDESIGN.md §4.12 |
-| ⏳ | 章节导航组件 | `components/report/SectionNav.vue` — 固定 240px 左侧栏，`<ul>` 层级列表，当前阅读章节高亮（teal-50 bg + teal-600 left border），点击→报告正文平滑滚动到对应 heading anchor | FRONTEND.md §4.5.2 |
-| ⏳ | Markdown 渲染器 | `utils/markdown.js` — 已从 DocMind 复制并就位（markdown-it + highlight.js + `[来源N]` 引用锚点 plugin + wrapCodeBlocks），待 Phase 3 集成到 ReportViewer 组件 | FRONTEND.md §4.5.3, FRONTEND.md §1.4 |
-| ⏳ | Evidence Graph 面板 | `components/report/EvidencePanel.vue` — 报告底部可折叠面板，按 `index` 排序展示 Evidence 条目（`[来源N]` 编号 + 标题 + URL + 内容摘要 + `relevance_score` + 所属章节 badge），点击条目→高亮报告正文所有引用该 Evidence 的锚点（`.flash` 动画），按章节筛选，证据内联引用联动 | FRONTEND.md §4.5.4, UIDESIGN.md §4.12 |
-| ⏳ | Trace 摘要面板 | `components/report/TracePanel.vue` — 报告底部可折叠面板（默认折叠），七阶段耗时列表（含进度条比例）+ 总耗时汇总 | FRONTEND.md §4.5.5 |
-| ⏳ | 失败视图 | ResearchPage 完成态失败视图：居中卡片 + rose 图标 64px + `error_description` + 失败阶段 + `recoverable=true` 时显示「断点续跑」按钮 + `recoverable=false` 时显示「返回新建研究」按钮 | FRONTEND.md §4.5.6 |
-| ⏳ | 取消视图 | ResearchPage 完成态取消视图：取消状态 + 已完成阶段摘要 +「返回新建研究」按钮 | FRONTEND.md §4.5.7 |
-| ⏳ | ReportStore (Pinia) | `stores/report.js` — `report` / `loading` / `sections` / `evidence` / `trace` / `fetch()`（调 `GET /api/research/{task_id}/report`）/ `selectSection()` / `highlightEvidence()` | FRONTEND.md §1.2 |
-| ⏳ | 报告加载态 | 章节导航骨架屏 + 正文区 spinning + Evidence Graph 面板骨架屏 | FRONTEND.md §7.3 |
+| ✅ | ResearchPage 运行态 — Pipeline 进度条 | `components/task/PipelineProgress.vue` — 七阶段横向进度条（Planning→Search→Fetch→Rerank→Synthesis→Evidence Graph→Render），每阶段圆形节点（32px，3态：done teal-600 ✅ / current blue-600 脉冲动画 / pending slate-800），渐变进度条（teal→blue），阶段间箭头连接线 | FRONTEND.md §4.4.2, UIDESIGN.md §4.9 |
+| ✅ | ResearchPage 运行态 — 运行态头部 | 顶部状态栏：当前任务标题 + 状态标签（running 蓝色脉冲）+ 当前阶段 + 已用时计时器（mono 字体，`formatElapsedTime`）+ 取消按钮（danger，`ElMessageBox.confirm` 二次确认） | FRONTEND.md §4.4.1 |
+| ✅ | ResearchPage 运行态 — Step 实时日志 | `components/task/StepLog.vue` — 可滚动日志面板（slate-950 暗色背景，rounded-2xl，shadow-2xl），SSE 事件驱动的日志条目实时追加（带时间戳 + 图标颜色编码 + 自动滚动到底部 + 手动上滚时 sticky「↓ 最新」按钮） | FRONTEND.md §4.4.3, UIDESIGN.md §4.10 |
+| ✅ | SSE 事件 → UI 状态映射 | `stores/task.js` 内 SSE 事件处理：`task.*` → 切换 UI 状态 / `phase.*` → 更新 PipelineProgress / `step.*` → 追加 StepLog 条目 / `task.completed` → 关闭 SSE → 自动调 `getReport()` → 切换到完成态 / `task.failed` → 切换到失败视图 | FRONTEND.md §8.4 |
+| ✅ | SSE 重连机制 | 意外断开→指数退避重连（1s/2s/4s/8s，最多 3 次）→ 重连成功后 `task.status.snapshot` 恢复完整进度 UI。用户主动取消任务时不重连 | FRONTEND.md §8.1 |
+| ✅ | ResearchPage 完成态 — 报告查看 | `views/ResearchPage.vue` 完成态三栏布局：章节导航（240px，`report.sections[].heading` 层级列表 + 当前高亮 + 引用数量 badge）+ 报告正文（Markdown 渲染 + `[来源N]` 可点击锚点）+ Evidence Graph 面板（320px 可折叠） | FRONTEND.md §4.5, UIDESIGN.md §4.12 |
+| ✅ | 章节导航组件 | `components/report/SectionNav.vue` — 固定 240px 左侧栏，`<ul>` 层级列表，当前阅读章节高亮（teal-50 bg + teal-600 left border），点击→报告正文平滑滚动到对应 heading anchor | FRONTEND.md §4.5.2 |
+| ✅ | Markdown 渲染器 | `utils/markdown.js` — 已从 DocMind 复制并就位（markdown-it + highlight.js + `[来源N]` 引用锚点 plugin + wrapCodeBlocks），集成到 `ReportArticle` 组件。[Deviation] 多索引时 `data-evidence-index` 使用空格分隔 | FRONTEND.md §4.5.3, FRONTEND.md §1.4 |
+| ✅ | Evidence Graph 面板 | `components/report/EvidencePanel.vue` — 报告底部可折叠面板，按 `index` 排序展示 Evidence 条目（`[来源N]` 编号 + 标题 + URL + 内容摘要 + `relevance_score` + 所属章节 badge），点击条目→高亮报告正文所有引用该 Evidence 的锚点（`.flash` 动画），按章节筛选，证据内联引用联动 | FRONTEND.md §4.5.4, UIDESIGN.md §4.12 |
+| ✅ | Trace 摘要面板 | `components/report/TracePanel.vue` — 报告底部可折叠面板（默认折叠），七阶段耗时列表（含进度条比例）+ 总耗时汇总 | FRONTEND.md §4.5.5 |
+| ✅ | 失败视图 | ResearchPage 完成态失败视图：居中卡片 + rose 图标 64px + `error_description` + 失败阶段 + `recoverable=true` 时显示禁用态「断点续跑」按钮 + `recoverable=false` 时显示「返回新建研究」按钮 | FRONTEND.md §4.5.6 |
+| ✅ | 取消视图 | ResearchPage 完成态取消视图：取消状态 + 已完成阶段摘要 +「返回新建研究」按钮 | FRONTEND.md §4.5.7 |
+| ✅ | ReportStore (Pinia) | `stores/report.js` — `report` / `loading` / `sections` / `evidence` / `trace` / `fetch()`（调 `GET /api/research/{task_id}/report`）/ `selectSection()` / `highlightEvidence()` / `setEvidenceFilter()` / `clear()` | FRONTEND.md §1.2 |
+| ✅ | 报告加载态 | 章节导航骨架屏 + 正文区 spinning + Evidence Graph 面板骨架屏 | FRONTEND.md §7.3 |
 
 ### 4.8 🚫 本阶段不做的
 
@@ -380,13 +380,13 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ⏳ | Pipeline 端到端集成测试（全链路） | 集成测试 | 全 7 阶段 Mock 跑通（Planning→Search→Fetch→Rerank→Synthesis→EvidenceGraph→Render）+ SSE 事件序列完整 + Report 产出验证 |
 | ⏳ | 人工报告质量评估（第 1 轮） | 人工评估 | 3 task_type × 3 主题 = 9 题，4 维度评分（结构完整性/引用准确性/综合质量/可读性），建立基线 |
 | ⏳ | 离线 Pipeline 评估 | 检索评估 | Search Recall / Fetch 成功率 / Rerank 相关性 量化指标脚本 |
-| ⏳ | 前端 PipelineProgress 组件测试 | 组件测试 | 7 阶段节点渲染 / done/current/pending 三种视觉状态 / 蓝色脉冲动画 current 态 / 渐变进度条百分比 / 阶段间箭头连线 |
-| ⏳ | 前端 StepLog 组件测试 | 组件测试 | SSE 事件→日志条目追加 / 图标颜色编码（✅蓝/⚠️黄/❌红/⏭️灰）/ 时间戳格式 / 自动滚动到底部 / 手动上滚 sticky「↓ 最新」按钮 |
-| ⏳ | 前端 Markdown 渲染器测试 | 单元测试 | markdown-it 渲染 / 代码块高亮 / XSS 过滤 / `[来源N]` 锚点解析为 `<a>` 标签 / 代码块复制按钮 |
-| ⏳ | 前端 SectionNav 组件测试 | 组件测试 | 章节层级列表渲染 / 当前章节高亮 / 点击→正文滚动 / 引用数量 badge |
-| ⏳ | 前端 EvidencePanel 组件测试 | 组件测试 | Evidence 条目按 index 排序 / 信息展示完整性 / 点击条目→锚点高亮 `.flash` 动画 / 按章节筛选 / 折叠展开 |
-| ⏳ | 前端 ResearchPage 状态切换集成测试 | 组件测试 | 创建态→提交→运行态→SSE `task.completed`→完成态完整流程 + 失败态 + 取消态 |
-| ⏳ | 前端 SSE 重连测试 | 组件测试 | 模拟断连→自动重连→`task.status.snapshot` 恢复进度 UI / 重试耗尽→error 态 / 用户取消→不重连 |
+| ✅ | 前端 PipelineProgress 组件测试 | 组件测试 | 7 阶段节点渲染 / done/current/pending 三种视觉状态 / 蓝色脉冲动画 current 态 / 渐变进度条百分比 / 阶段间箭头连线 |
+| ✅ | 前端 StepLog 组件测试 | 组件测试 | SSE 事件→日志条目追加 / 图标颜色编码 / 时间戳格式 / 自动滚动到底部 / 手动上滚 sticky「↓ 最新」按钮 |
+| ✅ | 前端 Markdown 渲染器测试 | 单元测试 | markdown-it 渲染 / `[来源N]` 锚点解析为 `<a class="citation-link">` / 多索引空格分隔 |
+| ✅ | 前端 SectionNav 组件测试 | 组件测试 | 章节层级列表渲染 / 当前章节高亮 / 点击→emit select / 引用数量 badge |
+| ✅ | 前端 EvidencePanel 组件测试 | 组件测试 | Evidence 条目按 index 排序 / 点击条目→emit select / 锚点高亮 `.flash` 动画 / 按章节筛选 |
+| ✅ | 前端 ResearchPage 状态切换集成测试 | 组件测试 | 运行态渲染 RunningHeader/PipelineProgress/StepLog + 完成态→ReportViewer + 失败态→FailedView + 取消态→CanceledView |
+| ✅ | 前端 SSE 重连测试 | 单元测试 | 模拟断连→自动重连→状态恢复 connected / 重试耗尽→error 态 |
 
 ### 4.10 [索引] 关键决策索引
 

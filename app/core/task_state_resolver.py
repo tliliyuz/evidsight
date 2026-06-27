@@ -157,7 +157,7 @@ class TaskStateResolver:
             return "failed", {
                 "error_code": "E3103",
                 "error_message": (
-                    f"证据量不满足最小阈值：已收集 {evidence_count} 条，"
+                    f"来源量不满足最小阈值：已收集 {evidence_count} 条，"
                     f"要求 >= {min_evidence} 条（max_sources={max_sources}）"
                 ),
                 "recoverable": False,

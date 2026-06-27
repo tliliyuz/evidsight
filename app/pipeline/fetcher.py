@@ -395,7 +395,6 @@ async def _create_fetch_child_step(
         started_at=now,
     )
     session.add(child)
-    task.total_steps = (task.total_steps or 0) + 1
     await session.flush()
     return child
 

@@ -215,8 +215,8 @@ class SearchFailedException(AppException):
 class InsufficientEvidenceException(AppException):
     def __init__(self, detail: str = ""):
         super().__init__(
-            "E3103", "证据量不满足最小阈值", 500,
-            {"error_type": "InsufficientEvidence", "error_description": detail or "收集到的证据量不满足最小阈值，无法生成可靠报告", "recoverable": False},
+            "E3103", "来源量不满足最小阈值", 500,
+            {"error_type": "InsufficientEvidence", "error_description": detail or "收集到的来源量不满足最小阈值，无法生成可靠报告", "recoverable": False},
         )
 
 
@@ -239,8 +239,8 @@ class RerankFailedException(AppException):
 class EvidenceGraphBuildFailedException(AppException):
     def __init__(self, detail: str = ""):
         super().__init__(
-            "E3106", "Evidence Graph 构建失败", 500,
-            {"error_type": "EvidenceGraphFailed", "error_description": detail or "Evidence Graph 构建失败（上游数据结构异常）", "recoverable": False},
+            "E3106", "来源图谱构建失败", 500,
+            {"error_type": "EvidenceGraphFailed", "error_description": detail or "来源图谱构建失败（上游数据结构异常）", "recoverable": False},
         )
 
 

@@ -75,9 +75,9 @@ PHASE_LABELS: dict[str, str] = {
     "planning": "Planning：拆解研究主题",
     "search": "Search：多子问题搜索",
     "fetch": "Fetch：网页内容抓取",
-    "rerank": "Rerank：证据粗筛精排",
+    "rerank": "Rerank：来源粗筛精排",
     "synthesis": "Synthesis：跨源综合",
-    "evidence_graph": "Evidence Graph：结构化认知资产构建",
+    "evidence_graph": "来源图谱：结构化认知资产构建",
     "render": "Render：报告渲染",
 }
 
@@ -382,9 +382,8 @@ class PipelineOrchestrator:
         self._session.add(step)
         await self._session.flush()
 
-        # 更新 task 计数
-        self._task.total_steps = (self._task.total_steps or 0) + 1
-        await self._session.flush()
+        # 注意：task.total_steps 在创建任务时已初始化为七阶段总数，
+        # 子 step 不应影响全局进度分母，因此此处不再递增。
 
         logger.debug("Step 创建: step_id=%s, type=%s", step.id, step_type)
         return step
@@ -413,6 +412,7 @@ class PipelineOrchestrator:
             "step_id": str(step.id),
             "step_type": step.step_type,
             "label": step.label,
+            "timestamp": now.isoformat(),
         })
 
     async def _complete_step(
@@ -472,7 +472,7 @@ class PipelineOrchestrator:
             "saved_at": now.isoformat(),
         })
 
-        # LLM 阶段 Trace 埋点（Planning / Rerank / Synthesis / Render）
+        # Trace 埋点（Planning / Search / Fetch / Rerank / Synthesis / Evidence Graph / Render）
         if isinstance(output, dict):
             step_type = step.step_type
             if step_type == "planning":
@@ -483,6 +483,32 @@ class PipelineOrchestrator:
                     sub_questions_count=len(output.get("sub_questions", [])),
                     retries=output.get("retry_count", 0),
                     model=output.get("model"),
+                )
+            elif step_type == "search":
+                sub_results = output.get("sub_question_results", [])
+                total_results = output.get("total_results", 0)
+                success_count = sum(1 for sr in sub_results if sr.get("status") == "completed")
+                skipped_count = sum(1 for sr in sub_results if sr.get("status") == "skipped")
+                self._trace.record_search(
+                    duration_ms=duration_ms or 0,
+                    total_results=total_results,
+                    success_count=success_count,
+                    skipped_count=skipped_count,
+                    failed_count=0,
+                )
+            elif step_type == "fetch":
+                fetched = output.get("fetched", [])
+                total_content_bytes = sum(
+                    item.get("content_length", 0) for item in fetched
+                    if isinstance(item.get("content_length"), int)
+                )
+                self._trace.record_fetch(
+                    duration_ms=duration_ms or 0,
+                    total_urls=len(fetched),
+                    success_count=output.get("successful", 0),
+                    skipped_count=output.get("skipped_safety", 0),
+                    failed_count=output.get("failed", 0),
+                    total_content_bytes=total_content_bytes,
                 )
             elif step_type == "rerank":
                 self._trace.record_rerank(
@@ -504,6 +530,12 @@ class PipelineOrchestrator:
                     knowledge_gaps_count=output.get("gaps_count", 0),
                     retries=output.get("retry_count", 0),
                     model=output.get("model"),
+                )
+            elif step_type == "evidence_graph":
+                self._trace.record_evidence_graph(
+                    duration_ms=duration_ms or 0,
+                    evidence_count=output.get("item_count", 0),
+                    source_count=output.get("source_count", 0),
                 )
             elif step_type == "render":
                 self._trace.record_render(
@@ -546,6 +578,7 @@ class PipelineOrchestrator:
             "step_id": str(step.id),
             "step_type": step.step_type,
             "label": step.label,
+            "timestamp": now.isoformat(),
         })
         self._sse.publish(EVENT_STEP_SKIPPED, {
             "step_id": str(step.id),
