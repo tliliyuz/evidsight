@@ -283,11 +283,11 @@ function phaseLabel(phase) {
 
 .failed-error-code {
   background: var(--rm-danger-light);
-  color: #BE123C;
+  color: var(--rm-danger-dark);
   font-family: var(--rm-font-mono);
   font-size: var(--rm-text-xs);
   font-weight: var(--rm-weight-semibold);
-  padding: 3px 8px;
+  padding: var(--rm-space-0_5) var(--rm-space-2);
   border-radius: var(--rm-radius-xs);
   display: inline-block;
 }

@@ -6,6 +6,11 @@
   组装为结构化的 Evidence Graph，供 Report Render 消费
 - Graph 写入 research_steps.output（step_type='evidence_graph'）
 
+[Deviation] Phase 3 将 Evidence Graph 以 JSON 形式存入 research_steps.output，
+未按 RESEARCH_PIPELINE.md §7 / DATABASE.md §2 规划拆分为 evidence_items /
+research_sources / section_evidence 三表独立持久化。该简化在 Phase 4
+断点续跑与报告重渲前需重构为关系型存储。
+
 Evidence 索引说明：
 - Synthesis 阶段内部使用 0-based 索引（按 relevance_score 降序后的位置）
 - Evidence Graph Build 同样按 relevance_score 降序取前 max_sources 条，

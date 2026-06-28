@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import select as sa_select
 
+from app.core.exceptions import PlanningFailedException, SynthesisFailedException
 from app.core.security import hash_password
 from app.core.task_state_resolver import FATAL_STEP_ERROR_CODES
 from app.core.trace_recorder import TraceRecorder
@@ -122,8 +123,7 @@ class TestPhaseOrder:
         """PHASE_LABELS 为七阶段提供前端展示用中文标签。"""
         for step_type in PHASE_ORDER:
             assert step_type in PHASE_LABELS
-            assert isinstance(PHASE_LABELS[step_type], str)
-            assert len(PHASE_LABELS[step_type]) > 0
+            assert PHASE_LABELS[step_type]
 
     @pytest.mark.asyncio
     async def test_CAS失败_不执行任何phase(self):
@@ -225,7 +225,7 @@ class TestPhaseOrder:
                 await orchestrator.run()
 
         # 6 unregistered phases skip (all except planning)
-        assert len(skip_phases) >= 1  # at least search/fetch/rerank/synthesis/evidence_graph/render
+        assert len(skip_phases) == 6  # search/fetch/rerank/synthesis/evidence_graph/render
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -269,8 +269,6 @@ class TestFatalErrorTermination:
     @pytest.mark.asyncio
     async def test_FATAL错误_emit_task_failed事件(self):
         """Planning 抛出 E3101（FATAL）→ emit task.failed + task 状态为 failed。"""
-        from app.core.exceptions import PlanningFailedException
-
         task = _make_task()
         session = AsyncMock()
         _configure_async_mock_session(session)
@@ -298,15 +296,13 @@ class TestFatalErrorTermination:
             c for c in sse_bridge.publish.await_args_list
             if c[0][0] == EVENT_TASK_FAILED
         ]
-        assert len(task_failed_calls) >= 1
+        assert len(task_failed_calls) == 1
         # 验证 error_code 在 FATAL 集中
         assert "E3101" in FATAL_STEP_ERROR_CODES
 
     @pytest.mark.asyncio
     async def test_可恢复致命错误_emit_task_failed_recoverable为True_终止Pipeline(self):
         """FATAL 但 recoverable=true 的错误（E3104）→ emit task.failed(recoverable=True) + Pipeline 终止。"""
-        from app.core.exceptions import SynthesisFailedException
-
         task = _make_task()
         task.execution_context = {"last_completed_step_id": "some-step-uuid"}
         session = AsyncMock()
@@ -340,7 +336,7 @@ class TestFatalErrorTermination:
             c for c in sse_bridge.publish.await_args_list
             if c[0][0] == EVENT_TASK_FAILED
         ]
-        assert len(failed_calls) >= 1
+        assert len(failed_calls) == 1
         payload = failed_calls[0][0][1]
         assert payload["recoverable"] is True
         assert payload.get("last_checkpoint") == "some-step-uuid"
@@ -391,13 +387,11 @@ class TestFinalizeTask:
             c for c in sse_bridge.publish.await_args_list
             if c[0][0] == EVENT_TASK_COMPLETED
         ]
-        assert len(completed_calls) >= 1
+        assert len(completed_calls) == 1
 
     @pytest.mark.asyncio
     async def test_有failed_step_emit_task_failed(self):
         """存在 failed step → emit task.failed。"""
-        from app.core.exceptions import PlanningFailedException
-
         task = _make_task()
         session = AsyncMock()
         _configure_async_mock_session(session)
@@ -424,7 +418,7 @@ class TestFinalizeTask:
             c for c in sse_bridge.publish.await_args_list
             if c[0][0] == EVENT_TASK_FAILED
         ]
-        assert len(failed_calls) >= 1
+        assert len(failed_calls) == 1
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -475,8 +469,6 @@ class TestCostTracking:
 
     @pytest.mark.asyncio
     async def test_complete_step_写入step_cost(self):
-        from app.core.trace_recorder import TraceRecorder
-
         task = _make_task()
         session = AsyncMock()
         _configure_async_mock_session(session)
@@ -508,16 +500,13 @@ class TestCostTracking:
         }
         await orchestrator._complete_step(step, "planning", output)
 
-        assert step.cost is not None
         assert step.cost["input_tokens"] == 1000
         assert step.cost["output_tokens"] == 200
         assert step.cost["model"] == "deepseek-v4-pro"
-        assert step.cost["estimated_cost_usd"] > 0
+        assert step.cost["estimated_cost_usd"] == 0.000609
 
     @pytest.mark.asyncio
     async def test_complete_step_非LLM阶段不写入cost(self):
-        from app.core.trace_recorder import TraceRecorder
-
         task = _make_task()
         session = AsyncMock()
         _configure_async_mock_session(session)
@@ -545,8 +534,6 @@ class TestCostTracking:
 
     @pytest.mark.asyncio
     async def test_trace_聚合各LLM阶段成本(self):
-        from app.core.trace_recorder import TraceRecorder
-
         trace = TraceRecorder(task_id="task-trace-001", user_id=1, topic="测试")
         trace.record_planning(
             duration_ms=1000,
@@ -583,13 +570,13 @@ class TestCostTracking:
         assert result["total_input_tokens"] == 11000
         assert result["total_output_tokens"] == 3000
         assert result["total_tokens"] == 14000
-        assert result["total_cost_usd"] > 0
+        assert result["total_cost_usd"] == 0.006628
         assert "planning" in result["breakdown"]
         assert "rerank" in result["breakdown"]
         assert "synthesis" in result["breakdown"]
         assert "render" in result["breakdown"]
         assert result["breakdown"]["planning"]["tokens"] == 1200
-        assert result["breakdown"]["planning"]["cost"] > 0
+        assert result["breakdown"]["planning"]["cost"] == 0.000609
         assert result["phases"]["planning"]["model"] == "deepseek-v4-pro"
 
     @pytest.mark.asyncio
@@ -627,7 +614,6 @@ class TestCostTracking:
         await orchestrator._complete_step(step, "searching", output)
 
         search_data = trace.finish()["phases"]["search"]
-        assert search_data is not None
         assert search_data["total_results"] == 30
         assert search_data["success_count"] == 2
         assert search_data["skipped_count"] == 1
@@ -668,7 +654,6 @@ class TestCostTracking:
         await orchestrator._complete_step(step, "fetching", output)
 
         fetch_data = trace.finish()["phases"]["fetch"]
-        assert fetch_data is not None
         assert fetch_data["total_urls"] == 2
         assert fetch_data["success_count"] == 2
         assert fetch_data["skipped_count"] == 1
@@ -702,7 +687,6 @@ class TestCostTracking:
         await orchestrator._complete_step(step, "building_evidence_graph", output)
 
         eg_data = trace.finish()["phases"]["evidence_graph"]
-        assert eg_data is not None
         assert eg_data["evidence_count"] == 8
         assert eg_data["source_count"] == 5
 
@@ -846,8 +830,6 @@ class TestPipelineWithRealSession:
     @pytest.mark.asyncio
     async def test_fatal_error后_step和task均标记为failed(self, db_session):
         """Phase handler 抛致命错误，Step 应持久化为 failed，Task 也应为 failed。"""
-        from app.core.exceptions import PlanningFailedException
-
         user = User(
             username="pipeline-fatal",
             password_hash=hash_password("pass"),

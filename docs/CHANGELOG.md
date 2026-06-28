@@ -10,6 +10,46 @@
 
 ## [Unreleased]
 
+### Fixed
+- **修复进度条百分比与步骤数不一致（第 6 步显示 33% 而非 ~86%）**：回退 🟡9 的动态 `total_steps` 扩展逻辑。根因是 `_update_total_steps_on_completion` 将分母改为子步骤总数（如 18），但分子 `completed_steps` 仍按 Phase 维度计数（6），导致 `6/18≈33%`。修复：(1) `research_service.create_task()` 中 `total_steps` 恢复为 `len(PHASE_ORDER)`=7；(2) 移除 `_update_total_steps_on_completion` 方法及其调用；(3) `_start_task` 中增加安全修正——对旧任务自动将 `total_steps` 修正为 7，避免已创建任务残留动态值。
+- **Phase3 批次 B 规范修复（🟡1-🟡31，对应 REVIEW_FIX_PLAN.md §4）**——后端 19 项 + 前端 7 项 + 测试 3 项 + 文档 2 项规范化修复：
+  - **后端规范化（🟡1-🟡19）**：
+    - 🟡1: `PipelineOrchestrator._get_handler()` 将 7 个 Phase handler 的延迟导入移至模块顶部，消除函数内局部导入
+    - 🟡2: 移除 `app/pipeline/fetcher.py` 和 `app/models/research_source.py` 中的重复 import 语句
+    - 🟡3: `delete_task` bulk `sa_delete` 标注 `[Deviation]`（SQLite 驱动限制），同步更新 `DATABASE.md §4` 外键策略
+    - 🟡4: `GET /api/research` 的 `keyword` 参数补充到 `API.md §3.1` 查询参数表；`status` 参数使用 Pydantic 枚举校验
+    - 🟡5: topic 为空改为抛 `InvalidRequirementsException`，不再抛 `TopicTooLongException`
+    - 🟡6: `require_admin` 非 admin 返回 `E2009 AdminRequired`，与 `ARCHITECTURE.md §4.3` 对齐
+    - 🟡7: `_build_snapshot` 中 step 摘要补充 `completed_at` 字段
+    - 🟡8: `cancel_task` 成功后主动发布 `task.canceled` SSE 事件
+    - 🟡9: `total_steps` 按实际阶段数动态计算（1 planning + n sub_questions + m fetch URLs + 4 fixed phases），不再固定为 7 `[已回退]`——导致进度百分比错配（6/18=33%），已回退为固定分母 7。`pipeline_orchestrator._start_task` 增加安全修正，对旧任务自动将残留动态值修正为 7。
+    - 🟡10: 拆分 `task.total_sources` 与 `task.total_evidence` 语义：`total_sources` = Search 去重后 URL 数，`total_evidence` = Rerank 后有效证据数
+    - 🟡11: 各阶段重试次数语义统一为「初始 1 次 + max_retries 次」
+    - 🟡12: Token 估算工具 `token_counter.py` 接入 Rerank/Synthesis/Render Prompt 构建
+    - 🟡13: Render Prompt 按 `RESEARCH_PIPELINE.md §8.3/§8.4` 在 Section 末尾列出来源
+    - 🟡14: Search 阶段去重后结果 < 3 时发布 `task.warning`，按 `tavily_score` 截断至 25 条
+    - 🟡15: `total_cost_usd` 计入 Tavily Search / HTTP Fetch 成本并在 `CHANGELOG.md` 标注 `[Deviation]`（Phase 3 简化估算模型）
+    - 🟡16: Evidence Graph 作为独立持久化资产，标注 `[Deviation]`（Phase 3 仍用 JSON 存储）
+    - 🟡17: `task.total_evidence` 改为先清空再写入，消除累加重复计数风险
+    - 🟡18: `TraceRecorder` 统一接收 `int` 类型 `user_id`，移除 `str()` 转换
+    - 🟡19: 移除 `PipelineOrchestrator` 中 `inspect.isawaitable` 检查，改为真实 ORM 调用
+  - **前端规范化（🟡20-🟡26）**：
+    - 🟡20: `style` 属性覆盖改为 CSS class + Design Token 变量（`ResearchPage.vue`、`HistoryPage.vue`）
+    - 🟡21: `💡` emoji 替换为 Font Awesome 6 `fa-lightbulb` 图标
+    - 🟡22: 15+ 个 Vue/CSS 文件中硬编码颜色值全部替换为 `--rm-*` 语义 Design Token（`PipelineProgress.vue` / `StepLog.vue` / `RunningHeader.vue` / `ReportArticle.vue` / `EvidencePanel.vue` / `TracePanel.vue` / `FailedView.vue` / `TypeCard.vue` / `ExampleCard.vue` / `CheckpointBanner.vue` / `LoginPage.vue` 等）`[StepLog+PipelineProgress 已回退]`——`--rm-bg-dark-card` 等变量未写入 `global.css`，导致终端面板变白，已回退为硬编码颜色。
+    - 🟡23: 硬编码间距/圆角/字号/行高替换为 `--rm-space-*` / `--rm-radius-*` / `--rm-text-*` / `--rm-leading-*` Token（`HistoryPage.vue` / `SectionNav.vue` / `Sidebar.vue` / `EvidencePanel.vue` / `ReportArticle.vue` / `TracePanel.vue` / `FailedView.vue` / `global.css`）
+    - 🟡24: `global.css` 中 `--rm-accent` / `--rm-accent-light` 补充进 `UIDESIGN.md §1` CSS 变量定义，保持文档与代码一致
+    - 🟡25: `sse.js` 注释中退避策略 `1s/2s/4s/8s` 修正为 `1s/2s/4s`，与 `FRONTEND.md §8.1` 一致
+    - 🟡26: `EvidencePanel.vue` 中 `fa-external-link-alt` → `fa-up-right-from-square`（FA6 正确命名）
+  - **测试规范化（🟡27-🟡29）**：
+    - 🟡27: 弱断言全部替换为强断言：`>= 1`/`> 0` → 精确值（如 `len(skip_phases) == 6`、`cost_usd == 0.000609`、`total_cost_usd == 0.006628`）；`.toBeDefined()`/`.toBeGreaterThan(0)` → 精确值（如 `stepLogs.length === 3`）
+    - 🟡28: 测试函数内局部导入全部移至模块顶部（`test_pipeline_orchestrator.py` 8 处、`test_research_service.py` 1 处）
+    - 🟡29: 异常捕获由 `pytest.raises(Exception)` 改为 `pytest.raises(ValidationError)`（`test_research_service.py` 2 处）
+  - **文档规范化（🟡30-🟡31）**：
+    - 🟡30: `API.md` 补充 `keyword` 查询参数说明；`DATABASE.md` 更新最后修改日期为 2026-06-28
+    - 🟡31: `DATABASE.md §4` 新增 `[Deviation]` 说明 `delete_task` bulk `sa_delete` 的原因与影响
+  - **测试结果**：后端 `pytest tests/unit/ -v` 全部通过；前端 `npm run test` 全部通过
+
 ### Changed
 - **TESTING_STRATEGY.md 记录 Phase 3 评估基线（§11.6.3-§11.6.5）**：写入三轮人工评估聚合结果（9 条记录，总体均分 3.81，最低维度为综合质量 3.44）、系统可靠性基线（Task Completion Rate 100%、LLM Call Success Rate 100%）以及单任务检索评估示例（LLM Observability，Search Coverage/Recall@5 100%、Fetch Success Rate 77.27%、Rerank Mean 0.775），并附与 §11.3 / §11.4.5 目标的达标对比。
 - **人工评估轮次定义对齐 sample（TESTING_STRATEGY.md §11.4.3 / §11.4.4）**：将每轮样本量从 9 题修正为 3 题、总样本量为 9 题；轮次表从 2 轮扩展为 3 轮，分别对应技术趋势 / 政策法规 / 产品/方案对比三类主题领域，与 `app/evaluation/eval_question_sample.md` 及 `eval/manual/round{N}/` 目录结构一致。

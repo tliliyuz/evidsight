@@ -6,7 +6,7 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档版本 | v1.0 |
-| 最后更新 | 2026-06-20 |
+| 最后更新 | 2026-06-28 |
 
 > 用途: 面向 Agent 的 CSS 变量与组件样式参考。所有样式基于 Vue 3 + Element Plus 项目。Design Token 提取自 `ai_studio_code.html` 静态原型，前缀统一为 `--rm-*`。
 
@@ -25,12 +25,17 @@
     --rm-primary-light: #F0FDFA;          /* teal-50 — 浅色背景、选中卡片背景 */
     --rm-primary-border: rgba(15, 118, 110, 0.2);   /* 20% 透明度边框 */
     --rm-primary-hover-light: #CCFBF1;           /* teal-100 — ghost 按钮 hover */
+    --rm-primary-hover-border: rgba(15, 118, 110, 0.3);  /* hover 边框 */
+    --rm-primary-subtle-bg: rgba(15, 118, 110, 0.05);    /* 极浅 teal 背景 */
+    --rm-primary-selected-bg: rgba(15, 118, 110, 0.08);  /* 选中卡片背景 */
 
     /* ===== 辅助品牌色（科技蓝） ===== */
     --rm-secondary: #2563EB;              /* blue-600 — 运行态、当前阶段高亮 */
     --rm-secondary-light: #EFF6FF;        /* blue-50 — 蓝色浅底 */
     --rm-info: #3B82F6;                   /* blue-500 — 信息提示 */
     --rm-info-light: #EFF6FF;             /* blue-50 — 信息浅色背景 */
+    --rm-accent: #7C3AED;                 /* violet-600 — 分析型标签 */
+    --rm-accent-light: #F3E8FF;           /* violet-50 — 分析型标签浅底 */
 
     /* ===== 语义色 ===== */
     --rm-success: #0D9488;                /* teal-600 — 完成标记 */
@@ -38,15 +43,37 @@
     --rm-warning: #F59E0B;                /* amber-500 — checkpoint 提示 */
     --rm-warning-light: #FFFBEB;          /* amber-50 */
     --rm-danger: #E11D48;                 /* rose-600 — 失败/危险操作 */
+    --rm-danger-dark: #BE123C;            /* rose-700 — 失败错误码 */
     --rm-danger-light: #FEF2F2;           /* rose-50 */
     --rm-danger-border: rgba(225, 29, 72, 0.2);
+
+    /* ===== 状态色（Pipeline / 日志 / 运行态） ===== */
+    --rm-status-running: #3B82F6;         /* blue-500 — 运行态/当前阶段节点边框 */
+    --rm-status-running-light: rgba(59, 130, 246, 0.4);  /* 脉冲阴影 */
+    --rm-status-success: #0D9488;         /* teal-600 — 已完成节点 */
+    --rm-status-success-light: #14B8A6;   /* teal-500 — 已完成节点边框 */
+    --rm-status-current: #60A5FA;         /* blue-400 — 当前阶段标签 */
+    --rm-pipeline-gradient: linear-gradient(to right, #14B8A6, #3B82F6);  /* 进度条渐变 */
+
+    /* ===== 深色背景上的强调文字色 ===== */
+    --rm-text-teal-300: #5EEAD4;
+    --rm-text-teal-400: #2DD4BF;
+    --rm-text-rose-400: #FB7185;
+    --rm-text-amber-400: #FBBF24;
+    --rm-text-slate-300: #CBD5E1;
+
+    /* ===== 运行态头部图标背景 ===== */
+    --rm-running-icon-bg: rgba(20, 184, 166, 0.1);
+    --rm-running-icon-border: rgba(20, 184, 166, 0.2);
 
     /* ===== 来源高亮标记（Report 内引用片段） ===== */
     --rm-evidence-highlight-bg: #CCFBF1;  /* teal-100 — 来源片段背景 */
     --rm-evidence-highlight-text: #0F766E;
     --rm-evidence-highlight-border: #99F6E4;  /* teal-200 */
+    --rm-evidence-highlight-hover-bg: #99F6E4;  /* teal-200 — 引用锚点 hover */
     --rm-evidence-flash-bg: #FEF3C7;      /* amber-100 — 点击联动闪烁（右侧来源卡片高亮） */
     --rm-evidence-flash-border: #F59E0B;   /* amber-500 */
+    --rm-evidence-flash-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);  /* 闪烁外发光 */
 
     /* ===== 中性色（黑白灰体系 — 偏冷 slate 系） ===== */
     --rm-bg-page: #F8FAFC;                /* slate-50 — 页面底色 */
@@ -58,6 +85,7 @@
     --rm-bg-input: #F8FAFC;               /* slate-50 */
     --rm-bg-elevated: #F1F5F9;            /* slate-100 — 次级底色 */
     --rm-bg-code: #0F172A;                /* slate-900 — 代码块/终端背景 */
+    --rm-bg-terminal-header: #1E293B;     /* slate-800 — 终端顶栏 */
     --rm-bg-dark-card: #020617;           /* slate-950 — 运行态顶部栏/终端面板 */
     --rm-text-primary: #0F172A;           /* slate-900 */
     --rm-text-secondary: #475569;         /* slate-600 */
@@ -103,6 +131,7 @@
     --rm-leading-relaxed: 1.625;
 
     /* ===== 间距（4px 基准，对齐 Tailwind 默认比例） ===== */
+    --rm-space-0_5: 2px;                  /* 半档，用于微小间距 */
     --rm-space-1: 4px;
     --rm-space-1_5: 6px;
     --rm-space-2: 8px;
@@ -126,6 +155,7 @@
     --rm-radius-lg: 12px;                 /* rounded-xl — 模态框、大卡片 */
     --rm-radius-xl: 16px;                 /* rounded-2xl — 仪表盘面板 */
     --rm-radius-full: 50%;
+    --rm-radius-pill: 9999px;              /* 胶囊形标签/进度条 */
 
     /* ===== 阴影 ===== */
     --rm-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -147,6 +177,12 @@
     --rm-evidence-panel-width: 320px;     /* w-80 — 来源图谱面板宽 */
     --rm-section-nav-width: 240px;        /* w-60 — 章节目录宽 */
     --rm-input-height: 40px;
+    --rm-user-menu-min-width: 200px;       /* 用户菜单卡片最小宽度 */
+    --rm-trace-bar-height: 3px;            /* Trace 阶段条高度 */
+    --rm-ring-width: 1px;                  /* ring/selected 描边宽度 */
+    --rm-loading-mask-bg: rgba(0, 0, 0, 0.7);  /* 危险操作全屏 loading 遮罩 */
+    --rm-login-dot-color: rgba(255, 255, 255, 0.10);  /* 登录页微网点 */
+    --rm-login-dot-size: 24px;             /* 登录页微网点间距 */
 
     /* ===== 过渡 ===== */
     --rm-transition-fast: 0.15s ease;

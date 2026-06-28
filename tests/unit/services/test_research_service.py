@@ -8,6 +8,7 @@
 from datetime import datetime, timezone
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,8 +88,6 @@ def _make_request(
 
 async def _seed_user(db: AsyncSession, user_id: int = 1, username: str = "testuser") -> None:
     """工厂函数：确保 users 表中存在指定 user_id。"""
-    from app.models.user import User
-    from app.core.security import hash_password
     existing = await db.get(User, user_id)
     if existing is None:
         user = User(
@@ -153,6 +152,7 @@ class TestCreateTask:
         assert task.topic == "量子计算对密码学的影响"
         assert task.user_id == 1
         assert task.status == "pending"
+        # 创建时初始化为七阶段总数（与 PHASE_ORDER 一致），分母固定不再动态扩展
         assert task.total_steps == 7
 
     async def test_创建后附首个planning_step(self, db_session: AsyncSession):
@@ -199,13 +199,13 @@ class TestCreateTask:
 
     # ── 错误分支 ──────────────────────────────────────────────
 
-    async def test_topic超500字符_抛出E2005(self, db_session: AsyncSession):
+    async def test_topic超500字符_抛出ValidationError(self, db_session: AsyncSession):
         """Pydantic 已拦截 >500，此处验证 Pydantic 的拦截。"""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             _make_request(topic="研" * 501)
 
     async def test_topic纯空格_抛出ValidationError(self, db_session: AsyncSession):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _make_request(topic="   ")
 
 

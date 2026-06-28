@@ -35,7 +35,7 @@
           @click.stop
           :title="item.sourceTitle || item.sourceUrl"
         >
-          <i class="fas fa-external-link-alt"></i>
+          <i class="fas fa-up-right-from-square"></i>
           <span class="evidence-source-title">{{ item.sourceTitle || item.domain || '来源链接' }}</span>
         </a>
 
@@ -142,7 +142,7 @@ watch(() => props.highlightedIndex, (index) => {
   border-radius: var(--rm-radius-md);
   padding: var(--rm-space-2);
   font-size: var(--rm-text-2xs);
-  transition: all 0.3s ease;
+  transition: all var(--rm-transition-slow);
   position: relative;
   margin-bottom: var(--rm-space-2);
   cursor: pointer;
@@ -158,8 +158,8 @@ watch(() => props.highlightedIndex, (index) => {
 
 .evidence-card.flash {
   border-color: var(--rm-evidence-flash-border);
-  background: #FFFBEB;
-  box-shadow: 0 0 0 2px var(--rm-evidence-flash-border);
+  background: var(--rm-evidence-flash-bg);
+  box-shadow: var(--rm-evidence-flash-shadow);
   animation: evidence-flash 1s ease-in-out 2;
 }
 
@@ -180,7 +180,7 @@ watch(() => props.highlightedIndex, (index) => {
   color: white;
   font-family: var(--rm-font-mono);
   font-size: var(--rm-text-3xs);
-  padding: 2px 5px;
+  padding: var(--rm-space-0_5) var(--rm-space-1_5);
   border-radius: var(--rm-radius-xs);
   font-weight: var(--rm-weight-bold);
 }
@@ -207,7 +207,7 @@ watch(() => props.highlightedIndex, (index) => {
 }
 
 .evidence-source i {
-  font-size: 8px;
+  font-size: var(--rm-text-3xs);
   flex-shrink: 0;
 }
 
@@ -247,8 +247,8 @@ watch(() => props.highlightedIndex, (index) => {
 .evidence-section-badge {
   background: var(--rm-bg-elevated);
   color: var(--rm-text-tertiary);
-  padding: 2px 6px;
-  border-radius: 9999px;
+  padding: var(--rm-space-0_5) var(--rm-space-1_5);
+  border-radius: var(--rm-radius-pill);
   cursor: pointer;
   transition: all var(--rm-transition-fast);
 }

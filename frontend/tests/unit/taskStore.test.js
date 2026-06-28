@@ -96,7 +96,7 @@ describe('TaskStore', () => {
       const store = useTaskStore()
       await expect(
         store.createTask('测试', { task_type: 'comparison', depth: 'quick', max_sources: 10, language: 'zh' })
-      ).rejects.toBeDefined()
+      ).rejects.toThrow('网络错误')
 
       expect(store.loading).toBe(false)
     })
@@ -424,12 +424,13 @@ describe('TaskStore', () => {
     })
 
     it('不存在的任务_API 异常抛出', async () => {
-      researchApi.getTaskDetail.mockRejectedValue({
+      const error = {
         response: { status: 404, data: { code: 'E2001' } },
-      })
+      }
+      researchApi.getTaskDetail.mockRejectedValue(error)
 
       const store = useTaskStore()
-      await expect(store.fetchDetail('non-existent')).rejects.toBeDefined()
+      await expect(store.fetchDetail('non-existent')).rejects.toBe(error)
     })
 
     it('同一任务重新获取时保留已有 stepLogs', async () => {
@@ -523,7 +524,7 @@ describe('TaskStore', () => {
       expect(store.phaseStates.rerank).toBe('pending')
       expect(store.phaseDurations.planning).toBe(5000)
       expect(store.phaseDurations.search).toBe(17900)
-      expect(store.stepLogs.length).toBeGreaterThan(0)
+      expect(store.stepLogs.length).toBe(10)  // planning(4) + search(4) + fetch(2) = 10
     })
 
     it('终态 completed 任务通过 state 端点标记所有阶段为 done', async () => {

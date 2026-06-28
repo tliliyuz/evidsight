@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.cost_tracker import calculate_search_cost_usd
 from app.core.exceptions import SearchFailedException
 from app.models.research_step import ResearchStep
 from app.models.research_source import ResearchSource
@@ -27,6 +28,7 @@ from app.pipeline.sse_bridge import (
     EVENT_STEP_PROGRESS,
     EVENT_STEP_SKIPPED,
     EVENT_STEP_STARTED,
+    EVENT_TASK_WARNING,
 )
 
 logger = logging.getLogger(__name__)
@@ -275,21 +277,7 @@ async def run_search(
 
         all_results.extend(selected_results)
 
-        # 写入 ResearchSource 行（fetch_status=None，等待 Fetch 阶段填充）
-        for r in selected_results:
-            source = ResearchSource(
-                task_id=task.id,
-                url=r["url"],
-                title=r.get("title", "")[:500],
-                domain=_extract_domain(r["url"])[:255],
-                fetch_status=None,
-            )
-            session.add(source)
-            sources_created += 1
-
-        await session.flush()
-
-        # 子 step → completed
+        # 子 step → completed（此时 selected 为去重后的数量，最终可能因全局截断而减少）
         child_output = {
             "sub_question": sq,
             "results_found": results_count,
@@ -310,6 +298,7 @@ async def run_search(
             "selected": len(selected_results),
             "status": "completed",
             "step_id": child_step_id,
+            "urls": [r["url"] for r in selected_results],
         })
 
         # 总结果截断
@@ -323,21 +312,56 @@ async def run_search(
             detail=f"全部 {len(sub_results)} 个子问题搜索失败或返回 0 结果"
         )
 
-    # 4. 更新 task 统计
-    task.total_sources = (task.total_sources or 0) + sources_created
-    await session.flush()
-
-    # 去重后截断
+    # 4. 按 Tavily score 降序排序并截断至 25 条
+    all_results.sort(key=lambda r: float(r.get("score") or 0.0), reverse=True)
     after_dedup = len(all_results)
     if after_dedup > settings.TAVILY_TOTAL_RESULTS_LIMIT:
         all_results = all_results[:settings.TAVILY_TOTAL_RESULTS_LIMIT]
         after_dedup = settings.TAVILY_TOTAL_RESULTS_LIMIT
 
+    final_urls = {r["url"] for r in all_results}
+
+    # 5. 写入 ResearchSource 行（fetch_status=None，等待 Fetch 阶段填充）
+    for r in all_results:
+        source = ResearchSource(
+            task_id=task.id,
+            url=r["url"],
+            title=r.get("title", "")[:500],
+            domain=_extract_domain(r["url"])[:255],
+            fetch_status=None,
+        )
+        session.add(source)
+        sources_created += 1
+    await session.flush()
+
+    # 6. 低结果数警告（不阻断）
+    if after_dedup < 3:
+        await sse_bridge.publish(EVENT_TASK_WARNING, {
+            "step_id": root_step_id,
+            "error_type": "search_low_results",
+            "error_description": f"去重后搜索结果仅 {after_dedup} 条，少于 3 条，可能影响后续报告质量",
+        })
+
+    # 7. 修正各子问题的 selected 数量（全局截断后可能减少）
+    for sr in sub_results:
+        if sr.get("status") == "completed":
+            sr["selected"] = len([u for u in sr.get("urls", []) if u in final_urls])
+        sr.pop("urls", None)
+
+    # 8. 不覆盖 task.total_sources（其语义为 Fetch 成功抓取数，见 API.md §3.6），
+    #    去重后的 URL 数通过 output.total_urls 透传，供后续动态进度计算使用。
+    query_count = sum(1 for sr in sub_results if sr.get("status") == "completed")
+    search_cost_usd = calculate_search_cost_usd(
+        query_count=query_count,
+        depth=settings.TAVILY_SEARCH_DEPTH,
+    )
     output = {
         "total_results": sum(sr.get("results_count", 0) for sr in sub_results),
         "after_dedup": after_dedup,
+        "total_urls": after_dedup,
         "sub_question_results": sub_results,
         "sources_created": sources_created,
+        "search_cost_usd": search_cost_usd,
     }
 
     logger.info(

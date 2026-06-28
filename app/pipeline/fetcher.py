@@ -18,6 +18,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.cost_tracker import calculate_fetch_cost_usd
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
@@ -248,6 +249,7 @@ async def run_fetch(
     successful = 0
     failed = 0
     skipped_safety = 0
+    success_content_bytes = 0
     truncated_count = original_source_count - len(sources)
 
     for source in sources:
@@ -299,6 +301,7 @@ async def run_fetch(
             source.domain = _extract_domain(url)[:255]
             source.content = fetch_result["content"]
             successful += 1
+            success_content_bytes += fetch_result.get("content_length") or 0
 
             # 子 step → completed
             child_output = {
@@ -332,16 +335,18 @@ async def run_fetch(
 
         await session.flush()
 
-    # 更新 task 统计
+    # 更新 task 统计：total_sources 表示最终成功抓取的来源数
     task.total_sources = successful
     await session.flush()
 
+    fetch_cost_usd = calculate_fetch_cost_usd(success_content_bytes)
     output = {
         "fetched": fetched_results,
         "successful": successful,
         "failed": failed,
         "skipped_safety": skipped_safety,
         "truncated": truncated_count,
+        "fetch_cost_usd": fetch_cost_usd,
     }
 
     logger.info(

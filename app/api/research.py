@@ -9,14 +9,25 @@
 - GET /api/research/{task_id}/state — REST 状态快照（轮询降级）
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ValidationFailedException
+
+logger = logging.getLogger(__name__)
 from app.dependencies import get_current_user, get_db, require_task_accessible
+from app.models.enums import TASK_STATUS_ENUM
 from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
-from app.pipeline.sse_bridge import EVENT_TASK_STATUS_SNAPSHOT, sse_event_stream
+from app.pipeline.sse_bridge import (
+    EVENT_TASK_CANCELED,
+    EVENT_TASK_STATUS_SNAPSHOT,
+    SSEBridge,
+    sse_event_stream,
+)
 from app.schemas.research import ResearchCreateRequest
 from app.services.research_service import (
     cancel_task,
@@ -64,6 +75,9 @@ async def list_research_tasks(
     对齐 API.md §3.1 GET /api/research。
     按 created_at DESC 排序，支持 status 筛选与 topic 关键字模糊搜索。
     """
+    if status is not None and status not in TASK_STATUS_ENUM:
+        raise ValidationFailedException(f"status 参数非法，可选值: {', '.join(TASK_STATUS_ENUM)}")
+
     result = await get_task_list(
         db,
         user_id=current_user["user_id"],
@@ -114,10 +128,17 @@ async def cancel_research_task(
     """取消研究任务（需登录，仅 owner 或 admin）。
 
     对齐 API.md §3.2 POST /api/research/{task_id}/cancel。
-    API 层直接 CAS 更新 task.status=canceled；Orchestrator 在 Phase 边界检测
-    canceled 状态后停止并发送 task.canceled SSE 事件。
+    API 层直接 CAS 更新 task.status=canceled；成功后再主动发布 task.canceled
+    SSE 事件，确保客户端订阅 /stream 时能立即收到取消通知。
     """
     result = await cancel_task(db, task)
+
+    sse = SSEBridge(task.id)
+    try:
+        await sse.publish(EVENT_TASK_CANCELED, {"task_id": str(task.id), "status": "canceled"})
+    except Exception:
+        logger.exception("取消任务后发送 SSE 事件失败: task_id=%s", task.id)
+
     return {"code": "0", "message": "任务已取消", "data": result.model_dump()}
 
 
@@ -238,6 +259,7 @@ async def _build_snapshot(
             "status": s.status,
             "label": s.label,
             "started_at": s.started_at.isoformat() if s.started_at else None,
+            "completed_at": s.completed_at.isoformat() if s.completed_at else None,
         }
         if s.status == "completed" and s.output:
             # 根据 step_type 提取关键摘要字段

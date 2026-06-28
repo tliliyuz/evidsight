@@ -385,7 +385,7 @@ class TestSynthesisFailure:
                 await run_synthesis(task, synthesis_step, db_session, sse)
 
         assert exc_info.value.error_code == "E3104"
-        assert mock_llm.call_count == 3
+        assert mock_llm.call_count == 4  # 初始 1 次 + 3 次重试
 
     @pytest.mark.asyncio
     async def test_LLM异常重试耗尽_抛出E3104_call_count为3(self, db_session):
@@ -400,7 +400,7 @@ class TestSynthesisFailure:
                 await run_synthesis(task, synthesis_step, db_session, sse)
 
         assert exc_info.value.error_code == "E3104"
-        assert mock_llm.call_count == 3
+        assert mock_llm.call_count == 4  # 初始 1 次 + 3 次重试
 
     @pytest.mark.asyncio
     async def test_空evidence_抛出E3104_不调用LLM(self, db_session):

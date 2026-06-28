@@ -93,7 +93,9 @@ async def create_task(
     )
     db.add(planning_step)
 
-    # 3. 初始化 task 的步骤计数为七阶段总数（全局进度分母固定）
+    # 3. 初始化全局进度分母为七阶段（与 PHASE_ORDER 一致）
+    # 分子 completed_steps 同样按 Phase 维度计数，每完成一个 Phase +1。
+    # 分母固定为 7，杜绝动态扩展导致的百分比错配（如 6/27=22%）。
     task.total_steps = len(PHASE_ORDER)
 
     # 4. flush 获取 ID（Celery 分发由 API 层在 commit 后执行，
@@ -119,7 +121,7 @@ def _validate_create_request(request: ResearchCreateRequest) -> None:
     max_sources 范围等），此处做补充业务校验。
     """
     if len(request.topic.strip()) == 0:
-        raise TopicTooLongException()
+        raise InvalidRequirementsException("topic 不能为空")
 
     req = request.requirements
     if req.task_type not in VALID_TASK_TYPES:
@@ -445,7 +447,10 @@ async def delete_task(
 ) -> None:
     """删除研究任务及其全部派生数据。
 
-    FK ON DELETE CASCADE 自动清理：
+    [Deviation] 使用 bulk DELETE 绕过 ORM 级联：
+    SQLite 异步驱动下，SQLAlchemy ORM 在删除 research_tasks 父行前会尝试
+    将子表外键 SET NULL，而 task_id 列为非空，导致 IntegrityError。
+    数据库层面已声明 FK ON DELETE CASCADE，bulk delete 由 DB 直接级联清理：
     - research_steps (task_id CASCADE)
     - research_sources (task_id CASCADE)
     - evidence_items (task_id CASCADE)
@@ -455,8 +460,6 @@ async def delete_task(
     调用方需先通过 require_task_accessible 校验权限。
     """
     task_id = task.id
-    # 使用 bulk DELETE 绕过 ORM 关系处理，避免 SQLite 驱动下
-    # SQLAlchemy 在删除父表前尝试 SET NULL 子表 FK 的问题。
     await db.execute(sa_delete(ResearchTask).where(ResearchTask.id == task_id))
     await db.flush()
 

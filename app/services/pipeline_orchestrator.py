@@ -12,7 +12,6 @@ Phase 函数注册表：
 - evidence_graph / render → 自动跳过（Phase 3 后续实现）
 """
 
-import inspect
 import logging
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -28,6 +27,13 @@ from app.core.trace_recorder import TraceRecorder
 from app.models.enums import TASK_PHASE_ENUM, STEP_TYPE_ENUM
 from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
+from app.pipeline.evidence_graph import run_evidence_graph
+from app.pipeline.fetcher import run_fetch
+from app.pipeline.planner import run_planning
+from app.pipeline.renderer import run_render
+from app.pipeline.reranker import run_rerank
+from app.pipeline.searcher import run_search
+from app.pipeline.synthesizer import run_synthesis
 from app.pipeline.sse_bridge import (
     SSEBridge,
     EVENT_CHECKPOINT_SAVED,
@@ -232,6 +238,17 @@ class PipelineOrchestrator:
         # 刷新 ORM 对象让内存状态与 DB 一致
         await self._session.refresh(self._task)
 
+        # 安全保障：修正旧任务（AB 修复前创建）的 total_steps 为固定七阶段
+        # 避免 _update_total_steps_on_completion 遗留的动态值导致 6/27=22% 问题
+        old_total = self._task.total_steps
+        if old_total != len(PHASE_ORDER):
+            self._task.total_steps = len(PHASE_ORDER)
+            await self._session.commit()
+            logger.info(
+                "修正 total_steps: task_id=%s, old=%s → new=%d",
+                task_id, old_total, len(PHASE_ORDER),
+            )
+
         await self._sse.publish(EVENT_TASK_CREATED, {
             "task_id": str(self._task.id),
             "status": "running",
@@ -362,10 +379,7 @@ class PipelineOrchestrator:
             .order_by(ResearchStep.started_at)
             .limit(1)
         )
-        scalar_result = result.scalar_one_or_none()
-        if inspect.isawaitable(scalar_result):
-            scalar_result = await scalar_result
-        existing_step = scalar_result
+        existing_step = result.scalar_one_or_none()
         if existing_step is not None:
             logger.debug(
                 "Step 复用: step_id=%s, type=%s, status=%s",
@@ -496,6 +510,7 @@ class PipelineOrchestrator:
                     success_count=success_count,
                     skipped_count=skipped_count,
                     failed_count=0,
+                    cost_usd=output.get("search_cost_usd", 0.0),
                 )
             elif step_type == "fetch":
                 fetched = output.get("fetched", [])
@@ -510,6 +525,7 @@ class PipelineOrchestrator:
                     skipped_count=output.get("skipped_safety", 0),
                     failed_count=output.get("failed", 0),
                     total_content_bytes=total_content_bytes,
+                    cost_usd=output.get("fetch_cost_usd", 0.0),
                 )
             elif step_type == "rerank":
                 self._trace.record_rerank(
@@ -639,14 +655,8 @@ class PipelineOrchestrator:
             execution_context = getattr(self._task, "execution_context", None)
 
             recoverable = extract_recoverable_from_exception(error) if is_known_fatal else False
-            payload = self._build_task_failed_payload(
-                task_id=task_id,
-                error_type=error.__class__.__name__,
-                error_description=error_msg,
-                recoverable=recoverable,
-                execution_context=execution_context,
-            )
-            await self._sse.publish(EVENT_TASK_FAILED, payload)
+            # 不在此处发送 task.failed——重新抛出后由 run() → _handle_fatal_error
+            # 统一处理，避免 SSE double-emit。
             raise  # 重新抛出，由 run() 的顶层 try/except 处理
 
         # 可降级失败 → warning
@@ -725,9 +735,6 @@ class PipelineOrchestrator:
         在异步会话中对集合关系的刷新不可靠（可能返回空或旧快照）。Resolver 需要
         基于最新 Step 状态推导 Task 状态，因此显式查询 research_steps 表，并强制
         使用 populate_existing 覆盖 identity map 中可能过期的 Step 对象。
-
-        注：对 result.scalars()/all() 做 awaitable 兼容，以适配单元测试中的
-        AsyncMock（其方法会被包装为 coroutine）。
         """
         try:
             result = await self._session.execute(
@@ -736,13 +743,7 @@ class PipelineOrchestrator:
                 .order_by(ResearchStep.started_at)
                 .execution_options(populate_existing=True)
             )
-            scalars_result = result.scalars()
-            if inspect.isawaitable(scalars_result):
-                scalars_result = await scalars_result
-            rows = scalars_result.all()
-            if inspect.isawaitable(rows):
-                rows = await rows
-            steps = list(rows)
+            steps = list(result.scalars().all())
             if steps:
                 logger.debug(
                     "_load_task_steps 加载 Step: task_id=%s, count=%d, statuses=%s",
@@ -1003,52 +1004,13 @@ def build_default_phase_handlers() -> dict[str, PhaseFunc]:
 
     Phase 2（§3.3-§3.5）实现的阶段：planning / search / fetch
     Phase 3 实现的阶段：rerank / synthesis / evidence_graph / render
-    （未注册的阶段在 Orchestrator 中自动跳过）
     """
-    handlers: dict[str, PhaseFunc] = {}
-
-    # Phase 2 stubs（§3.3-§3.5 替换为完整实现）
-    try:
-        from app.pipeline.planner import run_planning
-        handlers["planning"] = run_planning
-    except ImportError:
-        logger.warning("planner.py 未找到，planning 阶段将跳过")
-
-    try:
-        from app.pipeline.searcher import run_search
-        handlers["search"] = run_search
-    except ImportError:
-        logger.warning("searcher.py 未找到，search 阶段将跳过")
-
-    try:
-        from app.pipeline.fetcher import run_fetch
-        handlers["fetch"] = run_fetch
-    except ImportError:
-        logger.warning("fetcher.py 未找到，fetch 阶段将跳过")
-
-    # Phase 3（rerank / synthesis / evidence_graph / render）
-    try:
-        from app.pipeline.reranker import run_rerank
-        handlers["rerank"] = run_rerank
-    except ImportError:
-        logger.warning("reranker.py 未找到，rerank 阶段将跳过")
-
-    try:
-        from app.pipeline.synthesizer import run_synthesis
-        handlers["synthesis"] = run_synthesis
-    except ImportError:
-        logger.warning("synthesizer.py 未找到，synthesis 阶段将跳过")
-
-    try:
-        from app.pipeline.evidence_graph import run_evidence_graph
-        handlers["evidence_graph"] = run_evidence_graph
-    except ImportError:
-        logger.warning("evidence_graph.py 未找到，evidence_graph 阶段将跳过")
-
-    try:
-        from app.pipeline.renderer import run_render
-        handlers["render"] = run_render
-    except ImportError:
-        logger.warning("renderer.py 未找到，render 阶段将跳过")
-
-    return handlers
+    return {
+        "planning": run_planning,
+        "search": run_search,
+        "fetch": run_fetch,
+        "rerank": run_rerank,
+        "synthesis": run_synthesis,
+        "evidence_graph": run_evidence_graph,
+        "render": run_render,
+    }

@@ -78,7 +78,7 @@
             <!-- 报告语言 -->
             <div class="option-row">
               <label class="option-label">报告语言</label>
-              <el-select v-model="form.language" style="width: 200px">
+              <el-select v-model="form.language" class="language-select">
                 <el-option label="中文" value="zh" />
                 <el-option label="English" value="en" />
               </el-select>
@@ -87,7 +87,7 @@
             <!-- 研究深度（MVP 固定 quick） -->
             <div class="option-row">
               <label class="option-label">研究深度</label>
-              <el-input value="快速（quick）" disabled style="width: 200px" />
+              <el-input value="快速（quick）" disabled class="depth-input" />
               <span class="hint-text">MVP 仅支持快速模式</span>
             </div>
           </div>
@@ -107,7 +107,7 @@
 
       <!-- 快捷示例 -->
       <div class="examples-section">
-        <h3 class="examples-title">💡 试试这些研究方向</h3>
+        <h3 class="examples-title"><i class="fas fa-lightbulb"></i> 试试这些研究方向</h3>
         <div class="examples-row">
           <ExampleCard
             v-for="ex in EXAMPLES"
@@ -609,6 +609,16 @@ onBeforeUnmount(() => {
   color: var(--rm-text-secondary);
   margin: 0 0 var(--rm-space-3) 0;
   text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rm-space-1_5);
+  width: 100%;
+}
+
+.language-select,
+.depth-input {
+  width: 200px;
 }
 
 .examples-row {
@@ -623,7 +633,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   height: 100%;
   background: var(--rm-bg-page);
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* ===== 完成态 ===== */

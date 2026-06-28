@@ -141,6 +141,7 @@ class TraceRecorder:
         success_count: int = 0,
         skipped_count: int = 0,
         failed_count: int = 0,
+        cost_usd: float = 0.0,
         t_span_start: float | None = None,
     ) -> None:
         """记录 Search 阶段（Tavily API）。"""
@@ -153,7 +154,11 @@ class TraceRecorder:
             "success_count": success_count,
             "skipped_count": skipped_count,
             "failed_count": failed_count,
+            "cost_usd": round(cost_usd, 6),
         }
+        self._total_cost_usd += cost_usd
+        breakdown = self._phase_cost.setdefault("search", {"tokens": 0, "cost": 0.0})
+        breakdown["cost"] = float(breakdown["cost"]) + cost_usd
 
     def record_fetch(
         self,
@@ -163,6 +168,7 @@ class TraceRecorder:
         skipped_count: int = 0,
         failed_count: int = 0,
         total_content_bytes: int = 0,
+        cost_usd: float = 0.0,
         t_span_start: float | None = None,
     ) -> None:
         """记录 Fetch 阶段（HTTP 抓取 + 正文提取）。"""
@@ -176,7 +182,11 @@ class TraceRecorder:
             "skipped_count": skipped_count,
             "failed_count": failed_count,
             "total_content_bytes": total_content_bytes,
+            "cost_usd": round(cost_usd, 6),
         }
+        self._total_cost_usd += cost_usd
+        breakdown = self._phase_cost.setdefault("fetch", {"tokens": 0, "cost": 0.0})
+        breakdown["cost"] = float(breakdown["cost"]) + cost_usd
 
     def record_rerank(
         self,

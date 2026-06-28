@@ -784,7 +784,7 @@ async function handleChangePassword() {
   bottom: 100%;
   right: 0;
   margin-bottom: var(--rm-space-2);
-  min-width: 200px;
+  min-width: var(--rm-user-menu-min-width);
   background: var(--rm-bg-sidebar-active);
   border: 1px solid var(--rm-border-darker);
   border-radius: var(--rm-radius-md);
@@ -877,7 +877,7 @@ async function handleChangePassword() {
 }
 
 .history-section-scroll::-webkit-scrollbar {
-  width: 4px;
+  width: var(--rm-space-1);
 }
 
 .history-section-scroll::-webkit-scrollbar-track {

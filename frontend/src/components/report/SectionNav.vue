@@ -82,7 +82,7 @@ function citationCount(sectionId) {
   border: none;
   border-left: 2px solid transparent;
   font-family: inherit;
-  margin-bottom: 2px;
+  margin-bottom: var(--rm-space-0_5);
 }
 
 .section-nav-item:hover {
@@ -107,8 +107,8 @@ function citationCount(sectionId) {
   background: var(--rm-bg-elevated);
   color: var(--rm-text-tertiary);
   font-size: var(--rm-text-xs);
-  padding: 2px 6px;
-  border-radius: 9999px;
+  padding: var(--rm-space-0_5) var(--rm-space-1_5);
+  border-radius: var(--rm-radius-pill);
   flex-shrink: 0;
   margin-left: var(--rm-space-2);
 }

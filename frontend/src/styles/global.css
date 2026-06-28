@@ -7,6 +7,9 @@
     --rm-primary-light: #F0FDFA;
     --rm-primary-hover-light: #CCFBF1;
     --rm-primary-border: rgba(15, 118, 110, 0.2);
+    --rm-primary-hover-border: rgba(15, 118, 110, 0.3);
+    --rm-primary-subtle-bg: rgba(15, 118, 110, 0.05);
+    --rm-primary-selected-bg: rgba(15, 118, 110, 0.08);
 
     /* ===== 辅助品牌色（blue-600） ===== */
     --rm-secondary: #2563EB;
@@ -18,6 +21,7 @@
     --rm-warning: #F59E0B;
     --rm-warning-light: #FFFBEB;
     --rm-danger: #E11D48;
+    --rm-danger-dark: #BE123C;
     --rm-danger-light: #FEF2F2;
     --rm-danger-border: rgba(225, 29, 72, 0.2);
     --rm-info: #3B82F6;
@@ -25,12 +29,32 @@
     --rm-accent: #7C3AED;
     --rm-accent-light: #F3E8FF;
 
+    /* ===== 状态色（Pipeline / 日志 / 运行态） ===== */
+    --rm-status-running: #3B82F6;
+    --rm-status-running-light: rgba(59, 130, 246, 0.4);
+    --rm-status-success: #0D9488;
+    --rm-status-success-light: #14B8A6;
+    --rm-status-current: #60A5FA;
+    --rm-pipeline-gradient: linear-gradient(to right, #14B8A6, #3B82F6);
+
+    /* ===== 深色背景上的强调文字色 ===== */
+    --rm-text-teal-300: #5EEAD4;
+    --rm-text-teal-400: #2DD4BF;
+    --rm-text-rose-400: #FB7185;
+    --rm-text-amber-400: #FBBF24;
+    --rm-text-slate-300: #CBD5E1;
+
+    /* ===== 运行态头部图标背景 ===== */
+    --rm-running-icon-bg: rgba(20, 184, 166, 0.1);
+    --rm-running-icon-border: rgba(20, 184, 166, 0.2);
+
     /* ===== 中性色（slate 冷色系） ===== */
     --rm-bg-page: #F8FAFC;
     --rm-bg-sidebar: #0F172A;
     --rm-bg-card: #FFFFFF;
     --rm-bg-chat: #FFFFFF;
     --rm-bg-elevated: #F1F5F9;
+    --rm-bg-dark-card: #020617;
     --rm-bg-input: #F8FAFC;
     --rm-text-primary: #0F172A;
     --rm-text-secondary: #475569;
@@ -75,9 +99,11 @@
     /* ===== 行高 ===== */
     --rm-leading-title: 1.2;
     --rm-leading-body: 1.5;
+    --rm-leading-relaxed: 1.625;
     --rm-leading-chat: 1.7;
 
     /* ===== 间距 ===== */
+    --rm-space-0_5: 2px;
     --rm-space-1: 4px;
     --rm-space-1_5: 6px;
     --rm-space-2: 8px;
@@ -101,12 +127,15 @@
     --rm-radius-lg: 12px;
     --rm-radius-xl: 16px;
     --rm-radius-full: 50%;
+    --rm-radius-pill: 9999px;
 
     /* ===== 阴影 ===== */
     --rm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
     --rm-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
     --rm-shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.10);
     --rm-shadow-xl: 0 20px 50px rgba(0, 0, 0, 0.15);
+    --rm-shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    --rm-shadow-inner: inset 0 2px 4px rgba(0, 0, 0, 0.05);
     --rm-shadow-input: 0 1px 3px rgba(0, 0, 0, 0.05);
     --rm-shadow-input-focus: 0 0 0 3px rgba(15, 118, 110, 0.15);
 
@@ -123,6 +152,12 @@
     --rm-input-height: 40px;
     --rm-empty-icon-size: 48px;
     --rm-welcome-icon-size: 56px;
+    --rm-user-menu-min-width: 200px;
+    --rm-trace-bar-height: 3px;
+    --rm-ring-width: 1px;
+    --rm-loading-mask-bg: rgba(0, 0, 0, 0.7);
+    --rm-login-dot-color: rgba(255, 255, 255, 0.10);
+    --rm-login-dot-size: 24px;
 
     /* ===== 过渡 ===== */
     --rm-transition-fast: 0.15s ease;
@@ -131,6 +166,7 @@
 
     /* ===== 代码块 ===== */
     --rm-bg-code: #0F172A;
+    --rm-bg-terminal-header: #1E293B;
     --rm-text-code: #E2E8F0;
     --rm-code-inline-bg: rgba(15, 23, 42, 0.06);
     --rm-code-inline-font-size: 0.9em;
@@ -141,7 +177,10 @@
     --rm-evidence-highlight-bg: #F0FDFA;
     --rm-evidence-highlight-text: #0F766E;
     --rm-evidence-highlight-border: rgba(15, 118, 110, 0.2);
+    --rm-evidence-highlight-hover-bg: #99F6E4;
+    --rm-evidence-flash-bg: #FFFBEB;
     --rm-evidence-flash-border: #F59E0B;
+    --rm-evidence-flash-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
 
     /* ===== 其他 ===== */
     --rm-welcome-logo-size: 56px;
@@ -208,7 +247,7 @@ body.sidebar-collapsed {
 }
 ::-webkit-scrollbar-thumb {
     background: var(--rm-border);
-    border-radius: 3px;
+    border-radius: var(--rm-radius-xs);
 }
 ::-webkit-scrollbar-thumb:hover {
     background: var(--rm-text-tertiary);
@@ -257,5 +296,5 @@ body.sidebar-collapsed {
 }
 
 .input-group .input-with-icon {
-    padding-left: 40px;
+    padding-left: var(--rm-space-10);
 }

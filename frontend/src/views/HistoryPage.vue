@@ -7,7 +7,7 @@
           v-model="filterStatus"
           placeholder="全部状态"
           clearable
-          style="width: 140px"
+          class="status-select"
           @change="onFilterChange"
         >
           <el-option label="全部" value="" />
@@ -42,7 +42,7 @@
       :data="historyList"
       v-loading="historyLoading"
       stripe
-      style="width: 100%"
+      class="history-table"
     >
       <!-- 空状态 -->
       <template #empty>
@@ -228,7 +228,7 @@ async function handleDelete(row) {
   const loading = ElLoading.service({
     lock: true,
     text: '正在删除...',
-    background: 'rgba(0, 0, 0, 0.7)',
+    background: 'var(--rm-loading-mask-bg)',
   })
   try {
     await taskStore.deleteTask(row.task_id)
@@ -297,6 +297,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.history-page {
+  /* uses parent .content-scroll for scrolling */
+}
+
 /* ===== 工具栏 ===== */
 .history-toolbar {
   display: flex;
@@ -309,6 +313,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: var(--rm-space-3);
+}
+
+.status-select {
+  width: 140px;
 }
 
 .search-input {
@@ -328,7 +336,7 @@ onMounted(() => {
 /* ===== 任务类型标签 ===== */
 .task-type-tag {
   display: inline-block;
-  padding: 2px 8px;
+  padding: var(--rm-space-0_5) var(--rm-space-2);
   border-radius: var(--rm-radius-xs);
   font-size: var(--rm-text-2xs);
   font-weight: var(--rm-weight-semibold);
@@ -353,8 +361,8 @@ onMounted(() => {
 .status-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  gap: var(--rm-space-1);
+  padding: var(--rm-space-0_5) var(--rm-space-2);
   border-radius: var(--rm-radius-xs);
   font-size: var(--rm-text-2xs);
   font-weight: var(--rm-weight-semibold);
@@ -424,6 +432,10 @@ onMounted(() => {
 }
 
 /* ===== 分页 ===== */
+.history-table {
+  width: 100%;
+}
+
 .history-pagination {
   display: flex;
   justify-content: flex-end;

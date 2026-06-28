@@ -124,8 +124,8 @@ const totalDuration = computed(() => {
 .trace-row {
   display: flex;
   flex-direction: column;
-  padding: 2px 0;
-  gap: 2px;
+  padding: var(--rm-space-0_5) 0;
+  gap: var(--rm-space-0_5);
 }
 
 .stage-main {
@@ -145,24 +145,24 @@ const totalDuration = computed(() => {
 }
 
 .stage-time {
-  color: #2DD4BF;
+  color: var(--rm-text-teal-400);
   width: 50px;
   text-align: right;
   flex-shrink: 0;
 }
 
 .stage-bar-bg {
-  height: 3px;
+  height: var(--rm-trace-bar-height);
   background: var(--rm-border-dark);
-  border-radius: 2px;
+  border-radius: var(--rm-space-0_5);
   overflow: hidden;
 }
 
 .stage-bar {
   height: 100%;
   background: var(--rm-primary);
-  border-radius: 2px;
-  transition: width 0.3s ease;
+  border-radius: var(--rm-space-0_5);
+  transition: width var(--rm-transition-slow);
 }
 
 .trace-total {
@@ -176,6 +176,6 @@ const totalDuration = computed(() => {
 }
 
 .trace-total .value {
-  color: #5EEAD4;
+  color: var(--rm-text-teal-300);
 }
 </style>

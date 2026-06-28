@@ -330,7 +330,7 @@ class TestRerankFailure:
                 await run_rerank(task, rerank_step, db_session, sse)
 
         assert exc_info.value.error_code == "E3105"
-        assert mock_llm.call_count == 2
+        assert mock_llm.call_count == 3  # 初始 1 次 + 2 次重试
 
     @pytest.mark.asyncio
     async def test_LLM重试耗尽_抛出E3105(self, db_session):
@@ -345,7 +345,7 @@ class TestRerankFailure:
                 await run_rerank(task, rerank_step, db_session, sse)
 
         assert exc_info.value.error_code == "E3105"
-        assert mock_llm.call_count == 2
+        assert mock_llm.call_count == 3  # 初始 1 次 + 2 次重试
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -5,7 +5,7 @@
  * - 按 \n\n 分割事件帧，保留不完整尾部到 buffer
  * - 跳过注释帧（以 : 开头，如心跳 : ping）
  * - 解析 event: / data: 行，JSON.parse data
- * - 指数退避重连（1s/2s/4s/8s，最多 3 次）
+ * - 指数退避重连（1s/2s/4s，最多 3 次）
  * - 手动关闭（abortController.abort + reader.cancel）
  *
  * 来源：DocMind SSE 解析框架 + ResearchMind 替换全部事件处理器。

@@ -47,8 +47,8 @@ const typeLabel = computed(() => {
 }
 
 .example-card:hover {
-  border-color: rgba(15, 118, 110, 0.3);
-  background: rgba(15, 118, 110, 0.05);
+  border-color: var(--rm-primary-hover-border);
+  background: var(--rm-primary-subtle-bg);
 }
 
 .example-topic {

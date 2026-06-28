@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.exceptions import RenderFailedException
 from app.core.llm import LLMResult, chat_completion
+from app.core.token_counter import estimate_tokens
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
 from app.models.research_step import ResearchStep
@@ -61,7 +62,7 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一个专业研究报告撰写专家。请基
 写作要求：
 1. 每个 Section 的内容必须基于提供的证据，不得编造
 2. 每个事实性陈述必须标注来源引用：`[来源N]`，其中 N 是证据详情中的 0-based 编号
-3. Section 末尾不需要单独列出来源，所有引用都内嵌在正文里
+3. Section 末尾列出该节使用的所有来源索引（格式：`[来源N]`，N 为 0-based 编号）
 4. 使用 Markdown 格式，包含标题层级、列表、表格（如需要）
 5. 承认知识缺口——不要为了报告「完整」而编造内容
 
@@ -129,26 +130,59 @@ def _select_template(task_type: str) -> tuple[str, str]:
 
 
 def _format_evidence_items(items: list[dict]) -> str:
-    """把 Graph items 格式化为 Prompt 文本，单条截断 1500 字符，标注 [来源N]。"""
-    parts: list[str] = []
-    for item in items:
-        if not isinstance(item, dict):
+    """把 Graph items 格式化为 Prompt 文本，受 TOKEN_BUDGET_SOFT_LIMIT 约束。
+
+    策略：按原始顺序尝试截断单条内容长度，再减少条目数，确保 Prompt
+    不超过软上限。
+    """
+    valid_items = [
+        item for item in items
+        if isinstance(item, dict) and item.get("index") is not None
+    ]
+
+    content_limit = 1500
+    count_limit = len(valid_items)
+    while count_limit >= 1:
+        parts: list[str] = []
+        for item in valid_items[:count_limit]:
+            index = item.get("index")
+            domain = item.get("domain") or "unknown"
+            title = item.get("source_title") or "无标题"
+            content = (item.get("content") or "")[:content_limit]
+            cluster_theme = item.get("cluster_theme") or "未分类"
+            consensus_level = item.get("consensus_level") or "未评估"
+            parts.append(
+                f"来源标注：[来源 {index}] {domain} — {title}\n"
+                f"聚类主题：{cluster_theme}\n"
+                f"共识级别：{consensus_level}\n"
+                f"内容：{content}"
+            )
+
+        formatted = "\n\n".join(parts)
+        if estimate_tokens(formatted) <= settings.TOKEN_BUDGET_SOFT_LIMIT:
+            if count_limit < len(valid_items) or content_limit < 1500:
+                logger.warning(
+                    "Render Evidence 截断: %d→%d 条, content_limit=%d",
+                    len(valid_items), count_limit, content_limit,
+                )
+            return formatted
+
+        if content_limit >= 500:
+            content_limit -= 250
             continue
-        index = item.get("index")
-        if index is None:
-            continue
-        domain = item.get("domain") or "unknown"
-        title = item.get("source_title") or "无标题"
-        content = (item.get("content") or "")[:1500]
-        cluster_theme = item.get("cluster_theme") or "未分类"
-        consensus_level = item.get("consensus_level") or "未评估"
-        parts.append(
-            f"来源标注：[来源 {index}] {domain} — {title}\n"
-            f"聚类主题：{cluster_theme}\n"
-            f"共识级别：{consensus_level}\n"
-            f"内容：{content}"
-        )
-    return "\n\n".join(parts)
+
+        count_limit -= 1
+        content_limit = 1500
+
+    # 兜底保留 1 条最短内容
+    item = valid_items[0]
+    return (
+        f"来源标注：[来源 {item.get('index')}] {item.get('domain') or 'unknown'} — "
+        f"{item.get('source_title') or '无标题'}\n"
+        f"聚类主题：{item.get('cluster_theme') or '未分类'}\n"
+        f"共识级别：{item.get('consensus_level') or '未评估'}\n"
+        f"内容：{(item.get('content') or '')[:250]}"
+    )
 
 
 def _summarize_clusters(clusters: list[dict]) -> str:

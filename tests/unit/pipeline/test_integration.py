@@ -163,8 +163,8 @@ class TestPlanningToSearchFlow:
                 await run_planning(task, planning_step, db, sse)
 
             assert exc_info.value.error_code == "E3101"
-            # 验证重试了 3 次
-            assert mock_llm.call_count == 3
+            # 验证初始 1 次 + 重试 3 次，共 4 次
+            assert mock_llm.call_count == 4
 
 
 class TestSearchToFetchFlow:

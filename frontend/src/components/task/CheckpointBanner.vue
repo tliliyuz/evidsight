@@ -36,24 +36,24 @@ function formatTime(timestamp) {
 
 <style scoped>
 .checkpoint-banner {
-  background: rgba(15, 118, 110, 0.05);
-  border: 1px solid rgba(15, 118, 110, 0.2);
+  background: var(--rm-primary-subtle-bg);
+  border: 1px solid var(--rm-primary-border);
   border-radius: var(--rm-radius-lg);
   padding: var(--rm-space-3);
   display: flex;
   align-items: center;
   gap: var(--rm-space-2_5);
   font-size: var(--rm-text-xs);
-  color: #5EEAD4;
+  color: var(--rm-text-teal-300);
   margin: 0 var(--rm-space-4) var(--rm-space-4) var(--rm-space-4);
 }
 
 .checkpoint-banner .icon {
-  color: #2DD4BF;
+  color: var(--rm-text-teal-400);
 }
 
 .checkpoint-phase {
-  color: #2DD4BF;
+  color: var(--rm-text-teal-400);
   font-weight: var(--rm-weight-semibold);
 }
 

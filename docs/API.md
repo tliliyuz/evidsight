@@ -450,6 +450,7 @@
 | page | int | 否 | 页码，默认 1 |
 | page_size | int | 否 | 每页条数，默认 20，最大 100 |
 | status | string | 否 | 按状态过滤（`pending` / `running` / `completed` / `partially_completed` / `failed` / `canceled` / `paused [v2]`） |
+| keyword | string | 否 | 按主题关键字模糊搜索（`ILIKE` 匹配） |
 
 **响应** (200)：
 

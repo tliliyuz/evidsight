@@ -8,7 +8,7 @@
       </div>
     </div>
 
-    <div ref="bodyRef" class="terminal-body" @scroll="handleScroll">
+    <div class="terminal-body">
       <div
         v-for="log in displayLogs"
         :key="log.id"
@@ -25,28 +25,16 @@
         等待任务开始...
       </div>
     </div>
-
-    <button
-      v-if="showScrollToBottom"
-      class="scroll-to-bottom"
-      @click="scrollToBottom"
-    >
-      <i class="fas fa-arrow-down"></i>
-      最新
-    </button>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { computed } from 'vue'
 
 const props = defineProps({
   logs: { type: Array, default: () => [] },
   sseStatus: { type: String, default: 'disconnected' },
 })
-
-const bodyRef = ref(null)
-const isScrolledUp = ref(false)
 
 const isLive = computed(() => props.sseStatus === 'connected' || props.sseStatus === 'reconnecting')
 
@@ -74,30 +62,6 @@ const displayLogs = computed(() => {
   })
 })
 
-const showScrollToBottom = computed(() => isScrolledUp.value && displayLogs.value.length > 0)
-
-watch(() => props.logs.length, () => {
-  if (!isScrolledUp.value) {
-    scrollToBottom()
-  }
-})
-
-function scrollToBottom() {
-  nextTick(() => {
-    if (bodyRef.value) {
-      bodyRef.value.scrollTop = bodyRef.value.scrollHeight
-      isScrolledUp.value = false
-    }
-  })
-}
-
-function handleScroll() {
-  if (!bodyRef.value) return
-  const { scrollTop, scrollHeight, clientHeight } = bodyRef.value
-  const threshold = 40
-  isScrolledUp.value = scrollHeight - scrollTop - clientHeight > threshold
-}
-
 function formatTime(timestamp) {
   if (!timestamp) return '--:--:--'
   const d = new Date(timestamp)
@@ -109,21 +73,20 @@ function formatTime(timestamp) {
 
 <style scoped>
 .terminal-panel {
-  background: #020617;
+  background: var(--rm-bg-dark-card);
   border: 1px solid var(--rm-border-dark);
   border-radius: var(--rm-radius-xl);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   box-shadow: var(--rm-shadow-2xl);
   margin: 0 var(--rm-space-4) var(--rm-space-4) var(--rm-space-4);
   flex: 1;
   min-height: 240px;
-  position: relative;
+  overflow: hidden;
 }
 
 .terminal-header {
-  background: #1E293B;
+  background: var(--rm-bg-terminal-header);
   padding: var(--rm-space-2) var(--rm-space-4);
   border-bottom: 1px solid var(--rm-border-dark);
   display: flex;
@@ -166,7 +129,7 @@ function formatTime(timestamp) {
   font-family: var(--rm-font-mono);
   font-size: var(--rm-text-xs);
   color: var(--rm-text-inverse-secondary);
-  background: #020617;
+  background: var(--rm-bg-dark-card);
 }
 
 .terminal-empty {
@@ -208,39 +171,16 @@ function formatTime(timestamp) {
 .log-info { color: var(--rm-text-inverse-secondary); }
 .log-info .log-icon { color: var(--rm-text-inverse-dim); }
 
-.log-success { color: #CBD5E1; }
-.log-success .log-icon { color: #14B8A6; }
+.log-success { color: var(--rm-text-slate-300); }
+.log-success .log-icon { color: var(--rm-status-success-light); }
 
-.log-warning { color: #FBBF24; font-weight: var(--rm-weight-bold); }
-.log-warning .log-icon { color: #F59E0B; }
+.log-warning { color: var(--rm-text-amber-400); font-weight: var(--rm-weight-bold); }
+.log-warning .log-icon { color: var(--rm-warning); }
 
-.log-error { color: #FB7185; font-weight: var(--rm-weight-bold); }
-.log-error .log-icon { color: #E11D48; }
+.log-error { color: var(--rm-text-rose-400); font-weight: var(--rm-weight-bold); }
+.log-error .log-icon { color: var(--rm-danger); }
 
 .log-muted { color: var(--rm-text-inverse-dim); }
 .log-muted .log-icon { color: var(--rm-text-inverse-dim); }
 
-.scroll-to-bottom {
-  position: absolute;
-  right: var(--rm-space-4);
-  bottom: var(--rm-space-4);
-  height: 28px;
-  padding: 0 10px;
-  background: var(--rm-bg-sidebar-active);
-  color: var(--rm-text-inverse-secondary);
-  border: 1px solid var(--rm-border-darker);
-  border-radius: var(--rm-radius-md);
-  font-size: var(--rm-text-2xs);
-  font-family: var(--rm-font-mono);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--rm-space-1);
-  transition: all var(--rm-transition-fast);
-}
-
-.scroll-to-bottom:hover {
-  background: var(--rm-border-darker);
-  color: var(--rm-text-inverse);
-}
 </style>

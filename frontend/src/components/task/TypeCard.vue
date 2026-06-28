@@ -84,14 +84,14 @@ const typeExample = computed(() => meta.value.example)
 }
 
 .type-card:hover {
-  border-color: #94A3B8;
+  border-color: var(--rm-text-tertiary);
 }
 
 /* 选中态：teal-600 边框 + teal-50/40 背景 + ring-1 */
 .type-card.selected {
   border-color: var(--rm-primary);
-  background: rgba(15, 118, 110, 0.08);
-  box-shadow: 0 0 0 1px var(--rm-primary);
+  background: var(--rm-primary-selected-bg);
+  box-shadow: 0 0 0 var(--rm-ring-width) var(--rm-primary);
 }
 
 /* 选中勾标 — 右上角 */

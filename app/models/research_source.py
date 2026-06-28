@@ -6,8 +6,6 @@
 
 from datetime import datetime
 
-from datetime import datetime
-
 import sqlalchemy as sa
 from sqlalchemy import func
 from sqlalchemy.dialects.mysql import MEDIUMTEXT

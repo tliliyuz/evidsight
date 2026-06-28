@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档版本 | v1.0 |
-| 最后更新 | 2026-06-19 |
+| 最后更新 | 2026-06-28 |
 
 > 本文档是 **数据库表结构、索引策略、外键级联规则** 的唯一真理源。相关定义禁止在其他文档中重复，应使用交叉引用链接到本文档对应章节。状态机字段语义（Task / Phase / Step 三层状态、Execution Context、Evidence Completeness Threshold）见 [ARCHITECTURE.md §3](ARCHITECTURE.md#3-研究任务状态机)，Pipeline 各阶段的输入输出数据持久化见 [RESEARCH_PIPELINE.md](RESEARCH_PIPELINE.md)，接口中的请求/响应字段见 [API.md](API.md)，产品需求见 [PRD.md](PRD.md)。
 
@@ -442,6 +442,8 @@ CREATE TABLE refresh_tokens (
 - **任务 → 派生数据**：`CASCADE`（任务删除时清理全部派生数据：steps / sources / evidence / sections / section_evidence）
 - **自引用外键**：`parent_step_id` → `SET NULL`（保留子步骤）；`parent_section_id` → `CASCADE`（删除子树）
 
+> **[Deviation] `delete_task` 使用 bulk `sa_delete` 而非 ORM 级联删除**：SQLite 异步驱动下，SQLAlchemy ORM 在删除 `research_tasks` 父行前会尝试将子表外键 `SET NULL`，而 `task_id` 列为 `NOT NULL`，导致 `IntegrityError`。因此 `research_service.delete_task()` 改用 `sa_delete(ResearchTask).where(...)` 直接执行 bulk DELETE，依赖数据库层 `ON DELETE CASCADE` 约束完成级联清理。此偏差在 MySQL 生产环境无影响（InnoDB 原生支持 CASCADE），Phase 4 若有其他 ORM 级联需求需重新评估。详见 `app/services/research_service.py:450-461`。
+>
 > **一致性保障**：外键约束在数据库层保证引用完整性，避免程序 Bug 产生脏数据。ORM 模型、Alembic 迁移脚本必须与外键定义同步。
 
 ---

@@ -366,7 +366,7 @@ class TestRunPlanningRetry:
                 )
 
             assert exc_info.value.error_code == "E3101"
-            assert mock_llm.call_count == 3  # PIPELINE_PLANNER_MAX_RETRIES
+            assert mock_llm.call_count == 4  # 初始 1 次 + 3 次重试
 
     @pytest.mark.asyncio
     async def test_重试时传递错误反馈到消息历史(self):

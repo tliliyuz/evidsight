@@ -4,7 +4,7 @@
 - Step 级 cost 字段：{input_tokens, output_tokens, estimated_cost_usd, model}
 - Task 级 trace 聚合：total_tokens / total_cost_usd / breakdown[phase]
 
-[Deviation] MVP 仅追踪 LLM token 成本；Search/Fetch 等第三方服务成本暂不计入。
+[Deviation] Phase 3 先部分接入 Search/Fetch 成本：使用简化估算模型，非 Tavily 官方精确账单。
 [Deviation] DeepSeek 定价使用 cache miss 价格作为保守估算。
 """
 
@@ -37,6 +37,44 @@ def calculate_cost_usd(input_tokens: int, output_tokens: int, model: str) -> flo
     input_cost = input_tokens * pricing["input"] / 1_000_000
     output_cost = output_tokens * pricing["output"] / 1_000_000
     total = Decimal(str(input_cost + output_cost)).quantize(
+        Decimal("0.000001"), rounding=ROUND_HALF_UP
+    )
+    return float(total)
+
+
+def calculate_search_cost_usd(query_count: int, depth: str = "advanced") -> float:
+    """估算 Tavily Search API 成本（简化模型，Phase 3 近似值）。
+
+    Args:
+        query_count: 实际发起的搜索查询次数
+        depth: 搜索深度（basic/advanced），advanced 单价更高
+
+    Returns:
+        估算成本（美元）
+    """
+    if query_count <= 0:
+        return 0.0
+    # 简化估算：advanced 每次查询 $0.025，basic 每次查询 $0.005
+    unit_price = 0.025 if depth == "advanced" else 0.005
+    total = Decimal(str(query_count * unit_price)).quantize(
+        Decimal("0.000001"), rounding=ROUND_HALF_UP
+    )
+    return float(total)
+
+
+def calculate_fetch_cost_usd(content_bytes: int) -> float:
+    """估算 HTTP 抓取成本（简化模型，主要覆盖带宽与计算）。
+
+    Args:
+        content_bytes: 成功抓取的正文原始字节数
+
+    Returns:
+        估算成本（美元）
+    """
+    if content_bytes <= 0:
+        return 0.0
+    # 简化估算：每 GB $0.01（几乎可忽略）
+    total = Decimal(str(content_bytes / (1024 * 1024 * 1024) * 0.01)).quantize(
         Decimal("0.000001"), rounding=ROUND_HALF_UP
     )
     return float(total)

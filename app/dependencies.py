@@ -19,8 +19,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import async_session_factory
 from app.core.exceptions import (
+    AdminPermissionRequiredException,
     InvalidTokenException,
-    PermissionDeniedException,
     TaskAccessDeniedException,
     TaskNotFoundException,
     UserDisabledException,
@@ -97,8 +97,8 @@ async def get_current_user(
 def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
     """依赖注入：要求当前用户为 admin 角色。
 
-    对齐 API.md §5.1：所有 /api/admin/* 端点要求 role=admin，
-    非 admin 返回 403 E1005。
+    对齐 ARCHITECTURE.md §4.3：所有 /api/admin/* 端点要求 role=admin，
+    非 admin 返回 403 E2009。
 
     用法：
         @router.get("/api/admin/stats")
@@ -106,7 +106,7 @@ def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
             ...
     """
     if current_user.get("role") != "admin":
-        raise PermissionDeniedException()
+        raise AdminPermissionRequiredException()
     return current_user
 
 

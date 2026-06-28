@@ -287,15 +287,19 @@ async def run_planning(
     total_prompt_tokens = 0
     total_completion_tokens = 0
 
-    for attempt in range(1, settings.PIPELINE_PLANNER_MAX_RETRIES + 1):
-        logger.info("Planning 第 %d/%d 次尝试: task_id=%s", attempt, settings.PIPELINE_PLANNER_MAX_RETRIES, task_id)
+    max_retries = settings.PIPELINE_PLANNER_MAX_RETRIES
+    for attempt in range(max_retries + 1):
+        logger.info(
+            "Planning 第 %d/%d 次尝试: task_id=%s",
+            attempt + 1, max_retries + 1, task_id,
+        )
 
-        # 发射进度
+        # 发射进度：attempt 为已发生的重试次数（0 表示首次）
         await sse_bridge.publish(EVENT_STEP_PROGRESS, {
             "step_id": step_id,
             "phase": "planning",
             "attempt": attempt,
-            "max_retries": settings.PIPELINE_PLANNER_MAX_RETRIES,
+            "max_retries": max_retries,
         })
 
         # 调用 LLM
@@ -315,7 +319,7 @@ async def run_planning(
             parsed = _parse_planning_output(result.content)
         except ValueError as e:
             logger.warning("Planning JSON 解析失败 (attempt %d): %s", attempt, e)
-            if attempt < settings.PIPELINE_PLANNER_MAX_RETRIES:
+            if attempt < max_retries:
                 messages.append({"role": "assistant", "content": result.content})
                 messages.append({
                     "role": "user",
@@ -323,7 +327,7 @@ async def run_planning(
                 })
                 continue
             raise PlanningFailedException(
-                detail=f"JSON 解析失败（{settings.PIPELINE_PLANNER_MAX_RETRIES} 次重试耗尽）: {e}"
+                detail=f"JSON 解析失败（{max_retries} 次重试耗尽）: {e}"
             )
 
         sub_questions = parsed["sub_questions"]
@@ -343,21 +347,21 @@ async def run_planning(
                 "sub_questions": sub_questions,
                 "rationale": parsed["rationale"],
                 "model": settings.LLM_MODEL,
-                "retry_count": attempt - 1,
+                "retry_count": attempt,
                 "prompt_tokens": total_prompt_tokens,
                 "completion_tokens": total_completion_tokens,
             }
 
             logger.info(
                 "Planning 完成: task_id=%s, sub_questions=%d, retries=%d",
-                task_id, len(sub_questions), attempt - 1,
+                task_id, len(sub_questions), attempt,
             )
             return output
 
         # 校验失败
         logger.warning("Planning 校验失败 (attempt %d): %s", attempt, ", ".join(validation_errors))
 
-        if attempt < settings.PIPELINE_PLANNER_MAX_RETRIES:
+        if attempt < max_retries:
             # 追加错误反馈到消息历史
             messages.append({"role": "assistant", "content": result.content})
             messages.append({
@@ -370,7 +374,7 @@ async def run_planning(
 
         # 重试耗尽
         raise PlanningFailedException(
-            detail=f"输出校验失败（{settings.PIPELINE_PLANNER_MAX_RETRIES} 次重试耗尽）: {'; '.join(validation_errors)}"
+            detail=f"输出校验失败（{max_retries} 次重试耗尽）: {'; '.join(validation_errors)}"
         )
 
     # 不应到达此处

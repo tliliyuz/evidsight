@@ -146,9 +146,9 @@ async function handleSubmit() {
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.10) 1px, transparent 1px),
-    linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%);
-  background-size: 24px 24px, 100% 100%;
+    radial-gradient(circle at 1px 1px, var(--rm-login-dot-color) 1px, transparent 1px),
+    linear-gradient(135deg, var(--rm-bg-sidebar) 0%, var(--rm-bg-sidebar-active) 50%, var(--rm-bg-sidebar) 100%);
+  background-size: var(--rm-login-dot-size) var(--rm-login-dot-size), 100% 100%;
 }
 
 .login-card {

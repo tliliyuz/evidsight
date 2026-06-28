@@ -874,19 +874,13 @@ Pipeline 阶段推进
 
 ```
 全局进度 = completed_steps / total_steps
-
-total_steps 在 Planning 完成后动态确定：
-  total_steps = 1 (Planning)
-              + sub_questions.length (Search)
-              + deduped_urls.length (Fetch)
-              + 1 (Rerank)
-              + 1 (Synthesis)
-              + 1 (Evidence Graph)
-              + 1 (Render)
-
-示例（5 个子问题，10 个唯一 URL）：
-  total_steps = 1 + 5 + 10 + 1 + 1 + 1 + 1 = 20
 ```
+
+`total_steps` 固定为七阶段总数（`len(PHASE_ORDER)` = 7），即 Planning / Search / Fetch / Rerank / Synthesis / Evidence Graph / Render 各计 1 步。每完成一个大阶段 `completed_steps + 1`，进度从 `1/7` 单调增长到 `7/7`。
+
+> **[Deviation]** 原始设计（`v1.0-pre`）要求 `total_steps` 在 Planning 完成后动态计算：`1 + sub_questions.length + deduped_urls.length + 4 fixed phases`。但实践发现动态分母会导致进度条回退（如 Search 创建子 step 时分母从 1 跳到 6，进度从 `1/1=100%` 跌到 `1/6≈17%`），UX 不可接受。修复后固定为 7，子 Step 不再影响全局分母。详见 `CHANGELOG.md`「进度条分母固定为七阶段」、`FRONTEND.md §4.4.2`。
+>
+> Phase 4 如需更细粒度的子步骤进度，可在 Phase 内部通过 `execution_pointer`（`step_index / total_steps_in_phase`）表达，不改变全局分母。
 
 每个 Step 完成时触发 `task.progress` 事件，携带 `completed_steps / total_steps / progress`。
 

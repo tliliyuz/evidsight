@@ -26,6 +26,7 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.core.exceptions import SynthesisFailedException
 from app.core.llm import LLMResult, chat_completion
+from app.core.token_counter import estimate_tokens
 from app.models.evidence_item import EvidenceItem
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
@@ -136,13 +137,12 @@ def _extract_json_from_text(text: str) -> str:
 
 
 def _format_evidence_items(items: list[EvidenceItem], max_sources: int) -> tuple[str, list[EvidenceItem]]:
-    """将 EvidenceItem[] 格式化为 Prompt 文本。
+    """将 EvidenceItem[] 格式化为 Prompt 文本，并受 TOKEN_BUDGET_SOFT_LIMIT 约束。
 
     处理逻辑：
     1. 按 relevance_score 降序（防御性重排）
-    2. 取前 K = min(max_sources, len) 条
-    3. 单条内容截断至 1500 字符
-    4. 使用 0-based 索引 [来源 0], [来源 1]...
+    2. 在 token 软上限内逐步减少 evidence 数量与单条长度
+    3. 使用 0-based 索引 [来源 0], [来源 1]...
 
     Returns:
         (formatted_text, selected_items)
@@ -152,19 +152,46 @@ def _format_evidence_items(items: list[EvidenceItem], max_sources: int) -> tuple
         key=lambda e: e.relevance_score or 0.0,
         reverse=True,
     )
-    selected = sorted_items[:min(max_sources, len(sorted_items))]
 
-    parts: list[str] = []
-    for i, ev in enumerate(selected, start=0):
-        source = ev.source
-        domain = source.domain if source else "unknown"
-        title = source.title if source else "无标题"
-        content = ev.content[:1500] if ev.content else ""
-        parts.append(
-            f"来源标注：[来源 {i}] {domain} — {title}\n内容：{content}"
-        )
+    # 在 token 预算内截断：先减少条数，再缩短单条长度
+    content_limit = 1500
+    count_limit = min(max_sources, len(sorted_items))
+    while count_limit >= 1:
+        selected = sorted_items[:count_limit]
+        parts: list[str] = []
+        for i, ev in enumerate(selected, start=0):
+            source = ev.source
+            domain = source.domain if source else "unknown"
+            title = source.title if source else "无标题"
+            content = ev.content[:content_limit] if ev.content else ""
+            parts.append(
+                f"来源标注：[来源 {i}] {domain} — {title}\n内容：{content}"
+            )
 
-    return "\n\n".join(parts), selected
+        formatted = "\n\n".join(parts)
+        if estimate_tokens(formatted) <= settings.TOKEN_BUDGET_SOFT_LIMIT:
+            if count_limit < min(max_sources, len(sorted_items)) or content_limit < 1500:
+                logger.warning(
+                    "Synthesis Evidence 截断: %d→%d 条, content_limit=%d",
+                    len(sorted_items), count_limit, content_limit,
+                )
+            return formatted, selected
+
+        if content_limit >= 500:
+            content_limit -= 250
+            continue
+
+        count_limit -= 1
+        content_limit = 1500
+
+    # 兜底保留 1 条最短内容
+    selected = sorted_items[:1]
+    ev = selected[0]
+    source = ev.source
+    domain = source.domain if source else "unknown"
+    title = source.title if source else "无标题"
+    formatted = f"来源标注：[来源 0] {domain} — {title}\n内容：{ev.content[:250] if ev.content else ''}"
+    return formatted, selected
 
 
 def _build_synthesis_prompt(
@@ -372,7 +399,8 @@ async def _llm_synthesize(
     last_error: Exception | None = None
     result: LLMResult | None = None
 
-    for attempt in range(1, settings.PIPELINE_SYNTHESIS_MAX_RETRIES + 1):
+    max_retries = settings.PIPELINE_SYNTHESIS_MAX_RETRIES
+    for attempt in range(max_retries + 1):
         try:
             result = await chat_completion(
                 messages=messages,
@@ -386,12 +414,12 @@ async def _llm_synthesize(
             total_completion_tokens += result.completion_tokens
 
             notes = _parse_synthesis_output(result.content, evidence_count)
-            return notes, total_prompt_tokens, total_completion_tokens, attempt - 1
+            return notes, total_prompt_tokens, total_completion_tokens, attempt
 
         except (json.JSONDecodeError, ValueError) as e:
             last_error = e
             logger.warning("Synthesis LLM 输出解析失败 (attempt %d): %s", attempt, e)
-            if attempt < settings.PIPELINE_SYNTHESIS_MAX_RETRIES:
+            if attempt < max_retries:
                 messages.append({"role": "assistant", "content": result.content if result else ""})
                 messages.append({
                     "role": "user",
@@ -403,12 +431,12 @@ async def _llm_synthesize(
         except Exception as e:
             last_error = e
             logger.warning("Synthesis LLM 调用失败 (attempt %d): %s", attempt, e)
-            if attempt < settings.PIPELINE_SYNTHESIS_MAX_RETRIES:
+            if attempt < max_retries:
                 continue
             break
 
     raise SynthesisFailedException(
-        detail=f"LLM Synthesis 失败（{settings.PIPELINE_SYNTHESIS_MAX_RETRIES} 次重试耗尽）: {last_error}"
+        detail=f"LLM Synthesis 失败（{max_retries} 次重试耗尽）: {last_error}"
     )
 
 

@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     TOKEN_CHINESE_RATIO: float = 1.5
     TOKEN_ENGLISH_RATIO: float = 4.0
     TOKEN_CHINESE_THRESHOLD: float = 0.3
+    TOKEN_BUDGET_SOFT_LIMIT: int = 8000  # Rerank/Synthesis/Render Prompt 软上限
 
     # ── Rerank ──
     RERANK_BM25_SEGMENT_MAX_CHARS: int = 2000

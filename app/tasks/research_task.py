@@ -117,7 +117,7 @@ async def _run_pipeline(task_id: str) -> dict:
         sse_bridge = SSEBridge(task_id)
         trace_recorder = TraceRecorder(
             task_id=task_id,
-            user_id=str(task.user_id),
+            user_id=task.user_id,
             topic=task.topic,
         )
         phase_handlers = build_default_phase_handlers()

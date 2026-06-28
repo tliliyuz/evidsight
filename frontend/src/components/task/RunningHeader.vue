@@ -80,9 +80,9 @@ const formattedElapsed = computed(() => formatElapsedTime(props.elapsedMs))
 .spinner-icon {
   width: 36px;
   height: 36px;
-  background: rgba(20, 184, 166, 0.1);
-  border: 1px solid rgba(20, 184, 166, 0.2);
-  color: #2DD4BF;
+  background: var(--rm-running-icon-bg);
+  border: 1px solid var(--rm-running-icon-border);
+  color: var(--rm-text-teal-400);
   border-radius: var(--rm-radius-md);
   display: flex;
   align-items: center;
@@ -97,7 +97,7 @@ const formattedElapsed = computed(() => formatElapsedTime(props.elapsedMs))
 .task-title {
   font-size: var(--rm-text-sm);
   font-weight: var(--rm-weight-bold);
-  color: white;
+  color: var(--rm-text-inverse);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -110,11 +110,11 @@ const formattedElapsed = computed(() => formatElapsedTime(props.elapsedMs))
   display: flex;
   align-items: center;
   gap: var(--rm-space-1_5);
-  margin-top: 2px;
+  margin-top: var(--rm-space-0_5);
 }
 
 .status-badge {
-  color: #5EEAD4;
+  color: var(--rm-text-teal-300);
   font-weight: var(--rm-weight-semibold);
 }
 
@@ -123,14 +123,14 @@ const formattedElapsed = computed(() => formatElapsedTime(props.elapsedMs))
 }
 
 .elapsed-time {
-  color: #5EEAD4;
+  color: var(--rm-text-teal-300);
   font-family: var(--rm-font-mono);
   font-weight: var(--rm-weight-semibold);
 }
 
 .cancel-btn {
   height: 32px;
-  padding: 0 12px;
+  padding: 0 var(--rm-space-3);
   background: var(--rm-danger-light);
   color: var(--rm-danger);
   border: 1px solid var(--rm-danger-border);

@@ -17,12 +17,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.exceptions import RerankFailedException
 from app.core.llm import LLMResult, chat_completion
+from app.core.token_counter import estimate_tokens
 from app.models.evidence_item import EvidenceItem
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
@@ -332,13 +333,18 @@ def _bm25_stage(
 # ── LLM 精排 ──────────────────────────────────────────────────
 
 
+def _estimate_messages_tokens(messages: list[dict[str, str]]) -> int:
+    """估算 messages 列表的 token 数。"""
+    return sum(estimate_tokens(m.get("content", "")) for m in messages)
+
+
 def _build_rerank_prompt(
     topic: str,
     task_type: str,
     sub_questions: list[str],
     candidates: list[Candidate],
 ) -> tuple[list[dict[str, str]], str]:
-    """构建 Rerank Prompt。
+    """构建 Rerank Prompt，并在超过 token 软上限时截断候选片段。
 
     Returns:
         (messages, candidates_text) 用于测试校验
@@ -351,11 +357,50 @@ def _build_rerank_prompt(
         f"{i}. {sq}" for i, sq in enumerate(sub_questions, start=1)
     )
 
-    candidates_text = "\n\n".join(
-        f"[片段 {i}]\n来源：{c.title or c.domain or c.url}\n{c.content[:1500]}"
-        for i, c in enumerate(candidates, start=0)
-    )
+    # 按 token 预算逐步截断 candidates：先减少数量，再缩短单片段长度
+    max_candidates = len(candidates)
+    content_limit = 1500
+    while max_candidates >= 1:
+        candidates_text = "\n\n".join(
+            f"[片段 {i}]\n来源：{c.title or c.domain or c.url}\n{c.content[:content_limit]}"
+            for i, c in enumerate(candidates[:max_candidates], start=0)
+        )
 
+        system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
+            topic=topic,
+            task_type=task_type,
+            sub_questions=sub_questions_text,
+            dimension_name=dimension_name,
+            dimension_desc=dimension_desc,
+        )
+
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"待评分片段：\n\n{candidates_text}"},
+        ]
+
+        tokens = _estimate_messages_tokens(messages)
+        if tokens <= settings.TOKEN_BUDGET_SOFT_LIMIT:
+            if max_candidates < len(candidates) or content_limit < 1500:
+                logger.warning(
+                    "Rerank Prompt 截断: candidates %d→%d, content_limit=%d, tokens=%d",
+                    len(candidates), max_candidates, content_limit, tokens,
+                )
+            return messages, candidates_text
+
+        # 先尝试缩短单片段长度
+        if content_limit >= 500:
+            content_limit -= 250
+            continue
+
+        # 再减少 candidate 数量
+        max_candidates -= 1
+        content_limit = 1500
+
+    # 兜底：至少保留 1 个候选
+    candidates_text = "\n\n".join(
+        f"[片段 0]\n来源：{candidates[0].title or candidates[0].domain or candidates[0].url}\n{candidates[0].content[:500]}"
+    )
     system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
         topic=topic,
         task_type=task_type,
@@ -363,12 +408,10 @@ def _build_rerank_prompt(
         dimension_name=dimension_name,
         dimension_desc=dimension_desc,
     )
-
-    messages: list[dict[str, str]] = [
+    messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": f"待评分片段：\n\n{candidates_text}"},
     ]
-
     return messages, candidates_text
 
 
@@ -393,7 +436,8 @@ async def _llm_rerank(
     total_completion_tokens = 0
     last_error: Exception | None = None
 
-    for attempt in range(1, settings.PIPELINE_RERANK_MAX_RETRIES + 1):
+    max_retries = settings.PIPELINE_RERANK_MAX_RETRIES
+    for attempt in range(max_retries + 1):
         try:
             result: LLMResult = await chat_completion(
                 messages=messages,
@@ -426,12 +470,12 @@ async def _llm_rerank(
 
             # 按 relevance_score 降序
             evidence_list.sort(key=lambda e: e.relevance_score, reverse=True)
-            return evidence_list, total_prompt_tokens, total_completion_tokens, attempt - 1
+            return evidence_list, total_prompt_tokens, total_completion_tokens, attempt
 
         except (json.JSONDecodeError, ValueError) as e:
             last_error = e
             logger.warning("Rerank LLM 输出解析失败 (attempt %d): %s", attempt, e)
-            if attempt < settings.PIPELINE_RERANK_MAX_RETRIES:
+            if attempt < max_retries:
                 # 追加错误反馈，要求重试
                 messages.append({"role": "assistant", "content": result.content if 'result' in dir() else ""})
                 messages.append({
@@ -445,16 +489,23 @@ async def _llm_rerank(
             # LLM 客户端内部已做 timeout/rate_limit 重试，这里只捕获最终失败
             last_error = e
             logger.warning("Rerank LLM 调用失败 (attempt %d): %s", attempt, e)
-            if attempt < settings.PIPELINE_RERANK_MAX_RETRIES:
+            if attempt < max_retries:
                 continue
             break
 
     raise RerankFailedException(
-        detail=f"LLM Rerank 失败（{settings.PIPELINE_RERANK_MAX_RETRIES} 次重试耗尽）: {last_error}"
+        detail=f"LLM Rerank 失败（{max_retries} 次重试耗尽）: {last_error}"
     )
 
 
 # ── Evidence 持久化 ───────────────────────────────────────────
+
+
+async def _clear_task_evidence(session: AsyncSession, task_id: str) -> None:
+    """清空任务下已有 EvidenceItem，避免 Step 重试时累加重复计数。"""
+    await session.execute(
+        delete(EvidenceItem).where(EvidenceItem.task_id == task_id)
+    )
 
 
 async def _persist_evidence(
@@ -557,11 +608,12 @@ async def run_rerank(
     top_k = min(max_sources, len(evidence_list))
     selected_evidence = evidence_list[:top_k]
 
-    # 5. 持久化
+    # 5. 清空旧 Evidence 并持久化新结果，避免重试时累加重复计数
+    await _clear_task_evidence(session, task_id)
     await _persist_evidence(session, task, step, selected_evidence)
 
-    # 6. 更新 task 统计
-    task.total_evidence = (task.total_evidence or 0) + len(selected_evidence)
+    # 6. 更新 task 统计（直接赋值，非累加）
+    task.total_evidence = len(selected_evidence)
     await session.flush()
 
     # 7. 质量警告（Evidence < 3 不阻断）

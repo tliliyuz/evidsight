@@ -131,14 +131,14 @@ const progressText = computed(() => {
 }
 
 .phase-node.done {
-  background: #0D9488;
-  border-color: #14B8A6;
+  background: var(--rm-status-success);
+  border-color: var(--rm-status-success-light);
   color: white;
 }
 
 .phase-node.current {
   background: var(--rm-secondary);
-  border-color: #3B82F6;
+  border-color: var(--rm-status-running);
   color: white;
   animation: pulse-blue 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
@@ -158,7 +158,7 @@ const progressText = computed(() => {
 }
 
 .phase-label.done { color: var(--rm-success); }
-.phase-label.current { color: #60A5FA; font-weight: var(--rm-weight-bold); }
+.phase-label.current { color: var(--rm-status-current); font-weight: var(--rm-weight-bold); }
 .phase-label.pending { color: var(--rm-text-inverse-dim); }
 
 .phase-duration {
@@ -176,7 +176,7 @@ const progressText = computed(() => {
 }
 
 .phase-connector.active {
-  background: linear-gradient(to right, #14B8A6, #3B82F6);
+  background: var(--rm-pipeline-gradient);
 }
 
 .overall-progress {
@@ -207,14 +207,14 @@ const progressText = computed(() => {
   width: 100%;
   height: 8px;
   background: var(--rm-bg-sidebar-active);
-  border-radius: 9999px;
+  border-radius: var(--rm-radius-pill);
   overflow: hidden;
 }
 
 .pipeline-progress-fill {
   height: 100%;
-  background: linear-gradient(to right, #14B8A6, #3B82F6);
-  border-radius: 9999px;
+  background: var(--rm-pipeline-gradient);
+  border-radius: var(--rm-radius-pill);
   transition: width 0.3s ease;
 }
 

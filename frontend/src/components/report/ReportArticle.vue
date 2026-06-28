@@ -141,24 +141,24 @@ watch(() => props.selectedSectionId, (sectionId) => {
   background: var(--rm-evidence-highlight-bg);
   color: var(--rm-evidence-highlight-text);
   font-size: var(--rm-text-xs);
-  padding: 2px 6px;
+  padding: var(--rm-space-0_5) var(--rm-space-1_5);
   border-radius: var(--rm-radius-xs);
   font-family: var(--rm-font-mono);
   font-weight: var(--rm-weight-semibold);
   border: 1px solid var(--rm-evidence-highlight-border);
   cursor: pointer;
-  margin: 0 2px;
+  margin: 0 var(--rm-space-0_5);
   transition: all var(--rm-transition-fast);
 }
 
 .report-section :deep(a.citation-link:hover) {
-  background: #99F6E4;
+  background: var(--rm-evidence-highlight-hover-bg);
 }
 
 .report-section :deep(a.citation-link.flash) {
-  background: #FEF3C7;
-  border-color: #F59E0B;
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+  background: var(--rm-evidence-flash-bg);
+  border-color: var(--rm-evidence-flash-border);
+  box-shadow: var(--rm-evidence-flash-shadow);
   animation: flash-pulse 1s ease-in-out 2;
 }
 
@@ -178,13 +178,13 @@ watch(() => props.selectedSectionId, (sectionId) => {
 
 .report-section :deep(code) {
   font-family: var(--rm-font-mono);
-  font-size: 0.9em;
+  font-size: var(--rm-code-inline-font-size);
 }
 
 .report-section :deep(:not(pre) > code) {
   background: var(--rm-code-inline-bg);
-  padding: 2px 4px;
-  border-radius: 4px;
+  padding: var(--rm-space-0_5) var(--rm-space-1);
+  border-radius: var(--rm-radius-xs);
 }
 
 .report-section :deep(table) {
@@ -206,7 +206,7 @@ watch(() => props.selectedSectionId, (sectionId) => {
 }
 
 .report-section :deep(blockquote) {
-  border-left: 4px solid var(--rm-primary);
+  border-left: var(--rm-space-1) solid var(--rm-primary);
   padding-left: var(--rm-space-3);
   color: var(--rm-text-secondary);
   margin-bottom: var(--rm-space-3);

@@ -61,7 +61,7 @@ describe('StepLog', () => {
     expect(wrapper.text()).toContain('LIVE')
   })
 
-  it('用户上滚后显示「最新」按钮', async () => {
+  it('日志面板无内部滚动_内容由外层容器统一滚动', () => {
     const wrapper = mountLog({
       logs: Array.from({ length: 30 }, (_, i) => ({
         id: `l${i}`,
@@ -72,10 +72,7 @@ describe('StepLog', () => {
         timestamp: '2026-06-24T10:00:00Z',
       })),
     })
-    const body = wrapper.find('.terminal-body')
-    body.element.scrollTop = 0
-    await body.trigger('scroll')
-    // 由于内容高度可能不够触发 isScrolledUp，这里直接断言按钮默认不显示
+    // 不再有内部滚动按钮
     expect(wrapper.find('.scroll-to-bottom').exists()).toBe(false)
   })
 
