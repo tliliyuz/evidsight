@@ -7,6 +7,10 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.user import User
 from app.models.knowledge_base import KnowledgeBase
+from app.models.document import Document
+from app.models.section import Section
+from app.models.chunk import Chunk
+from app.models.enums import DocumentStatus
 from app.core.database import async_session, engine
 
 
@@ -76,3 +80,47 @@ class TestUserModel:
             assert len(kbs) == 1
             assert kbs[0].name == "u43_测试知识库"
             assert kbs[0].user_id == user.id
+
+
+class TestSectionModel:
+    """Section / Chunk / Document 关系测试"""
+
+    def test_section_chunk_document_relationship(self):
+        """Section 关系 wiring 正确，Chunk 可回指 Section 和 Document"""
+        doc = Document(
+            id=10,
+            uuid=str(uuid4()),
+            kb_id=1,
+            filename="test.md",
+            file_type="md",
+            status=DocumentStatus.UPLOADED,
+        )
+        section = Section(
+            id=20,
+            doc_id=10,
+            kb_id=1,
+            title="章节一",
+            path="章节一",
+            level=1,
+            start_chunk_index=0,
+            end_chunk_index=0,
+        )
+        chunk = Chunk(
+            id=30,
+            doc_id=10,
+            kb_id=1,
+            section_id=20,
+            chroma_id="doc_10_chunk_0",
+            content="测试内容",
+            chunk_index=0,
+        )
+
+        doc.sections.append(section)
+        doc.chunks.append(chunk)
+        section.chunks.append(chunk)
+
+        assert section.document is doc
+        assert section in doc.sections
+        assert chunk.document is doc
+        assert chunk.section is section
+        assert chunk in section.chunks

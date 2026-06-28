@@ -22,7 +22,8 @@ users (用户表)
   │
   ├── knowledge_bases (知识库表)
   │     └── documents (文档表)
-  │           └── chunks (分块表)
+  │           └── sections (章节表)
+  │                 └── chunks (分块表)
   │
   ├── conversations (会话表)
   │     └── messages (消息表)
@@ -35,7 +36,9 @@ users (用户表)
 **关系说明**：
 - 一个用户可创建多个知识库，每个知识库属于一个用户（1:N）
 - 一个知识库包含多个文档，每个文档属于一个知识库（1:N）
+- 一个文档包含多个章节，每个章节属于一个文档（1:N）
 - 一个文档被切分为多个分块，每个分块属于一个文档（1:N）
+- 一个章节包含多个分块，每个分块可关联一个章节（1:N，可空兼容老数据）
 - 一个用户可发起多个会话，每个会话属于一个用户（1:N）
 - 一个会话包含多条消息，每条消息属于一个会话（1:N）
 - 会话可关联一个知识库（可选），表示当前对话的知识库上下文
@@ -166,22 +169,22 @@ uploaded → parsing → chunking → embedding → vector_storing → completed
 
 **状态枚举定义**：详见 [API.md §4.0](./API.md#40-文档状态枚举)。
 
-### 2.4 分块表 `chunks`
+### 2.4 章节表 `sections`
 
 ```sql
-CREATE TABLE chunks (
+CREATE TABLE sections (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     doc_id BIGINT NOT NULL,
     kb_id BIGINT NOT NULL,
-    chroma_id VARCHAR(256) NOT NULL COMMENT 'ChromaDB中的chunk id',
-    content TEXT NOT NULL,
-    chunk_index INT NOT NULL COMMENT '在原文档中的顺序',
-    token_count INT DEFAULT 0,
-    metadata JSON COMMENT '页码、段落标题等',
+    title VARCHAR(512) NOT NULL COMMENT '章节标题',
+    path VARCHAR(1024) NOT NULL COMMENT '章节路径（如 一级 > 二级 > 当前章节）',
+    level INT NOT NULL COMMENT '章节层级（1-6）',
+    start_chunk_index INT NOT NULL COMMENT '章节首个 chunk 的全局索引',
+    end_chunk_index INT NOT NULL COMMENT '章节最后一个 chunk 的全局索引',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_doc_id (doc_id),
-    INDEX idx_kb_id (kb_id),
-    INDEX idx_chunks_doc_id_chunk_index (doc_id, chunk_index),
+    INDEX idx_sections_doc_id (doc_id),
+    INDEX idx_sections_kb_id (kb_id),
+    INDEX idx_sections_doc_level (doc_id, level),
     FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (kb_id) REFERENCES knowledge_bases(id) ON DELETE CASCADE
 );
@@ -191,7 +194,44 @@ CREATE TABLE chunks (
 |:---|:---|:---|
 | id | BIGINT | 主键 |
 | doc_id | BIGINT | 所属文档 ID，有索引 |
+| kb_id | BIGINT | 所属知识库 ID，有索引 |
+| title | VARCHAR(512) | 当前章节标题 |
+| path | VARCHAR(1024) | 从顶层到当前章节的完整路径 |
+| level | INT | 标题层级（1-6） |
+| start_chunk_index | INT | 章节首个 chunk 的全局索引 |
+| end_chunk_index | INT | 章节最后一个 chunk 的全局索引 |
+| created_at | DATETIME | 创建时间 |
+
+### 2.5 分块表 `chunks`
+
+```sql
+CREATE TABLE chunks (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    doc_id BIGINT NOT NULL,
+    kb_id BIGINT NOT NULL,
+    section_id BIGINT NULL COMMENT '所属章节 ID',
+    chroma_id VARCHAR(256) NOT NULL COMMENT 'ChromaDB中的chunk id',
+    content TEXT NOT NULL,
+    chunk_index INT NOT NULL COMMENT '在原文档中的顺序',
+    token_count INT DEFAULT 0,
+    metadata JSON COMMENT '页码、段落标题等',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_doc_id (doc_id),
+    INDEX idx_kb_id (kb_id),
+    INDEX ix_chunks_section_id (section_id),
+    INDEX idx_chunks_doc_id_chunk_index (doc_id, chunk_index),
+    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (kb_id) REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+    FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE SET NULL
+);
+```
+
+| 字段 | 类型 | 说明 |
+|:---|:---|:---|
+| id | BIGINT | 主键 |
+| doc_id | BIGINT | 所属文档 ID，有索引 |
 | kb_id | BIGINT | 所属知识库 ID，有索引（冗余，便于按知识库统计分块） |
+| section_id | BIGINT | 所属章节 ID，可空，兼容历史未回填 chunk |
 | chroma_id | VARCHAR(256) | ChromaDB 中对应的 chunk id，用于回溯和删除 |
 | content | TEXT | 分块文本内容 |
 | chunk_index | INT | 在原文档中的顺序（从 0 开始） |
@@ -199,7 +239,7 @@ CREATE TABLE chunks (
 | metadata | JSON | 额外元数据（页码、段落标题等） |
 | created_at | DATETIME | 创建时间 |
 
-### 2.5 会话表 `conversations`
+### 2.6 会话表 `conversations`
 
 ```sql
 CREATE TABLE conversations (
@@ -280,7 +320,7 @@ CREATE TABLE conversations (
 >
 > **不改造的资源**：users（Admin 内部使用）、messages（仅 SSE 返回）、chunks（内部结构）保持 BIGINT 主键。
 
-### 2.6 消息表 `messages`
+### 2.7 消息表 `messages`
 
 ```sql
 CREATE TABLE messages (
@@ -310,7 +350,7 @@ CREATE TABLE messages (
 | metadata | JSON | 扩展元数据（可空）。Phase 4 不使用，为 future Tool Call / Web Search / Agent 预留 |
 | created_at | DATETIME | 创建时间 |
 
-### 2.7 刷新令牌表 `refresh_tokens`
+### 2.8 刷新令牌表 `refresh_tokens`
 
 > **Phase 4 新增**。配合 Refresh Token 机制（见 [ARCHITECTURE.md §9.2](../../docs/ARCHITECTURE.md#92-refresh-token-机制)），持久化存储刷新令牌哈希。
 
@@ -345,7 +385,7 @@ CREATE TABLE refresh_tokens (
 - **改密吊销**：`PUT /api/auth/password` → 该用户全部 token `UPDATE revoked_at = NOW()`
 - **过期清理**：`expires_at < NOW()` 的 token 即使 `revoked_at IS NULL` 也视为无效
 
-### 2.8 链路追踪表 `traces`
+### 2.9 链路追踪表 `traces`
 
 > **Phase 5 已实现**。记录问答全链路各阶段耗时和详情，用于性能观测和统计分析。
 

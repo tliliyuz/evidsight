@@ -26,6 +26,13 @@ class Chunk(Base):
         BigInteger, ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
         nullable=False, index=True
     )
+    section_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("sections.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="所属章节 ID",
+    )
     chroma_id: Mapped[str] = mapped_column(
         String(256), nullable=False, comment="ChromaDB 中的 chunk id"
     )
@@ -45,3 +52,4 @@ class Chunk(Base):
 
     document = relationship("Document", back_populates="chunks")
     knowledge_base = relationship("KnowledgeBase", back_populates="chunks")
+    section = relationship("Section", back_populates="chunks")

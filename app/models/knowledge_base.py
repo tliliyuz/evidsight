@@ -54,5 +54,6 @@ class KnowledgeBase(Base):
 
     owner = relationship("User", back_populates="knowledge_bases")
     documents = relationship("Document", back_populates="knowledge_base", passive_deletes=True)
+    sections = relationship("Section", back_populates="knowledge_base", passive_deletes=True)
     chunks = relationship("Chunk", back_populates="knowledge_base", passive_deletes=True)
     conversations = relationship("Conversation", back_populates="knowledge_base")

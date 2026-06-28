@@ -59,6 +59,7 @@ class Document(Base):
     )
 
     knowledge_base = relationship("KnowledgeBase", back_populates="documents")
+    sections = relationship("Section", back_populates="document", passive_deletes=True)
     chunks = relationship("Chunk", back_populates="document", passive_deletes=True)
 
     @property
