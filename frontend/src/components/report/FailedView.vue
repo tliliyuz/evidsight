@@ -10,7 +10,7 @@
         <p class="failed-message">{{ primaryMessage }}</p>
 
         <div v-if="errorDetail" class="failed-detail">
-          <span class="detail-label">详细原因</span>
+          <div class="detail-label">详细原因</div>
           <p class="detail-text">{{ errorDetail }}</p>
         </div>
 
@@ -23,11 +23,13 @@
           <button
             v-if="recoverable"
             class="retry-btn"
-            disabled
-            title="断点续跑功能将在后续版本开放"
+            :disabled="retryLoading"
+            :class="{ loading: retryLoading }"
+            @click="handleRetry"
           >
-            <i class="fas fa-sync-alt"></i>
-            断点续跑
+            <i v-if="retryLoading" class="fas fa-spinner fa-spin"></i>
+            <i v-else class="fas fa-sync-alt"></i>
+            {{ retryLoading ? '正在恢复…' : '断点续跑' }}
           </button>
           <p v-else class="failed-hint">
             该错误无法恢复，请尝试修改研究主题后重新提交
@@ -46,7 +48,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import { normalizePhaseKey, PHASE_LABELS } from '@/utils/phase'
 
 const props = defineProps({
@@ -56,7 +59,36 @@ const props = defineProps({
   recoverable: { type: Boolean, default: false },
 })
 
-defineEmits(['back'])
+const emit = defineEmits(['back', 'retry'])
+
+const retryLoading = ref(false)
+
+async function handleRetry() {
+  try {
+    await ElMessageBox.confirm(
+      '将从上次保存的断点继续执行，是否继续？',
+      '断点续跑',
+      {
+        confirmButtonText: '继续',
+        cancelButtonText: '取消',
+        type: 'info',
+      }
+    )
+  } catch {
+    return
+  }
+
+  retryLoading.value = true
+  try {
+    emit('retry')
+  } finally {
+    // 父组件负责状态切换，按钮 loading 由调用方控制更稳妥，
+    // 此处 300ms 后关闭本地 loading 避免父组件未响应时一直转圈
+    setTimeout(() => {
+      retryLoading.value = false
+    }, 300)
+  }
+}
 
 /**
  * 标准错误码：仅展示 E 系列码（如 E3110）。
@@ -243,6 +275,7 @@ function phaseLabel(phase) {
 }
 
 .failed-detail {
+  width: 100%;
   background: var(--rm-bg-page);
   border: 1px solid var(--rm-border-light);
   border-radius: var(--rm-radius-md);
@@ -262,6 +295,7 @@ function phaseLabel(phase) {
 }
 
 .detail-text {
+  display: block;
   font-family: var(--rm-font-mono);
   font-size: var(--rm-text-xs);
   color: var(--rm-text-secondary);
@@ -310,12 +344,23 @@ function phaseLabel(phase) {
   border-radius: var(--rm-radius-sm);
   font-size: var(--rm-text-body);
   font-weight: var(--rm-weight-medium);
-  cursor: not-allowed;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: var(--rm-space-1_5);
-  opacity: 0.6;
+  opacity: 1;
   font-family: inherit;
+  transition: all var(--rm-transition-fast);
+}
+
+.retry-btn:hover:not(:disabled) {
+  background: var(--rm-primary-hover-light);
+}
+
+.retry-btn:disabled,
+.retry-btn.loading {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .failed-hint {

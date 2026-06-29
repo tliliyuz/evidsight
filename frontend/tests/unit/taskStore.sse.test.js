@@ -294,6 +294,35 @@ describe('TaskStore — SSE 事件处理（Phase 3 运行态）', () => {
     expect(store.sseStatus).toBe('disconnected')
   })
 
+  it('task.failed 将 SSE error_type 字符串映射为标准 E 码', () => {
+    const store = makeStore()
+    store.handleSSEEvent('task.failed', {
+      error_type: 'RerankFailed',
+      error_description: 'Rerank 输入格式错误或计算失败',
+      recoverable: false,
+      timestamp: '2026-06-24T10:00:10Z',
+    })
+
+    expect(store.current.status).toBe('failed')
+    expect(store.current.error_code).toBe('E3105')
+    expect(store.current.error_message).toBe('Rerank 输入格式错误或计算失败')
+    expect(store.current.recoverable).toBe(false)
+  })
+
+  it('task.failed 未知 error_type 回退保留原始值', () => {
+    const store = makeStore()
+    store.handleSSEEvent('task.failed', {
+      error_type: 'SomeCustomError',
+      error_description: '自定义错误',
+      recoverable: false,
+      timestamp: '2026-06-24T10:00:10Z',
+    })
+
+    expect(store.current.status).toBe('failed')
+    expect(store.current.error_code).toBe('SomeCustomError')
+    expect(store.current.error_message).toBe('自定义错误')
+  })
+
   it('task.canceled 更新状态并断开 SSE', () => {
     const store = makeStore()
     store.handleSSEEvent('task.canceled', { timestamp: '2026-06-24T10:00:10Z' })

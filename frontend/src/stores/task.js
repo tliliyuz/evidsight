@@ -274,6 +274,34 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   /**
+   * 断点续跑：调用 Retry API 后立即建立 SSE 连接
+   *
+   * 设计要点：
+   * - 不在 retry 后调用 fetchDetail，因为：
+   *   1. fetchDetail 是网络请求，延迟期间 Worker 已开始发布事件，SSE 未连接则事件丢失
+   *   2. fetchDetail 会用 DB 中的 pending 状态覆盖本地的 running 乐观更新
+   * - SSE 连接后首条 task.status.snapshot 提供权威状态（含已完成 steps 等）
+   * - taskList 由 watch(current, …) 自动同步
+   *
+   * @param {string} taskId - 任务 UUID
+   */
+  async function retryTask(taskId) {
+    const res = await researchApi.retryTask(taskId)
+    const data = res.data.data
+    // API 返回 202 表示已分发，本地先切到运行态提升响应感
+    if (current.value && current.value.task_id === taskId) {
+      current.value.status = 'running'
+      current.value.error_code = null
+      current.value.error_message = null
+      current.value.recoverable = false
+      resetRuntimeState()
+    }
+    // 立即建立 SSE 连接（快照会提供权威状态：steps / current_phase / progress 等）
+    connectSSEToTask(taskId)
+    return data
+  }
+
+  /**
    * 连接 SSE 流，实时接收 Pipeline 事件
    * @param {string} taskId - 任务 UUID
    */
@@ -533,6 +561,11 @@ export const useTaskStore = defineStore('task', () => {
           }
           if (data.steps && Array.isArray(data.steps)) {
             buildLogsFromSnapshot(data.steps)
+            // 断点续跑场景：current_phase 为 null 时从已完成 steps 重建阶段状态，
+            // 避免进度条图标全部灰色无旋转
+            if (data.current_phase == null) {
+              phaseStates.value = buildPhaseStatesFromSteps(data.steps, data.current_phase)
+            }
           }
           if (data.error) {
             current.value.error_code = data.error.error_code || null
@@ -803,12 +836,37 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   /**
+   * SSE task.failed 的 error_type 到标准 E 系列错误码的映射。
+   * 后端 SSE 发送的是 detail.error_type（如 "RerankFailed"），
+   * 而详情接口返回的是 error_code（如 "E3105"），统一映射后前端状态一致。
+   */
+  const ERROR_TYPE_TO_CODE = {
+    'PlanningFailed': 'E3101',
+    'SearchFailed': 'E3102',
+    'InsufficientEvidence': 'E3103',
+    'SynthesisFailed': 'E3104',
+    'RerankFailed': 'E3105',
+    'EvidenceGraphFailed': 'E3106',
+    'RenderFailed': 'E3107',
+    'LLMTimeout': 'E3108',
+    'LLMRateLimit': 'E3109',
+    'LLMAuthFailed': 'E3110',
+    'LLMUnknown': 'E3111',
+    'CeleryWorkerLost': 'E3112',
+    'CeleryWorkerNotPickedUp': 'E3113',
+    'UnknownInternal': 'E3999',
+  }
+
+  /**
    * 规范化错误码：确保返回标准 E 系列错误码。
-   * 若 raw 不是 E 系列码，则尝试从 description 中解析。
+   * 优先级：直接 E 码 > error_type 字符串映射 > 从 description 中解析 > 自由文本匹配。
    */
   function normalizeErrorCode(raw, description) {
     if (!raw && !description) return null
     if (raw && /^E\d{4}$/.test(raw)) return raw
+
+    // SSE error_type 字符串（如 "RerankFailed"）映射为 E 码
+    if (raw && ERROR_TYPE_TO_CODE[raw]) return ERROR_TYPE_TO_CODE[raw]
 
     const candidate = description || raw || ''
     const m = String(candidate).match(/["']code["']\s*:\s*["'](E\d{4})["']/)
@@ -864,6 +922,7 @@ export const useTaskStore = defineStore('task', () => {
     fetchDetail,
     deleteTask,
     cancelTask,
+    retryTask,
     connectSSE: connectSSEToTask,
     disconnectSSE,
     clearCurrent,

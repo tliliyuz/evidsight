@@ -152,6 +152,7 @@
         :failed-phase="taskStore.current?.current_phase"
         :recoverable="taskStore.current?.recoverable"
         @back="handleBackToCreate"
+        @retry="handleRetry"
       />
       <CanceledView
         v-else-if="taskStore.current?.status === 'canceled'"
@@ -406,6 +407,24 @@ function handleBackToCreate() {
   showValidation.value = false
 }
 
+// ===== 断点续跑 =====
+async function handleRetry() {
+  const taskId = taskStore.current?.task_id
+  if (!taskId) return
+  try {
+    await taskStore.retryTask(taskId)
+    ElMessage.success('已从断点恢复执行')
+  } catch (err) {
+    const status = err.response?.status
+    if (status === 409) {
+      const detail = err.response?.data?.detail
+      ElMessage.error(detail?.error_description || '当前状态不支持断点续跑')
+    } else {
+      ElMessage.error(err.response?.data?.message || '断点续跑失败，请稍后重试')
+    }
+  }
+}
+
 const statusTitle = computed(() => {
   const map = {
     completed: '研究完成',
@@ -418,8 +437,10 @@ const statusTitle = computed(() => {
 
 // ===== 生命周期 =====
 onMounted(() => {
-  // 返回运行态任务时自动恢复 SSE 连接，避免日志丢失
-  if (taskStore.current?.status === 'running' && taskStore.sseStatus === 'disconnected') {
+  // 返回运行态/待处理任务时自动恢复 SSE 连接，避免日志丢失
+	  // pending 也需重连：retry 后 Worker 拾取前的窗口期
+  const s = taskStore.current?.status
+  if ((s === 'running' || s === 'pending') && taskStore.sseStatus === 'disconnected') {
     taskStore.connectSSE(taskStore.current.task_id)
   }
 })

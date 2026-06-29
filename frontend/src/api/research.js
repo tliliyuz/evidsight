@@ -56,6 +56,15 @@ export function getTaskState(taskId) {
 }
 
 /**
+ * 断点续跑（仅 failed/partially_completed/canceled 且 recoverable=true）
+ * @param {string} taskId - 任务 UUID
+ * @returns {Promise} response.data.data = { task_id, status }
+ */
+export function retryTask(taskId) {
+  return api.post(`/research/${taskId}/retry`)
+}
+
+/**
  * 获取任务完整研究报告（含 Evidence Graph 与 Trace）
  * @param {string} taskId - 任务 UUID
  * @returns {Promise} response.data.data = ResearchReportResponse

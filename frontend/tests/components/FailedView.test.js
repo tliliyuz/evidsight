@@ -29,12 +29,20 @@ function mountFailed(props = {}) {
 describe('FailedView', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('recoverable=true 显示禁用态断点续跑按钮', () => {
+  it('recoverable=true 显示可用态断点续跑按钮', () => {
     const wrapper = mountFailed()
     const btn = wrapper.find('.retry-btn')
     expect(btn.exists()).toBe(true)
-    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.attributes('disabled')).toBeUndefined()
     expect(btn.text()).toContain('断点续跑')
+  })
+
+  it('点击断点续跑确认后 emit retry', async () => {
+    const wrapper = mountFailed()
+    const btn = wrapper.find('.retry-btn')
+    await btn.trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('retry')).toHaveLength(1)
   })
 
   it('recoverable=false 显示不可恢复提示', () => {
@@ -112,5 +120,19 @@ describe('FailedView', () => {
     const codeBadge = wrapper.find('.failed-error-code')
     expect(codeBadge.exists()).toBe(true)
     expect(codeBadge.text()).toBe('E3110')
+  })
+
+  it('标准 E 码错误不展示详细原因中的异常类名', () => {
+    const wrapper = mountFailed({
+      errorCode: 'E3105',
+      errorMessage: 'Rerank 输入格式错误或计算失败',
+      failedPhase: 'reranking',
+      recoverable: false,
+    })
+    const codeBadge = wrapper.find('.failed-error-code')
+    expect(codeBadge.exists()).toBe(true)
+    expect(codeBadge.text()).toBe('E3105')
+    expect(wrapper.find('.failed-detail').exists()).toBe(false)
+    expect(wrapper.text()).toContain('失败阶段：重排')
   })
 })
