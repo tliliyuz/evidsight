@@ -286,19 +286,43 @@ export const useTaskStore = defineStore('task', () => {
    * @param {string} taskId - 任务 UUID
    */
   async function retryTask(taskId) {
-    const res = await researchApi.retryTask(taskId)
-    const data = res.data.data
-    // API 返回 202 表示已分发，本地先切到运行态提升响应感
+    // 先保存旧状态，用于 API 失败时回滚
+    let previousStatus = null
+    let previousErrorCode = null
+    let previousErrorMessage = null
+    let previousRecoverable = false
+
     if (current.value && current.value.task_id === taskId) {
+      previousStatus = current.value.status
+      previousErrorCode = current.value.error_code
+      previousErrorMessage = current.value.error_message
+      previousRecoverable = current.value.recoverable
+
+      // 乐观更新：点击后立即切换到运行态，避免失败态页面停留期间用户重复点击
       current.value.status = 'running'
       current.value.error_code = null
       current.value.error_message = null
       current.value.recoverable = false
       resetRuntimeState()
     }
-    // 立即建立 SSE 连接（快照会提供权威状态：steps / current_phase / progress 等）
-    connectSSEToTask(taskId)
-    return data
+
+    try {
+      const res = await researchApi.retryTask(taskId)
+      const data = res.data.data
+      // API 返回 202 表示已分发，立即建立 SSE 连接
+      // 快照会提供权威状态：steps / current_phase / progress 等
+      connectSSEToTask(taskId)
+      return data
+    } catch (err) {
+      // 续跑请求失败时回滚到之前状态，继续展示失败/取消视图
+      if (current.value && current.value.task_id === taskId) {
+        current.value.status = previousStatus
+        current.value.error_code = previousErrorCode
+        current.value.error_message = previousErrorMessage
+        current.value.recoverable = previousRecoverable
+      }
+      throw err
+    }
   }
 
   /**

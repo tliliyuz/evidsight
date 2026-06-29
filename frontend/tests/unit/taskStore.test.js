@@ -27,6 +27,7 @@ vi.mock('@/api/research', () => ({
   getTaskDetail: vi.fn(),
   deleteTask: vi.fn(),
   cancelTask: vi.fn(),
+  retryTask: vi.fn(),
   getTaskState: vi.fn(),
 }))
 
@@ -715,6 +716,99 @@ describe('TaskStore', () => {
       await store.cancelTask('t2')
 
       expect(store.current.status).toBe('running')
+    })
+  })
+
+  // ===== retryTask =====
+
+  describe('retryTask', () => {
+    it('API 调用前立即乐观更新 current 为 running', async () => {
+      const apiDeferred = {}
+      apiDeferred.promise = new Promise((resolve, reject) => {
+        apiDeferred.resolve = resolve
+        apiDeferred.reject = reject
+      })
+      researchApi.retryTask.mockReturnValue(apiDeferred.promise)
+
+      const store = useTaskStore()
+      store.current = {
+        task_id: 'task-retry-1',
+        topic: '失败的研究',
+        status: 'failed',
+        error_code: 'E3104',
+        error_message: 'Synthesis 失败',
+        recoverable: true,
+      }
+
+      const callPromise = store.retryTask('task-retry-1')
+
+      // API 尚未返回，状态已立即切换到 running
+      expect(store.current.status).toBe('running')
+      expect(store.current.error_code).toBeNull()
+      expect(store.current.error_message).toBeNull()
+      expect(store.current.recoverable).toBe(false)
+
+      apiDeferred.resolve(mockApiResponse({ task_id: 'task-retry-1', status: 'running' }))
+      await callPromise
+    })
+
+    it('API 成功后建立 SSE 连接', async () => {
+      researchApi.retryTask.mockResolvedValue(
+        mockApiResponse({ task_id: 'task-retry-2', status: 'running' })
+      )
+
+      const store = useTaskStore()
+      store.current = {
+        task_id: 'task-retry-2',
+        topic: '可恢复的研究',
+        status: 'failed',
+        error_code: 'E3101',
+        error_message: 'Planning 失败',
+        recoverable: true,
+      }
+
+      await store.retryTask('task-retry-2')
+
+      expect(connectSSE).toHaveBeenCalledWith('/api/research/task-retry-2/stream', expect.any(Object))
+      expect(store.sseConnection).not.toBeNull()
+    })
+
+    it('API 失败时回滚到原状态并继续展示失败视图', async () => {
+      const apiError = {
+        response: { status: 409, data: { detail: { error_description: '当前状态不支持断点续跑' } } },
+      }
+      researchApi.retryTask.mockRejectedValue(apiError)
+
+      const store = useTaskStore()
+      store.current = {
+        task_id: 'task-retry-3',
+        topic: '冲突的研究',
+        status: 'failed',
+        error_code: 'E3102',
+        error_message: 'Search 失败',
+        recoverable: true,
+      }
+
+      await expect(store.retryTask('task-retry-3')).rejects.toBe(apiError)
+
+      expect(store.current.status).toBe('failed')
+      expect(store.current.error_code).toBe('E3102')
+      expect(store.current.error_message).toBe('Search 失败')
+      expect(store.current.recoverable).toBe(true)
+    })
+
+    it('current 为空时不影响调用', async () => {
+      researchApi.retryTask.mockResolvedValue(
+        mockApiResponse({ task_id: 'task-retry-4', status: 'running' })
+      )
+
+      const store = useTaskStore()
+      store.current = null
+
+      const result = await store.retryTask('task-retry-4')
+
+      expect(result.status).toBe('running')
+      expect(connectSSE).toHaveBeenCalled()
     })
   })
 
