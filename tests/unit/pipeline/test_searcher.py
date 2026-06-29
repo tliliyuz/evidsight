@@ -340,3 +340,100 @@ class TestRunSearchFailure:
 
             assert mock_tavily.call_count == 2  # 原始 + 1次重试
             assert output["after_dedup"] == 1
+
+    @pytest.mark.asyncio
+    async def test_崩溃恢复_跳过已存在的source_URL(self):
+        """Worker 崩溃恢复时，DB 中可能残留上次部分写入的 source，应跳过避免唯一键冲突。"""
+        with patch("app.pipeline.searcher._call_tavily") as mock_tavily:
+            mock_tavily.side_effect = [
+                _make_tavily_response(["https://a.com/1", "https://a.com/2"]),
+                _make_tavily_response(["https://b.com/1"]),
+                _make_tavily_response(["https://c.com/1", "https://d.com/1"]),
+            ]
+
+            planning_result = MagicMock()
+            planning_result.scalar_one_or_none.return_value = _make_planning_step(
+                self.DEFAULT_SUB_QUESTIONS
+            )
+
+            existing_result = MagicMock()
+            existing_result.all.return_value = [("https://a.com/1",)]
+
+            self.db_session.execute.side_effect = [
+                planning_result,
+                existing_result,
+            ]
+
+            output = await run_search(
+                self.task, self.step, self.db_session, self.sse_bridge,
+            )
+
+            assert output["after_dedup"] == 5  # 5 条唯一 URL
+            assert output["sources_created"] == 4  # 5 - 1 条已存在
+            add_calls = [
+                c for c in self.db_session.add.call_args_list
+                if isinstance(c[0][0], ResearchSource)
+            ]
+            added_urls = {c[0][0].url for c in add_calls}
+            assert "https://a.com/1" not in added_urls
+
+    @pytest.mark.asyncio
+    async def test_前255字符相同的URL按唯一索引去重(self):
+        """uk_task_url 唯一索引按 url 前 255 字符生效，应用层需避免 DB 冲突。"""
+        with patch("app.pipeline.searcher._call_tavily") as mock_tavily:
+            base = "https://example.com/" + "a" * 240  # 确保前缀足够长
+            url_a = base + "/suffix-a"
+            url_b = base + "/suffix-b"
+            mock_tavily.side_effect = [
+                _make_tavily_response([url_a, url_b]),
+                _make_tavily_response(["https://other.com/1"]),
+                _make_tavily_response(["https://another.com/1"]),
+            ]
+
+            output = await run_search(
+                self.task, self.step, self.db_session, self.sse_bridge,
+            )
+
+            # url_a 与 url_b 前 255 字符相同，应只保留一条
+            assert output["after_dedup"] == 3
+            assert output["sources_created"] == 3
+
+    @pytest.mark.asyncio
+    async def test_崩溃恢复_已有URL前缀冲突时跳过(self):
+        """DB 中已存在的长 URL 与新 URL 前 255 字符冲突，应跳过新 URL。"""
+        with patch("app.pipeline.searcher._call_tavily") as mock_tavily:
+            base = "https://example.com/" + "a" * 240
+            existing_url = base + "/existing"
+            new_url = base + "/new"
+            mock_tavily.side_effect = [
+                _make_tavily_response([new_url]),
+                _make_tavily_response(["https://other.com/1"]),
+                _make_tavily_response(["https://another.com/1"]),
+            ]
+
+            planning_result = MagicMock()
+            planning_result.scalar_one_or_none.return_value = _make_planning_step(
+                self.DEFAULT_SUB_QUESTIONS
+            )
+
+            existing_result = MagicMock()
+            existing_result.all.return_value = [(existing_url,)]
+
+            self.db_session.execute.side_effect = [
+                planning_result,
+                existing_result,
+            ]
+
+            output = await run_search(
+                self.task, self.step, self.db_session, self.sse_bridge,
+            )
+
+            assert output["after_dedup"] == 3
+            # new_url 与 existing_url 前 255 字符相同，应跳过
+            assert output["sources_created"] == 2
+            add_calls = [
+                c for c in self.db_session.add.call_args_list
+                if isinstance(c[0][0], ResearchSource)
+            ]
+            added_urls = {c[0][0].url for c in add_calls}
+            assert new_url not in added_urls

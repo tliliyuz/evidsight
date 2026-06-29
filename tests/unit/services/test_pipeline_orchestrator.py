@@ -4,6 +4,7 @@ Mock 注入 phase_handlers + AsyncMock session + MagicMock sse_bridge，
 验证核心调度逻辑的正确性。
 """
 
+import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,6 +20,7 @@ from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.config import settings
 from app.pipeline.sse_bridge import (
     EVENT_STEP_COMPLETED,
     EVENT_STEP_FAILED,
@@ -26,6 +28,7 @@ from app.pipeline.sse_bridge import (
     EVENT_STEP_STARTED,
     EVENT_TASK_CANCELED,
     EVENT_TASK_COMPLETED,
+    EVENT_TASK_CREATED,
     EVENT_TASK_FAILED,
     EVENT_TASK_PROGRESS,
     EVENT_TASK_WARNING,
@@ -35,6 +38,34 @@ from app.services.pipeline_orchestrator import (
     PHASE_ORDER,
     PipelineOrchestrator,
 )
+from app.tasks.lock import (
+    acquire_task_lock_async,
+    release_task_lock_async,
+)
+
+
+@pytest.fixture(autouse=True)
+def _mock_task_lock():
+    """默认自动 mock 任务级锁，避免污染现有调度测试；锁专用测试会单独 patch。
+
+    把 refresh_task_lock_async mock 掉，使测试不会访问真实 Redis。
+    fixture 退出时取消事件循环中残留的后台协程，避免 'Task destroyed but pending' 警告。
+    """
+    with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True), \
+         patch("app.services.pipeline_orchestrator.release_task_lock_async"), \
+         patch("app.services.pipeline_orchestrator.refresh_task_lock_async", new_callable=AsyncMock):
+        yield
+
+    try:
+        loop = asyncio.get_event_loop()
+        if not loop.is_closed():
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -127,13 +158,11 @@ class TestPhaseOrder:
             assert PHASE_LABELS[step_type]
 
     @pytest.mark.asyncio
-    async def test_CAS失败_不执行任何phase(self):
-        """_start_task CAS 失败时 run() 应直接返回，不调用任何 handler。"""
-        task = _make_task(status="running")  # 非 pending，触发 CAS 失败
+    async def test_终态任务_不执行任何phase(self):
+        """_start_task 遇到终态任务时 run() 应直接返回，不调用任何 handler。"""
+        task = _make_task(status="completed")  # 终态，直接返回 False
         session = AsyncMock()
         _configure_async_mock_session(session)
-        # 模拟 CAS 更新 rowcount=0
-        session.execute.return_value.rowcount = 0
         sse_bridge = AsyncMock()
         sse_bridge.task_id = str(task.id)
 
@@ -298,6 +327,11 @@ class TestFatalErrorTermination:
             if c[0][0] == EVENT_TASK_FAILED
         ]
         assert len(task_failed_calls) == 1
+        payload = task_failed_calls[0][0][1]
+        assert payload["error_type"] == "PlanningFailed"
+        # 应使用 AppException 的友好 message，禁止暴露 JSON 或原始 detail
+        assert payload["error_description"] == "LLM 无法拆解研究主题"
+        assert "{" not in payload["error_description"]
         # 验证 error_code 在 FATAL 集中
         assert "E3101" in FATAL_STEP_ERROR_CODES
 
@@ -351,6 +385,80 @@ class TestFatalErrorTermination:
 
         # 验证 Pipeline 在 planning 后终止，search 未执行
         assert call_order == ["planning"]
+
+    @pytest.mark.asyncio
+    async def test_handle_step_error_session已失效_先rollback再更新step状态(self):
+        """模拟 DB flush 失败导致 session inactive，_handle_step_error 应恢复 session 并继续处理。"""
+        task = _make_task()
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        session.is_active = False
+        session.rollback = AsyncMock()
+        session.get = AsyncMock(return_value=None)
+
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={},
+        )
+
+        step = MagicMock(spec=ResearchStep)
+        step.id = "step-001"
+        step.task_id = task.id
+        # 使用非致命 phase（fetch 不在 FATAL_STEP_TYPES 中），避免 raise 重新抛出
+        step.step_type = "fetch"
+        step.started_at = datetime.now(timezone.utc)
+        step.status = "running"
+
+        error = RuntimeError("模拟 Fetch 失败")
+
+        await orchestrator._handle_step_error(step, "fetch", error)
+
+        # session 回滚后被重新激活，step 状态仍应被标记为 failed
+        session.rollback.assert_awaited_once()
+        assert step.status == "failed"
+        # 未知异常不应暴露原始错误细节给前端
+        assert step.error_message == "未预期的内部错误，请稍后重试"
+        assert step.error_code is None
+        # step.failed SSE 事件应被发送
+        failed_calls = [
+            c for c in sse_bridge.publish.await_args_list
+            if c[0][0] == EVENT_STEP_FAILED
+        ]
+        assert len(failed_calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_handle_fatal_error_session已失效_rollback后写入task失败状态(self):
+        """模拟 DB flush 失败导致 session inactive，_handle_fatal_error 应恢复 session 并写入 failed 状态。"""
+        task = _make_task()
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        session.is_active = False
+        session.rollback = AsyncMock()
+
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={},
+        )
+
+        error = RuntimeError("模拟未知致命错误")
+        await orchestrator._handle_fatal_error(error)
+
+        # session 应先回滚，然后执行 CAS 更新
+        session.rollback.assert_awaited_once()
+        assert session.execute.await_count >= 1
+
+        # task.failed SSE 事件应被发送
+        failed_calls = [
+            c for c in sse_bridge.publish.await_args_list
+            if c[0][0] == EVENT_TASK_FAILED
+        ]
+        assert len(failed_calls) == 1
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -428,18 +536,23 @@ class TestFinalizeTask:
 
 
 class TestCancelDetection:
-    """Orchestrator 检测到 status=canceled 后停止并发送 task.canceled。"""
+    """Orchestrator 执行过程中检测到 status=canceled 后停止并发送 task.canceled。"""
 
     @pytest.mark.asyncio
-    async def test_任务已取消_发送task_canceled事件(self):
-        task = _make_task(status="canceled")
+    async def test_执行中任务被取消_发送task_canceled事件(self):
+        task = _make_task(status="running")
         session = AsyncMock()
         _configure_async_mock_session(session)
         sse_bridge = AsyncMock()
         sse_bridge.task_id = str(task.id)
 
-        # refresh 后 task.status 仍为 canceled
+        # 第一次 refresh（_start_task）保持 running，后续 refresh（phase 循环）变为 canceled
+        refresh_count = 0
         async def _refresh(task_obj, attrs=None):
+            nonlocal refresh_count
+            refresh_count += 1
+            if refresh_count > 1:
+                task_obj.status = "canceled"
             return None
         session.refresh.side_effect = _refresh
 
@@ -579,6 +692,131 @@ class TestCostTracking:
         assert result["breakdown"]["planning"]["tokens"] == 1200
         assert result["breakdown"]["planning"]["cost"] == 0.000609
         assert result["phases"]["planning"]["model"] == "deepseek-v4-pro"
+
+    @pytest.mark.asyncio
+    async def test_trace_断点续跑合并previous_trace(self):
+        """断点续跑：previous_trace 中已完成的阶段应保留，并累加到 task 总计。"""
+        # 模拟首次运行：planning/search/fetch/rerank 完成，synthesis 失败
+        previous_trace = {
+            "task_id": "task-resume-001",
+            "user_id": 1,
+            "status": "error",
+            "total_duration_ms": 6500,
+            "total_input_tokens": 3000,
+            "total_output_tokens": 500,
+            "total_cost_usd": 0.076973,
+            "phases": {
+                "planning": {
+                    "span_name": "planning",
+                    "duration_ms": 1000,
+                    "status": "success",
+                    "input_tokens": 1000,
+                    "output_tokens": 200,
+                    "model": "deepseek-v4-pro",
+                },
+                "search": {
+                    "span_name": "search",
+                    "duration_ms": 2000,
+                    "status": "success",
+                    "cost_usd": 0.075,
+                },
+                "fetch": {
+                    "span_name": "fetch",
+                    "duration_ms": 1500,
+                    "status": "success",
+                    "cost_usd": 0.001,
+                },
+                "rerank": {
+                    "span_name": "rerank",
+                    "duration_ms": 2000,
+                    "status": "success",
+                    "input_tokens": 2000,
+                    "output_tokens": 300,
+                    "model": "deepseek-v4-flash",
+                },
+                "synthesis": None,
+                "evidence_graph": None,
+                "render": None,
+            },
+            "phase_durations_ms": {
+                "planning": 1000,
+                "search": 2000,
+                "fetch": 1500,
+                "rerank": 2000,
+            },
+            "breakdown": {
+                "planning": {"tokens": 1200, "cost": 0.000609},
+                "search": {"tokens": 0, "cost": 0.075},
+                "fetch": {"tokens": 0, "cost": 0.001},
+                "rerank": {"tokens": 2300, "cost": 0.000364},
+            },
+            "error_message": "synthesis failed",
+            "created_at": "2025-01-01T00:00:00.000+00:00",
+        }
+
+        # 续跑：仅 synthesis / evidence_graph / render 重新执行，
+        # planning / search / fetch / rerank 被跳过（沿用 previous_trace）
+        trace = TraceRecorder(
+            task_id="task-resume-001",
+            user_id=1,
+            topic="测试",
+            previous_trace=previous_trace,
+        )
+        trace.record_synthesis(
+            duration_ms=3000,
+            input_tokens=5000,
+            output_tokens=1000,
+            clusters_count=2,
+            model="deepseek-v4-pro",
+        )
+        trace.record_evidence_graph(
+            duration_ms=500,
+            evidence_count=8,
+            source_count=5,
+        )
+        trace.record_render(
+            duration_ms=4000,
+            input_tokens=3000,
+            output_tokens=1500,
+            sections_count=3,
+            model="deepseek-v4-pro",
+        )
+
+        result = trace.finish()
+
+        # 阶段数据：被跳过的阶段保留 previous_trace 数据
+        assert result["phases"]["planning"]["model"] == "deepseek-v4-pro"
+        assert result["phases"]["planning"]["duration_ms"] == 1000
+        assert result["phases"]["search"]["cost_usd"] == 0.075
+        assert result["phases"]["fetch"]["cost_usd"] == 0.001
+        assert result["phases"]["rerank"]["model"] == "deepseek-v4-flash"
+        # 重新执行阶段使用新数据
+        assert result["phases"]["synthesis"]["input_tokens"] == 5000
+        assert result["phases"]["evidence_graph"]["evidence_count"] == 8
+        assert result["phases"]["render"]["sections_count"] == 3
+
+        # 总计：previous skipped + current run
+        # input: (1000+2000) [prev] + (5000+3000) [cur] = 11000
+        assert result["total_input_tokens"] == 11000
+        # output: (200+300) [prev] + (1000+1500) [cur] = 3000
+        assert result["total_output_tokens"] == 3000
+        assert result["total_tokens"] == 14000
+        # cost: 0.000609 + 0.075 + 0.001 + 0.000364 [prev] + 0.003045 + 0.00261 [cur]
+        assert result["total_cost_usd"] == 0.082628
+
+        # breakdown 合并：prev 阶段 + 当前阶段
+        assert result["breakdown"]["planning"]["cost"] == 0.000609
+        assert result["breakdown"]["search"]["cost"] == 0.075
+        assert result["breakdown"]["fetch"]["cost"] == 0.001
+        assert result["breakdown"]["rerank"]["cost"] == 0.000364
+        assert result["breakdown"]["synthesis"]["cost"] == 0.003045
+        assert result["breakdown"]["render"]["cost"] == 0.00261
+
+        # 总耗时：所有阶段 duration_ms 之和
+        # 1000 + 2000 + 1500 + 2000 + 3000 + 500 + 4000 = 14000
+        assert result["total_duration_ms"] == 14000
+        assert result["phase_durations_ms"]["planning"] == 1000
+        assert result["phase_durations_ms"]["render"] == 4000
 
     @pytest.mark.asyncio
     async def test_complete_step_search阶段记录trace(self):
@@ -750,12 +988,204 @@ class TestPipelineWithRealSession:
         updated_task = result.scalar_one()
         assert updated_task.status == "completed"
 
-        completed_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_COMPLETED
-        ]
-        assert len(completed_calls) == 1
-        assert completed_calls[0][0][1]["status"] == "completed"
+
+# ═══════════════════════════════════════════════════════════════
+# Step 幂等锁崩溃恢复
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestStepLockRecovery:
+    """崩溃恢复模式下遗留 Step 锁的清理行为。"""
+
+    @pytest.mark.asyncio
+    async def test_恢复模式_running_Step遗留锁被强制释放并执行(self):
+        """恢复模式 + step.running + 已持有任务锁 → 强制释放旧锁并执行 handler。"""
+        task = _make_task(status="running")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        handler_called = []
+
+        async def handler(t, s, sess, sb):
+            handler_called.append("synthesis")
+            return {"status": "ok"}
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={"synthesis": handler},
+        )
+        orchestrator._is_recovery = True
+        orchestrator._task_lock_acquired = True
+
+        step = MagicMock(spec=ResearchStep)
+        step.id = "step-synthesis-001"
+        step.status = "running"
+        step.step_type = "synthesis"
+        step.label = "Synthesis"
+        orchestrator._create_step = AsyncMock(return_value=step)
+
+        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", side_effect=[False, True]) as mock_acquire, \
+             patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release:
+            await orchestrator._run_phase("synthesis")
+
+        # 强制释放旧锁并重新获取（finally 块会再释放一次，因此共 2 次）
+        assert mock_acquire.await_count == 2
+        assert mock_release.await_count == 2
+        mock_release.assert_any_await(str(task.id), "synthesis")
+        # handler 被调用，step 未被 skipped
+        assert handler_called == ["synthesis"]
+        assert step.status != "skipped"
+
+    @pytest.mark.asyncio
+    async def test_未持有任务锁时Step锁被占用则跳过(self):
+        """未持有任务锁 + acquire_step_lock_async 返回 False → Step 被 skipped。
+
+        任务级锁是强制释放的基础。不持有任务锁时，Step 锁可能属于正在运行的
+        另一个 Worker，不应强制释放。
+        """
+        task = _make_task(status="running")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={},
+        )
+        orchestrator._task_lock_acquired = False
+
+        step = MagicMock(spec=ResearchStep)
+        step.id = "step-synthesis-002"
+        step.status = "running"
+        step.step_type = "synthesis"
+        step.label = "Synthesis"
+        orchestrator._create_step = AsyncMock(return_value=step)
+
+        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=False) as mock_acquire, \
+             patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release:
+            await orchestrator._run_phase("synthesis")
+
+        # 仅尝试一次，不强制释放
+        mock_acquire.assert_awaited_once()
+        mock_release.assert_not_awaited()
+        # Step 被标记为 skipped
+        assert step.status == "skipped"
+
+    @pytest.mark.asyncio
+    async def test_恢复模式_Step已终态不强制释放锁(self):
+        """恢复模式下 Step 已是 completed/skipped/failed 终态，直接返回不碰锁。"""
+        task = _make_task(status="running")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={},
+        )
+        orchestrator._is_recovery = True
+        orchestrator._task_lock_acquired = True
+
+        step = MagicMock(spec=ResearchStep)
+        step.id = "step-synthesis-003"
+        step.status = "completed"
+        step.step_type = "synthesis"
+        step.label = "Synthesis"
+        orchestrator._create_step = AsyncMock(return_value=step)
+
+        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async") as mock_acquire, \
+             patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release:
+            await orchestrator._run_phase("synthesis")
+
+        mock_acquire.assert_not_awaited()
+        mock_release.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_持有任务锁时_pending_Step遗留锁被强制释放并执行(self):
+        """持有任务锁 + step.pending → 强制释放旧锁并执行 handler。
+
+        Worker 崩溃后 DB 事务回滚，task.status 可能回到 pending，
+        _is_recovery=False（正常路径），但 _task_lock_acquired=True。
+        只要持有任务锁，Step 锁一定是崩溃遗留的。
+        """
+        task = _make_task(status="running")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        handler_called = []
+
+        async def handler(t, s, sess, sb):
+            handler_called.append("synthesis")
+            return {"status": "ok"}
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={"synthesis": handler},
+        )
+        # 注意：不设置 _is_recovery，模拟 DB 回滚到 pending 的情况
+        orchestrator._task_lock_acquired = True
+
+        step = MagicMock(spec=ResearchStep)
+        step.id = "step-synthesis-004"
+        step.status = "pending"
+        step.step_type = "synthesis"
+        step.label = "Synthesis"
+        orchestrator._create_step = AsyncMock(return_value=step)
+
+        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", side_effect=[False, True]) as mock_acquire, \
+             patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release:
+            await orchestrator._run_phase("synthesis")
+
+        # 强制释放旧锁并重新获取（finally 块会再释放一次，因此共 2 次）
+        assert mock_acquire.await_count == 2
+        assert mock_release.await_count == 2
+        mock_release.assert_any_await(str(task.id), "synthesis")
+        # handler 被调用，step 未被 skipped
+        assert handler_called == ["synthesis"]
+        assert step.status != "skipped"
+
+    @pytest.mark.asyncio
+    async def test_持有任务锁时_running_Step遗留锁被强制释放并执行(self):
+        """持有任务锁 + step.running → 强制释放旧锁（覆盖 running 状态分支）。"""
+        task = _make_task(status="running")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        handler_called = []
+
+        async def handler(t, s, sess, sb):
+            handler_called.append("fetch")
+            return {"successful": 1, "failed": 0}
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={"fetch": handler},
+        )
+        orchestrator._task_lock_acquired = True
+
+        step = MagicMock(spec=ResearchStep)
+        step.id = "step-fetch-005"
+        step.status = "running"
+        step.step_type = "fetch"
+        step.label = "Fetch"
+        orchestrator._create_step = AsyncMock(return_value=step)
+
+        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", side_effect=[False, True]) as mock_acquire, \
+             patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release:
+            await orchestrator._run_phase("fetch")
+
+        assert mock_acquire.await_count == 2
+        assert mock_release.await_count == 2
+        assert handler_called == ["fetch"]
+        assert step.status != "skipped"
 
     @pytest.mark.asyncio
     async def test_复用research_service创建的pending_planning_step(self, db_session):
@@ -1495,3 +1925,204 @@ class TestExecutionContextAtomicity:
         await db_session.refresh(step)
         # step.status 可能因 flush 已变为 "completed"，但事务回滚会撤销
         # 关键断言：execution_context 没有被部分更新
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 崩溃恢复与任务级锁
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestCrashRecoveryAndTaskLock:
+    """_start_task 崩溃恢复路径 + 任务级锁生命周期。"""
+
+    @pytest.mark.asyncio
+    async def test_pending状态_正常启动_发送task_created(self):
+        task = _make_task(status="pending")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        # 模拟 refresh 后 status 仍为 pending
+        session.refresh = AsyncMock()
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={},
+        )
+
+        started = await orchestrator._start_task()
+
+        assert started is True
+        # 正常路径发送 task.created
+        created_calls = [
+            c for c in sse_bridge.publish.await_args_list
+            if c[0][0] == EVENT_TASK_CREATED
+        ]
+        assert len(created_calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_running状态_崩溃恢复_不发送task_created并获取锁(self):
+        task = _make_task(status="running")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        session.refresh = AsyncMock()
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={},
+        )
+
+        with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True) as mock_acquire:
+            started = await orchestrator._start_task()
+
+        assert started is True
+        # 崩溃恢复路径不发送 task.created
+        created_calls = [
+            c for c in sse_bridge.publish.await_args_list
+            if c[0][0] == EVENT_TASK_CREATED
+        ]
+        assert len(created_calls) == 0
+        mock_acquire.assert_awaited_once_with(str(task.id))
+
+    @pytest.mark.asyncio
+    async def test_running状态_锁被占用_返回False(self):
+        task = _make_task(status="running")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        session.refresh = AsyncMock()
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={},
+        )
+
+        with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=False) as mock_acquire:
+            started = await orchestrator._start_task()
+
+        assert started is False
+        mock_acquire.assert_awaited_once_with(str(task.id))
+
+    @pytest.mark.asyncio
+    async def test_run_正常完成_释放任务锁(self):
+        task = _make_task(status="pending")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        session.refresh = AsyncMock()
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+        handlers = {phase: _make_phase_handler() for phase in PHASE_ORDER}
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers=handlers,
+        )
+
+        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
+            with patch("app.services.pipeline_orchestrator.release_step_lock_async"):
+                with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True) as mock_acquire:
+                    with patch("app.services.pipeline_orchestrator.release_task_lock_async") as mock_release:
+                        await orchestrator.run()
+
+        mock_release.assert_awaited_once_with(str(task.id))
+
+    @pytest.mark.asyncio
+    async def test_run_异常退出_释放任务锁(self):
+        task = _make_task(status="pending")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        session.refresh = AsyncMock()
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        async def failing_handler(task, step, session, sse_bridge):
+            raise RuntimeError("模拟 Phase 失败")
+
+        handlers = {"planning": failing_handler}
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers=handlers,
+        )
+
+        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
+            with patch("app.services.pipeline_orchestrator.release_step_lock_async"):
+                with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True):
+                    with patch("app.services.pipeline_orchestrator.release_task_lock_async") as mock_release:
+                        await orchestrator.run()
+
+        mock_release.assert_awaited_once_with(str(task.id))
+
+    @pytest.mark.asyncio
+    async def test_获取任务锁后启动租约刷新(self):
+        task = _make_task(status="running")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        session.refresh = AsyncMock()
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={},
+        )
+
+        with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True), \
+             patch("app.services.pipeline_orchestrator.refresh_task_lock_async", new_callable=AsyncMock) as mock_refresh, \
+             patch("app.services.pipeline_orchestrator.settings.CELERY_LOCK_REFRESH_INTERVAL", 0.05), \
+             patch.object(PipelineOrchestrator, "_start_task_lock_refresh", PipelineOrchestrator._start_task_lock_refresh):
+            await orchestrator._acquire_task_lock(str(task.id))
+
+            assert orchestrator._task_lock_acquired is True
+            assert orchestrator._task_lock_refresh_task is not None
+
+            # 等待一次刷新循环，验证后台任务确实在运行
+            await asyncio.sleep(0.1)
+            mock_refresh.assert_awaited()
+
+        # 清理：取消并等待任务结束，避免 "Task destroyed but pending" 警告
+        refresh_task = orchestrator._task_lock_refresh_task
+        orchestrator._stop_task_lock_refresh()
+        try:
+            await asyncio.wait_for(refresh_task, timeout=0.5)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+
+    @pytest.mark.asyncio
+    async def test_释放任务锁后停止租约刷新(self):
+        task = _make_task(status="running")
+        session = AsyncMock()
+        _configure_async_mock_session(session)
+        session.refresh = AsyncMock()
+        sse_bridge = AsyncMock()
+        sse_bridge.task_id = str(task.id)
+
+        orchestrator = PipelineOrchestrator(
+            task=task, session=session, sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(), phase_handlers={},
+        )
+
+        with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True), \
+             patch("app.services.pipeline_orchestrator.refresh_task_lock_async", new_callable=AsyncMock), \
+             patch("app.services.pipeline_orchestrator.settings.CELERY_LOCK_REFRESH_INTERVAL", 0.05):
+            await orchestrator._acquire_task_lock(str(task.id))
+
+            refresh_task = orchestrator._task_lock_refresh_task
+            assert refresh_task is not None
+
+        with patch("app.services.pipeline_orchestrator.release_task_lock_async") as mock_release:
+            await orchestrator._release_task_lock(str(task.id))
+
+        assert orchestrator._task_lock_refresh_task is None
+        assert orchestrator._task_lock_acquired is False
+        mock_release.assert_awaited_once_with(str(task.id))
+
+        # 等待取消完成
+        try:
+            await asyncio.wait_for(refresh_task, timeout=0.5)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+

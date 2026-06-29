@@ -31,6 +31,7 @@ from app.models.research_step import ResearchStep
 from app.models.section_evidence import SectionEvidence
 from app.schemas.research import ResearchCreateRequest
 from app.services.research_service import (
+    _build_progress,
     cancel_task,
     create_task,
     get_report,
@@ -62,6 +63,70 @@ async def seed_test_users(db_session: AsyncSession):
         if existing is None:
             db_session.add(u)
     await db_session.flush()
+
+
+# ═══════════════════════════════════════════════════════════════
+# _build_progress
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestBuildProgress:
+    """进度快照构建：确保进度比例始终落在 [0, 1] 区间。"""
+
+    def test_execution_context中progress大于1时锁定为1(self):
+        task = ResearchTask(
+            id="task-001",
+            user_id=1,
+            topic="test",
+            requirements={},
+            total_steps=7,
+            completed_steps=11,
+            execution_context={
+                "progress": {
+                    "completed_steps": 11,
+                    "total_steps": 7,
+                    "progress": 1.57,
+                }
+            },
+        )
+        progress = _build_progress(task)
+        assert progress.progress == 1.0
+        assert progress.completed_steps == 11
+        assert progress.total_steps == 7
+
+    def test_fallback统计列progress大于1时锁定为1(self):
+        task = ResearchTask(
+            id="task-002",
+            user_id=1,
+            topic="test",
+            requirements={},
+            total_steps=7,
+            completed_steps=11,
+            execution_context=None,
+        )
+        progress = _build_progress(task)
+        assert progress.progress == 1.0
+        assert progress.completed_steps == 11
+        assert progress.total_steps == 7
+
+    def test_execution_context中progress小于0时锁定为0(self):
+        task = ResearchTask(
+            id="task-003",
+            user_id=1,
+            topic="test",
+            requirements={},
+            total_steps=7,
+            completed_steps=0,
+            execution_context={
+                "progress": {
+                    "completed_steps": 0,
+                    "total_steps": 7,
+                    "progress": -0.5,
+                }
+            },
+        )
+        progress = _build_progress(task)
+        assert progress.progress == 0.0
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -796,6 +861,60 @@ class TestRetryTask:
         search_steps = result.scalars().all()
         assert len(search_steps) == 1
         assert search_steps[0].status == "completed"
+
+    async def test_锁跳过_skipped_主_Step_被重置为pending(self, db_session: AsyncSession):
+        """因崩溃遗留幂等锁被跳过的主 Step，retry 时应恢复为 pending。"""
+        task = await _seed_retry_task(db_session, status="failed")
+
+        # 因锁被跳过的 rerank 主 Step
+        skipped_lock_step = ResearchStep(
+            task_id=task.id,
+            step_type="rerank",
+            parent_step_id=None,
+            status="skipped",
+            output={"reason": "幂等锁已被占用（可能重复入队）"},
+            label="Rerank：来源粗筛精排",
+        )
+        # 正常跳过的 planning 主 Step，不应被重置
+        skipped_normal_step = ResearchStep(
+            task_id=task.id,
+            step_type="planning",
+            parent_step_id=None,
+            status="skipped",
+            output={"reason": "Phase 函数未注册"},
+            label="Planning：拆解研究主题",
+        )
+        db_session.add_all([skipped_lock_step, skipped_normal_step])
+        await db_session.flush()
+
+        # 子 Step 不应被 Orchestrator 调度，保持 skipped
+        # 必须先 flush 父 Step 获取 id，再设置 parent_step_id
+        skipped_child_step = ResearchStep(
+            task_id=task.id,
+            step_type="fetch",
+            parent_step_id=skipped_lock_step.id,
+            status="skipped",
+            output={"reason": "幂等锁已被占用（可能重复入队）"},
+            label="抓取子步骤",
+        )
+        db_session.add(skipped_child_step)
+        await db_session.flush()
+
+        await retry_task(db_session, task)
+
+        from sqlalchemy import select as sa_sel
+        result = await db_session.execute(
+            sa_sel(ResearchStep).where(ResearchStep.task_id == task.id)
+        )
+        steps = {step.id: step for step in result.scalars().all()}
+
+        assert steps[skipped_lock_step.id].status == "pending"
+        assert steps[skipped_lock_step.id].output is None
+
+        assert steps[skipped_normal_step.id].status == "skipped"
+        assert steps[skipped_normal_step.id].output == {"reason": "Phase 函数未注册"}
+
+        assert steps[skipped_child_step.id].status == "skipped"
 
     async def test_无failed_step_重置为no_op(self, db_session: AsyncSession):
         """没有 failed step 时 reset 不报错，仅日志记录。"""

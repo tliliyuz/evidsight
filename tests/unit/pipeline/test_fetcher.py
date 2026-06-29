@@ -199,7 +199,17 @@ class TestRunFetchSuccess:
         mock_result.scalars.return_value.all.return_value = mock_sources
         self.db_session.execute.return_value = mock_result
 
-        with patch("app.pipeline.fetcher._fetch_one_url") as mock_fetch:
+        async def _count_success(s, task_id):
+            return sum(
+                1 for src in mock_sources
+                if getattr(src, "fetch_status", None) == "success"
+            )
+
+        with patch("app.pipeline.fetcher._fetch_one_url") as mock_fetch, \
+             patch(
+                 "app.pipeline.fetcher._count_task_successful_sources",
+                 new=_count_success,
+             ):
             mock_fetch.return_value = _make_fetch_success_result()
 
             output = await run_fetch(
@@ -429,6 +439,42 @@ class TestRunFetchFailure:
             assert output["successful"] == 15
             assert output["truncated"] == 5
             assert mock_fetch.call_count == 15
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 断点续跑统计
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestRunFetchRecovery:
+    """Fetch 断点续跑时，task.total_sources 应从 DB 统计所有已成功抓取的来源。"""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        self.task = _make_task(total_sources=1)
+        self.step = _make_step()
+        self.sse_bridge = AsyncMock()
+        self.db_session = AsyncMock()
+
+    @pytest.mark.asyncio
+    async def test_断点续跑时_total_sources包含已持久化的成功来源(self):
+        mock_sources = _make_mock_sources(2)
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = mock_sources
+        self.db_session.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.pipeline.fetcher._fetch_one_url") as mock_fetch:
+            mock_fetch.return_value = _make_fetch_success_result()
+            with patch(
+                "app.pipeline.fetcher._count_task_successful_sources",
+                new=AsyncMock(return_value=10),
+            ):
+                output = await run_fetch(
+                    self.task, self.step, self.db_session, self.sse_bridge,
+                )
+
+        assert output["successful"] == 2
+        assert self.task.total_sources == 10  # 使用 DB 统计值，而非仅本次新抓取数
 
 
 # ═══════════════════════════════════════════════════════════════════════

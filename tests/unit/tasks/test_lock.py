@@ -14,14 +14,23 @@ import asyncio
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
+from app.config import settings
 from app.tasks.lock import (
     _build_lock_key,
+    _build_task_lock_key,
     acquire_step_lock,
     release_step_lock,
     check_step_lock,
     acquire_step_lock_async,
     release_step_lock_async,
+    acquire_task_lock,
+    release_task_lock,
+    acquire_task_lock_async,
+    release_task_lock_async,
+    refresh_task_lock_async,
+    check_task_lock_async,
     KEY_PREFIX,
+    TASK_LOCK_PREFIX,
 )
 
 
@@ -315,3 +324,148 @@ async def test_acquire_step_lock_async_自定义TTL():
 
         await acquire_step_lock_async("task-2", "fetch", ttl=120)
         assert captured_kwargs["ex"] == 120
+
+
+# ═══════════════════════════════════════════════════════════════
+# 任务级锁 Key 格式
+# ═══════════════════════════════════════════════════════════════
+
+
+def test_build_task_lock_key_格式为_prefix_task_id():
+    """任务锁 Key 格式：`rm:task_lock:{task_id}`"""
+    key = _build_task_lock_key("abc-123")
+    assert key == f"{TASK_LOCK_PREFIX}:abc-123"
+
+
+# ═══════════════════════════════════════════════════════════════
+# 任务级锁同步版
+# ═══════════════════════════════════════════════════════════════
+
+
+@patch("app.tasks.lock.get_redis")
+def test_acquire_task_lock_获取成功_返回True(mock_get_redis):
+    """任务级锁 SET NX 成功 → True"""
+    mock_redis = MagicMock()
+    mock_redis.set.return_value = True
+    mock_get_redis.return_value = mock_redis
+
+    result = acquire_task_lock("task-1")
+    assert result is True
+
+    args, kwargs = mock_redis.set.call_args
+    assert args[0] == f"{TASK_LOCK_PREFIX}:task-1"
+    assert args[1] == "locked"
+    assert kwargs["ex"] == settings.CELERY_TASK_LOCK_TTL
+    assert kwargs["nx"] is True
+
+
+@patch("app.tasks.lock.get_redis")
+def test_acquire_task_lock_锁已存在_返回False(mock_get_redis):
+    """任务级锁 SET NX 失败 → False"""
+    mock_redis = MagicMock()
+    mock_redis.set.return_value = None
+    mock_get_redis.return_value = mock_redis
+
+    result = acquire_task_lock("task-1")
+    assert result is False
+
+
+@patch("app.tasks.lock.get_redis")
+def test_release_task_lock_删除对应key(mock_get_redis):
+    """释放任务级锁 → DELETE Key"""
+    mock_redis = MagicMock()
+    mock_get_redis.return_value = mock_redis
+
+    release_task_lock("task-1")
+    mock_redis.delete.assert_called_once_with(f"{TASK_LOCK_PREFIX}:task-1")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 任务级锁异步版
+# ═══════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_acquire_task_lock_async_获取成功_返回True():
+    """异步版任务级锁 SET NX 成功 → True"""
+    with patch("app.core.redis_client.get_async_redis") as mock_get_async:
+        mock_redis = MagicMock()
+        mock_redis.set = _make_async_mock_set(True)
+        mock_get_async.return_value = mock_redis
+
+        result = await acquire_task_lock_async("task-1")
+        assert result is True
+
+
+@pytest.mark.asyncio
+async def test_acquire_task_lock_async_锁已存在_返回False():
+    """异步版任务级锁 SET NX 失败 → False"""
+    with patch("app.core.redis_client.get_async_redis") as mock_get_async:
+        mock_redis = MagicMock()
+        mock_redis.set = _make_async_mock_set(None)
+        mock_get_async.return_value = mock_redis
+
+        result = await acquire_task_lock_async("task-1")
+        assert result is False
+
+
+@pytest.mark.asyncio
+async def test_release_task_lock_async_删除对应key():
+    """异步版释放任务级锁 → DELETE Key"""
+    with patch("app.core.redis_client.get_async_redis") as mock_get_async:
+        mock_redis = MagicMock()
+        mock_redis.delete = AsyncMock(return_value=None)
+        mock_get_async.return_value = mock_redis
+
+        await release_task_lock_async("task-1")
+        mock_redis.delete.assert_called_once_with(f"{TASK_LOCK_PREFIX}:task-1")
+
+
+@pytest.mark.asyncio
+async def test_refresh_task_lock_async_续期成功_返回True():
+    """异步版任务锁续期成功 → True"""
+    with patch("app.core.redis_client.get_async_redis") as mock_get_async:
+        mock_redis = MagicMock()
+        mock_redis.expire = AsyncMock(return_value=1)
+        mock_get_async.return_value = mock_redis
+
+        result = await refresh_task_lock_async("task-1", ttl=60)
+        assert result is True
+        mock_redis.expire.assert_called_once_with(f"{TASK_LOCK_PREFIX}:task-1", 60)
+
+
+@pytest.mark.asyncio
+async def test_refresh_task_lock_async_锁不存在_返回False():
+    """异步版任务锁续期时 Key 不存在 → False"""
+    with patch("app.core.redis_client.get_async_redis") as mock_get_async:
+        mock_redis = MagicMock()
+        mock_redis.expire = AsyncMock(return_value=0)
+        mock_get_async.return_value = mock_redis
+
+        result = await refresh_task_lock_async("task-1")
+        assert result is False
+
+
+@pytest.mark.asyncio
+async def test_check_task_lock_async_锁存在_返回True():
+    """异步版检查任务锁存在 → True"""
+    with patch("app.core.redis_client.get_async_redis") as mock_get_async:
+        mock_redis = MagicMock()
+        mock_redis.exists = AsyncMock(return_value=1)
+        mock_get_async.return_value = mock_redis
+
+        result = await check_task_lock_async("task-1")
+        assert result is True
+        mock_redis.exists.assert_called_once_with(f"{TASK_LOCK_PREFIX}:task-1")
+
+
+@pytest.mark.asyncio
+async def test_check_task_lock_async_锁不存在_返回False():
+    """异步版检查任务锁不存在 → False"""
+    with patch("app.core.redis_client.get_async_redis") as mock_get_async:
+        mock_redis = MagicMock()
+        mock_redis.exists = AsyncMock(return_value=0)
+        mock_get_async.return_value = mock_redis
+
+        result = await check_task_lock_async("task-1")
+        assert result is False
