@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from urllib.parse import urljoin, urlparse
 
 import httpx
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -190,6 +190,22 @@ async def _fetch_one_url(
     }
 
 
+async def _count_task_successful_sources(
+    session: AsyncSession,
+    task_id: str,
+) -> int:
+    """统计该任务已成功抓取的来源数（用于断点续跑时不漏算）。"""
+    result = await session.execute(
+        select(func.count())
+        .select_from(ResearchSource)
+        .where(
+            ResearchSource.task_id == task_id,
+            ResearchSource.fetch_status == "success",
+        )
+    )
+    return result.scalar() or 0
+
+
 async def run_fetch(
     task: ResearchTask,
     step: ResearchStep,
@@ -335,8 +351,10 @@ async def run_fetch(
 
         await session.flush()
 
-    # 更新 task 统计：total_sources 表示最终成功抓取的来源数
-    task.total_sources = successful
+    # 更新 task 统计：total_sources 表示最终成功抓取的来源数。
+    # 断点续跑时，已经持久化的成功来源可能不在本次待抓取列表中，
+    # 因此从 DB 重新统计，避免只计入本次新抓取的数量。
+    task.total_sources = await _count_task_successful_sources(session, task_id)
     await session.flush()
 
     fetch_cost_usd = calculate_fetch_cost_usd(success_content_bytes)

@@ -89,6 +89,10 @@ class ThreadedRedisClient:
         """异步 DELETE"""
         return await asyncio.to_thread(self._sync.delete, key)
 
+    async def exists(self, key: str) -> int:
+        """异步 EXISTS"""
+        return await asyncio.to_thread(self._sync.exists, key)
+
     async def incr(self, key: str) -> int:
         """异步 INCR（原子递增）"""
         return await asyncio.to_thread(self._sync.incr, key)

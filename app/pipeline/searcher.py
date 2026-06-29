@@ -37,6 +37,19 @@ logger = logging.getLogger(__name__)
 _SEARCH_RETRY_MAX = 2
 _SEARCH_RETRY_DELAYS = [1.0, 2.0]  # 指数退避
 
+# research_sources.uk_task_url 索引前缀长度（单位：字符，URL 多为 ASCII）
+_URL_UNIQUE_PREFIX_LEN = 255
+
+
+def _url_unique_key(url: str) -> str:
+    """生成与 uk_task_url 唯一索引语义一致的 URL 键。
+
+    uk_task_url 为 (task_id, url) 的唯一索引，且 url 列取前缀 255；
+    当两条 URL 前 255 字符相同时会在 DB 层冲突，因此应用层去重需使用
+    同样的前缀键。
+    """
+    return url[:_URL_UNIQUE_PREFIX_LEN]
+
 
 async def _call_tavily(query: str, api_key: str) -> dict:
     """调用 Tavily Search API 单次查询。
@@ -195,7 +208,7 @@ async def run_search(
     # 2. 搜索每个子问题
     all_results: list[dict] = []  # 所有原始结果
     sub_results: list[dict] = []  # 每个子问题的汇总
-    seen_urls: set[str] = set()
+    seen_url_keys: set[str] = set()  # 按 uk_task_url 前缀去重
     all_skipped = True
     sources_created = 0
 
@@ -260,17 +273,18 @@ async def run_search(
         # 标记为非全跳过
         all_skipped = False
 
-        # 去重：保留首次出现的归属
+        # 去重：保留首次出现的归属（按 uk_task_url 前缀去重，避免唯一索引冲突）
         selected_results: list[dict] = []
         for r in results:
             url = r.get("url", "")
             if not url:
                 continue
-            if url in seen_urls:
+            url_key = _url_unique_key(url)
+            if url_key in seen_url_keys:
                 continue
             if len(selected_results) >= settings.TAVILY_MAX_RESULTS_PER_QUERY:
                 break
-            seen_urls.add(url)
+            seen_url_keys.add(url_key)
             r["source_sub_question"] = sq
             r["sub_question_index"] = i
             selected_results.append(r)
@@ -321,16 +335,38 @@ async def run_search(
 
     final_urls = {r["url"] for r in all_results}
 
-    # 5. 写入 ResearchSource 行（fetch_status=None，等待 Fetch 阶段填充）
+    # 5. 查询该任务已有的 source URL，避免 Worker 崩溃恢复后重复插入
+    existing_result = await session.execute(
+        select(ResearchSource.url).where(ResearchSource.task_id == task.id)
+    )
+    existing_urls = {row[0] for row in existing_result.all()}
+    existing_url_keys = {_url_unique_key(url) for url in existing_urls}
+
+    # 6. 写入 ResearchSource 行（fetch_status=None，等待 Fetch 阶段填充）
     for r in all_results:
+        url = r["url"]
+        if url in existing_urls:
+            logger.debug(
+                "Source URL 已存在，跳过写入: task_id=%s, url=%s",
+                task_id, url,
+            )
+            continue
+        url_key = _url_unique_key(url)
+        if url_key in existing_url_keys:
+            logger.debug(
+                "Source URL 前 %d 字符与已有记录冲突，跳过写入: task_id=%s, url=%s",
+                _URL_UNIQUE_PREFIX_LEN, task_id, url,
+            )
+            continue
         source = ResearchSource(
             task_id=task.id,
-            url=r["url"],
+            url=url,
             title=r.get("title", "")[:500],
-            domain=_extract_domain(r["url"])[:255],
+            domain=_extract_domain(url)[:255],
             fetch_status=None,
         )
         session.add(source)
+        existing_url_keys.add(url_key)
         sources_created += 1
     await session.flush()
 

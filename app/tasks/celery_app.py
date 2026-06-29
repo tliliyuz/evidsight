@@ -1,7 +1,13 @@
 import asyncio
-from app.config import settings
-from celery import Celery
+import logging
 import sys
+
+from celery import Celery
+from celery.signals import worker_ready
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Windows 下 aiomysql 需要 SelectorEventLoop，Proactor 会卡死
 if sys.platform == "win32":
@@ -26,6 +32,10 @@ celery_app.conf.update(
     # 研究任务耗时较长，放宽超时
     task_soft_time_limit=600,
     task_time_limit=900,
+    # Redis broker 消息可见性超时：Worker 崩溃后未 ACK 的消息多久后重新可见
+    broker_transport_options={
+        "visibility_timeout": settings.CELERY_VISIBILITY_TIMEOUT,
+    },
 )
 
 # Windows: solo 池（默认），避免 eventlet/gevent 与 asyncio 冲突
@@ -36,3 +46,25 @@ if sys.platform == "win32":
 
 # 注册任务模块（导入即注册 @celery_app.task 装饰的任务）
 import app.tasks.research_task
+
+
+@worker_ready.connect
+def on_worker_ready(sender, **kwargs):
+    """Worker 启动完成时触发恢复检查。
+
+    扫描 running 任务，若任务级锁已消失（说明旧 Worker 崩溃），
+    则重新投递任务，实现不依赖 Redis visibility_timeout 的快速恢复。
+    """
+    logger.info("Celery Worker 已就绪，触发过时任务恢复检查")
+    try:
+        from app.tasks.recovery import recover_stale_tasks
+
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        recovered = loop.run_until_complete(recover_stale_tasks(check_lock=True))
+        if recovered:
+            logger.warning("Worker 就绪恢复：已重新投递 %d 个任务: %s", len(recovered), recovered)
+    except Exception:
+        logger.exception("Worker 就绪恢复检查失败")

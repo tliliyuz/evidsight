@@ -16,15 +16,17 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import update as sa_update
+from sqlalchemy import select as sa_select, update as sa_update
 
 from app.config import settings
 from app.core.database import async_session_factory
 from app.core.exceptions import AppException, extract_recoverable_from_exception
 from app.core.trace_recorder import TraceRecorder
 from app.models.research_task import ResearchTask
+from app.models.research_step import ResearchStep
 from app.pipeline.sse_bridge import SSEBridge
 from app.services.pipeline_orchestrator import (
+    PHASE_ORDER,
     PipelineOrchestrator,
     build_default_phase_handlers,
 )
@@ -89,6 +91,87 @@ def execute_research_task(self, task_id: str) -> dict:
 # ── 异步主逻辑 ──────────────────────────────────────────────
 
 
+async def _build_trace_from_steps(session, task_id: str) -> dict | None:
+    """从已完成步骤重建 previous_trace（用于 task.trace 为空的恢复场景）。
+
+    当 Worker 崩溃前未完成任何 checkpoint（或旧代码未开启 checkpoint）
+    导致 task.trace 为 NULL 时，从 research_steps 表中提取已完成阶段的
+    耗时/token/成本数据，构建可被 TraceRecorder._preload_previous_phases()
+    使用的 minimal trace dict。
+
+    Args:
+        session: DB 异步会话
+        task_id: 任务 UUID
+
+    Returns:
+        minimal trace dict 或 None（无已完成步骤时）
+    """
+    result = await session.execute(
+        sa_select(ResearchStep)
+        .where(
+            ResearchStep.task_id == task_id,
+            ResearchStep.step_type.in_(PHASE_ORDER),
+            ResearchStep.status.in_(["completed", "skipped"]),
+        )
+        .order_by(ResearchStep.completed_at)
+    )
+    steps = result.scalars().all()
+
+    if not steps:
+        return None
+
+    phases: dict = {}
+    phase_durations: dict = {}
+
+    for step in steps:
+        phase_name = step.step_type
+
+        # 同一 Phase 可能有多条记录（如子 step），保留最新的
+        existing = phases.get(phase_name)
+        if existing is not None:
+            existing_dur = int(existing.get("duration_ms") or 0)
+            current_dur = step.duration_ms or 0
+            if current_dur <= existing_dur:
+                continue
+
+        output = step.output or {}
+        cost = step.cost or {}
+
+        phase_data: dict = {
+            "duration_ms": step.duration_ms or 0,
+        }
+
+        # Token 数据：优先取 output 中的 LLM 统计，回退到 cost 字段
+        in_tok = int(output.get("prompt_tokens") or cost.get("input_tokens") or 0)
+        out_tok = int(output.get("completion_tokens") or cost.get("output_tokens") or 0)
+        model = output.get("model") or cost.get("model")
+
+        if in_tok or out_tok or model:
+            phase_data["input_tokens"] = in_tok
+            phase_data["output_tokens"] = out_tok
+            if model:
+                phase_data["model"] = model
+
+        # 直接成本（search / fetch 等非 LLM 阶段）
+        if cost.get("estimated_cost_usd") is not None:
+            phase_data["cost_usd"] = float(cost["estimated_cost_usd"])
+        elif output.get("search_cost_usd") is not None:
+            phase_data["cost_usd"] = float(output["search_cost_usd"])
+        elif output.get("fetch_cost_usd") is not None:
+            phase_data["cost_usd"] = float(output["fetch_cost_usd"])
+
+        phases[phase_name] = phase_data
+        phase_durations[phase_name] = step.duration_ms or 0
+
+    if not phases:
+        return None
+
+    return {
+        "phases": phases,
+        "phase_durations_ms": phase_durations,
+    }
+
+
 async def _run_pipeline(task_id: str) -> dict:
     """异步 Pipeline 执行体（在 Worker 持久事件循环中运行）。
 
@@ -121,10 +204,25 @@ async def _run_pipeline(task_id: str) -> dict:
 
         # 2. 实例化依赖
         sse_bridge = SSEBridge(task_id)
+
+        # 断点续跑：传入上一次运行的 trace，使续跑中被跳过的阶段保留记录，
+        # 并将两次运行的 tokens / cost 累加到 task 总计。
+        # 若 task.trace 为空（旧代码未 checkpoint 或崩溃前未完成任何 Phase），
+        # 则从 research_steps 表的已完成记录重建 previous_trace 作为退路。
+        previous_trace = task.trace
+        if not isinstance(previous_trace, dict) and task.status == "running":
+            previous_trace = await _build_trace_from_steps(session, task_id)
+            if previous_trace:
+                logger.info(
+                    "task.trace 为空，已从 %d 个已完成步骤重建 previous_trace: task_id=%s",
+                    len(previous_trace.get("phases", {})),
+                    task_id,
+                )
         trace_recorder = TraceRecorder(
             task_id=task_id,
             user_id=task.user_id,
             topic=task.topic,
+            previous_trace=previous_trace,
         )
         phase_handlers = build_default_phase_handlers()
 

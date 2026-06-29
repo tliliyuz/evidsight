@@ -430,6 +430,20 @@ class CeleryWorkerLostException(AppException):
         )
 
 
+class CeleryWorkerNotPickedUpException(AppException):
+    """Worker 未拾取任务（可断点续跑）。"""
+
+    def __init__(self, detail: str = ""):
+        super().__init__(
+            "E3113", "Worker 未拾取任务", 500,
+            {
+                "error_type": "CeleryWorkerNotPickedUp",
+                "error_description": detail or "Worker 未在时限内拾取任务，请稍后重试",
+                "recoverable": True,
+            },
+        )
+
+
 class UnknownInternalException(AppException):
     """未预期的内部错误（兜底错误码，Worker 崩溃/未捕获异常时使用）。"""
 

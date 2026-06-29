@@ -12,16 +12,23 @@ Phase 函数注册表：
 - evidence_graph / render → 自动跳过（Phase 3 后续实现）
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from sqlalchemy import func, select as sa_select, update as sa_update
+from sqlalchemy import func, or_, select as sa_select, update as sa_update
+from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.cost_tracker import extract_step_cost
-from app.core.exceptions import extract_recoverable_from_exception
+from app.core.exceptions import (
+    CeleryWorkerLostException,
+    extract_recoverable_from_exception,
+    get_error_type,
+    get_safe_error_message,
+)
 from app.core.task_state_resolver import FATAL_STEP_ERROR_CODES, TaskStateResolver
 from app.core.trace_recorder import TraceRecorder
 from app.models.enums import TASK_PHASE_ENUM, STEP_TYPE_ENUM
@@ -50,7 +57,14 @@ from app.pipeline.sse_bridge import (
     EVENT_TASK_PROGRESS,
     EVENT_TASK_WARNING,
 )
-from app.tasks.lock import acquire_step_lock_async, release_step_lock_async
+from app.tasks.lock import (
+    acquire_step_lock_async,
+    acquire_task_lock_async,
+    check_task_lock_async,
+    refresh_task_lock_async,
+    release_step_lock_async,
+    release_task_lock_async,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +168,9 @@ class PipelineOrchestrator:
         self._handlers = phase_handlers or {}
         self._resolver = TaskStateResolver()
         self._last_step_id: str | None = None
+        self._task_lock_acquired: bool = False
+        self._task_lock_refresh_task: asyncio.Task | None = None
+        self._is_recovery: bool = False  # 崩溃恢复模式
 
     # ── 主入口 ──────────────────────────────────────────────
 
@@ -167,7 +184,10 @@ class PipelineOrchestrator:
         logger.info("Pipeline 开始: task_id=%s", task_id)
 
         try:
-            # 1. 任务状态 pending → running（CAS + commit）
+            # 1. 任务状态 pending → running / running → 崩溃恢复
+            #    _start_task() 尽力获取锁 + 强制释放残留锁，无论锁结果都提交 pending→running。
+            #    锁获取失败时 task 进入 running 但无锁，超时监察者会在 WORKER_TIMEOUT_SECONDS
+            #    后标记 failed（E3112），避免 task 永远卡在 pending。
             started = await self._start_task()
             if not started:
                 logger.warning("任务未成功启动，停止 Pipeline: task_id=%s", task_id)
@@ -189,10 +209,12 @@ class PipelineOrchestrator:
                     return
 
                 await self._run_phase(step_type)
-                # 每 Phase 完成后持久化 checkpoint（S4）
+                # 每 Phase 完成后持久化 checkpoint（S4），
+                # 同时将中间 trace 快照写入 task.trace，确保崩溃恢复时 trace 数据不丢失
+                self._task.trace = self._trace.snapshot()
                 await self._session.commit()
 
-            # 3. 全部 Phase 完成 → 推导最终状态
+            # 4. 全部 Phase 完成 → 推导最终状态
             await self._finalize_task()
             await self._session.commit()
 
@@ -200,46 +222,101 @@ class PipelineOrchestrator:
             logger.exception("Pipeline 致命错误: task_id=%s, error=%s", task_id, e)
             await self._handle_fatal_error(e)
             await self._session.commit()
+        finally:
+            await self._release_task_lock(task_id)
 
     # ── 任务启动 ────────────────────────────────────────────
 
     async def _start_task(self) -> bool:
-        """将任务从 pending 转为 running（CAS + commit），发送 task.created 事件。
+        """启动任务：pending → CAS 更新为 running；running → 崩溃恢复路径。
+
+        正常路径（pending）：先尽力获取任务级锁（含强制释放残留锁），
+        无论锁是否获取成功都会 CAS pending → running 并 commit。
+        锁获取失败时 task 进入 running 但无锁 —— 超时监察者
+        _check_worker_timeouts 扫描 running 任务时检测到锁缺失，
+        在 WORKER_TIMEOUT_SECONDS 后将 task 标记为 failed（E3112，可恢复），
+        从而避免 task 永远卡在 pending。
+
+        崩溃恢复路径（running）：不修改状态，仅获取锁防多 Worker 并发。
 
         Returns:
-            bool: CAS 成功返回 True，失败返回 False。
+            bool: 成功启动/恢复并获取任务锁返回 True，失败返回 False。
+                  正常路径锁失败返回 False 时 task 已进入 running，由超时监察者兜底。
         """
         task_id = str(self._task.id)
         now = datetime.now(timezone.utc)
 
-        # CAS: 仅当 status='pending' 时才更新为 running
-        result = await self._session.execute(
-            sa_update(ResearchTask)
-            .where(ResearchTask.id == task_id, ResearchTask.status == "pending")
-            .values(status="running", started_at=now)
-        )
-        if result.rowcount == 0:
-            # CAS 失败时显式查询当前状态，避免访问可能过期的 self._task
-            current_status = None
-            try:
-                status_result = await self._session.execute(
-                    sa_select(ResearchTask.status).where(ResearchTask.id == task_id)
+        # 先刷新内存对象，获取 DB 最新状态（崩溃恢复场景 status 可能为 running）
+        await self._session.refresh(self._task)
+        current_status = self._task.status
+
+        if current_status == "pending":
+            # 正常路径：尽力获取锁（含强制释放残留锁），但不因锁失败而阻塞状态转换
+            # 原因：若因锁失败而不提交 pending→running，task 永远留在 pending，
+            #       超时监察者只扫描 running 任务，pending 任务无人兜底。
+            lock_acquired = await self._acquire_task_lock(task_id)
+            if not lock_acquired:
+                logger.warning(
+                    "正常路径获取任务级锁失败，尝试强制释放残留锁: task_id=%s",
+                    task_id,
                 )
-                current_status = status_result.scalar_one_or_none()
-            except Exception:
-                logger.exception("查询任务状态时异常: task_id=%s", task_id)
+                await release_task_lock_async(task_id)
+                lock_acquired = await self._acquire_task_lock(task_id)
+                if not lock_acquired:
+                    logger.error(
+                        "强制释放残留锁后仍无法获取任务级锁，但仍提交 running "
+                        "交由超时监察者兜底: task_id=%s",
+                        task_id,
+                    )
+
+            # 无论锁是否获取成功，都提交 pending → running
+            result = await self._session.execute(
+                sa_update(ResearchTask)
+                .where(ResearchTask.id == task_id, ResearchTask.status == "pending")
+                .values(status="running", started_at=now)
+            )
+            if result.rowcount == 0:
+                logger.warning(
+                    "CAS 失败：任务状态已非 pending，释放锁并跳过: task_id=%s",
+                    task_id,
+                )
+                if lock_acquired:
+                    await self._release_task_lock(task_id)
+                return False
+            await self._session.commit()
+            await self._session.refresh(self._task)
+
+            if not lock_acquired:
+                # 锁获取失败，task 已进入 running，超时监察者将检测锁缺失并标记 failed
+                logger.warning(
+                    "task 已进入 running 但未持有锁，等待超时监察者介入: task_id=%s",
+                    task_id,
+                )
+                return False
+
+        elif current_status == "running":
+            # 崩溃恢复路径：不修改状态，不发送 task.created
             logger.warning(
-                "CAS 失败：任务状态已变更，跳过启动: task_id=%s, current_status=%s",
+                "任务处于 running，进入崩溃恢复路径: task_id=%s",
+                task_id,
+            )
+            self._is_recovery = True
+            # 获取任务级幂等锁，防止多个 Worker 同时恢复同一任务
+            if not await self._acquire_task_lock(task_id):
+                logger.warning(
+                    "崩溃恢复时任务级锁已被占用，跳过: task_id=%s",
+                    task_id,
+                )
+                return False
+
+        else:
+            logger.warning(
+                "任务状态不支持启动: task_id=%s, status=%s",
                 task_id, current_status,
             )
             return False
-        await self._session.commit()
-
-        # 刷新 ORM 对象让内存状态与 DB 一致
-        await self._session.refresh(self._task)
 
         # 安全保障：修正旧任务（AB 修复前创建）的 total_steps 为固定七阶段
-        # 避免 _update_total_steps_on_completion 遗留的动态值导致 6/27=22% 问题
         old_total = self._task.total_steps
         if old_total != len(PHASE_ORDER):
             self._task.total_steps = len(PHASE_ORDER)
@@ -249,14 +326,119 @@ class PipelineOrchestrator:
                 task_id, old_total, len(PHASE_ORDER),
             )
 
-        await self._sse.publish(EVENT_TASK_CREATED, {
-            "task_id": str(self._task.id),
-            "status": "running",
-            "created_at": self._task.created_at.isoformat() if self._task.created_at else None,
-        })
+        # 仅正常路径发送 task.created
+        if current_status == "pending":
+            await self._sse.publish(EVENT_TASK_CREATED, {
+                "task_id": str(self._task.id),
+                "status": "running",
+                "created_at": self._task.created_at.isoformat() if self._task.created_at else None,
+            })
 
-        logger.info("任务启动: task_id=%s", self._task.id)
+        logger.info("任务启动: task_id=%s, mode=%s", self._task.id, "recovery" if current_status == "running" else "normal")
         return True
+
+    async def _acquire_task_lock(self, task_id: str) -> bool:
+        """获取任务级幂等锁，成功后启动租约刷新并标记 _task_lock_acquired。"""
+        locked = await acquire_task_lock_async(task_id)
+        if locked:
+            self._task_lock_acquired = True
+            self._start_task_lock_refresh(task_id)
+        return locked
+
+    async def _release_task_lock(self, task_id: str) -> None:
+        """释放任务级幂等锁（幂等操作），并停止租约刷新。"""
+        self._stop_task_lock_refresh()
+        if self._task_lock_acquired:
+            await release_task_lock_async(task_id)
+            self._task_lock_acquired = False
+
+    def _start_task_lock_refresh(self, task_id: str) -> None:
+        """启动后台协程，定期刷新任务级锁 TTL（租约模式）。"""
+        if self._task_lock_refresh_task is not None:
+            return
+
+        refresh_interval = settings.CELERY_LOCK_REFRESH_INTERVAL
+
+        async def _refresh_loop():
+            while True:
+                await asyncio.sleep(refresh_interval)
+                try:
+                    refreshed = await refresh_task_lock_async(task_id)
+                    if not refreshed:
+                        logger.warning(
+                            "任务级锁续期失败（锁已不存在），停止刷新: task_id=%s",
+                            task_id,
+                        )
+                        break
+                except Exception:
+                    logger.exception("任务级锁续期异常: task_id=%s", task_id)
+                    # 继续尝试，避免偶发网络问题导致任务中断
+
+        self._task_lock_refresh_task = asyncio.create_task(_refresh_loop())
+        logger.debug(
+            "启动任务级锁租约刷新: task_id=%s, interval=%ss",
+            task_id, refresh_interval,
+        )
+
+    def _stop_task_lock_refresh(self) -> None:
+        """停止任务级锁租约刷新协程。"""
+        if self._task_lock_refresh_task is None:
+            return
+        self._task_lock_refresh_task.cancel()
+        self._task_lock_refresh_task = None
+        logger.debug("停止任务级锁租约刷新")
+
+    async def _acquire_step_lock_with_recovery(
+        self,
+        task_id: str,
+        step_type: str,
+        step: ResearchStep,
+    ) -> bool:
+        """获取 Step 幂等锁，持有任务级锁时自动清理遗留锁。
+
+        正常模式下与 acquire_step_lock_async 行为一致。
+        若 Step 状态为 pending/running 且当前 Worker 已持有任务级锁
+        （_task_lock_acquired=True），说明旧锁来自已崩溃 Worker——
+        因为任务级锁确保了本 Worker 是唯一处理该任务的实例。
+        此时强制释放后重新获取，避免 fetch/rerank/synthesis 等关键阶段被跳过，
+        导致 E3105/E3104/E3106 连锁失败。
+
+        注意：不能依赖 _is_recovery 判断是否需要清理，因为 Celery Worker
+        崩溃后 DB 事务可能回滚使 task.status 回到 pending，_start_task()
+        走正常路径不会设置 _is_recovery，但 Redis 锁仍然残留。
+
+        Args:
+            task_id: 任务 UUID
+            step_type: Step 类型
+            step: 当前 Step 对象
+
+        Returns:
+            True: 获取成功；False: 获取失败（锁确被其他 Worker 占用）
+        """
+        locked = await acquire_step_lock_async(
+            task_id, step_type,
+            ttl=settings.CELERY_IDEMPOTENCY_LOCK_TTL,
+        )
+        if locked:
+            return True
+
+        should_force_release = (
+            step.status in ("pending", "running")
+            and self._task_lock_acquired
+        )
+        if should_force_release:
+            logger.warning(
+                "检测到遗留 Step 锁（任务级锁已持有），强制释放并重新获取: "
+                "task_id=%s, step_type=%s, step_id=%s, step_status=%s",
+                task_id, step_type, step.id, step.status,
+            )
+            await release_step_lock_async(task_id, step_type)
+            locked = await acquire_step_lock_async(
+                task_id, step_type,
+                ttl=settings.CELERY_IDEMPOTENCY_LOCK_TTL,
+            )
+
+        return locked
 
     # ── 单 Phase 执行 ───────────────────────────────────────
 
@@ -283,10 +465,9 @@ class PipelineOrchestrator:
             )
             return
 
-        # 2. 幂等锁检查
-        locked = await acquire_step_lock_async(
-            task_id, step_type,
-            ttl=settings.CELERY_IDEMPOTENCY_LOCK_TTL,
+        # 2. 幂等锁检查（恢复模式下自动清理遗留锁）
+        locked = await self._acquire_step_lock_with_recovery(
+            task_id, step_type, step,
         )
         if not locked:
             logger.warning(
@@ -359,29 +540,52 @@ class PipelineOrchestrator:
     # ── Step 生命周期 ───────────────────────────────────────
 
     async def _create_step(self, step_type: str) -> ResearchStep:
-        """创建或复用 ResearchStep（仅匹配主 Step，parent_step_id IS NULL）。
+        """创建或复用 ResearchStep（仅匹配主 Step，排除子 Step）。
+
+        主 Step 判定（与 _update_execution_context 计数逻辑一致）：
+        - parent_step_id IS NULL（首个主 Step，即 planning）
+        - 或 parent_step.step_type != 当前 step_type（父 Step 为前一 Phase）
+
+        子 Step（如 fetch 内部为每个 URL 创建的 Step）：
+        - parent_step_id 指向同 step_type 的 Step（如 fetch→fetch）
 
         复用优先级（三层）：
         1. 断点续跑：复用已成功完成的 Step（completed / skipped），
            交由 _run_phase() 的终端检查跳过执行；
         2. 崩溃恢复：复用 pending / running 的遗留 Step，继续执行；
         3. 全新创建：以上均不命中则新建 Step（pending 状态）。
-
-        所有查询均过滤 parent_step_id IS NULL，确保不会误匹配
-        search/fetch 阶段内部创建的子 Step。
         """
+        parent_step = aliased(ResearchStep)
+
+        def _main_step_filter(query):
+            """为主 Step 查询添加过滤条件。"""
+            return (
+                query
+                .outerjoin(
+                    parent_step,
+                    ResearchStep.parent_step_id == parent_step.id,
+                )
+                .where(
+                    or_(
+                        ResearchStep.parent_step_id.is_(None),
+                        parent_step.step_type != ResearchStep.step_type,
+                    ),
+                )
+            )
+
         # 1. 断点续跑：复用已完成 Step（仅主 Step）
-        result = await self._session.execute(
+        query = (
             sa_select(ResearchStep)
             .where(
                 ResearchStep.task_id == self._task.id,
                 ResearchStep.step_type == step_type,
                 ResearchStep.status.in_(["completed", "skipped"]),
-                ResearchStep.parent_step_id == None,
             )
             .order_by(ResearchStep.completed_at.desc())
             .limit(1)
         )
+        query = _main_step_filter(query)
+        result = await self._session.execute(query)
         existing_terminal = result.scalar_one_or_none()
         if existing_terminal is not None:
             logger.debug(
@@ -391,17 +595,18 @@ class PipelineOrchestrator:
             return existing_terminal
 
         # 2. 崩溃恢复：复用已有非终态 Step（仅主 Step，按 started_at 升序，pending 的 NULL 在最前）
-        result = await self._session.execute(
+        query = (
             sa_select(ResearchStep)
             .where(
                 ResearchStep.task_id == self._task.id,
                 ResearchStep.step_type == step_type,
                 ResearchStep.status.in_(["pending", "running"]),
-                ResearchStep.parent_step_id == None,
             )
             .order_by(ResearchStep.started_at)
             .limit(1)
         )
+        query = _main_step_filter(query)
+        result = await self._session.execute(query)
         existing_step = result.scalar_one_or_none()
         if existing_step is not None:
             logger.debug(
@@ -477,10 +682,7 @@ class PipelineOrchestrator:
         step.cost = extract_step_cost(step.output, default_model=settings.LLM_MODEL)
         await self._session.flush()
 
-        # 更新 task 统计
-        self._task.completed_steps = (self._task.completed_steps or 0) + 1
-
-        # 原子更新 Execution Context
+        # 原子更新 Execution Context（内部会按当前终态主 Step 数重新计算 completed_steps）
         await self._update_execution_context(step, phase_name)
 
         # SSE 事件
@@ -612,7 +814,6 @@ class PipelineOrchestrator:
         step.output = {"reason": reason}
         await self._session.flush()
 
-        self._task.completed_steps = (self._task.completed_steps or 0) + 1
         await self._update_execution_context(step, phase_name)
 
         await self._sse.publish(EVENT_STEP_STARTED, {
@@ -645,10 +846,39 @@ class PipelineOrchestrator:
     ) -> None:
         """处理 Step 执行错误。"""
         now = datetime.now(timezone.utc)
-        error_msg = str(error)
+        # 对外展示的安全错误描述（禁止暴露 SQL/堆栈/JSON 等内部细节）
+        error_msg = get_safe_error_message(error)
+        # 原始异常仅记录服务端日志，便于排查
+        logger.warning(
+            "Step 执行异常（服务端记录）: step_id=%s, type=%s, error=%s",
+            step.id, step.step_type, str(error),
+        )
 
         # 获取错误码（如果异常是 AppException 子类）
         error_code = getattr(error, "error_code", None)
+
+        # 安全读取 task 属性：session 可能已失效，访问 self._task.id 会触发懒加载异常。
+        # 此处先缓存，供后续日志 / SSE / 致命错误处理使用。
+        try:
+            task_id = str(self._task.id)
+            execution_context = getattr(self._task, "execution_context", None)
+        except Exception:
+            logger.exception("Step 错误处理时读取 task 属性失败")
+            task_id = str(getattr(step, "task_id", None) or "unknown")
+            execution_context = None
+
+        # 若 session 已失效/rollback-only（如 DataError/IntegrityError），先回滚使其恢复可用。
+        # 回滚后重新加载 step 对象，避免内存状态与 DB 不一致。
+        if not self._session.is_active:
+            try:
+                await self._session.rollback()
+                refreshed_step = await self._session.get(ResearchStep, step.id)
+                if refreshed_step is not None:
+                    step = refreshed_step
+            except Exception:
+                logger.exception(
+                    "Step 错误处理时 session 回滚失败: task_id=%s", task_id
+                )
 
         step.status = "failed"
         step.completed_at = now
@@ -673,10 +903,7 @@ class PipelineOrchestrator:
             if is_unknown_fatal:
                 error_code = "E3999"
                 step.error_code = error_code
-
-            # flush 前读取 task 属性，避免 flush 后对象过期触发 lazy load
-            task_id = str(self._task.id)
-            execution_context = getattr(self._task, "execution_context", None)
+                await self._session.flush()
 
             recoverable = extract_recoverable_from_exception(error) if is_known_fatal else False
             # 不在此处发送 task.failed——重新抛出后由 run() → _handle_fatal_error
@@ -710,8 +937,36 @@ class PipelineOrchestrator:
         - progress: 全局进度快照（completed_steps / total_steps / progress）
         """
         total = self._task.total_steps or 1
-        completed = self._task.completed_steps or 0
+
+        # 动态计算终态主 Step 数量，避免 skipped → pending → completed 时重复计数。
+        # 主 Step 判定：step_type 属于 PHASE_ORDER，且不是同 type 的 child step
+        # （如 fetch 子 step 的 parent_step_id 指向 fetch 主 step）。
+        terminal_statuses = {"completed", "skipped", "failed"}
+        parent_step = aliased(ResearchStep)
+        completed_result = await self._session.execute(
+            sa_select(func.count())
+            .select_from(ResearchStep)
+            .outerjoin(
+                parent_step,
+                ResearchStep.parent_step_id == parent_step.id,
+            )
+            .where(
+                ResearchStep.task_id == self._task.id,
+                ResearchStep.step_type.in_(PHASE_ORDER),
+                ResearchStep.status.in_(terminal_statuses),
+            )
+            .where(
+                or_(
+                    ResearchStep.parent_step_id.is_(None),
+                    parent_step.step_type != ResearchStep.step_type,
+                )
+            )
+        )
+        completed = completed_result.scalar() or 0
+        self._task.completed_steps = completed
+
         progress = round(completed / total, 2) if total > 0 else 0.0
+        progress = min(progress, 1.0)
 
         # 统计当前 Phase 内的 Step 数量（通过 step_type 列，即 phase 标识）
         count_result = await self._session.execute(
@@ -932,22 +1187,30 @@ class PipelineOrchestrator:
 
     async def _handle_fatal_error(self, error: Exception) -> None:
         """处理未捕获的致命错误：CAS 更新 task status 为 failed。"""
-        # 先捕获 task 属性，避免 session 失效/对象过期后访问 self._task 触发懒加载。
-        # Celery Worker 运行在同步 greenlet 中，懒加载会导致 MissingGreenlet。
-        task_id = str(self._task.id)
-        execution_context = getattr(self._task, "execution_context", None)
-
-        # 若 session 已失效/rollback-only（如 DataError），先回滚使其恢复可用。
-        # 注意：仅当 session 不活跃时才回滚，避免撤销已 flush 的 Step 失败状态。
-        if not self._session.is_active:
+        # 若 session 已失效/rollback-only（如 DataError/IntegrityError），先回滚使其恢复可用。
+        # 必须在读取 self._task 属性之前回滚，否则对象过期后的懒加载会在失效 session 上触发异常。
+        session_was_inactive = not self._session.is_active
+        if session_was_inactive:
             try:
                 await self._session.rollback()
             except Exception:
-                logger.exception("Session rollback 失败: task_id=%s", task_id)
+                pass  # 继续尝试读取 task 属性，失败再降级处理
+
+        # 捕获 task 属性，避免对象过期后访问 self._task 触发懒加载。
+        # Celery Worker 运行在同步 greenlet 中，懒加载会导致 MissingGreenlet。
+        try:
+            task_id = str(self._task.id)
+            execution_context = getattr(self._task, "execution_context", None)
+        except Exception:
+            logger.exception("致命错误处理时读取 task 属性失败")
+            task_id = "unknown"
+            execution_context = None
 
         now = datetime.now(timezone.utc)
         error_code = getattr(error, "error_code", None) or "E3999"
-        error_msg = str(error)
+        # 对外展示的安全错误描述，禁止暴露 SQL/堆栈/JSON 等内部细节
+        error_msg = get_safe_error_message(error)
+        error_type = get_error_type(error)
         recoverable = extract_recoverable_from_exception(error)
 
         # trace  finish 失败不应阻断状态写入
@@ -998,7 +1261,7 @@ class PipelineOrchestrator:
         try:
             payload = self._build_task_failed_payload(
                 task_id=task_id,
-                error_type=error.__class__.__name__,
+                error_type=error_type,
                 error_description=error_msg,
                 recoverable=recoverable,
                 execution_context=execution_context,

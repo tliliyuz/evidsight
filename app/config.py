@@ -39,6 +39,26 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
     CELERY_IDEMPOTENCY_LOCK_TTL: int = 600  # Step 幂等锁 TTL（秒），防重复入队
 
+    # ── Worker 崩溃恢复 ──
+    # 任务级锁 TTL（租约模式）：正常执行时定期刷新，崩溃后旧锁在 TTL 内过期
+    # 配置目标：Worker 崩溃后约 30s 内被超时监察者标记为 failed
+    CELERY_TASK_LOCK_TTL: int = 20
+    # 任务级锁刷新间隔（秒），必须显著小于 TTL，确保正常执行时锁始终存在
+    CELERY_LOCK_REFRESH_INTERVAL: int = 10
+    # Worker 超时监察者：锁缺失持续该时长后标记任务 failed
+    WORKER_TIMEOUT_SECONDS: int = 10
+    # pending 任务超时：任务创建/重试后该时长内未被 Worker 拾取则标记 failed
+    PENDING_TASK_TIMEOUT_SECONDS: int = 30
+    # 监察者扫描间隔（秒）
+    WORKER_TIMEOUT_CHECK_INTERVAL: int = 5
+    # 启动宽限期：started_at 在该时间内即使锁缺失也不标记失败（避免启动瞬间 race）
+    WORKER_TIMEOUT_GRACE_SECONDS: int = 5
+    # 启动恢复阈值：running 任务超过该时间无活跃 Worker 心跳/锁，则重新投递
+    STALE_TASK_RECOVERY_SECONDS: int = 60
+    STARTUP_RECOVERY_ENABLED: bool = True    # 启动时自动恢复过时 running 任务
+    # Redis broker visibility_timeout：明确配置，避免依赖 Celery 默认 1h
+    CELERY_VISIBILITY_TIMEOUT: int = 1800
+
     # ── LLM (DeepSeek) ──
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = "https://api.deepseek.com"

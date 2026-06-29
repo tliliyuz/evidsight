@@ -82,6 +82,7 @@ async def create_task(
         status="pending",
         current_phase=None,
         created_at=now,
+        started_at=now,  # 记录派发时间，供 pending 超时监察使用
     )
     db.add(task)
     await db.flush()  # 获取 task.id
@@ -379,16 +380,18 @@ def _build_progress(task: ResearchTask) -> ProgressSchema:
     if ec and isinstance(ec, dict):
         pg = ec.get("progress")
         if pg and isinstance(pg, dict):
+            progress = float(pg.get("progress", 0.0))
             return ProgressSchema(
                 completed_steps=pg.get("completed_steps", task.completed_steps or 0),
                 total_steps=pg.get("total_steps", task.total_steps or 0),
-                progress=float(pg.get("progress", 0.0)),
+                progress=min(max(progress, 0.0), 1.0),
             )
 
     # fallback：从统计列计算
     total = task.total_steps or 0
     completed = task.completed_steps or 0
     progress = (completed / total) if total > 0 else 0.0
+    progress = min(progress, 1.0)
     return ProgressSchema(
         completed_steps=completed,
         total_steps=total,
@@ -531,7 +534,33 @@ async def retry_task(
             task.id, child_cleanup_result.rowcount,
         )
 
-    # 2c. 重置主 Step（parent_step_id 为空）：failed → pending
+    # 2c. 重置因崩溃遗留幂等锁被跳过的主 Step：skipped → pending
+    #     这些 Step 的输出 reason 为 "幂等锁已被占用（可能重复入队）"，并非正常跳过，
+    #     必须恢复为 pending，否则 retry 后 Rerank/Synthesis 仍会被跳过。
+    lock_skip_reason = "幂等锁已被占用（可能重复入队）"
+    skip_steps_result = await db.execute(
+        select(ResearchStep)
+        .where(
+            ResearchStep.task_id == task.id,
+            ResearchStep.status == "skipped",
+            ResearchStep.parent_step_id == None,
+        )
+    )
+    reset_skip_count = 0
+    for step in skip_steps_result.scalars().all():
+        if isinstance(step.output, dict) and step.output.get("reason") == lock_skip_reason:
+            step.status = "pending"
+            step.output = None
+            step.error_code = None
+            step.error_message = None
+            reset_skip_count += 1
+    if reset_skip_count > 0:
+        logger.info(
+            "重试前重置锁跳过主 Step: task_id=%s, count=%d",
+            task.id, reset_skip_count,
+        )
+
+    # 2d. 重置主 Step（parent_step_id 为空）：failed → pending
     #     Orchestrator._create_step 只调度主 Step，子 Step 由 Phase handler 重新创建
     reset_result = await db.execute(
         sa_update(ResearchStep)
@@ -542,7 +571,7 @@ async def retry_task(
         )
         .values(status="pending", error_code=None, error_message=None)
     )
-    reset_count = reset_result.rowcount
+    reset_count = reset_result.rowcount + reset_skip_count
     if reset_count > 0:
         logger.info(
             "重试前重置主 Step: task_id=%s, count=%d",
@@ -565,6 +594,7 @@ async def retry_task(
             error_message=None,
             recoverable=None,
             completed_at=None,
+            started_at=now,  # 重置派发时间，供 pending 超时监察使用
         )
     )
     if result.rowcount == 0:
