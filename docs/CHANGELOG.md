@@ -11,6 +11,13 @@
 ## [Unreleased]
 
 ### Fixed
+- **Agent SSE 日志暴露内部敏感/冗长信息**：前端 Step 日志中出现 `plan_tool 结果：planning 阶段执行失败: 500: {'code': 'E3101', ...}` 等包含原始异常 JSON 与 LLM 输出细节的内容，以及 `调用 memory_tool({"limit":5,"operation":"read"})`、`memory_tool 结果：已返回最近 5 条 Working Memory 记录（最近 phase=rerank，最近 tool=rerank_tool）` 等暴露工具参数与内部状态的内容。修复：
+  - `app/agent/loop.py` 新增 `_sanitize_arguments()`，发布 `agent.action` 事件前对参数脱敏：`memory_tool` 仅保留 `operation`，不暴露 `content`/`limit`；其他工具对超过 200 字符的字符串参数截断。
+  - `app/agent/loop.py` 新增 `_sanitize_observation()`，发布 `agent.observation` 事件前对 observation 脱敏：`memory_tool` 统一返回 `执行完成`/`执行失败`，不暴露最近 phase/tool 等内部摘要；其他 tool 保留原 observation。
+  - `app/agent/runtime.py` 的 `_execute_tool()` 捕获异常后，`observation` 改用 `get_safe_error_message(exc)`，不再把原始异常/内部 JSON 结构发给前端；原始异常由新增 `logger.exception` 记录到服务端日志。
+  - `frontend/src/stores/task.js` 的 `agent.action` 日志 message 改为仅 `调用 ${toolName}`，不再拼接参数 JSON；`agent.observation` 日志 message 改为仅 `${toolName} 执行完成/失败`，不再展示 observation 详情。
+  - 新增 `tests/unit/agent/test_runtime.py` 与 `tests/unit/agent/test_loop.py::TestAgentLoopSanitize`；更新 `tests/integration/test_agent_runtime_flag.py` 与 `frontend/tests/unit/taskStore.sse.test.js` 对应断言。
+- **Fetch 阶段 `name 'socket' is not defined` 导致 Agent Loop 无限重试、Worker 超时**：`app/pipeline/fetcher.py` 第 142 行捕获 `socket.gaierror` 时未 `import socket`，触发 `NameError` 并被 `AgentRuntime._execute_tool` 包装为 Tool 执行失败；失败 source 的 `fetch_status` 未被更新，下一轮 Agent Loop 继续读取同一批 URL 重复调用 `fetch_tool`，直到 Worker 超时。修复：在 `app/pipeline/fetcher.py` 顶部添加 `import socket`；新增 `tests/unit/pipeline/test_fetcher.py::TestFetchOneUrlDefense::test_DNS解析失败_返回dns_error不抛NameError` 回归测试。
 - **前端创建任务阻塞在创建态 2-3 秒**：`frontend/src/stores/task.js` 的 `createTask()` 参考 `retryTask()` 改为乐观更新策略——API 调用前即将 `current` 置为 `running` 并渲染 Pipeline 进度视图，API 成功后以真实响应覆盖占位，API 失败时回滚到创建态；`frontend/src/views/ResearchPage.vue` 的 `handleCancel()` 增加 `task_id` 空值保护，避免乐观占位期间误触取消。同步更新 `FRONTEND.md §4.3.4` 与相关单测。
 - **MySQL "Out of sort memory" (1038)**：`get_task_list` 查询 `ORDER BY created_at DESC` 因独立索引触发 filesort，JSON 列过大时超 `sort_buffer_size`。新增复合索引 `idx_user_created(user_id, created_at DESC)` 与 `idx_user_status_created(user_id, status, created_at DESC)` 覆盖排序，避免 filesort。`idx_user` / `idx_created` 已移除。
 - **Agent Runtime Phase 3 `memory_tool` 重复写入与 observation 膨胀**：`memory_tool` 内部自行追加 ReActEntry，AgentLoop 执行完同一调用又追加一条，导致同一操作在 `agent_memory_entries` 中重复；`read` 操作把完整 Working Memory 历史拼进 observation，引发 prompt/DB 指数膨胀。修复：

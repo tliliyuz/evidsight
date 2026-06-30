@@ -178,10 +178,14 @@ class AgentRuntime:
         try:
             result = await tool.execute(tool_context, **tool_call.arguments)
         except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "Agent Step 执行异常: task_id=%s, step_type=%s",
+                self._task.id, tool.mapped_phase,
+            )
             result = ToolResult(
                 success=False,
                 output={},
-                observation=f"{tool.mapped_phase} 阶段执行异常: {exc}",
+                observation=f"{tool.mapped_phase} 阶段执行失败: {get_safe_error_message(exc)}",
                 error_message=str(exc),
                 duration_ms=int((datetime.now(timezone.utc) - t0).total_seconds() * 1000),
             )

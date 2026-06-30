@@ -119,7 +119,9 @@ class AgentLoop:
                     "phase": current_phase,
                     "tool_call_id": tool_call.id,
                     "tool_name": tool_call.name,
-                    "arguments": tool_call.arguments,
+                    "arguments": self._sanitize_arguments(
+                        tool_call.name, tool_call.arguments,
+                    ),
                 })
 
                 if tool is None:
@@ -138,12 +140,15 @@ class AgentLoop:
                     observation = exec_result.result.observation
 
                 result = exec_result.result
+                sse_observation = self._sanitize_observation(
+                    tool_call.name, observation, result.success,
+                )
                 await self._sse.publish(EVENT_AGENT_OBSERVATION, {
                     "iteration": iteration,
                     "phase": current_phase,
                     "tool_call_id": tool_call.id,
                     "tool_name": tool_call.name,
-                    "observation": observation,
+                    "observation": sse_observation,
                     "success": result.success,
                 })
 
@@ -197,6 +202,36 @@ class AgentLoop:
             if tool.name == name:
                 return tool
         return None
+
+    @staticmethod
+    def _sanitize_observation(tool_name: str, observation: str | None, success: bool) -> str:
+        """对前端展示的 Tool observation 做脱敏，避免暴露内部字段/统计信息。
+
+        - memory_tool 仅返回执行状态，不暴露最近 phase/tool 等内部摘要
+        """
+        if tool_name == "memory_tool":
+            return "执行完成" if success else "执行失败"
+        return observation or ("执行完成" if success else "执行失败")
+
+    @staticmethod
+    def _sanitize_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """对前端展示的 Tool 参数做脱敏/截断，避免暴露冗长或敏感内容。
+
+        - memory_tool 仅保留 operation，不暴露 content/limit 等具体内容
+        - 其他工具对长字符串参数做截断
+        """
+        if not isinstance(arguments, dict):
+            return {}
+        if tool_name == "memory_tool":
+            operation = arguments.get("operation")
+            return {"operation": operation} if operation else {}
+        sanitized: dict[str, Any] = {}
+        for key, value in arguments.items():
+            if isinstance(value, str) and len(value) > 200:
+                sanitized[key] = value[:200] + "…"
+            else:
+                sanitized[key] = value
+        return sanitized
 
     @staticmethod
     def _tool_to_schema(tool: Tool) -> dict[str, Any]:

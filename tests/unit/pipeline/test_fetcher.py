@@ -1,4 +1,5 @@
 """Fetcher 单元测试 — HTTP 抓取、trafilatura 提取、SSRF 防护、ResearchSource 更新。"""
+import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -562,3 +563,20 @@ class TestFetchOneUrlDefense:
 
             assert result["status"] == "blocked"
             assert "重定向后安全拦截" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_DNS解析失败_返回dns_error不抛NameError(self):
+        """回归测试：socket.gaierror 必须被捕获，不能因未 import socket 变成 NameError。"""
+        with patch("app.pipeline.fetcher.httpx.AsyncClient") as mock_client_cls:
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(side_effect=socket.gaierror("Name or service not known"))
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_client
+
+            with patch("app.pipeline.fetcher.check_url_safety") as mock_safety:
+                mock_safety.return_value = None
+                result = await _fetch_one_url("https://dns-fail.example.com")
+
+            assert result["status"] == "dns_error"
+            assert "DNS 解析/连接失败" in result["error"]

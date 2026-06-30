@@ -354,7 +354,7 @@ describe('TaskStore — SSE 事件处理（Phase 3 运行态）', () => {
     expect(log.timestamp).toBe('2026-06-24T10:00:07Z')
   })
 
-  it('agent.action 追加动作日志并保留工具参数', () => {
+  it('agent.action 仅展示工具名，不暴露参数', () => {
     const store = makeStore()
     store.handleSSEEvent('agent.action', {
       iteration: 2,
@@ -370,15 +370,14 @@ describe('TaskStore — SSE 事件处理（Phase 3 运行态）', () => {
     expect(log.type).toBe('agent')
     expect(log.icon).toBe('fa-terminal')
     expect(log.level).toBe('info')
-    expect(log.message).toContain('search_tool')
-    expect(log.message).toContain('测试子问题')
+    expect(log.message).toBe('调用 search_tool')
+    expect(log.message).not.toContain('测试子问题')
     expect(log.toolName).toBe('search_tool')
-    expect(log.args).toEqual({ sub_question: '测试子问题' })
     expect(log.phase).toBe('search')
     expect(log.iteration).toBe(2)
   })
 
-  it('agent.observation 追加观察日志，失败时 level 为 warning', () => {
+  it('agent.observation 仅展示执行状态，不暴露 observation 详情', () => {
     const store = makeStore()
     store.handleSSEEvent('agent.observation', {
       iteration: 2,
@@ -395,13 +394,13 @@ describe('TaskStore — SSE 事件处理（Phase 3 运行态）', () => {
     expect(log.type).toBe('agent')
     expect(log.icon).toBe('fa-eye')
     expect(log.level).toBe('info')
-    expect(log.message).toContain('search_tool')
-    expect(log.message).toContain('找到 12 条相关结果')
+    expect(log.message).toBe('search_tool 执行完成')
+    expect(log.message).not.toContain('找到 12 条相关结果')
     expect(log.toolName).toBe('search_tool')
     expect(log.success).toBe(true)
   })
 
-  it('agent.observation 失败时 level 为 warning', () => {
+  it('agent.observation 失败时 level 为 warning 且仅展示失败状态', () => {
     const store = makeStore()
     store.handleSSEEvent('agent.observation', {
       iteration: 2,
@@ -414,6 +413,8 @@ describe('TaskStore — SSE 事件处理（Phase 3 运行态）', () => {
     })
 
     expect(store.stepLogs[0].level).toBe('warning')
+    expect(store.stepLogs[0].message).toBe('search_tool 执行失败')
+    expect(store.stepLogs[0].message).not.toContain('工具不可用')
   })
 
   it('agent.* 事件不修改任务状态、阶段和进度', () => {

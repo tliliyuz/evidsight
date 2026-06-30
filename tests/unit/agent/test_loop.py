@@ -152,3 +152,46 @@ class TestAgentLoop:
         assert agent_ctx.finished is True
         assert "planning" in agent_ctx.completed_phases
         assert "search" in agent_ctx.completed_phases
+
+
+class TestAgentLoopSanitize:
+    """SSE 参数脱敏测试。"""
+
+    def test_memory_tool参数仅保留operation(self):
+        assert AgentLoop._sanitize_arguments("memory_tool", {
+            "operation": "read", "limit": 5,
+        }) == {"operation": "read"}
+        assert AgentLoop._sanitize_arguments("memory_tool", {
+            "operation": "append",
+            "content": "# 抓取内容\n来源：光明网\n链接：http://example.com/secret",
+        }) == {"operation": "append"}
+        assert AgentLoop._sanitize_arguments("memory_tool", {}) == {}
+
+    def test_其他工具长字符串参数截断(self):
+        long_text = "x" * 500
+        result = AgentLoop._sanitize_arguments("search_tool", {
+            "query": long_text, "reason": "覆盖研究方向",
+        })
+        assert result["reason"] == "覆盖研究方向"
+        assert len(result["query"]) == 201
+        assert result["query"].endswith("…")
+
+    def test_非字典参数返回空(self):
+        assert AgentLoop._sanitize_arguments("plan_tool", None) == {}  # type: ignore[arg-type]
+        assert AgentLoop._sanitize_arguments("plan_tool", "not-dict") == {}  # type: ignore[arg-type]
+
+    def test_memory_tool_observation仅返回执行状态(self):
+        assert AgentLoop._sanitize_observation(
+            "memory_tool", "已返回最近 5 条记录（最近 phase=rerank）", True,
+        ) == "执行完成"
+        assert AgentLoop._sanitize_observation(
+            "memory_tool", "参数校验失败", False,
+        ) == "执行失败"
+
+    def test_非memory_tool保留原observation(self):
+        assert AgentLoop._sanitize_observation(
+            "rerank_tool", "产出 8 个字段", True,
+        ) == "产出 8 个字段"
+        assert AgentLoop._sanitize_observation(
+            "plan_tool", "", False,
+        ) == "执行失败"

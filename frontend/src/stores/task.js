@@ -651,14 +651,13 @@ export const useTaskStore = defineStore('task', () => {
       case 'agent.action': {
         if (!current.value) break
         const toolName = data.tool_name || 'tool'
-        const argsText = _formatJsonBrief(data.arguments)
+        // 前端仅展示工具名，不暴露具体参数（参数在后端已脱敏，但 JSON 括号仍显冗长/内部感）
         appendLog({
           type: 'agent',
           icon: 'fa-terminal',
           level: 'info',
-          message: `调用 ${toolName}(${argsText})`,
+          message: `调用 ${toolName}`,
           toolName,
-          args: data.arguments,
           phase: normalizePhaseKey(data.phase),
           iteration: data.iteration,
           timestamp: data.timestamp,
@@ -669,17 +668,15 @@ export const useTaskStore = defineStore('task', () => {
       case 'agent.observation': {
         if (!current.value) break
         const toolName = data.tool_name || 'tool'
-        const observation = data.observation || ''
+        // 仅展示工具执行状态，不展示 observation 详情（避免暴露内部字段/JSON 结构）
+        const success = data.success !== false
         appendLog({
           type: 'agent',
           icon: 'fa-eye',
-          level: data.success === false ? 'warning' : 'info',
-          message: observation
-            ? `${toolName} 结果：${_truncateText(observation, 200)}`
-            : `${toolName} 执行完成`,
-          fullContent: observation,
+          level: success ? 'info' : 'warning',
+          message: success ? `${toolName} 执行完成` : `${toolName} 执行失败`,
           toolName,
-          success: data.success,
+          success,
           phase: normalizePhaseKey(data.phase),
           iteration: data.iteration,
           timestamp: data.timestamp,

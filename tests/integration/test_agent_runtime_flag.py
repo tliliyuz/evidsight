@@ -166,12 +166,14 @@ class TestAgentRuntimeFlag:
         assert EVENT_CHECKPOINT_SAVED in event_types
         assert EVENT_TASK_COMPLETED in event_types
 
-        # 验证 memory_tool 曾被调用且不破坏 phase 推进
+        # 验证 memory_tool 曾被调用且不破坏 phase 推进；参数已脱敏不暴露具体内容
         memory_actions = [
             e for e in sse.events
             if e["event"] == EVENT_AGENT_ACTION and e["data"].get("tool_name") == "memory_tool"
         ]
         assert len(memory_actions) == 1
+        assert "content" not in memory_actions[0]["data"].get("arguments", {})
+        assert "limit" not in memory_actions[0]["data"].get("arguments", {})
         assert task.status == "completed"
 
         # 验证 agent_memory_entries 已持久化
