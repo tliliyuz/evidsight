@@ -15,7 +15,9 @@
 
 与市面上「回答问题」的 AI 搜索产品（Perplexity、Gemini Deep Research、OpenAI Deep Research）不同，ResearchMind 的核心价值不是**答案本身**，而是**可追溯的研究过程**：每一步 Planning 决策、每一次 Search 调用、每一条 Evidence 提取与排序、最终报告的每一个结论都有明确的引用锚点。用户不是在「相信一个黑盒」，而是在「审阅一份研究」。
 
-**系统本质**：ResearchMind is built on an **agentic DAG execution model** — 研究任务被分解为可并行执行的子步骤，每个步骤拥有独立执行状态、输入输出契约和证据追踪链。它不是 Chat System、不是 QA System、不是 RAG System，而是一个 **Workflow Engine + LLM System**。
+**系统本质**：ResearchMind is built on an **agentic DAG execution model** — 研究任务由 Agent Runtime 驱动，LLM 通过 Tool Calling 在 Phase-Locked ReAct Loop 中自主决策调用哪个阶段工具，每个 Tool Call 拥有独立执行状态、输入输出契约和证据追踪链。它不是 Chat System、不是 QA System、不是 RAG System，也不是固定 Workflow，而是一个 **Agentic Research System**。
+
+> **实现说明**：v1.0 采用 **Phase-Locked ReAct**（阶段锁定的 ReAct）——保留 ReAct 的推理-行动-观察循环，同时用 `phase` 作为安全 harness，保证七阶段业务语义、可审计性与断点续跑能力。详细架构见 `docs/ARCHITECTURE.md` §2 / §3，Agent Runtime 核心机制见 `docs/ARCHITECTURE.md` §2.3。
 
 ### 1.1 用户入口
 

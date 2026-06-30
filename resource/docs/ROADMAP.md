@@ -2,8 +2,8 @@
 
 | 属性 | 值 |
 |:---|:---|
-| 文档版本 | v1.0 |
-| 最后更新 | 2026-06-29 |
+| 文档版本 | v1.1 |
+| 最后更新 | 2026-06-30 |
 
 > 本文档是 **开发排期、Phase 顺序、任务依赖关系** 的唯一真理源。相关定义禁止在其他文档中重复，应使用交叉引用链接到本文档对应章节。
 
@@ -22,23 +22,26 @@
 
 ## 1. 总体时间线
 
-**预计总工期**：5-7 周（180-250 小时，前后端并行开发）
+**预计总工期**：6-8 周（200-300 小时，前后端并行开发）
 
 ```
-Phase 1          Phase 2               Phase 3               Phase 4              Phase 5           Phase 6
-骨架搭建          研究任务 + Pipeline     Pipeline 后半段        断点续跑 + 基础设施    打磨上线           迭代优化
-+ 认证系统        前半段(Plan→Fetch)     (Rerank→Report)       加固                   + 管理后台        不设时限
-3-4天             4-5天                 4-5天                 3-4天                 4-5天
+Phase 1          Phase 2               Phase 3               Phase 4              Phase 5                     Phase 6           Phase 7
+骨架搭建          研究任务 + Pipeline     Pipeline 后半段        断点续跑 + 基础设施    Agent Runtime               打磨上线           迭代优化
++ 认证系统        前半段(Plan→Fetch)     (Rerank→Report)       加固                   Phase 1-3                   + 管理后台        不设时限
+                                                                            (Tool System / Working Memory)
+3-4天             4-5天                 4-5天                 3-4天                 5-7天                       4-5天
 
-  ├────────────────┼────────────────────┼────────────────────┼───────────────────┼───────────────┤
-Week 1            Week 1-2             Week 2-3              Week 3-4            Week 4-5         Week 5+
-[—]              [—]                  [—]                   [—]                 [—]              [—]
+  ├────────────────┼────────────────────┼────────────────────┼───────────────────┼───────────────────────────┼───────────────┤
+Week 1            Week 1-2             Week 2-3              Week 3-4            Week 4-5                   Week 5-6         Week 6+
+[—]              [—]                  [—]                   [—]                 [—]                        [—]              [—]
 ```
 
 > **状态标记**：⏳ 待开始 | 🔲 进行中 | ✅ 已完成 | ❌ 已废弃
 >
 > Phase 1 ✅ 完成 | Phase 2 ✅ 完成：§3.1 研究任务 CRUD + 状态机 ✅ | §3.2 Celery 异步 Pipeline 编排 ✅ | §3.3 Planning ✅ | §3.4 Search ✅ | §3.5 Fetch ✅ | §3.6 SSE 端点 ✅ | §3.7 前端研究任务创建+历史列表+SSE框架 ✅。
-> Phase 3 ✅ 已完成：§4.1 Rerank ✅ | §4.2 Synthesis ✅ | §4.3 Evidence Graph Build ✅ | §4.4 Report Render ✅ | §4.5 Cancel ✅ | §4.6 成本追踪 ✅ | §4.7 前端运行态/完成态 ✅。Phase 4 全部完成（§5.1 Execution Context + 断点续跑 ✅、§5.2 基础设施加固 ✅、§5.3 Retry/Cancel UI ✅）。
+> Phase 3 ✅ 已完成：§4.1 Rerank ✅ | §4.2 Synthesis ✅ | §4.3 Evidence Graph Build ✅ | §4.4 Report Render ✅ | §4.5 Cancel ✅ | §4.6 成本追踪 ✅ | §4.7 前端运行态/完成态 ✅。
+> Phase 4 ✅ 已完成：§5.1 Execution Context + 断点续跑 ✅、§5.2 基础设施加固 ✅、§5.3 Retry/Cancel UI ✅。
+> Phase 5 ✅ 已完成：§6.1 Agent Runtime（Phase-Locked Loop）✅ | §6.2 Tool System ✅ | §6.3 Working Memory 持久化 ✅ | §6.4 前端 Agent 事件透传 ✅。当前系统定位为 **Phase-Locked ReAct Agent**，详见 `docs/ARCHITECTURE.md` §2.3 与 `docs/decisions/ADR-004.md`。
 
 ---
 ## 2. Phase 1：骨架搭建 + 认证系统（3-4 天）
@@ -129,7 +132,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 |:---|:---|:---|
 | ResearchPage（创建态/运行态/完成态） | Phase 2-3 | Phase 1 先搭建骨架，核心业务页面在 Phase 2-3 实现 |
 | HistoryPage | Phase 2 | 依赖研究任务列表 API（Phase 2 后端） |
-| Admin 管理后台 | Phase 5 | 先完成用户侧核心链路 |
+| Admin 管理后台 | Phase 6 | 先完成用户侧核心链路 |
 | Markdown 渲染器 | Phase 3 | 依赖报告渲染 API（Phase 3 后端） |
 
 ### 2.7 [测试] Phase 1 测试
@@ -245,7 +248,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | 断点续跑（Retry 从 Checkpoint 恢复） | Phase 4 | Phase 2 已实现 execution_context 原子更新 + checkpoint.saved SSE 事件；Phase 4 补齐持久化 checkpoint + Retry API |
 | Cancel 中断（后端） | Phase 3 | Phase 2 已实现前端取消 UI；后端 `POST /api/research/{id}/cancel` 在 Phase 3 §4.5 实现 |
 | Rerank / Synthesis / Evidence Graph / Render | Phase 3 | Phase 2 聚焦 Pipeline 前半段 + SSE 框架 |
-| 管理后台 | Phase 5 | 先完成用户侧核心链路 |
+| 管理后台 | Phase 6 | 先完成用户侧核心链路 |
 | ResearchPage 运行态（Pipeline 进度可视化） | Phase 3 | 依赖 Phase 3 后端全链路跑通 + 完整 SSE 事件流 |
 | ResearchPage 完成态（报告查看） | Phase 3 | 依赖 Phase 3 后端 Report Render |
 | `requirements` 扩展字段（`focus_areas`/`exclude_domains`/`time_range`） | v1.5 | MVP 仅支持核心 4 字段 |
@@ -353,7 +356,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ✅ | 失败视图 | ResearchPage 完成态失败视图：居中卡片 + rose 图标 64px + `error_description` + 失败阶段 + `recoverable=true` 时显示禁用态「断点续跑」按钮 + `recoverable=false` 时显示「返回新建研究」按钮 | FRONTEND.md §4.5.6 |
 | ✅ | 取消视图 | ResearchPage 完成态取消视图：取消状态 + 已完成阶段摘要 +「返回新建研究」按钮 | FRONTEND.md §4.5.7 |
 | ✅ | ReportStore (Pinia) | `stores/report.js` — `report` / `loading` / `sections` / `evidence` / `trace` / `fetch()`（调 `GET /api/research/{task_id}/report`）/ `selectSection()` / `highlightEvidence()` / `setEvidenceFilter()` / `clear()` | FRONTEND.md §1.2 |
-| ✅ | 报告加载态 | 章节导航骨架屏 + 正文区 spinning + Evidence Graph 面板骨架屏 | FRONTEND.md §7.3 |
+| ✅ | 报告加载态 | 章节导航骨架屏 + 正文区 spinning + Evidence Graph 面板骨架屏 | FRONTEND.md §8.3 |
 
 ### 4.8 🚫 本阶段不做的
 
@@ -457,10 +460,10 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 | 推迟项 | 排期 | 原因 |
 |:---|:---|:---|
-| 数据 TTL 自动清理（Celery Beat） | Phase 5 | Phase 4 先做核心恢复机制，定时清理与部署一起交付 |
-| Loki + Grafana 部署 | Phase 6（可选） | 结构化日志已就绪，`jq` 命令行可做基本聚合分析 |
+| 数据 TTL 自动清理（Celery Beat） | Phase 6 | Phase 4 先做核心恢复机制，定时清理与部署一起交付 |
+| Loki + Grafana 部署 | Phase 7（可选） | 结构化日志已就绪，`jq` 命令行可做基本聚合分析 |
 | Task 级 Rerun（全新 Execution Context） | v1.5 | 当前 Retry 复用原 context 继续执行。真正「全新 context」的 Task-level Rerun 排 v1.5 |
-| 滑动窗口摘要压缩 | Phase 6 | ResearchMind 无长对话上下文需求（每次 Study 独立） |
+| 滑动窗口摘要压缩 | Phase 7 | ResearchMind 无长对话上下文需求（每次 Study 独立） |
 
 ### 5.5 [测试] Phase 4 测试
 
@@ -487,11 +490,109 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 
 ---
 
-## 6. Phase 5：打磨上线 + 管理后台（4-5 天）
+## 6. Phase 5：Agent Runtime Phase 1-3（5-7 天）
+
+**目标**：将固定 Pipeline 改造为 **Phase-Locked ReAct Agent**，LLM 通过 Tool Calling 自主驱动七阶段执行，同时持久化 ReAct Trace（Thought / Action / Observation / Finish）到 `agent_memory_entries` 表，实现可审计的 Agent 推理过程。
+
+### 6.1 [后端] Agent Runtime（Phase-Locked Loop）
+
+| 状态 | 任务 | 说明 | 依赖决策 |
+|:---|:---|:---|:---|
+| ✅ | `AgentContext` / `PhaseController` / `AgentLoop` / `AgentRuntime` | `app/agent/` 目录：单次 Agent 运行内存状态、phase 顺序与可用 Tool 控制、LLM 循环、对外主入口 | 决策 #33 |
+| ✅ | Phase-Locked Loop | Agent 仍按 Planning→Search→Fetch→Rerank→Synthesis→Evidence Graph→Render 顺序推进；每个 phase 内 LLM 可多次调用该 phase 允许的 Tool；primary tool 成功执行后 `PhaseController` 自动推进 | 决策 #34 |
+| ✅ | 终止条件 | ① 所有 phase 完成；② LLM 显式调用 `finish_tool`；③ 达到 `MAX_AGENT_ITERATIONS`（默认 30）触发 `AgentLoopExhaustedError` | 决策 #35 |
+| ✅ | 错误恢复 | LLM 调用失败 / 无 tool_calls / 越权 Tool / Tool 异常均记录 observation 后继续；达到最大迭代次数后由 `AgentRuntime` 按证据阈值判定 Task 状态 | 决策 #36 |
+| ✅ | 断点续跑 | 从 `execution_context.agent_context` 恢复 `AgentContext`，从 `agent_memory_entries` 表恢复 `WorkingMemory` | 决策 #37 |
+
+> **ReAct Loop 控制流**：[ARCHITECTURE.md §2.3.1](../../docs/ARCHITECTURE.md#231-react-loop-控制流)。
+
+### 6.2 [后端] Tool System
+
+| 状态 | 任务 | 说明 | 依赖决策 |
+|:---|:---|:---|:---|
+| ✅ | Tool 抽象 | `Tool` Protocol / `ToolResult` / `ToolCall` / `ToolContext`；MCP 风格的统一接口 | 决策 #38 |
+| ✅ | ToolRegistry | `app/tools/registry.py`：注册、查找、按 phase 过滤、生成 OpenAI Function Calling schema | 决策 #39 |
+| ✅ | 9 个 Tool | 7 个 `PhaseHandlerTool`（`plan/search/fetch/rerank/synthesis/evidence_graph/render`）+ `finish_tool` + `memory_tool` | 决策 #40 |
+| ✅ | 输入校验 | `validate_tool_params()` 轻量 JSON Schema 校验（required + 基础类型），不依赖外部库 | 决策 #41 |
+| ✅ | 输出转换 | `PhaseHandlerTool` 薄适配器包装既有 phase handler，不改 handler 内部逻辑 | 决策 #42 |
+| ✅ | 权限与副作用控制 | `PhaseController` 过滤可用 Tool；Tool 仅通过 `ToolContext` 访问资源；越权调用返回错误 observation | 决策 #43 |
+
+> **Tool System 设计**：[ARCHITECTURE.md §2.3.2](../../docs/ARCHITECTURE.md#232-tool-system)。
+
+### 6.3 [后端] Working Memory 持久化
+
+| 状态 | 任务 | 说明 | 依赖决策 |
+|:---|:---|:---|:---|
+| ✅ | `ReActEntry` 模型 | `iteration` / `phase` / `thought` / `tool_name` / `arguments` / `observation` / `tool_output_summary` / `step_id` / `timestamp` | 决策 #44 |
+| ✅ | `agent_memory_entries` 表 | UUID PK / `task_id` FK CASCADE / `step_id` FK SET NULL / `entry_type` ENUM / `content` JSON / 复合索引 | 决策 #45 |
+| ✅ | `WorkingMemory` | 内存级 ReAct Trace 缓冲区，`AGENT_WORKING_MEMORY_MAX_ENTRIES=20`，FIFO 淘汰 | 决策 #46 |
+| ✅ | `AgentMemoryService` | `app/services/agent_memory_service.py`：create / list / `build_working_memory` / `persist_pending_entries` | 决策 #47 |
+| ✅ | Pending-Queue 持久化 | `WorkingMemory` 维护 `_pending_persist`，由 `AgentRuntime` 在 step 完成/失败及 loop 结束后统一 flush；`execution_context` 不再写入完整 `working_memory` JSON | 决策 #48 |
+
+> **Working Memory 设计**：[ARCHITECTURE.md §2.3.3](../../docs/ARCHITECTURE.md#233-working-memory)。历史决策见 `docs/decisions/ADR-003-agent-runtime-phase3.md`。
+
+### 6.4 [前端] Agent 事件透传
+
+| 状态 | 任务 | 说明 | 依赖决策 |
+|:---|:---|:---|:---|
+| ✅ | `agent.thought` SSE | LLM 返回 `reasoning_content` 时推送 | 决策 #49 |
+| ✅ | `agent.action` SSE | LLM 发起 Tool Call 时推送 | 决策 #50 |
+| ✅ | `agent.observation` SSE | Tool 执行完成时推送 | 决策 #51 |
+| ✅ | StepLog 适配 | 运行态日志面板可展示 Agent 推理过程（可选折叠） | — |
+
+> **SSE 事件格式**：[API.md §4](API.md#4-sse-事件协议)。
+
+### 6.5 🚫 本阶段不做的
+
+| 推迟项 | 排期 | 原因 |
+|:---|:---|:---|
+| Dynamic Planning（phase 回退/重复/动态增删子问题） | v1.5（Phase 7 §8.4） | Phase 5 先完成受控的 Phase-Locked Loop |
+| Reflection（证据覆盖度/冲突检测/引用检查） | v1.5（Phase 7 §8.4） | Phase 5 先保证基础 ReAct Trace 可持久化 |
+| Long Memory（跨任务共享） | v2.0（Phase 7 §8.4） | v1.0 仅单次任务内 Working Memory |
+| Multi-Agent（Research/Writer/Reviewer 拆分） | v2.0（Phase 7 §8.4） | Single Agent 优先 |
+
+### 6.6 [测试] Phase 5 测试
+
+| 状态 | 任务 | 测试类型 | 说明 |
+|:---|:---|:---|:---|
+| ✅ | `AgentLoop` 单元测试 | 单元测试 | 正常循环 / LLM 失败恢复 / 无 tool_calls 恢复 / 越权 Tool 拒绝 / 最大迭代次数 / phase 推进 |
+| ✅ | `PhaseController` 单元测试 | 单元测试 | phase 顺序 / 可用 Tool 过滤 / mark_phase_done / advance / 全部完成 |
+| ✅ | `ToolRegistry` / Tool 单元测试 | 单元测试 | 注册/查找/按 phase 过滤/schema 生成/参数校验失败/PhaseHandlerTool 包装 |
+| ✅ | `WorkingMemory` / `AgentMemoryService` 单元测试 | 单元测试 | FIFO 淘汰 / pending 队列 / DB 加载 / entry_type 推导 |
+| ✅ | `AgentRuntime` 集成测试 | 集成测试 | 端到端 Phase-Locked Loop / SSE 事件序列 / DB Step 与 `agent_memory_entries` 一致性 / 断点续跑恢复 |
+| ✅ | Prompt 内容测试 | 单元测试 | system prompt 包含 phase 顺序、当前 phase、主工具、memory_tool 限制 |
+
+### 6.7 [索引] 关键决策索引
+
+| # | 决策 | 文档位置 |
+|:---|:---|:---|
+| 33 | Phase-Locked ReAct：保留七阶段顺序，每阶段内 LLM 自主调用 Tool | ARCHITECTURE.md §2.3.1 |
+| 34 | `PhaseController` 负责 phase 推进与可用 Tool 过滤 | ARCHITECTURE.md §2.3.1 |
+| 35 | `MAX_AGENT_ITERATIONS=30` 作为 Loop 失控兜底 | ARCHITECTURE.md §2.3.1 |
+| 36 | Tool / LLM 异常记录 observation 后继续，不立即终止任务 | ARCHITECTURE.md §2.3.1 |
+| 37 | 断点续跑从 `agent_context` + `agent_memory_entries` 恢复 | ARCHITECTURE.md §2.3.3 |
+| 38 | Tool 抽象采用 MCP 风格 Protocol | ARCHITECTURE.md §2.3.2 |
+| 39 | `ToolRegistry` 统一负责 schema 生成与查找 | ARCHITECTURE.md §2.3.2 |
+| 40 | 9 个 Tool：7 phase + finish + memory | ARCHITECTURE.md §2.3.2 |
+| 41 | 轻量 JSON Schema 参数校验（类型 + 必填） | ARCHITECTURE.md §2.3.2 |
+| 42 | `PhaseHandlerTool` 薄适配器，不改既有 handler | ARCHITECTURE.md §2.3.2 |
+| 43 | PhaseController 过滤 Tool，越权调用返回错误 observation | ARCHITECTURE.md §2.3.2 |
+| 44 | `ReActEntry` 统一记录 Thought / Action / Observation / Finish | ARCHITECTURE.md §2.3.3 |
+| 45 | `agent_memory_entries` 表结构与索引 | DATABASE.md §2.9 |
+| 46 | `AGENT_WORKING_MEMORY_MAX_ENTRIES=20` FIFO 淘汰 | ARCHITECTURE.md §2.3.3 |
+| 47 | `AgentMemoryService` 提供异步持久化 API | ARCHITECTURE.md §2.3.3 |
+| 48 | Pending-Queue 模式：AgentRuntime 统一 flush | ARCHITECTURE.md §2.3.3 |
+| 49 | `agent.thought` SSE 事件 | API.md §4.1 |
+| 50 | `agent.action` SSE 事件 | API.md §4.1 |
+| 51 | `agent.observation` SSE 事件 | API.md §4.1 |
+
+---
+
+## 7. Phase 6：打磨上线 + 管理后台（4-5 天）
 
 **目标**：管理后台 + 部署就绪，可以上线。
 
-### 6.1 [管理后台] 管理后台 API
+### 7.1 [管理后台] 管理后台 API
 
 | 状态 | 任务 | 说明 |
 |:---|:---|:---|
@@ -499,7 +600,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ⏳ | Admin Service | `app/services/admin_service.py` — `get_stats()` / `list_all_tasks()`（筛选：status/user_id/搜索 + 分页）/ `list_all_users()`（筛选：role/status/搜索 + 分页） |
 | ⏳ | Admin API 端点 | `app/api/admin.py` — `GET /api/admin/stats` / `GET /api/admin/tasks` / `GET /api/admin/tasks/{task_id}` / `DELETE /api/admin/tasks/{task_id}` / `GET /api/admin/users` / `GET /api/admin/users/{user_id}` / `PUT /api/admin/users/{user_id}/status` + `require_admin` 依赖注入 |
 
-### 6.2 [高级功能] Trace 链路追踪
+### 7.2 [高级功能] Trace 链路追踪
 
 | 状态 | 任务 | 说明 |
 |:---|:---|:---|
@@ -507,10 +608,10 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ⏳ | Trace API | `GET /api/admin/traces`（分页+筛选：status/日期范围）+ `GET /api/admin/traces/{task_id}` |
 | ⏳ | 统计增强接口 | `GET /api/admin/stats` 响应新增 `charts` 字段：研究量趋势（按天聚合）/ 响应时间分布（P50/P95/P99）/ Token 使用统计（按 task_type 分拆） |
 
-### 6.3 [前端] Admin 管理后台 + ECharts 统计
+### 7.3 [前端] Admin 管理后台 + ECharts 统计
 
-| 状态 | 任务 | 说明 |
-|:---|:---|:---|
+| 状态 | 任务 | 说明 | 依赖决策 |
+|:---|:---|:---|:---|
 | ⏳ | AdminLayout | `components/layout/AdminLayout.vue` — 独立 Admin 侧边栏（240px）+ 主内容区。菜单项：📊 系统统计 / 📋 任务管理 / 👥 用户管理 / ← 返回研究 | FRONTEND.md §6.1 |
 | ⏳ | AdminStats 统计页 | `views/admin/StatsPage.vue` — 6 统计卡片（用户总数 / 任务总数 / 完成任务数 / 失败任务数 / 证据总数 / 来源总数）+ ECharts 图表（任务量趋势折线图 / 任务耗时分布柱状图 P50/P95/P99 / 研究类型分布饼图 comparison/explainer/analysis） | FRONTEND.md §6.2 |
 | ⏳ | AdminTaskList 任务管理 | `views/admin/AdminTaskList.vue` — 跨用户全部研究任务表格（含 `username` 列，筛选：`user_id`/`status`/`task_type`/搜索，分页 + 操作[查看详情/取消/删除]）。删除二次确认 + `ElLoading` 全屏遮罩 + 本地 `filter()` 移除 + 空页回退 | FRONTEND.md §6.3 |
@@ -518,11 +619,11 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ⏳ | Admin API 封装 | `api/admin.js` — `getStats()` / `getAllTasks()` / `getTaskDetail()` / `deleteTask()` / `getAllUsers()` / `getUserDetail()` / `changeUserStatus()` / `resetUserPassword()` | — |
 | ⏳ | AdminUserList 用户管理 | `views/admin/AdminUserList.vue` — 用户列表（表格：用户名/角色/状态/任务数/最后活跃/操作，筛选：角色/状态/搜索，分页 + 操作菜单[查看详情/禁用启用/重置密码]）。统计列为任务数/完成数/失败数 | FRONTEND.md §6.4 |
 | ⏳ | AdminUserDetail 用户详情 | `views/admin/AdminUserDetail.vue` — 用户信息卡片 + 统计卡片（任务总数/完成数/失败数/证据数）+ 快捷操作（禁用/启用 + 重置密码） | FRONTEND.md §6.4 |
-| ⏳ | ECharts 组合式函数 | `composables/useECharts.js` — 响应式 resize + ResizeObserver + dispose，待 Phase 6 集成到 StatsPage | FRONTEND.md §1.4 |
+| ⏳ | ECharts 组合式函数 | `composables/useECharts.js` — 响应式 resize + ResizeObserver + dispose，待 Phase 7 集成到 StatsPage | FRONTEND.md §1.4 |
 | ⏳ | 图表配置常量 | `constants/charts.js` — 颜色/样式/tooltip 配置（对齐 `--rm-*` Design Token） | — |
-| ⏳ | D3.js Evidence Graph 可视化 [可选] | Evidence Graph 节点关系力导向图（D3.js force simulation）：Evidence items → nodes / cluster → groups / conflicts → dashed edges。低优先级，Phase 5 时间允许则做 | — |
+| ⏳ | D3.js Evidence Graph 可视化 [可选] | Evidence Graph 节点关系力导向图（D3.js force simulation）：Evidence items → nodes / cluster → groups / conflicts → dashed edges。低优先级，Phase 6 时间允许则做 | — |
 
-### 6.4 [运维] 部署就绪
+### 7.4 [运维] 部署就绪
 
 | 状态 | 任务 | 说明 |
 |:---|:---|:---|
@@ -533,7 +634,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ⏳ | 数据 TTL 清理 | Celery Beat 定时任务：`research_tasks` 30 天清理 / SSE 日志 7 天轮转 / 应用日志 14 天 logrotate |
 | ⏳ | `.env.example` 更新 | 新增 `ENV` / `CORS_ORIGINS` / `RATE_LIMIT_*` 等生产配置项 |
 
-### 6.5 🚫 本阶段不做的
+### 7.5 🚫 本阶段不做的
 
 | 推迟项 | 排期 | 原因 |
 |:---|:---|:---|
@@ -543,7 +644,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | 用户审计日志（`user_operations` 表） | v2 | v1.0 Admin 先做 CRUD + 角色管理 |
 | 分级 LLM（Planning/Report 用 Opus，Search/Rerank 用 Haiku） | v2 | MVP 全链路 deepseek-v4-pro 单一模型 |
 
-### 6.6 [测试] Phase 5 测试
+### 7.6 [测试] Phase 6 测试
 
 | 状态 | 任务 | 测试类型 | 说明 |
 |:---|:---|:---|:---|
@@ -561,13 +662,21 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | ⏳ | 全量回归测试 | 回归测试 | 遍历完整测试集（前端组件 + 后端接口 + Pipeline 集成 + 断点续跑 + 3 种 task_type） |
 | ⏳ | 压测 | 性能测试 | Locust 4 场景（基准/日常/峰值/极限），P50≤2min / P99≤4min。压测完成后据此调整限流阈值 |
 
+### 7.7 [索引] 关键决策索引
+
+| # | 决策 | 文档位置 |
+|:---|:---|:---|
+| 52 | Admin 权限：仅 `require_admin` 可访问管理后台接口 | ARCHITECTURE.md §4 |
+| 53 | Trace 数据写入 `research_tasks.trace` JSON 列 | ARCHITECTURE.md §5.9 |
+| 54 | 统计图表按天聚合 + P50/P95/P99 分位数 | API.md §3.5 |
+
 ---
 
-## 7. Phase 6：迭代优化（不设时限）
+## 8. Phase 7：迭代优化（不设时限）
 
 **目标**：v1.5 / v2.0 高级功能、架构级改造、持续优化。不阻塞上线，按需求优先级逐个实现。
 
-### 7.1 [高级功能] v1.5 — 证据粒度升级与新需求字段
+### 8.1 [高级功能] v1.5 — 证据粒度升级与新需求字段
 
 | 优先级 | 任务 | 来源 | 说明 |
 |:---|:---|:---|:---|
@@ -579,7 +688,7 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | P2 | 句级 Evidence Auditor | RESEARCH_PIPELINE §8.8 | 三层证据审计激活（引用存在性→来源一致性→句级证据回溯），模块 `app/core/evidence_auditor.py` 已就位 |
 | P3 | Task-level Rerun | — | 全新 Execution Context，不复用旧数据 |
 
-### 7.2 [高级功能] v2.0 — Full Deep Research
+### 8.2 [高级功能] v2.0 — Full Deep Research
 
 | 优先级 | 任务 | 来源 | 说明 |
 |:---|:---|:---|:---|
@@ -591,35 +700,54 @@ Week 1            Week 1-2             Week 2-3              Week 3-4           
 | P2 | 阶段级 Pause/Resume | API §3.4 | `POST /{task_id}/pause` / `POST /{task_id}/resume` |
 | P3 | Agent Workflow Editor | PRD §1.3 | 可视化编排研究 Pipeline（拖拽式 DAG 编辑） |
 
-### 7.3 [高级功能] 持续优化（不分版本）
+### 8.3 [高级功能] 持续优化（不分版本）
 
 | 优先级 | 任务 | 说明 |
 |:---|:---|:---|
 | P3 | reasoning_effort 前端可控 | 客户端选择思考深度（low/medium/high），后端映射到 DeepSeek `reasoning_effort` 参数 |
 
+### 8.4 [高级功能] Agent 演进路线（v1.5 / v2.0）
+
+> Agent Runtime Phase 4-7 作为高级功能排入本路线，不阻塞 v1.0 上线，按需求优先级逐个实现。
+
+| 版本 | Agent 阶段 | 映射 | 核心能力 | 优先级 |
+|:---|:---|:---|:---|:---|
+| v1.5 | Phase 4 | Dynamic Planning | 执行中根据搜索结果动态调整 SubQuestions；允许新增/合并/删除子问题 | P1 |
+| v1.5 | Phase 5 | Reflection | 每个 Phase 完成后自我反思：评估证据充分性、识别偏见、决定是否需要补充检索 | P1 |
+| v2.0 | Phase 6 | Long Memory | 跨任务共享记忆：用户偏好、领域知识、历史研究结论；支持任务间经验复用 | P2 |
+| v2.0 | Phase 7 | Multi-Agent | 多 Agent 协作：Planner / Searcher / Critic / Writer 等角色分工，通过消息总线协同 | P2 |
+
+**与现有 Phase 7 其他高级功能的关系**：
+
+- §8.1 的 `Paragraph → Evidence Spans`、`focus_areas` / `exclude_domains` / `time_range`、`SearXNG 降级`、`多报告模板` 等是 v1.5 证据层与产品层升级，与 Dynamic Planning / Reflection 可并行开发。
+- §8.2 的 `真 DAG 并行调度`、`Claim 级 Evidence Graph`、`递归分解`、`分级 LLM` 等是 v2.0 架构层升级，与 Long Memory / Multi-Agent 可并行开发。
+- Agent 演进路线不替代现有 Pipeline 七阶段业务语义，而是增强 Agent 的自主规划、反思、记忆与协作能力。
+
+> 权威设计见 [ARCHITECTURE.md §2.3](../../docs/ARCHITECTURE.md#23-agent-runtime-核心机制)。决策记录：`docs/decisions/ADR-004.md`。
+
 ---
 
-## 8. 依赖关系
+## 9. 依赖关系
 
 ```
-Phase 1 ──→ Phase 2 ──→ Phase 3 ──→ Phase 4 ──→ Phase 5 ──→ Phase 6
-  │            │            │            │            │            │
-  ├─ 后端测试    ├─ 后端测试    ├─ 后端测试    ├─ 后端测试    ├─ 后端测试
-  ├─ 前端测试    ├─ 前端测试    ├─ 前端测试    ├─ 前端测试    ├─ 前端测试     (不设时限)
-  (基础)      (创建+列表)   (进度+报告)   (刷新+Retry)  (Admin+全量+压测)
+Phase 1 ──→ Phase 2 ──→ Phase 3 ──→ Phase 4 ──→ Phase 5 ──→ Phase 6 ──→ Phase 7
+  │            │            │            │            │            │            │
+  ├─ 后端测试    ├─ 后端测试    ├─ 后端测试    ├─ 后端测试    ├─ 后端测试    ├─ 后端测试    ├─ 后端测试
+  ├─ 前端测试    ├─ 前端测试    ├─ 前端测试    ├─ 前端测试    ├─ 前端测试    ├─ 前端测试    ├─ 前端测试     (不设时限)
+  (基础)      (创建+列表)   (进度+报告)   (刷新+Retry)  (Agent化)    (Admin+全量+压测)
 ```
 
-### 8.1 准入规则
+### 9.1 准入规则
 
 **每个 Phase 的测试必须在该 Phase 功能完成后立即执行，作为下一 Phase 的准入条件：**
 
 - Phase N 功能完成 → 执行 Phase N 测试 → 全部通过 → 方可进入 Phase N+1
 - 回归测试集随 Phase 迭代持续扩充，每次提交运行全量回归
-- Phase 3 完成时建立基线报告质量评分（人工评估第 1 轮），Phase 5 完成时对比验证
+- Phase 3 完成时建立基线报告质量评分（人工评估第 1 轮），Phase 6 完成时对比验证
 
 ---
 
-## 9. 相关文档
+## 10. 相关文档
 
 - [产品需求文档](PRD.md)
 - [架构设计文档](../../docs/ARCHITECTURE.md)

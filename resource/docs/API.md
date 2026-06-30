@@ -920,6 +920,9 @@ SSE 连接端点，研究过程实时推送。事件协议详见 §4。
 | `task.completed` | 任务完成 | task_id, status, trace 摘要 | 显示完成 UI，允许获取报告 |
 | `task.failed` | 任务致命失败 | task_id, error_type, error_description, recoverable | 显示错误 UI；`recoverable: true` 时显示 Retry 按钮 |
 | `task.canceled` | 任务已取消 | task_id | 显示取消状态 |
+| `agent.thought` | Agent Loop 中 LLM 产生思考 | task_id, iteration, phase, content | 在 Step Log 中显示为 Agent 思考条目 |
+| `agent.action` | Agent Loop 中 LLM 决定调用 Tool | task_id, iteration, phase, tool_name, parameters | 显示即将执行的工具调用 |
+| `agent.observation` | Agent Loop 中 Tool 返回结果 | task_id, iteration, phase, tool_name, observation | 显示工具执行结果摘要 |
 | `task.paused` [v2] | 任务已暂停 | task_id | 显示暂停状态，提供恢复按钮 |
 | `task.resumed` [v2] | 任务已恢复 | task_id, status | 恢复进度 UI，继续接收增量事件 |
 
@@ -996,6 +999,27 @@ data: {"task_id": "550e8400-e29b-41d4-a716-446655440000", "status": "completed",
 ```
 event: task.failed
 data: {"task_id": "550e8400-e29b-41d4-a716-446655440000", "error_type": "SynthesisFailed", "error_description": "LLM 综合失败，已重试 3 次", "recoverable": true, "last_checkpoint": "b2c3d4e5-f6a7-8901-bcde-f12345678901"}
+```
+
+#### `event: agent.thought`
+
+```
+event: agent.thought
+data: {"task_id": "550e8400-e29b-41d4-a716-446655440000", "iteration": 3, "phase": "searching", "content": "我已经获得了子问题 1 的搜索结果，现在需要继续搜索子问题 2 以覆盖全部研究方向。"}
+```
+
+#### `event: agent.action`
+
+```
+event: agent.action
+data: {"task_id": "550e8400-e29b-41d4-a716-446655440000", "iteration": 3, "phase": "searching", "tool_name": "search_tool", "parameters": {"sub_question_index": 1, "reason": "覆盖研究方向 B"}}
+```
+
+#### `event: agent.observation`
+
+```
+event: agent.observation
+data: {"task_id": "550e8400-e29b-41d4-a716-446655440000", "iteration": 3, "phase": "searching", "tool_name": "search_tool", "observation": {"results_count": 5, "urls": ["https://example.com/a", "https://example.com/b"]}}
 ```
 
 ---

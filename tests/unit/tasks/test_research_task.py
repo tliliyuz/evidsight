@@ -13,12 +13,6 @@ from app.core.security import hash_password
 from app.tasks.research_task import _build_trace_from_steps, _emergency_fail, _run_pipeline
 
 
-@pytest.fixture(autouse=True)
-def _disable_agent_runtime(monkeypatch):
-    """本模块测试 PipelineOrchestrator 分支，关闭 Agent Runtime feature flag。"""
-    monkeypatch.setattr("app.config.settings.USE_AGENT_RUNTIME", False)
-
-
 async def _seed_user_and_task(db_session, task_status: str = "pending") -> ResearchTask:
     """创建测试用户与任务。"""
     user = User(
@@ -174,16 +168,16 @@ class TestRunPipelineStatusBranches:
         task = await _seed_user_and_task(db_session, "pending")
 
         with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
-            with patch("app.tasks.research_task.PipelineOrchestrator") as mock_orch_cls:
-                mock_orch = MagicMock()
-                mock_orch.run = AsyncMock()
-                mock_orch_cls.return_value = mock_orch
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
+                mock_runtime = MagicMock()
+                mock_runtime.run = AsyncMock()
+                mock_runtime_cls.build_default.return_value = mock_runtime
 
                 result = await _run_pipeline(str(task.id))
 
         assert result["status"] == "pending"
         assert result["task_id"] == str(task.id)
-        mock_orch.run.assert_awaited_once()
+        mock_runtime.run.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_running状态_崩溃恢复继续执行(self, db_session):
@@ -192,16 +186,16 @@ class TestRunPipelineStatusBranches:
         await db_session.flush()
 
         with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
-            with patch("app.tasks.research_task.PipelineOrchestrator") as mock_orch_cls:
-                mock_orch = MagicMock()
-                mock_orch.run = AsyncMock()
-                mock_orch_cls.return_value = mock_orch
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
+                mock_runtime = MagicMock()
+                mock_runtime.run = AsyncMock()
+                mock_runtime_cls.build_default.return_value = mock_runtime
 
                 result = await _run_pipeline(str(task.id))
 
         assert result["status"] == "running"
         assert result["task_id"] == str(task.id)
-        mock_orch.run.assert_awaited_once()
+        mock_runtime.run.assert_awaited_once()
 
     @pytest.mark.parametrize("status", ["completed", "failed", "canceled", "partially_completed"])
     @pytest.mark.asyncio
@@ -214,22 +208,22 @@ class TestRunPipelineStatusBranches:
         await db_session.flush()
 
         with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
-            with patch("app.tasks.research_task.PipelineOrchestrator") as mock_orch_cls:
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 result = await _run_pipeline(str(task.id))
 
         assert result["status"] == "skipped"
         assert result["reason"] == f"status={status}"
-        mock_orch_cls.assert_not_called()
+        mock_runtime_cls.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_任务不存在_返回error(self, db_session):
         with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
-            with patch("app.tasks.research_task.PipelineOrchestrator") as mock_orch_cls:
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 result = await _run_pipeline("00000000-0000-0000-0000-000000000000")
 
         assert result["status"] == "error"
         assert result["reason"] == "TaskNotFound"
-        mock_orch_cls.assert_not_called()
+        mock_runtime_cls.assert_not_called()
 
 
 # ═══════════════════════════════════════════════════════════════════════

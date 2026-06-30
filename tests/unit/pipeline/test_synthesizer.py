@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import select
 
+from app.config import settings
 from app.core.exceptions import SynthesisFailedException
 from app.core.llm import LLMResult
 from app.models.evidence_item import EvidenceItem
@@ -211,7 +212,7 @@ class TestSynthesisSuccess:
         assert output["gaps_count"] == 1
         assert output["clusters"][0]["theme"] == "量子计算威胁"
         assert output["overall_assessment"] == "证据质量较高，但缺少具体量化数据。"
-        assert output["model"] == "deepseek-v4-pro"
+        assert output["model"] == settings.LLM_MODEL
         assert output["retry_count"] == 0
         assert output["prompt_tokens"] == 1000
         assert output["completion_tokens"] == 500

@@ -101,7 +101,6 @@ class Settings(BaseSettings):
     PIPELINE_RENDER_MAX_RETRIES: int = 1
 
     # ── Agent Runtime ──
-    USE_AGENT_RUNTIME: bool = True
     MAX_AGENT_ITERATIONS: int = 30
     AGENT_WORKING_MEMORY_MAX_ENTRIES: int = 20
 

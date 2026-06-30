@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import select
 
+from app.config import settings
 from app.core.exceptions import RenderFailedException
 from app.core.llm import LLMResult
 from app.models.evidence_item import EvidenceItem
@@ -280,7 +281,7 @@ class TestRenderSuccess:
         assert output["sections_count"] == 2
         assert output["citations_count"] == 4  # 0,1 + 0,2
         assert output["template"] == "analysis_v1"
-        assert output["model"] == "deepseek-v4-pro"
+        assert output["model"] == settings.LLM_MODEL
         assert output["retry_count"] == 0
         assert output["prompt_tokens"] == 2000
         assert output["completion_tokens"] == 1500

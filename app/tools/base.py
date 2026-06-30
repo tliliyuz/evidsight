@@ -1,6 +1,6 @@
 """Tool 抽象基类 —— MCP 风格的统一 Tool 接口。
 
-对齐 agent_design.md §6.1：
+对齐 ARCHITECTURE.md §2.3.2：
 - ToolResult：Tool 执行产出
 - ToolCall：LLM 发起的单次 Tool 调用
 - ToolContext：Tool 执行时注入的上下文

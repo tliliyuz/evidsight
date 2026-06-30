@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import select
 
+from app.config import settings
 from app.core.exceptions import RerankFailedException
 from app.core.llm import LLMResult
 from app.models.evidence_item import EvidenceItem
@@ -183,7 +184,7 @@ class TestRerankSuccess:
         )
         assert output["prompt_tokens"] == 500
         assert output["completion_tokens"] == 200
-        assert output["model"] == "deepseek-v4-flash"
+        assert output["model"] == settings.LLM_FLASH_MODEL
         assert output["retry_count"] == 0
         assert output["top_domains"] == ["example.com", "nist.gov"]
 

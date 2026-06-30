@@ -1,15 +1,14 @@
-"""Pipeline Orchestrator —— 七阶段调度、状态转换、Execution Context 更新。
+"""Pipeline Orchestrator —— 旧版七阶段 Workflow 调度器（已弃用）。
 
-Phase 调度（Planning→Search→Fetch→Rerank→Synthesis→EvidenceGraph→Render），
+⚠️ **DEPRECATED**：本模块为 v0.x Plan-then-Execute Workflow 引擎，v1.0 起已被
+`AgentRuntime` 替代。保留原因：渐进式清理，避免一次性删除导致大量测试重写。
+新功能不应依赖本模块，未来将在独立清理任务中彻底移除。
+
+历史行为：Phase 调度（Planning→Search→Fetch→Rerank→Synthesis→EvidenceGraph→Render），
 每个 Phase 创建 ResearchStep → 幂等锁检查 → 调用 Phase 函数 → 原子写入
 Execution Context → SSE 事件推送 → TaskStateResolver 评估。
 
-设计对齐 ARCHITECTURE.md §3.3 / RESEARCH_PIPELINE.md §1.2。
-
-Phase 函数注册表：
-- planning / search / fetch → Phase 2 stub（§3.3-§3.5 实现）
-- rerank / synthesis → Phase 3 实现
-- evidence_graph / render → 自动跳过（Phase 3 后续实现）
+设计对齐 ARCHITECTURE.md §3.3 / RESEARCH_PIPELINE.md §1.2（旧版描述）。
 """
 
 import asyncio

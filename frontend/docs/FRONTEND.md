@@ -334,11 +334,15 @@ ResearchPage 根据 `taskStore.current.status` 切换三种 UI 状态：
   - task_type 已选中
   - max_sources 在 1-50 范围
     ↓
+taskStore 乐观进入运行态（current.status='running'，立即显示 Pipeline 进度视图）
+    ↓
 POST /api/research { topic, requirements: { task_type, depth: "quick", max_sources, language } }
     ↓
-成功 (201) → taskStore.setCurrent(response.data) → 切换到运行态 → 自动连接 SSE
-失败 → 表单内错误提示
+成功 (201) → 用真实 task_id/status 覆盖乐观占位 → 自动连接 SSE
+失败 → 回滚到创建态并显示错误提示
 ```
+
+> **[Deviation/修复]** 原实现中点击「开始研究」后需等待 `POST /api/research` 返回才会切换到运行态，期间创建表单保持可见 2-3 秒，用户感知为无响应。修复后参考 `retryTask()` 的乐观更新策略：`createTask()` 在 API 调用前即将 `current` 置为 `running` 并渲染运行态；API 成功后以真实响应覆盖占位，API 失败时调用 `clearCurrent()` 回滚到创建态。`ResearchPage.handleCancel()` 增加 `task_id` 空值保护，避免乐观占位期间触发取消。
 
 #### 4.3.5 快捷示例
 

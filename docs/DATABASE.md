@@ -151,7 +151,7 @@ CREATE TABLE research_tasks (
 | requirements | JSON | 研究要求（task_type, depth, max_sources, language 等） |
 | status | ENUM | Task 级状态：pending / running / completed / partially_completed / failed / canceled / paused |
 | current_phase | ENUM | Phase 级状态：planning / searching / fetching / reranking / synthesizing / building_evidence_graph / rendering |
-| execution_context | JSON | 断点续跑上下文（current_phase, last_completed_step_id, execution_pointer, progress） |
+| execution_context | JSON | 断点续跑上下文（current_phase, last_completed_step_id, execution_pointer, progress, agent_context） |
 | total_steps | INT | 总步骤数 |
 | completed_steps | INT | 已完成步骤数 |
 | total_sources | INT | 来源总数 |
@@ -223,7 +223,7 @@ CREATE TABLE research_steps (
 | parent_step_id | UUID | 父步骤 ID（DAG 边），自引用外键，可为空 |
 | status | ENUM | Step 级状态：pending / running / completed / failed / skipped / retrying |
 | label | VARCHAR(200) | 步骤标签，前端展示用 |
-| input | JSON | Step 输入参数 |
+| input | JSON | Step 输入参数；Agent Runtime 下为 Tool 调用参数（如 `sub_question_index`、`target_url` 等） |
 | output | JSON | Step 产出 |
 | retry_count | INT | 已重试次数 |
 | max_retries | INT | 最大重试次数（0 = 使用阶段默认值） |
@@ -397,7 +397,7 @@ CREATE TABLE refresh_tokens (
 
 ### 2.9 Agent Memory Entries 表 `agent_memory_entries`
 
-> Phase 3 新增：持久化单次任务内的 ReAct Trace（Thought / Action / Observation / Finish），作为 WorkingMemory 的断点续跑与调试来源。权威设计见 `docs/agent_design.md` §7 与 `docs/decisions/ADR-003-agent-runtime-phase3.md`。
+> Phase 3 新增：持久化单次任务内的 ReAct Trace（Thought / Action / Observation / Finish），作为 WorkingMemory 的断点续跑与调试来源。权威设计见 [ARCHITECTURE.md §2.3](../../docs/ARCHITECTURE.md#23-agent-runtime-核心机制)，历史决策见 `docs/decisions/ADR-003-agent-runtime-phase3.md`。
 
 ```sql
 CREATE TABLE agent_memory_entries (

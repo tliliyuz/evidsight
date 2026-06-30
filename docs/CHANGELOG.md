@@ -11,6 +11,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **前端创建任务阻塞在创建态 2-3 秒**：`frontend/src/stores/task.js` 的 `createTask()` 参考 `retryTask()` 改为乐观更新策略——API 调用前即将 `current` 置为 `running` 并渲染 Pipeline 进度视图，API 成功后以真实响应覆盖占位，API 失败时回滚到创建态；`frontend/src/views/ResearchPage.vue` 的 `handleCancel()` 增加 `task_id` 空值保护，避免乐观占位期间误触取消。同步更新 `FRONTEND.md §4.3.4` 与相关单测。
 - **MySQL "Out of sort memory" (1038)**：`get_task_list` 查询 `ORDER BY created_at DESC` 因独立索引触发 filesort，JSON 列过大时超 `sort_buffer_size`。新增复合索引 `idx_user_created(user_id, created_at DESC)` 与 `idx_user_status_created(user_id, status, created_at DESC)` 覆盖排序，避免 filesort。`idx_user` / `idx_created` 已移除。
 - **Agent Runtime Phase 3 `memory_tool` 重复写入与 observation 膨胀**：`memory_tool` 内部自行追加 ReActEntry，AgentLoop 执行完同一调用又追加一条，导致同一操作在 `agent_memory_entries` 中重复；`read` 操作把完整 Working Memory 历史拼进 observation，引发 prompt/DB 指数膨胀。修复：
   - `memory_tool` 不再自行写入 `WorkingMemory`，统一由 `AgentLoop` 记录；`output` 保留 `memory_note` 供 AgentLoop 摘要。
@@ -54,6 +55,13 @@
   - 新增/更新测试：`tests/unit/tools/test_base.py`、`test_finish_tool.py`、`test_memory_tool.py`、`test_registry.py`；更新 `tests/unit/core/test_llm.py`、`tests/unit/agent/test_context.py`、`tests/integration/test_agent_runtime_flag.py`。
   - 修复 `AgentRuntime.run()` 初始 `ToolContext` 未传入 `working_memory` 导致运行失败的回归。
   - 为既有 Pipeline 相关测试（`tests/integration/test_pipeline_retry.py`、`tests/unit/tasks/test_research_task.py`）关闭 `USE_AGENT_RUNTIME`，确保旧 Pipeline 路径测试继续稳定运行。
+- **项目定位明确为 Agent 项目（ADR-004）**：
+  - 新增架构决策文档 `docs/decisions/ADR-004.md`，记录项目从 Workflow 演进到 Agent、移除 `USE_AGENT_RUNTIME` flag、渐进弃用 `PipelineOrchestrator` 的决策。
+  - `docs/ARCHITECTURE.md` v1.1：以 Agent Runtime 为核心重写 §2 系统分层与 §3 状态机，增加 `agent_context`、`agent.*` SSE 事件、`AGENT_LOOP_EXHAUSTED` 失败类型等 Agent 语义。
+  - `resource/docs/ROADMAP.md`：新增 §6 Phase 5「Agent Runtime Phase 1-3」；在 Phase 7 内新增 §8.4「Agent 演进路线」，把 Agent Runtime Phase 4-7 映射为 v1.5 / v2.0 高级功能（Dynamic Planning / Reflection / Long Memory / Multi-Agent）。
+  - `resource/docs/PRD.md`：更新产品背景，明确系统本质为 **Agentic Research System**（Phase-Locked ReAct）。
+  - `resource/docs/API.md`：SSE 事件协议补充 `agent.thought` / `agent.action` / `agent.observation` 三种事件及格式示例。
+  - `docs/DATABASE.md`：更新 `execution_context` 与 `research_steps.input` 字段说明以匹配 Agent 语义。
 - **Pipeline 断点续跑端到端集成测试补齐**：新增 `tests/integration/test_pipeline_retry.py`（13 用例）+ 辅助模块 `tests/integration/_retry_helpers.py`，覆盖 Retry API → Service 状态重置 → Orchestrator 调度 → Step 三层复用 → DB 状态 → SSE 事件序列 → Trace 连续性。对应 `ROADMAP.md §5.5` 的 ⏳ 项已标记为 ✅。
 - **基础设施加固激活（§5.2）**：结构化日志 + Request ID 中间件 + 限流中间件正式挂载到 `main.py`。包含：
   - `setup_logging(debug=settings.DEBUG)` 在应用启动时调用，非 debug 模式输出 JSON 格式日志（含 request_id / user_id / timestamp / exception），debug 模式输出人类可读格式
@@ -73,6 +81,18 @@
   - Redis broker 明确配置 `visibility_timeout=1800s`，避免依赖 Celery 默认 1h
   - **Worker 崩溃超时监察者**：FastAPI `lifespan()` 启动后台协程 `_run_worker_timeout_watcher()`，每 5s 扫描 `running` 任务；任务级锁缺失持续 10s 且超过启动宽限期后，CAS 将任务标记为 `failed`（E3112，`recoverable=true`）并推送 `task.failed` SSE，前端立即显示超时失败并允许手动断点续跑
   - **前端启用断点续跑按钮**：`FailedView.vue` 在 `recoverable=true` 时显示可点击的「断点续跑」按钮（二次确认 + loading），`taskStore.retryTask()` 调用 `POST /api/research/{task_id}/retry` 后刷新详情并建立 SSE
+
+### Changed
+- **执行入口固定走 AgentRuntime**：`app/tasks/research_task.py` 移除 `USE_AGENT_RUNTIME` 分支，生产路径唯一；`app/config.py` 删除 `USE_AGENT_RUNTIME` 配置项。
+- **ROADMAP.md Phase 编号调整**：将 Agent Runtime Phase 1-3 作为独立 **Phase 5** 排期；原 Phase 5（打磨上线 + 管理后台）顺延为 Phase 6，原 Phase 6（迭代优化）顺延为 Phase 7；Agent 演进路线（Dynamic Planning / Reflection / Long Memory / Multi-Agent）随之移至 Phase 7 §8.4。
+- **Agent 设计资产迁移**：`docs/agent_design.md` 中 Tool System、Working Memory、ReAct Loop 等 Phase 1-3 设计知识迁移到 `docs/ARCHITECTURE.md` §2.3；`docs/ARCHITECTURE.md`、`docs/DATABASE.md`、`resource/docs/PRD.md`、`resource/docs/ROADMAP.md` 中对 `docs/agent_design.md` 的引用更新为指向 `docs/ARCHITECTURE.md` §2.3 或历史 ADR。
+
+### Deprecated
+- **`PipelineOrchestrator` 标记弃用**：`app/services/pipeline_orchestrator.py` 模块级注释增加 DEPRECATED 说明；保留代码与相关 legacy 测试（`tests/integration/test_pipeline_retry.py`）供历史参考，新功能禁止依赖，未来独立清理任务彻底移除。
+
+### Removed
+- **`USE_AGENT_RUNTIME` feature flag**：从 `app/config.py` 与 `app/tasks/research_task.py` 完全移除，项目不再保留 Workflow/Agent 双入口切换能力。
+- **`docs/agent_design.md` 快照文档**：已完成知识资产向权威文档（`docs/ARCHITECTURE.md` §2.3、`resource/docs/ROADMAP.md`）的迁移，现删除该快照文档。
 
 ### Fixed
 - **修复断点续跑后报告 Trace 摘要仅含续跑后记录、续跑前阶段丢失（不完整修复）**：`_run_pipeline()` 每次都新建空 `TraceRecorder`，续跑中被 Orchestrator 跳过的已完成阶段不会调用 `record_*`，最后 `_finalize_task` 用这份不完整数据覆盖 `task.trace`，导致续跑前的 Planning/Search/Fetch/Rerank 等阶段记录全部丢失。修复：(1) `TraceRecorder` 新增 `previous_trace` 参数，构造时预加载历史阶段数据到 `_xxx_data`；新增 `_current_run_phases` 集合标记当前运行实际调用 `record_*` 的阶段；新增 `_merge_skipped_previous_phases()` 在 `finish()` 时把**未被重新执行**阶段的 tokens/cost 累加到 task 总计与 breakdown；`total_duration_ms` 改为各阶段 `duration_ms` 之和（perf_counter 差值无法覆盖 previous 阶段，且与前端 `TracePanel` 已有的「逐阶段累加」逻辑一致）。(2) `_run_pipeline()` 传入 `task.trace` 作为 `previous_trace`。被跳过的阶段保留历史数据；重新执行的阶段以新数据覆盖；首次运行（无 `previous_trace`）行为与原来等价。**注意：此修复仅覆盖"完整运行后重新执行"场景，未解决"运行中崩溃"场景——因为 trace 从未在 checkpoint 时持久化到 DB，崩溃后 `task.trace` 为空，`_preload_previous_phases()` 无事可做。根因修复见下一项。**

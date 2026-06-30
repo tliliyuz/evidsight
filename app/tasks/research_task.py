@@ -18,7 +18,6 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select as sa_select, update as sa_update
 
-from app.config import settings
 from app.core.database import async_session_factory
 from app.core.exceptions import AppException, extract_recoverable_from_exception
 from app.core.trace_recorder import TraceRecorder
@@ -26,11 +25,7 @@ from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
 from app.agent.runtime import AgentRuntime
 from app.pipeline.sse_bridge import SSEBridge
-from app.services.pipeline_orchestrator import (
-    PHASE_ORDER,
-    PipelineOrchestrator,
-    build_default_phase_handlers,
-)
+from app.services.pipeline_orchestrator import PHASE_ORDER
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -225,25 +220,14 @@ async def _run_pipeline(task_id: str) -> dict:
             topic=task.topic,
             previous_trace=previous_trace,
         )
-        # 3. 根据 feature flag 选择执行引擎
-        if settings.USE_AGENT_RUNTIME:
-            runtime = AgentRuntime.build_default(
-                task=task,
-                session=session,
-                sse_bridge=sse_bridge,
-                trace_recorder=trace_recorder,
-            )
-            await runtime.run()
-        else:
-            phase_handlers = build_default_phase_handlers()
-            orchestrator = PipelineOrchestrator(
-                task=task,
-                session=session,
-                sse_bridge=sse_bridge,
-                trace_recorder=trace_recorder,
-                phase_handlers=phase_handlers,
-            )
-            await orchestrator.run()
+        # 3. 使用 AgentRuntime 执行研究任务（PipelineOrchestrator 已弃用）
+        runtime = AgentRuntime.build_default(
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=trace_recorder,
+        )
+        await runtime.run()
 
         # 4. 提交全部变更（Step 状态 + Execution Context + Task 状态）
         await session.commit()

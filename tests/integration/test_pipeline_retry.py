@@ -34,7 +34,6 @@ from app.pipeline.sse_bridge import (
 )
 from app.services.pipeline_orchestrator import PipelineOrchestrator, build_default_phase_handlers
 from app.services.research_service import retry_task
-from app.tasks.research_task import _run_pipeline
 
 from tests.integration._retry_helpers import (
     PHASE_LABELS,
@@ -57,10 +56,39 @@ from tests.integration._retry_helpers import (
 pytestmark = [pytest.mark.integration, pytest.mark.retry]
 
 
-@pytest.fixture(autouse=True)
-def _disable_agent_runtime(monkeypatch):
-    """Pipeline retry 集成测试针对 PipelineOrchestrator，关闭 Agent Runtime feature flag。"""
-    monkeypatch.setattr("app.config.settings.USE_AGENT_RUNTIME", False)
+# ⚠️ 本模块为 legacy 测试：直接测试已弃用的 PipelineOrchestrator 断点续跑逻辑。
+# v1.0 生产路径已切换为 AgentRuntime，但 PipelineOrchestrator 仍保留代码供历史参考。
+
+
+async def _run_pipeline_orchestrator_directly(db_session, task: ResearchTask) -> dict:
+    """直接调用已弃用的 PipelineOrchestrator 执行，用于 legacy 测试。
+
+    兼容 `_run_pipeline` 的 trace 重建行为：当 `task.trace` 为空且任务处于 running 时，
+    从 `research_steps` 表重建 `previous_trace` 再传给 TraceRecorder。
+    """
+    from app.tasks.research_task import _build_trace_from_steps
+
+    previous_trace = task.trace
+    if not previous_trace and task.status == "running":
+        previous_trace = await _build_trace_from_steps(db_session, str(task.id))
+
+    sse_bridge = SSEBridge(task.id)
+    trace = TraceRecorder(
+        task_id=task.id,
+        user_id=task.user_id,
+        topic=task.topic,
+        previous_trace=previous_trace,
+    )
+    handlers = build_default_phase_handlers()
+    orchestrator = PipelineOrchestrator(
+        task=task,
+        session=db_session,
+        sse_bridge=sse_bridge,
+        trace_recorder=trace,
+        phase_handlers=handlers,
+    )
+    await orchestrator.run()
+    return {"status": task.status, "task_id": str(task.id)}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -161,13 +189,12 @@ class TestPipelineRetryFromFailure:
         await db_session.flush()
         assert task.status == "pending"
 
-        # 调用 _run_pipeline 实际执行（patch async_session_factory 复用测试 session）
-        with patch("app.tasks.research_task.async_session_factory", new=_session_factory(db_session)):
-            with ExitStack() as stack:
-                for p in _mock_pipeline_external(db_session, task.id):
-                    stack.enter_context(p)
-                async with _commit_to_flush(db_session):
-                    result = await _run_pipeline(task.id)
+        # 直接调用 PipelineOrchestrator 实际执行（legacy 路径）
+        with ExitStack() as stack:
+            for p in _mock_pipeline_external(db_session, task.id):
+                stack.enter_context(p)
+            async with _commit_to_flush(db_session):
+                result = await _run_pipeline_orchestrator_directly(db_session, task)
 
         assert result["status"] == "completed"
 
@@ -235,12 +262,11 @@ class TestPipelineRetryFromFailure:
         await retry_task(db_session, task)
         await db_session.flush()
 
-        with patch("app.tasks.research_task.async_session_factory", new=_session_factory(db_session)):
-            with ExitStack() as stack:
-                for p in _mock_pipeline_external(db_session, task.id):
-                    stack.enter_context(p)
-                async with _commit_to_flush(db_session):
-                    result = await _run_pipeline(task.id)
+        with ExitStack() as stack:
+            for p in _mock_pipeline_external(db_session, task.id):
+                stack.enter_context(p)
+            async with _commit_to_flush(db_session):
+                result = await _run_pipeline_orchestrator_directly(db_session, task)
 
         assert result["status"] == "completed"
 
@@ -293,12 +319,11 @@ class TestPipelineRetryFromFailure:
         await retry_task(db_session, task)
         await db_session.flush()
 
-        with patch("app.tasks.research_task.async_session_factory", new=_session_factory(db_session)):
-            with ExitStack() as stack:
-                for p in _mock_pipeline_external(db_session, task.id):
-                    stack.enter_context(p)
-                async with _commit_to_flush(db_session):
-                    result = await _run_pipeline(task.id)
+        with ExitStack() as stack:
+            for p in _mock_pipeline_external(db_session, task.id):
+                stack.enter_context(p)
+            async with _commit_to_flush(db_session):
+                result = await _run_pipeline_orchestrator_directly(db_session, task)
 
         assert result["status"] == "completed"
 
@@ -351,13 +376,12 @@ class TestCrashRecovery:
         )
         prev_step_ids = {s.step_type: str(s.id) for s in prev_steps.scalars().all()}
 
-        # 直接使用 _run_pipeline 走崩溃恢复路径
-        with patch("app.tasks.research_task.async_session_factory", new=_session_factory(db_session)):
-            with ExitStack() as stack:
-                for p in _mock_pipeline_external(db_session, task.id):
-                    stack.enter_context(p)
-                async with _commit_to_flush(db_session):
-                    result = await _run_pipeline(task.id)
+        # 直接调用 PipelineOrchestrator 走崩溃恢复路径（legacy 路径）
+        with ExitStack() as stack:
+            for p in _mock_pipeline_external(db_session, task.id):
+                stack.enter_context(p)
+            async with _commit_to_flush(db_session):
+                result = await _run_pipeline_orchestrator_directly(db_session, task)
 
         assert result["status"] == "completed"
 
@@ -430,12 +454,11 @@ class TestCrashRecovery:
         await db_session.refresh(refreshed)
         assert refreshed.status == "pending"
 
-        with patch("app.tasks.research_task.async_session_factory", new=_session_factory(db_session)):
-            with ExitStack() as stack:
-                for p in _mock_pipeline_external(db_session, task.id):
-                    stack.enter_context(p)
-                async with _commit_to_flush(db_session):
-                    result = await _run_pipeline(task.id)
+        with ExitStack() as stack:
+            for p in _mock_pipeline_external(db_session, task.id):
+                stack.enter_context(p)
+            async with _commit_to_flush(db_session):
+                result = await _run_pipeline_orchestrator_directly(db_session, task)
 
         assert result["status"] == "completed"
 
@@ -493,12 +516,11 @@ class TestCrashRecovery:
         task.trace = None  # 模拟 checkpoint 前崩溃
         await db_session.flush()
 
-        with patch("app.tasks.research_task.async_session_factory", new=_session_factory(db_session)):
-            with ExitStack() as stack:
-                for p in _mock_pipeline_external(db_session, task.id):
-                    stack.enter_context(p)
-                async with _commit_to_flush(db_session):
-                    result = await _run_pipeline(task.id)
+        with ExitStack() as stack:
+            for p in _mock_pipeline_external(db_session, task.id):
+                stack.enter_context(p)
+            async with _commit_to_flush(db_session):
+                result = await _run_pipeline_orchestrator_directly(db_session, task)
 
         assert result["status"] == "completed"
 
@@ -543,12 +565,11 @@ class TestDataConsistency:
         await db_session.flush()
 
         # Retry 并完整执行
-        with patch("app.tasks.research_task.async_session_factory", new=_session_factory(db_session)):
-            with ExitStack() as stack:
-                for p in _mock_pipeline_external(db_session, task.id):
-                    stack.enter_context(p)
-                async with _commit_to_flush(db_session):
-                    result = await _run_pipeline(task.id)
+        with ExitStack() as stack:
+            for p in _mock_pipeline_external(db_session, task.id):
+                stack.enter_context(p)
+            async with _commit_to_flush(db_session):
+                result = await _run_pipeline_orchestrator_directly(db_session, task)
 
         assert result["status"] == "completed"
 
@@ -564,12 +585,11 @@ class TestDataConsistency:
         """崩溃恢复后 completed_steps 和 progress 不超出 [0,1] 范围。"""
         task = await _seed_crash_task(db_session, crash_after="fetch")
 
-        with patch("app.tasks.research_task.async_session_factory", new=_session_factory(db_session)):
-            with ExitStack() as stack:
-                for p in _mock_pipeline_external(db_session, task.id):
-                    stack.enter_context(p)
-                async with _commit_to_flush(db_session):
-                    result = await _run_pipeline(task.id)
+        with ExitStack() as stack:
+            for p in _mock_pipeline_external(db_session, task.id):
+                stack.enter_context(p)
+            async with _commit_to_flush(db_session):
+                result = await _run_pipeline_orchestrator_directly(db_session, task)
 
         assert result["status"] == "completed"
 
