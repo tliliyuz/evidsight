@@ -109,7 +109,7 @@ class ManualDimensionScore:
     """单维度人工评分"""
 
     dimension: str
-    score: int
+    score: float
     comment: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -150,7 +150,7 @@ class ManualEvaluationRecord:
         scores = [
             ManualDimensionScore(
                 dimension=s["dimension"],
-                score=int(s["score"]),
+                score=float(s["score"]),
                 comment=s.get("comment", ""),
             )
             for s in data["scores"]

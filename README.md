@@ -368,7 +368,7 @@ ResearchMind/
 | 后端集成测试 | 全部通过 | Agent Runtime + Pipeline 全链路覆盖 |
 | 回归测试通过率 | 100% | Worker 崩溃恢复、断点续跑、Retry/Cancel |
 | 前端测试 | 全部通过 | 组件 + Store + Util 覆盖 |
-| 离线评估 | 持续监控 | Search / Fetch / Rerank / System 多维度评估 |
+| 离线评估 | 持续监控 | Search / Fetch / Rerank / System 多维度评估；人工评估 round4/5/6 总体均分 4.61（目标 ≥ 3.5） |
 
 测试覆盖 5 个层次：单元测试、接口测试、前端组件测试、离线检索评估、回归测试。完整测试策略见 [TESTING_STRATEGY.md](tests/TESTING_STRATEGY.md)。
 

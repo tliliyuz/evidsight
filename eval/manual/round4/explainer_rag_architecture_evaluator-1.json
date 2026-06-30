@@ -1,0 +1,31 @@
+{
+  "round": 4,
+  "task_id": "80e3c9fa-e369-4eff-b1a2-bfecb56a5de6",
+  "topic": "解释 RAG（检索增强生成）技术的核心原理、主流架构变体（如 Naive RAG / Advanced RAG / Modular RAG），以及 2026 年的最新演进方向。",
+  "task_type": "explainer",
+  "rater": "aggregated",
+  "scores": [
+    {
+      "dimension": "结构完整性",
+      "score": 4.7,
+      "comment": "章节组织符合 explainer 预期；Kimi 认为 2026 最新演进方向篇幅偏短，争议与前沿部分以指出缺口为主。"
+    },
+    {
+      "dimension": "引用准确性",
+      "score": 4.3,
+      "comment": "锚点真实存在、语义一致；DeepSeek/Kimi 指出部分引用映射不够精确，Agentic RAG 论述支撑偏弱。"
+    },
+    {
+      "dimension": "综合质量",
+      "score": 4.3,
+      "comment": "覆盖 RAG 演进脉络并指出真实缺口；Kimi 认为各变体横向对比不足，整体偏综述，落地指导偏弱。"
+    },
+    {
+      "dimension": "可读性",
+      "score": 5.0,
+      "comment": "排版规范、术语准确、逻辑递进自然，三位评委一致认为可读性优秀。"
+    }
+  ],
+  "overall_score": 4.6,
+  "evaluated_at": "2026-06-30T18:00:00+00:00"
+}

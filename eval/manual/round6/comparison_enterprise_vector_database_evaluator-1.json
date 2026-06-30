@@ -1,0 +1,31 @@
+{
+  "round": 6,
+  "task_id": "41478bfd-49a2-4980-ab8e-2c4acd4c4502",
+  "topic": "对比主流企业级向量数据库（如 Pinecone、Weaviate、Milvus、Qdrant）在性能、扩展性、成本、生态集成方面的差异，并给出不同规模企业（初创 / 中型 / 大型）的选型建议。",
+  "task_type": "comparison",
+  "rater": "aggregated",
+  "scores": [
+    {
+      "dimension": "结构完整性",
+      "score": 4.7,
+      "comment": "对比矩阵与选型建议章节完整；Kimi 指出对比矩阵缺少引用支撑，托管选项信息不准确。"
+    },
+    {
+      "dimension": "引用准确性",
+      "score": 4.3,
+      "comment": "大部分引用准确；Kimi 指出对比矩阵完全无引用，部分来源存在轻微断章取义或过度解读。"
+    },
+    {
+      "dimension": "综合质量",
+      "score": 4.7,
+      "comment": "识别成本冲突与知识缺口；Kimi 认为冲突分析停留在并列呈现，性能维度缺乏量化支撑。"
+    },
+    {
+      "dimension": "可读性",
+      "score": 4.7,
+      "comment": "格式规范、语言流畅；Kimi 认为 TCO 段落偏长，适用规模描述较宽泛。"
+    }
+  ],
+  "overall_score": 4.6,
+  "evaluated_at": "2026-06-30T18:00:00+00:00"
+}

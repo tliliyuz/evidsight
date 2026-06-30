@@ -73,6 +73,29 @@ class TestValidateManualRecord:
         assert "结构完整性" in str(exc_info.value)
         assert "6" in str(exc_info.value)
 
+    def test_浮点评分校验通过且不被截断(self):
+        data = {
+            "round": 1,
+            "task_id": "task-1",
+            "topic": "量子计算",
+            "task_type": "analysis",
+            "rater": "aggregated",
+            "scores": [
+                {"dimension": "结构完整性", "score": 4.7, "comment": ""},
+                {"dimension": "引用准确性", "score": 4.3, "comment": ""},
+                {"dimension": "综合质量", "score": 4.3, "comment": ""},
+                {"dimension": "可读性", "score": 5.0, "comment": ""},
+            ],
+            "overall_score": 4.575,
+            "evaluated_at": "2026-06-27T10:00:00+00:00",
+        }
+
+        record = validate_manual_record(data)
+
+        assert record.scores[0].score == pytest.approx(4.7)
+        assert record.scores[1].score == pytest.approx(4.3)
+        assert record.overall_score == pytest.approx(4.575)
+
     def test_缺少维度抛出异常(self):
         data = {
             "round": 1,

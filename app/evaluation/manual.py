@@ -50,7 +50,7 @@ def validate_manual_record(data: dict[str, Any]) -> ManualEvaluationRecord:
             raise ValueError(f"未知评估维度: {dimension}")
         if dimension in seen_dimensions:
             raise ValueError(f"重复评估维度: {dimension}")
-        if not isinstance(score, int) or not (MIN_MANUAL_SCORE <= score <= MAX_MANUAL_SCORE):
+        if not isinstance(score, (int, float)) or not (MIN_MANUAL_SCORE <= score <= MAX_MANUAL_SCORE):
             raise ValueError(
                 f"维度 {dimension} 的评分 {score} 不在 [{MIN_MANUAL_SCORE}, {MAX_MANUAL_SCORE}] 范围内"
             )
@@ -83,7 +83,7 @@ def aggregate_manual_records(records: list[ManualEvaluationRecord]) -> ManualAgg
             min_dimension_mean=0.0,
         )
 
-    dimension_scores: dict[str, list[int]] = defaultdict(list)
+    dimension_scores: dict[str, list[float]] = defaultdict(list)
     task_type_scores: dict[str, list[float]] = defaultdict(list)
     round_scores: dict[int, list[float]] = defaultdict(list)
     overall_scores: list[float] = []

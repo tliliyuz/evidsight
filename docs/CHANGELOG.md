@@ -11,6 +11,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **人工评估聚合分无法被 `eval_offline.py` 加载**：`app/evaluation/manual.py::validate_manual_record` 要求维度评分为 `int`，聚合后的平均分（如 4.7）被判定为越界并跳过；`app/evaluation/models.py::ManualEvaluationRecord.from_dict` 还将浮点分 `int()` 截断。修复：校验逻辑接受 `int | float`；`ManualDimensionScore.score` 类型改为 `float`；`from_dict` 改用 `float()` 保留小数。新增 `tests/unit/evaluation/test_manual.py::test_浮点评分校验通过且不被截断` 回归测试。
 - **Agent SSE 日志暴露内部敏感/冗长信息**：前端 Step 日志中出现 `plan_tool 结果：planning 阶段执行失败: 500: {'code': 'E3101', ...}` 等包含原始异常 JSON 与 LLM 输出细节的内容，以及 `调用 memory_tool({"limit":5,"operation":"read"})`、`memory_tool 结果：已返回最近 5 条 Working Memory 记录（最近 phase=rerank，最近 tool=rerank_tool）` 等暴露工具参数与内部状态的内容。修复：
   - `app/agent/loop.py` 新增 `_sanitize_arguments()`，发布 `agent.action` 事件前对参数脱敏：`memory_tool` 仅保留 `operation`，不暴露 `content`/`limit`；其他工具对超过 200 字符的字符串参数截断。
   - `app/agent/loop.py` 新增 `_sanitize_observation()`，发布 `agent.observation` 事件前对 observation 脱敏：`memory_tool` 统一返回 `执行完成`/`执行失败`，不暴露最近 phase/tool 等内部摘要；其他 tool 保留原 observation。
@@ -34,6 +35,7 @@
   - 新增 `tests/unit/agent/test_prompts.py` 覆盖 prompt 内容断言。
 
 ### Changed
+- **人工评估 round4/5/6 聚合结果入档**：`tests/TESTING_STRATEGY.md` 新增 §11.6.4「Phase 3 人工评估 round4/5/6 聚合基线」，记录 2026-06-30 聚合结果（9 条记录、总体 4.61、各维度与 task_type 均值、轮次对比）；`README.md`「质量保障」表同步标注人工评估 round4/5/6 总体均分 4.61（目标 ≥ 3.5）。
 - **Agent Runtime 技术栈与项目定位文档同步**：
   - `docs/ARCHITECTURE.md` §1 追加「Agent Runtime 技术栈」子表，覆盖 Phase-Locked ReAct Loop、`AgentRuntime`、`PhaseController`、`WorkingMemory`、`AgentContext`、Tool Protocol / `ToolRegistry` / `PhaseHandlerTool`、`finish_tool` / `memory_tool`、DeepSeek API、Agent Prompt、`agent.*` SSE 事件、循环控制、`TaskStateResolver`。
   - `README.md` 全面重写：副标题由「Workflow Engine + LLM System」改为「Agentic Research System based on Phase-Locked ReAct」，更新系统定位、核心特性、架构图、核心链路、技术栈、项目结构与 FAQ，移除所有旧 Workflow Engine 文案。
