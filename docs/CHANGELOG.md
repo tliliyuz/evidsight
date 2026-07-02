@@ -11,6 +11,7 @@
 ## [Unreleased]
 
 ### Changed
+- `docker-compose.yml`：celery-worker 内存限制由 256m 提升至 512m，并移除 `container_name`，支持 `docker compose up -d --scale celery-worker=N` 水平扩展。
 - **v1.0 监控方案由管理后台改为 Prometheus + Grafana，并取消 Admin 相关范围**：
   - 删除后台管理相关功能范围：Admin API、Trace API、Admin 前端页面、ECharts 统计图表、系统级 `admin` 角色与 `require_admin` 权限校验。
   - 权限模型简化为单一 Task Access（仅 owner 可访问自己的任务），`users.role` 枚举由 `('user','admin')` 缩减为 `('user')`；错误码 E2002 含义由「非 owner 且非 admin」改为「非 owner」；删除 E2009（`AdminRequired`）。

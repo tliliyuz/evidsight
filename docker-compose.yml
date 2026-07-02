@@ -109,9 +109,9 @@ services:
   # ── 任务层 ──
   celery-worker:
     image: researchmind/backend
-    container_name: researchmind-celery-worker
+    # 移除 container_name，支持 docker compose up -d --scale celery-worker=N 水平扩展
     restart: unless-stopped
-    mem_limit: 256m
+    mem_limit: 512m
     env_file:
       - .env
     environment:
