@@ -8,4 +8,4 @@ providers:
     disableDeletion: false
     updateIntervalSeconds: 30
     options:
-      path: /etc/grafana/provisioning/dashboards/researchmind_v1.json
+      path: /etc/grafana/dashboards/researchmind_v1.json
