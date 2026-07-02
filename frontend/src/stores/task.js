@@ -122,25 +122,49 @@ export const useTaskStore = defineStore('task', () => {
       const taskData = res.data.data
 
       // 用真实响应覆盖乐观占位
-      current.value = {
-        task_id: taskData.task_id,
-        topic,
-        status: taskData.status,
-        requirements,
-        current_phase: null,
-        progress: { completed_steps: 0, total_steps: 7, progress: 0 },
-        total_sources: 0,
-        total_evidence: 0,
-        error_code: null,
-        error_message: null,
-        recoverable: false,
-        created_at: taskData.created_at,
-        started_at: null,
-        completed_at: null,
+      if (taskData.direct_answer) {
+        // 非研究意图：直接完成，不建立 SSE
+        const completedAt = new Date().toISOString()
+        current.value = {
+          task_id: taskData.task_id,
+          topic,
+          status: 'completed',
+          requirements,
+          current_phase: null,
+          progress: { completed_steps: 1, total_steps: 1, progress: 1 },
+          total_sources: 0,
+          total_evidence: 0,
+          error_code: null,
+          error_message: null,
+          recoverable: false,
+          created_at: taskData.created_at,
+          started_at: null,
+          completed_at: completedAt,
+        }
+        progress.value = { completed_steps: 1, total_steps: 1, progress: 1 }
+        resetRuntimeState()
+        sseStatus.value = 'disconnected'
+      } else {
+        current.value = {
+          task_id: taskData.task_id,
+          topic,
+          status: taskData.status,
+          requirements,
+          current_phase: null,
+          progress: { completed_steps: 0, total_steps: 7, progress: 0 },
+          total_sources: 0,
+          total_evidence: 0,
+          error_code: null,
+          error_message: null,
+          recoverable: false,
+          created_at: taskData.created_at,
+          started_at: null,
+          completed_at: null,
+        }
+        progress.value = { completed_steps: 0, total_steps: 7, progress: 0 }
+        resetRuntimeState()
+        sseStatus.value = 'disconnected'
       }
-      progress.value = { completed_steps: 0, total_steps: 7, progress: 0 }
-      resetRuntimeState()
-      sseStatus.value = 'disconnected'
 
       // 刷新侧边栏最近任务，重置到第 1 页
       try {

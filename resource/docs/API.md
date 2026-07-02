@@ -376,7 +376,9 @@
 
 **权限**：user（需登录）
 
-创建研究任务。任务创建后立即返回，Celery Worker 异步拾取执行。通过 SSE（§4）或轮询 `/state` 端点跟踪进度。
+创建研究任务。系统首先进行意图识别：
+- 研究意图：任务创建后立即返回 `pending`，Celery Worker 异步拾取执行，通过 SSE（§4）或轮询 `/state` 端点跟踪进度。
+- 非研究意图（问候/闲聊/致谢等）：直接返回 `status=completed`、`direct_answer=true` 与单章节报告，不进入 Pipeline，不消耗搜索/研究 Token。
 
 **请求**：
 
@@ -407,6 +409,8 @@
 
 **响应** (201)：
 
+研究意图示例：
+
 ```json
 {
   "code": "0",
@@ -414,7 +418,36 @@
   "data": {
     "task_id": "550e8400-e29b-41d4-a716-446655440000",
     "status": "pending",
-    "created_at": "2026-06-19T10:00:00+00:00"
+    "created_at": "2026-06-19T10:00:00+00:00",
+    "direct_answer": false,
+    "report": null
+  }
+}
+```
+
+直接回答示例：
+
+```json
+{
+  "code": "0",
+  "message": "直接回答已生成",
+  "data": {
+    "task_id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "completed",
+    "created_at": "2026-06-19T10:00:00+00:00",
+    "direct_answer": true,
+    "report": {
+      "title": "你好",
+      "generated_at": "2026-06-19T10:00:00+00:00",
+      "sections": [
+        {
+          "heading": "回答",
+          "content": "你好！我是 ResearchMind，可以帮你做深度研究。请告诉我你想研究的主题。",
+          "sources": []
+        }
+      ],
+      "sources": []
+    }
   }
 }
 ```
@@ -422,8 +455,10 @@
 | 字段 | 类型 | 说明 |
 |:---|:---|:---|
 | task_id | string (UUID) | 任务唯一标识 |
-| status | string | 初始状态为 `pending` |
+| status | string | `pending`（研究意图）或 `completed`（直接回答） |
 | created_at | string | 创建时间（ISO 8601 UTC） |
+| direct_answer | bool | 是否为直接回答，非研究意图时为 `true` |
+| report | object / null | 直接回答时返回单章节报告，研究意图时为 `null` |
 
 **错误响应**：
 

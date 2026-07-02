@@ -21,6 +21,15 @@
   - 测试层清理：删除 `tests/conftest.py` 的 `valid_admin_token` / `admin_headers` fixtures、`tests/unit/models/test_user.py` 的 admin 角色用例、`tests/unit/api/test_research.py` 的 admin 访问/取消/retry 用例、`tests/unit/core/test_exceptions.py` 的 `AdminPermissionRequiredException` 用例、`frontend/tests` 中 admin 路由守卫与 authStore `isAdmin` 用例。
 
 ### Added
+- **意图识别层**：在 `POST /api/research` 入口前增加同步意图门控，避免问候/闲聊/致谢等输入进入完整七阶段 Pipeline。
+  - 新增 `app/services/intent_classifier.py`：规则快路径（问候/致谢/告别/自我介绍/过短输入）+ 研究关键词快路径 + LLM 回退，异常降级为 research。
+  - 修改 `app/services/research_service.py`：`create_task()` 先调用意图识别；非研究意图直接创建 `completed` 任务，预写单章节 `report_sections` 与空 `evidence_graph` Step。
+  - 修改 `app/api/research.py`：直接回答任务跳过 Celery 分发。
+  - 修改 `app/schemas/research.py`：`ResearchCreateResponse` 扩展 `direct_answer` 与 `report` 字段；`VALID_TASK_TYPES` 增加 `direct_answer`（系统内部使用）。
+  - 修改 `frontend/src/stores/task.js` 与 `frontend/src/views/ResearchPage.vue`：直接回答任务直接进入完成态并展示报告，不建立 SSE；完成态顶部显示「直接回答」标签。
+  - 测试：`tests/unit/services/test_intent_classifier.py`（规则 + LLM 回退）、`tests/unit/services/test_research_service.py::TestCreateTaskIntent`、`tests/unit/api/test_research.py::TestCreateResearchIntentAPI`。
+  - 文档：`resource/docs/API.md`、`docs/ARCHITECTURE.md`、`docs/RESEARCH_PIPELINE.md`、`docs/DATABASE.md`、`frontend/docs/FRONTEND.md`、新增 `docs/decisions/ADR-004-intent-recognition.md`。
+
 - **Phase 6 §7.1 [运维] 可观测性（Prometheus + Grafana）**：
   - 新增 `app/metrics/` 模块：
     - `app/metrics/registry.py` — 独立 `CollectorRegistry`，定义 9 个核心 Prometheus 指标（任务状态、阶段耗时、LLM Token、成本、Agent Loop 迭代、Celery 队列/Worker/活跃任务）；预留 `PROMETHEUS_MULTIPROC_DIR` 多进程聚合。
@@ -65,6 +74,12 @@
   - ROADMAP §7.2 原列「SSE 日志 7 天轮转 / 应用日志 14 天 logrotate」。当前系统 SSE 通过 Redis Pub/Sub 实时转发，无持久化 SSE 日志表；应用日志输出 stdout。落地方式改为 Docker `json-file` 日志驱动按大小/文件数轮转；严格按天保留需后续接入集中式日志系统（Loki/ELK/CloudWatch）。已在 `resource/docs/ROADMAP.md` §7.2 标注 `[Deviation]`。
 
 ### Fixed
+- **Report Render 引用格式规范化**：LLM 渲染报告时常输出 `[来源4, 5]`、`[来源 4]` 等非标准合并/带空格格式，导致前端 citation-link 无法精确联动 Evidence 卡片。
+  - 修改 `app/pipeline/renderer.py`：新增 `normalize_citation_markup()`，在 `_parse_render_output()` 中对每个 Section 正文做后处理，将合并引用（`,`/`，`/`-` 连接）拆分为独立 `[来源N]`，去除 `来源` 与数字间的空格，并保守修正 LLM 误用的 1-based 索引（当最大值等于 evidence 总数时统一减 1）。
+  - 增强 Render System Prompt：明确要求每个引用为独立 `[来源N]`、0-based、不带空格。
+  - 测试：`tests/unit/pipeline/test_renderer.py::TestCitationNormalization` 覆盖合并拆分、空格去除、1-based 修正、0-based 不误判、以及端到端持久化验证。
+  - 文档：权威格式仍以 `docs/RESEARCH_PIPELINE.md §8.4` 为准，本修复是对 LLM 不规范输出的容错后处理。
+
 - **人工评估聚合分无法被 `eval_offline.py` 加载**：`app/evaluation/manual.py::validate_manual_record` 要求维度评分为 `int`，聚合后的平均分（如 4.7）被判定为越界并跳过；`app/evaluation/models.py::ManualEvaluationRecord.from_dict` 还将浮点分 `int()` 截断。修复：校验逻辑接受 `int | float`；`ManualDimensionScore.score` 类型改为 `float`；`from_dict` 改用 `float()` 保留小数。新增 `tests/unit/evaluation/test_manual.py::test_浮点评分校验通过且不被截断` 回归测试。
 - **Agent SSE 日志暴露内部敏感/冗长信息**：前端 Step 日志中出现 `plan_tool 结果：planning 阶段执行失败: 500: {'code': 'E3101', ...}` 等包含原始异常 JSON 与 LLM 输出细节的内容，以及 `调用 memory_tool({"limit":5,"operation":"read"})`、`memory_tool 结果：已返回最近 5 条 Working Memory 记录（最近 phase=rerank，最近 tool=rerank_tool）` 等暴露工具参数与内部状态的内容。修复：
   - `app/agent/loop.py` 新增 `_sanitize_arguments()`，发布 `agent.action` 事件前对参数脱敏：`memory_tool` 仅保留 `operation`，不暴露 `content`/`limit`；其他工具对超过 200 字符的字符串参数截断。

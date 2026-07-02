@@ -54,14 +54,18 @@ async def create_research_task(
     """创建研究任务（需登录）。
 
     对齐 API.md §3.1 POST /api/research。
-    1. Service 层写入 task + 首个 planning step（flush）
+    1. Service 层写入 task（研究意图：pending + planning step；非研究意图：completed + 报告）
     2. 显式 commit —— CLAUDE.md 强制规则：delay() 前必须 commit
-    3. Celery 分发 execute_research_task
+    3. 研究意图时 Celery 分发 execute_research_task；直接回答跳过
     """
     result = await create_task(db, current_user["user_id"], req)
     await db.commit()
-    _execute_research_task.delay(str(result.task_id))
-    return {"code": "0", "message": "研究任务已创建", "data": result.model_dump()}
+    if not result.direct_answer:
+        _execute_research_task.delay(str(result.task_id))
+        message = "研究任务已创建"
+    else:
+        message = "直接回答已生成"
+    return {"code": "0", "message": message, "data": result.model_dump()}
 
 
 @router.get("")

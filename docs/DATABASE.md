@@ -148,7 +148,7 @@ CREATE TABLE research_tasks (
 | id | UUID | 主键，UUID 格式 |
 | user_id | BIGINT | 创建者用户 ID，外键关联 `users.id` |
 | topic | VARCHAR(500) | 用户输入的研究主题 |
-| requirements | JSON | 研究要求（task_type, depth, max_sources, language 等） |
+| requirements | JSON | 研究要求（task_type, depth, max_sources, language 等）。`task_type` 可由系统设置为 `direct_answer`，表示非研究意图的直接回答任务，该值为系统内部使用，用户请求仍只允许 `comparison` / `explainer` / `analysis` |
 | status | ENUM | Task 级状态：pending / running / completed / partially_completed / failed / canceled / paused |
 | current_phase | ENUM | Phase 级状态：planning / searching / fetching / reranking / synthesizing / building_evidence_graph / rendering |
 | execution_context | JSON | 断点续跑上下文（current_phase, last_completed_step_id, execution_pointer, progress, agent_context） |

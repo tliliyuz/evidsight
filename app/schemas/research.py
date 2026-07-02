@@ -13,7 +13,7 @@ from app.core.exceptions import sanitize_error_message_for_client
 
 # ── 研究要求子模型 ──────────────────────────────────────────────
 
-VALID_TASK_TYPES = ("comparison", "explainer", "analysis")
+VALID_TASK_TYPES = ("comparison", "explainer", "analysis", "direct_answer")
 VALID_DEPTHS = ("quick",)
 
 
@@ -130,43 +130,6 @@ class ResearchTaskListResponse(BaseModel):
     items: list[ResearchTaskListItem] = Field(default_factory=list, description="任务列表")
 
 
-# ── 创建响应 ────────────────────────────────────────────────────
-
-
-class ResearchCreateResponse(BaseModel):
-    """创建研究任务响应 — 对齐 API.md §3.1 POST /api/research。"""
-
-    task_id: str = Field(..., description="任务 UUID")
-    status: str = Field(..., description="初始状态，固定为 pending")
-    created_at: datetime = Field(..., description="创建时间（ISO 8601 UTC）")
-
-
-class ResearchCancelResponse(BaseModel):
-    """取消研究任务响应 — 对齐 API.md §3.2 POST /api/research/{task_id}/cancel。"""
-
-    task_id: str = Field(..., description="任务 UUID")
-    status: str = Field(..., description="取消后的状态，固定为 canceled")
-
-
-# ── Retry 相关 Schema（对齐 API.md §3.2）─────────────────────────
-
-
-class ResumeFromSchema(BaseModel):
-    """断点续跑恢复信息 — 从 execution_context 提取。"""
-
-    phase: str | None = Field(None, description="恢复的 Pipeline 阶段（如 fetching）")
-    last_completed_step_id: str | None = Field(None, description="最后完成的 Step UUID")
-    next_step_type: str | None = Field(None, description="下一个待执行的 step_type（如 rerank）")
-
-
-class ResearchRetryResponse(BaseModel):
-    """POST /api/research/{task_id}/retry 响应 — 对齐 API.md §3.2。"""
-
-    task_id: str = Field(..., description="任务 UUID")
-    status: str = Field(..., description="断点续跑启动后的状态")
-    resume_from: ResumeFromSchema = Field(default_factory=ResumeFromSchema, description="恢复信息")
-
-
 # ── 报告相关 Schema（对齐 API.md §3.3）───────────────────────────
 
 
@@ -203,6 +166,51 @@ class ReportSchema(BaseModel):
     generated_at: datetime = Field(..., description="报告生成时间（ISO 8601 UTC）")
     sections: list[ReportSectionSchema] = Field(..., description="章节列表")
     sources: list[ReportSourceSchema] = Field(..., description="报告涉及来源列表")
+
+
+# ── 创建响应 ────────────────────────────────────────────────────
+
+
+class ResearchCreateResponse(BaseModel):
+    """创建研究任务响应 — 对齐 API.md §3.1 POST /api/research。
+
+    direct_answer=true 时，任务已完成并直接返回单章节报告，不再进入 Pipeline。
+    """
+
+    task_id: str = Field(..., description="任务 UUID")
+    status: str = Field(..., description="任务初始/完成状态")
+    created_at: datetime = Field(..., description="创建时间（ISO 8601 UTC）")
+    direct_answer: bool = Field(False, description="是否为直接回答（非研究意图）")
+    report: ReportSchema | None = Field(None, description="直接回答任务的报告内容")
+
+
+class ResearchCancelResponse(BaseModel):
+    """取消研究任务响应 — 对齐 API.md §3.2 POST /api/research/{task_id}/cancel。"""
+
+    task_id: str = Field(..., description="任务 UUID")
+    status: str = Field(..., description="取消后的状态，固定为 canceled")
+
+
+# ── Retry 相关 Schema（对齐 API.md §3.2）─────────────────────────
+
+
+class ResumeFromSchema(BaseModel):
+    """断点续跑恢复信息 — 从 execution_context 提取。"""
+
+    phase: str | None = Field(None, description="恢复的 Pipeline 阶段（如 fetching）")
+    last_completed_step_id: str | None = Field(None, description="最后完成的 Step UUID")
+    next_step_type: str | None = Field(None, description="下一个待执行的 step_type（如 rerank）")
+
+
+class ResearchRetryResponse(BaseModel):
+    """POST /api/research/{task_id}/retry 响应 — 对齐 API.md §3.2。"""
+
+    task_id: str = Field(..., description="任务 UUID")
+    status: str = Field(..., description="断点续跑启动后的状态")
+    resume_from: ResumeFromSchema = Field(default_factory=ResumeFromSchema, description="恢复信息")
+
+
+# ── 报告响应 ────────────────────────────────────────────────────
 
 
 class ResearchReportResponse(BaseModel):

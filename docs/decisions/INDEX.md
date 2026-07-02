@@ -55,3 +55,4 @@
 | 49 | `agent.thought` SSE 事件 | [API.md §4.1](../../resource/docs/API.md#41-事件类型总览) |
 | 50 | `agent.action` SSE 事件 | [API.md §4.1](../../resource/docs/API.md#41-事件类型总览) |
 | 51 | `agent.observation` SSE 事件 | [API.md §4.1](../../resource/docs/API.md#41-事件类型总览) |
+| 52 | 意图识别门控层：规则快路径 + LLM 回退，直接回答任务复用报告接口 | [ARCHITECTURE.md §2.4](../ARCHITECTURE.md#24-意图识别门控) |

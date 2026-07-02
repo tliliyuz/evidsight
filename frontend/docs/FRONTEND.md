@@ -239,13 +239,17 @@ ResearchPage 根据 `taskStore.current.status` 切换三种 UI 状态：
 | **运行态** | `current.status` 为 `pending` / `running` | Pipeline 进度视图 + SSE 实时日志 |
 | **完成态** | `current.status` 为 `completed` / `partially_completed` / `failed` / `canceled` | 报告查看视图 |
 
+**直接回答分支**：当 `POST /api/research` 返回 `direct_answer=true` 时，任务状态直接为 `completed`，不进入运行态，不建立 SSE，`ReportViewer` 直接展示单章节回答。完成态顶部可显示「直接回答」标签（`requirements.task_type === 'direct_answer'`）。
+
 **状态切换流程**：
 ```
-创建态 ──[提交任务]──→ 运行态 ──[SSE task.completed]──→ 完成态
-                          │
-                          └──[SSE task.failed]──→ 完成态（错误视图）
-                          │
-                          └──[用户取消]──→ 完成态（取消视图）
+创建态 ──[提交研究意图]──→ 运行态 ──[SSE task.completed]──→ 完成态
+│                              │
+│                              └──[SSE task.failed]──→ 完成态（错误视图）
+│                              │
+│                              └──[用户取消]──→ 完成态（取消视图）
+│
+└──[提交非研究意图，direct_answer=true]──→ 完成态（直接回答视图）
 ```
 
 ### 4.3 创建态：任务提交表单
