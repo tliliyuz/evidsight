@@ -6,6 +6,7 @@ services:
     image: mysql:8.0
     container_name: researchmind-mysql
     restart: unless-stopped
+    mem_limit: 512m
     env_file:
       - .env
     environment:
@@ -15,10 +16,15 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
+    # 保持原始端口 3306，仅绑定本机避免外网暴露
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     networks:
       - researchmind
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
@@ -35,10 +41,12 @@ services:
     image: redis:7-alpine
     container_name: researchmind-redis
     restart: unless-stopped
+    mem_limit: 64m
     volumes:
       - redis_data:/data
+    # 保持原始端口 6379，仅绑定本机
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       - researchmind
     healthcheck:
@@ -60,6 +68,7 @@ services:
     image: researchmind/backend
     container_name: researchmind-backend
     restart: unless-stopped
+    mem_limit: 512m
     env_file:
       - .env
     environment:
@@ -74,8 +83,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # 保持原始端口 8000，仅绑定本机，由宿主机 Nginx 反向代理
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     networks:
       - researchmind
     healthcheck:
@@ -91,24 +101,8 @@ services:
         max-file: "5"
     command: ["web"]
 
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    image: researchmind/frontend
-    container_name: researchmind-frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    ports:
-      - "80:80"
-    networks:
-      - researchmind
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
+  # 前端不再通过 Docker 部署，由宿主机 Nginx 直接托管静态文件（与 docmind 保持一致）。
+  # 如暂时不需要前端页面，可直接用 nginx.server.conf 中的 /api/ 反向代理提供 API 访问。
 
   # ── 任务层 ──
   celery-worker:
@@ -118,6 +112,7 @@ services:
     image: researchmind/backend
     container_name: researchmind-celery-worker
     restart: unless-stopped
+    mem_limit: 256m
     env_file:
       - .env
     environment:
@@ -154,6 +149,7 @@ services:
     image: researchmind/backend
     container_name: researchmind-celery-beat
     restart: unless-stopped
+    mem_limit: 128m
     env_file:
       - .env
     environment:
@@ -179,16 +175,17 @@ services:
         max-file: "3"
     command: ["beat"]
 
-  # ── 可观测层 ──
+  # ── 可观测层（可选，资源紧张时可注释掉）──
   prometheus:
     image: prom/prometheus:v3.0.0
     container_name: researchmind-prometheus
     restart: unless-stopped
+    mem_limit: 256m
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     networks:
       - researchmind
     command:
@@ -208,6 +205,7 @@ services:
     image: grafana/grafana:11.3.0
     container_name: researchmind-grafana
     restart: unless-stopped
+    mem_limit: 256m
     env_file:
       - .env
     environment:
@@ -219,7 +217,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     networks:
       - researchmind
     depends_on:
