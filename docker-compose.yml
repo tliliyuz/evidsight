@@ -106,9 +106,6 @@ services:
 
   # ── 任务层 ──
   celery-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.backend
     image: researchmind/backend
     container_name: researchmind-celery-worker
     restart: unless-stopped
@@ -123,6 +120,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
     depends_on:
+      backend:
+        condition: service_healthy
       mysql:
         condition: service_healthy
       redis:
@@ -143,9 +142,6 @@ services:
     command: ["worker"]
 
   celery-beat:
-    build:
-      context: .
-      dockerfile: Dockerfile.backend
     image: researchmind/backend
     container_name: researchmind-celery-beat
     restart: unless-stopped
@@ -160,6 +156,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
     depends_on:
+      backend:
+        condition: service_healthy
       mysql:
         condition: service_healthy
       redis:
