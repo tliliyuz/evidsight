@@ -74,6 +74,14 @@
   - ROADMAP §7.2 原列「SSE 日志 7 天轮转 / 应用日志 14 天 logrotate」。当前系统 SSE 通过 Redis Pub/Sub 实时转发，无持久化 SSE 日志表；应用日志输出 stdout。落地方式改为 Docker `json-file` 日志驱动按大小/文件数轮转；严格按天保留需后续接入集中式日志系统（Loki/ELK/CloudWatch）。已在 `resource/docs/ROADMAP.md` §7.2 标注 `[Deviation]`。
 
 ### Fixed
+- **Celery Worker asyncio 事件循环错位**：生产环境日志反复出现 `Future attached to a different loop` / `Event loop is closed`。
+  - 根因：`app/tasks/periodic.py` 使用 `asyncio.run(...)` 每次定时任务都新建并关闭事件循环，导致全局单例 `SQLAlchemy async engine` / `Redis async pool` 里绑定的 Future 指向已关闭 loop；`app/tasks/research_task.py` 与 `app/tasks/celery_app.py` 又各自维护 loop 创建逻辑，策略不统一。
+  - 新增 `app/tasks/event_loop.py`：统一提供 Worker 进程内持久事件循环 `get_worker_loop()`，Windows 下前置设置 `WindowsSelectorEventLoopPolicy`；检测到 loop 被关闭时调用 `_reset_async_resources()` 清理 engine / Redis async 单例，使下次使用新 loop 时重新初始化。
+  - 修改 `app/tasks/research_task.py`：移除本地 `_get_worker_loop()`，改用共享 `get_worker_loop()`。
+  - 修改 `app/tasks/periodic.py`：三处 `asyncio.run(...)` 替换为 `get_worker_loop().run_until_complete(...)`，保留返回值、日志、重试语义不变。
+  - 修改 `app/tasks/celery_app.py`：移除顶部重复 policy 设置与 `on_worker_ready` 内联 loop 逻辑，统一使用 `get_worker_loop()`。
+  - 测试：`tests/unit/tasks/test_periodic.py` 覆盖清理成功、DB 异常重试、`_check_tasks_exist` 以及源码未使用 `asyncio.run`。
+
 - **Report Render 引用格式规范化**：LLM 渲染报告时常输出 `[来源4, 5]`、`[来源 4]` 等非标准合并/带空格格式，导致前端 citation-link 无法精确联动 Evidence 卡片。
   - 修改 `app/pipeline/renderer.py`：新增 `normalize_citation_markup()`，在 `_parse_render_output()` 中对每个 Section 正文做后处理，将合并引用（`,`/`，`/`-` 连接）拆分为独立 `[来源N]`，去除 `来源` 与数字间的空格，并保守修正 LLM 误用的 1-based 索引（当最大值等于 evidence 总数时统一减 1）。
   - 增强 Render System Prompt：明确要求每个引用为独立 `[来源N]`、0-based、不带空格。

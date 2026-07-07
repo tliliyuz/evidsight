@@ -12,7 +12,6 @@ Worker 拾取任务后调用 PipelineOrchestrator 执行全 Pipeline。
 6. 无论成功/失败，session 最终 commit
 """
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -28,23 +27,9 @@ from app.agent.runtime import AgentRuntime
 from app.pipeline.sse_bridge import SSEBridge
 from app.services.pipeline_orchestrator import PHASE_ORDER
 from app.tasks.celery_app import celery_app
+from app.tasks.event_loop import get_worker_loop
 
 logger = logging.getLogger(__name__)
-
-
-def _get_worker_loop() -> asyncio.AbstractEventLoop:
-    """获取当前 Worker 进程的事件循环；若未设置或已关闭则新建。"""
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    if loop.is_closed():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    return loop
 
 
 @celery_app.task(
@@ -67,7 +52,7 @@ def execute_research_task(self, task_id: str) -> dict:
     """
     logger.info("Celery Worker 拾取任务: task_id=%s", task_id)
 
-    loop = _get_worker_loop()
+    loop = get_worker_loop()
     try:
         result = loop.run_until_complete(_run_pipeline(task_id))
         logger.info("Pipeline 执行完成: task_id=%s, status=%s", task_id, result.get("status"))
@@ -76,7 +61,7 @@ def execute_research_task(self, task_id: str) -> dict:
         logger.exception("Celery 任务执行异常: task_id=%s, error=%s", task_id, e)
         # 兜底：尝试写入失败状态，保留原异常的 recoverable 语义
         try:
-            loop = _get_worker_loop()
+            loop = get_worker_loop()
             recoverable = extract_recoverable_from_exception(e)
             loop.run_until_complete(_emergency_fail(task_id, str(e), recoverable))
         except Exception:

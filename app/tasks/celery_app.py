@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import sys
 
@@ -8,10 +7,6 @@ from celery.signals import worker_ready
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-
-# Windows 下 aiomysql 需要 SelectorEventLoop，Proactor 会卡死
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 celery_app = Celery(
     "researchmind",
@@ -77,11 +72,9 @@ def on_worker_ready(sender, **kwargs):
     logger.info("Celery Worker 已就绪，触发过时任务恢复检查")
     try:
         from app.tasks.recovery import recover_stale_tasks
+        from app.tasks.event_loop import get_worker_loop
 
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+        loop = get_worker_loop()
         recovered = loop.run_until_complete(recover_stale_tasks(check_lock=True))
         if recovered:
             logger.warning("Worker 就绪恢复：已重新投递 %d 个任务: %s", len(recovered), recovered)

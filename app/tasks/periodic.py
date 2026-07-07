@@ -20,6 +20,7 @@ from app.core.redis_client import get_redis
 from app.models.research_task import ResearchTask
 from app.models.refresh_token import RefreshToken
 from app.tasks.celery_app import celery_app
+from app.tasks.event_loop import get_worker_loop
 from app.tasks.lock import TASK_LOCK_PREFIX, KEY_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -46,9 +47,7 @@ def cleanup_old_research_tasks(self, max_age_days: int | None = None) -> dict:
 
     deleted_count = 0
     try:
-        import asyncio
-
-        deleted_count = asyncio.run(_delete_old_tasks(cutoff))
+        deleted_count = get_worker_loop().run_until_complete(_delete_old_tasks(cutoff))
     except Exception as exc:
         logger.exception("[cleanup] 清理旧研究任务失败")
         raise self.retry(exc=exc, countdown=60) from exc
@@ -94,9 +93,7 @@ def cleanup_stale_refresh_tokens(self, max_age_days: int | None = None) -> dict:
     logger.info("[cleanup] 开始清理 %s 前的过期/吊销刷新令牌", cutoff.isoformat())
 
     try:
-        import asyncio
-
-        deleted_count = asyncio.run(_delete_stale_tokens(cutoff))
+        deleted_count = get_worker_loop().run_until_complete(_delete_stale_tokens(cutoff))
     except Exception as exc:
         logger.exception("[cleanup] 清理过期刷新令牌失败")
         raise self.retry(exc=exc, countdown=60) from exc
@@ -189,9 +186,7 @@ def _extract_task_id_from_lock_key(key: str) -> str | None:
 
 def _check_tasks_exist(task_ids: set[str]) -> set[str]:
     """异步批量检查任务是否存在，返回存在的任务 ID 集合。"""
-    import asyncio
-
-    return asyncio.run(_check_tasks_exist_async(task_ids))
+    return get_worker_loop().run_until_complete(_check_tasks_exist_async(task_ids))
 
 
 async def _check_tasks_exist_async(task_ids: set[str]) -> set[str]:
