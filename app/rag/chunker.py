@@ -1,4 +1,4 @@
-"""智能分块 — 使用 RecursiveCharacterTextSplitter 对文档全文执行固定大小分块
+"""智能分块 — 先识别章节，再在章节内执行固定大小分块
 
 对齐 ARCHITECTURE.md §4.2:
 - 算法: RecursiveCharacterTextSplitter
@@ -8,9 +8,10 @@
 - keep_separator: True（中文场景保留语义完整性）
 - Token 估算: int(len(content) / 1.5)，不引入 tiktoken
 
-对齐 ROADMAP.md §8.7（Chunk 元数据增强）:
-- detect_sections(): Markdown #/##/### 正则提取标题层级
-- resolve_section(): 根据字符偏移量反查当前章节
+对齐 Phase 6 PR2:
+- detect_sections(): Markdown 标题检测
+- SectionResult: 章节结构化结果
+- chunk_document(): 先按 section 切分，再在 section 内分 chunk
 """
 
 import logging
@@ -33,6 +34,20 @@ CHUNK_SEPARATORS = ["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""]
 # Markdown ATX 标题正则（行首 # 开头，支持 # 至 ######）
 # 使用 [^\S\n] 替代 \s：排除换行符，避免将 "# \n内容" 误判为标题
 _MD_HEADING_PATTERN = re.compile(r'^(#{1,6})[^\S\n]+(.+)$', re.MULTILINE)
+_SYNTHETIC_SECTION_TITLE = "全文"
+
+
+@dataclass
+class SectionResult:
+    """单个章节结果"""
+    title: str
+    path: str
+    level: int
+    start_offset: int
+    end_offset: int
+    start_chunk_index: int
+    end_chunk_index: int
+    synthetic: bool = False
 
 
 @dataclass
@@ -42,6 +57,7 @@ class ChunkResult:
     chunk_index: int
     page_number: int | None
     estimated_tokens: int
+    section_index: int | None = None
     section_title: str | None = None   # 当前所属章节标题（如 "§6.1 SSE 事件格式"）
     section_path: str | None = None    # 章节路径（如 "RAG Pipeline > §6. SSE 事件流"）
 
@@ -49,6 +65,7 @@ class ChunkResult:
 @dataclass
 class ChunkingResult:
     """分块聚合结果"""
+    sections: list[SectionResult] = field(default_factory=list)
     chunks: list[ChunkResult] = field(default_factory=list)
     total_chunks: int = 0
 
@@ -83,37 +100,62 @@ def chunk_document(
         is_separator_regex=False,
     )
 
-    chunk_texts = splitter.split_text(text)
-    logger.info(f"文档分块完成: {len(chunk_texts)} 块")
-
     # 构建页码偏移映射，用于回溯每块的来源页码
     page_offset_map = build_page_offset_map(pages) if pages else []
 
-    # 章节检测（§8.7）：扫描 Markdown # 标题（DOCX 已由 parser 转换）
-    sections = detect_sections(text)
-    if sections:
-        logger.info("检测到 %d 个章节标题", len(sections))
+    raw_sections = _build_section_ranges(text)
+    logger.info("文档章节切分完成: %d 个 section", len(raw_sections))
 
-    # 通过累进搜索定位每块在全文中的偏移量，避免重复片段歧义
+    # 在 section 内分块，再将 chunk 映射回全文偏移量
+    sections: list[SectionResult] = []
     chunks: list[ChunkResult] = []
-    search_start = 0
-    for i, chunk_text in enumerate(chunk_texts):
-        start_offset = text.find(chunk_text, search_start)
-        if start_offset != -1:
-            search_start = start_offset + len(chunk_text)
-        page_number = resolve_page_number(start_offset, page_offset_map)
-        section_title, section_path = resolve_section(start_offset, sections)
-        estimated_tokens = estimate_tokens(chunk_text)
-        chunks.append(ChunkResult(
-            content=chunk_text,
-            chunk_index=i,
-            page_number=page_number,
-            estimated_tokens=estimated_tokens,
-            section_title=section_title,
-            section_path=section_path,
+    for raw_section in raw_sections:
+        section_text = text[raw_section.start_offset:raw_section.end_offset].strip()
+        if not section_text:
+            continue
+
+        section_chunk_texts = splitter.split_text(section_text)
+        if not section_chunk_texts:
+            continue
+
+        section_index = len(sections)
+        section_search_start = raw_section.start_offset
+        start_chunk_index = len(chunks)
+
+        for chunk_text in section_chunk_texts:
+            start_offset = text.find(chunk_text, section_search_start)
+            if start_offset == -1:
+                # 极端情况下退化为 section 起点，至少保证页码和 section 归属稳定
+                logger.warning("section 内 chunk 偏移定位失败，回退到 section 起点")
+                start_offset = section_search_start
+            else:
+                section_search_start = start_offset + len(chunk_text)
+
+            page_number = resolve_page_number(start_offset, page_offset_map)
+            estimated_tokens = estimate_tokens(chunk_text)
+            chunks.append(ChunkResult(
+                content=chunk_text,
+                chunk_index=len(chunks),
+                page_number=page_number,
+                estimated_tokens=estimated_tokens,
+                section_index=section_index,
+                section_title=None if raw_section.synthetic else raw_section.title,
+                section_path=None if raw_section.synthetic else raw_section.path,
+            ))
+
+        sections.append(SectionResult(
+            title=raw_section.title,
+            path=raw_section.path,
+            level=raw_section.level,
+            start_offset=raw_section.start_offset,
+            end_offset=raw_section.end_offset,
+            start_chunk_index=start_chunk_index,
+            end_chunk_index=len(chunks) - 1,
+            synthetic=raw_section.synthetic,
         ))
 
-    return ChunkingResult(chunks=chunks, total_chunks=len(chunks))
+    logger.info("文档分块完成: %d 个 section, %d 块", len(sections), len(chunks))
+    return ChunkingResult(sections=sections, chunks=chunks, total_chunks=len(chunks))
 
 
 # 页分隔符：必须与 parser.py 中 ParsedResult.full_text 的 join 分隔符一致
@@ -137,6 +179,61 @@ def build_page_offset_map(pages: list[ParsedPage]) -> list[tuple[int, int]]:
             offset_map.append((pos, page.page_number))
             pos += len(page.content) + _PAGE_SEPARATOR_LEN
     return offset_map
+
+
+def _build_section_ranges(text: str) -> list[SectionResult]:
+    """构建覆盖全文的 section 范围。
+
+    规则：
+    - 有标题时，每个标题形成一个显式 section
+    - 若首个标题前有前言内容，则补一个 synthetic section
+    - 无标题文档则生成一个 synthetic 根 section，保证新文档 chunk 全部可关联 section
+    """
+    headings = detect_sections(text)
+    if not headings:
+        return [SectionResult(
+            title=_SYNTHETIC_SECTION_TITLE,
+            path=_SYNTHETIC_SECTION_TITLE,
+            level=1,
+            start_offset=0,
+            end_offset=len(text),
+            start_chunk_index=0,
+            end_chunk_index=0,
+            synthetic=True,
+        )]
+
+    sections: list[SectionResult] = []
+    first_heading_offset = headings[0][0]
+    if text[:first_heading_offset].strip():
+        sections.append(SectionResult(
+            title=_SYNTHETIC_SECTION_TITLE,
+            path=_SYNTHETIC_SECTION_TITLE,
+            level=1,
+            start_offset=0,
+            end_offset=first_heading_offset,
+            start_chunk_index=0,
+            end_chunk_index=0,
+            synthetic=True,
+        ))
+
+    level_stack: list[tuple[int, str]] = []
+    for i, (offset, level, title) in enumerate(headings):
+        while level_stack and level_stack[-1][0] >= level:
+            level_stack.pop()
+        level_stack.append((level, title))
+        next_offset = headings[i + 1][0] if i + 1 < len(headings) else len(text)
+        sections.append(SectionResult(
+            title=title,
+            path=" > ".join(item_title for _, item_title in level_stack),
+            level=level,
+            start_offset=offset,
+            end_offset=next_offset,
+            start_chunk_index=0,
+            end_chunk_index=0,
+            synthetic=False,
+        ))
+
+    return sections
 
 
 def resolve_page_number(

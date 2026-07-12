@@ -36,6 +36,7 @@ from app.models.conversation import Conversation
 from app.models.document import Document
 from app.models.enums import DocumentStatus, is_terminal
 from app.models.knowledge_base import KnowledgeBase
+from app.models.section import Section
 from app.rag.chunker import chunk_document
 from app.rag.embedder import embed_chunks
 from app.rag.parser import parse_document
@@ -120,10 +121,60 @@ async def _load_chunk_rows(db, doc_id: int) -> list[dict[str, Any]]:
             "chunk_index": c.chunk_index,
             "content": c.content,
             "chroma_id": c.chroma_id,
+            "section_id": c.section_id,
             "section_title": meta.get("section_title", ""),
             "section_path": meta.get("section_path", ""),
         })
     return rows
+
+
+async def _replace_sections_and_chunks(db, doc_id: int, kb_id: int, chunking_result) -> None:
+    """用新的 section/chunk 结果替换文档已有结构。"""
+    await db.execute(delete(Chunk).where(Chunk.doc_id == doc_id))
+    await db.execute(delete(Section).where(Section.doc_id == doc_id))
+
+    section_ids: list[int] = []
+    for section_result in chunking_result.sections:
+        section = Section(
+            doc_id=doc_id,
+            kb_id=kb_id,
+            title=section_result.title,
+            path=section_result.path,
+            level=section_result.level,
+            start_chunk_index=section_result.start_chunk_index,
+            end_chunk_index=section_result.end_chunk_index,
+        )
+        db.add(section)
+        await db.flush()
+        if section.id is None:
+            raise RuntimeError("Section 写入后未生成主键")
+        section_ids.append(section.id)
+
+    for chunk_result in chunking_result.chunks:
+        meta: dict[str, object] = {}
+        if chunk_result.page_number is not None:
+            meta["page"] = chunk_result.page_number
+        if chunk_result.section_title is not None:
+            meta["section_title"] = chunk_result.section_title
+        if chunk_result.section_path is not None:
+            meta["section_path"] = chunk_result.section_path
+
+        section_id = (
+            section_ids[chunk_result.section_index]
+            if chunk_result.section_index is not None
+            else None
+        )
+        chunk = Chunk(
+            doc_id=doc_id,
+            kb_id=kb_id,
+            section_id=section_id,
+            chroma_id=f"doc_{doc_id}_chunk_{chunk_result.chunk_index}",
+            content=chunk_result.content,
+            chunk_index=chunk_result.chunk_index,
+            token_count=chunk_result.estimated_tokens,
+            metadata_=meta if meta else None,
+        )
+        db.add(chunk)
 
 
 async def _ingest_document_async(doc_id: int) -> dict:
@@ -281,29 +332,7 @@ async def _ingest_document_async(doc_id: int) -> dict:
                     await db.commit()
                     return {"status": "failed", "doc_id": doc_id}
 
-                # 清理旧 chunks（幂等：首次无数据，重试时删除上次残留）
-                await db.execute(delete(Chunk).where(Chunk.doc_id == doc_id))
-
-                for c in chunking_result.chunks:
-                    # 构建 metadata_（对齐 ROADMAP.md §8.7：含 page + section_title + section_path）
-                    meta: dict[str, object] = {}
-                    if c.page_number is not None:
-                        meta["page"] = c.page_number
-                    if c.section_title is not None:
-                        meta["section_title"] = c.section_title
-                    if c.section_path is not None:
-                        meta["section_path"] = c.section_path
-
-                    chunk = Chunk(
-                        doc_id=doc_id,
-                        kb_id=kb_id,
-                        chroma_id=f"doc_{doc_id}_chunk_{c.chunk_index}",
-                        content=c.content,
-                        chunk_index=c.chunk_index,
-                        token_count=c.estimated_tokens,
-                        metadata_=meta if meta else None,
-                    )
-                    db.add(chunk)
+                await _replace_sections_and_chunks(db, doc_id, kb_id, chunking_result)
 
                 doc.current_stage = "chunking_done"
                 await db.commit()
@@ -419,13 +448,7 @@ async def _ingest_document_async(doc_id: int) -> dict:
                     for i in range(chroma_start, chroma_end)
                 ]
                 metas_batch = [
-                    {
-                        "kb_id": int(kb_id),
-                        "doc_id": int(doc_id),
-                        "chunk_index": int(chunk_rows[i]["chunk_index"]),
-                        "section_title": chunk_rows[i].get("section_title", ""),
-                        "section_path": chunk_rows[i].get("section_path", ""),
-                    }
+                    _build_chroma_metadata(kb_id, doc_id, chunk_rows[i])
                     for i in range(chroma_start, chroma_end)
                 ]
 
@@ -537,3 +560,18 @@ def _build_error_msg(parse_result, threshold: float) -> str:
         if len(parse_result.warnings) > 5:
             base += f" ... 等共 {len(parse_result.warnings)} 条警告"
     return base
+
+
+def _build_chroma_metadata(kb_id: int, doc_id: int, chunk_row: dict[str, Any]) -> dict[str, Any]:
+    """构建 ChromaDB metadata，兼容旧 section 字段并补充 section_id。"""
+    metadata: dict[str, Any] = {
+        "kb_id": int(kb_id),
+        "doc_id": int(doc_id),
+        "chunk_index": int(chunk_row["chunk_index"]),
+        "section_title": chunk_row.get("section_title", ""),
+        "section_path": chunk_row.get("section_path", ""),
+    }
+    section_id = chunk_row.get("section_id")
+    if section_id is not None:
+        metadata["section_id"] = int(section_id)
+    return metadata

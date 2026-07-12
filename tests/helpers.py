@@ -42,6 +42,11 @@ def make_mock_chunks(count: int = 5, doc_id: int = 1):
         c.chunk_index = i
         c.content = f"chunk {i}"
         c.chroma_id = f"doc_{doc_id}_chunk_{i}"
+        c.section_id = 100 + i
+        c.metadata_ = {
+            "section_title": f"章节 {i}",
+            "section_path": f"章节 {i}",
+        }
         chunks.append(c)
     return chunks
 

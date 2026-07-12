@@ -6,6 +6,7 @@ from app.config import settings
 from app.rag.chunker import (
     ChunkResult,
     ChunkingResult,
+    SectionResult,
     chunk_document,
     estimate_tokens,
     build_page_offset_map,
@@ -35,11 +36,33 @@ class TestChunkResult:
         assert isinstance(c.estimated_tokens, int)
 
 
+class TestSectionResult:
+    """SectionResult 数据类测试"""
+
+    def test_正常创建章节结果(self):
+        section = SectionResult(
+            title="第一章",
+            path="第一章",
+            level=1,
+            start_offset=0,
+            end_offset=100,
+            start_chunk_index=0,
+            end_chunk_index=2,
+        )
+        assert section.title == "第一章"
+        assert section.path == "第一章"
+        assert section.level == 1
+        assert section.start_chunk_index == 0
+        assert section.end_chunk_index == 2
+        assert section.synthetic is False
+
+
 class TestChunkingResult:
     """ChunkingResult 聚合结果测试"""
 
     def test_默认空结果(self):
         result = ChunkingResult()
+        assert result.sections == []
         assert result.chunks == []
         assert result.total_chunks == 0
 
@@ -456,7 +479,11 @@ class TestChunkDocumentWithSections:
     def test_无标题文档_章节信息为None(self):
         text = "这是一段没有任何标题的文本。" * 100
         result = chunk_document(text)
+        assert len(result.sections) == 1
+        assert result.sections[0].title == "全文"
+        assert result.sections[0].synthetic is True
         for chunk in result.chunks:
+            assert chunk.section_index == 0
             assert chunk.section_title is None
             assert chunk.section_path is None
 
@@ -476,3 +503,55 @@ class TestChunkDocumentWithSections:
         chunk = ChunkResult(content="测试", chunk_index=0, page_number=None, estimated_tokens=5)
         assert chunk.section_title is None
         assert chunk.section_path is None
+
+    def test_markdown文档产出section范围与chunk归属(self):
+        text = """# 第一章
+
+第一章正文。""" + ("内容填充。" * 80) + """
+
+## 第二节
+
+第二节正文。""" + ("细节补充。" * 80)
+        result = chunk_document(text, chunk_size=120, chunk_overlap=20)
+
+        assert len(result.sections) == 2
+        assert result.sections[0].title == "第一章"
+        assert result.sections[0].path == "第一章"
+        assert result.sections[1].title == "第二节"
+        assert result.sections[1].path == "第一章 > 第二节"
+
+        first_section_chunks = [
+            chunk for chunk in result.chunks
+            if chunk.section_index == 0
+        ]
+        second_section_chunks = [
+            chunk for chunk in result.chunks
+            if chunk.section_index == 1
+        ]
+        assert len(first_section_chunks) >= 1
+        assert len(second_section_chunks) >= 1
+        assert result.sections[0].start_chunk_index == first_section_chunks[0].chunk_index
+        assert result.sections[0].end_chunk_index == first_section_chunks[-1].chunk_index
+        assert result.sections[1].start_chunk_index == second_section_chunks[0].chunk_index
+        assert result.sections[1].end_chunk_index == second_section_chunks[-1].chunk_index
+
+    def test_首个标题前前言生成synthetic_section(self):
+        text = """前言内容。""" + ("说明。" * 60) + """
+
+# 正文
+
+正文内容。""" + ("更多内容。" * 60)
+        result = chunk_document(text, chunk_size=120, chunk_overlap=20)
+
+        assert len(result.sections) == 2
+        assert result.sections[0].title == "全文"
+        assert result.sections[0].synthetic is True
+        assert result.sections[1].title == "正文"
+
+        preface_chunks = [chunk for chunk in result.chunks if chunk.section_index == 0]
+        body_chunks = [chunk for chunk in result.chunks if chunk.section_index == 1]
+        assert len(preface_chunks) >= 1
+        assert len(body_chunks) >= 1
+        for chunk in preface_chunks:
+            assert chunk.section_title is None
+            assert chunk.section_path is None

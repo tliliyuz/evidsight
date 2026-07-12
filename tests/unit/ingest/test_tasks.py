@@ -6,9 +6,12 @@ import pytest
 
 from app.ingest.tasks import (
     RESUMABLE_STAGES,
+    _build_chroma_metadata,
     _ingest_document_async,
+    _replace_sections_and_chunks,
 )
 from app.models.enums import DocumentStatus
+from app.rag.chunker import ChunkResult, ChunkingResult, SectionResult
 from tests.helpers import (
     make_mock_doc,
     make_mock_chunks,
@@ -59,8 +62,8 @@ class TestStageResume:
         db = setup_mock_db(doc, chunks)
 
         with patch("app.ingest.tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.tasks.acquire_idempotency_lock", return_value=True):
-                with patch("app.ingest.tasks.release_idempotency_lock"):
+            with patch("app.ingest.tasks.acquire_idempotency_lock_async", return_value=True):
+                with patch("app.ingest.tasks.release_idempotency_lock_async"):
                     with patch("app.ingest.tasks.embed_chunks", AsyncMock(return_value=embed_result)):
                         with patch("app.ingest.tasks.get_vector_store", return_value=AsyncMock()):
                             with patch("app.ingest.tasks.parse_document") as mock_parse:
@@ -84,8 +87,8 @@ class TestStageResume:
         mock_store = AsyncMock()
 
         with patch("app.ingest.tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.tasks.acquire_idempotency_lock", return_value=True):
-                with patch("app.ingest.tasks.release_idempotency_lock"):
+            with patch("app.ingest.tasks.acquire_idempotency_lock_async", return_value=True):
+                with patch("app.ingest.tasks.release_idempotency_lock_async"):
                     with patch("app.ingest.tasks.embed_chunks", AsyncMock(return_value=embed_result)):
                         with patch("app.ingest.tasks.get_vector_store", return_value=mock_store):
                             result = await _ingest_document_async(1)
@@ -109,8 +112,8 @@ class TestStageResume:
         mock_store.delete.side_effect = RuntimeError("ChromaDB connection failed")
 
         with patch("app.ingest.tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.tasks.acquire_idempotency_lock", return_value=True):
-                with patch("app.ingest.tasks.release_idempotency_lock"):
+            with patch("app.ingest.tasks.acquire_idempotency_lock_async", return_value=True):
+                with patch("app.ingest.tasks.release_idempotency_lock_async"):
                     with patch("app.ingest.tasks.get_vector_store", return_value=mock_store):
                         result = await _ingest_document_async(1)
 
@@ -144,8 +147,8 @@ class TestLastSuccessBatchCheckpoint:
         # 预期至少 4 次 commit: 3 per-batch + 1 final
 
         with patch("app.ingest.tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.tasks.acquire_idempotency_lock", return_value=True):
-                with patch("app.ingest.tasks.release_idempotency_lock"):
+            with patch("app.ingest.tasks.acquire_idempotency_lock_async", return_value=True):
+                with patch("app.ingest.tasks.release_idempotency_lock_async"):
                     with patch("app.ingest.tasks.embed_chunks", AsyncMock(return_value=embed_result)):
                         with patch("app.ingest.tasks.get_vector_store", return_value=AsyncMock()):
                             with patch("app.ingest.tasks.settings") as mock_settings:
@@ -170,8 +173,8 @@ class TestLastSuccessBatchCheckpoint:
         db = setup_mock_db(doc, chunks)
 
         with patch("app.ingest.tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.tasks.acquire_idempotency_lock", return_value=True):
-                with patch("app.ingest.tasks.release_idempotency_lock"):
+            with patch("app.ingest.tasks.acquire_idempotency_lock_async", return_value=True):
+                with patch("app.ingest.tasks.release_idempotency_lock_async"):
                     mock_embed = AsyncMock(return_value=embed_result)
                     with patch("app.ingest.tasks.embed_chunks", mock_embed):
                         with patch("app.ingest.tasks.get_vector_store", return_value=AsyncMock()):
@@ -197,3 +200,139 @@ class TestIdempotencyLockIntegration:
 
         assert result["status"] == "locked"
         assert result["doc_id"] == 1
+
+
+class TestSectionPersistence:
+    """PR2 章节与分块写入测试"""
+
+    @pytest.mark.asyncio
+    async def test_replace_sections_and_chunks写入section_id与兼容metadata(self):
+        db = AsyncMock()
+        db.execute = AsyncMock()
+        db.flush = AsyncMock()
+        db.add = MagicMock()
+
+        added_sections = []
+        added_chunks = []
+
+        def _add(obj):
+            if obj.__class__.__name__ == "Section":
+                obj.id = 100 + len(added_sections)
+                added_sections.append(obj)
+            elif obj.__class__.__name__ == "Chunk":
+                added_chunks.append(obj)
+
+        db.add.side_effect = _add
+
+        chunking_result = ChunkingResult(
+            sections=[
+                SectionResult(
+                    title="第一章",
+                    path="第一章",
+                    level=1,
+                    start_offset=0,
+                    end_offset=100,
+                    start_chunk_index=0,
+                    end_chunk_index=1,
+                ),
+                SectionResult(
+                    title="全文",
+                    path="全文",
+                    level=1,
+                    start_offset=100,
+                    end_offset=150,
+                    start_chunk_index=2,
+                    end_chunk_index=2,
+                    synthetic=True,
+                ),
+            ],
+            chunks=[
+                ChunkResult(
+                    content="第一块",
+                    chunk_index=0,
+                    page_number=1,
+                    estimated_tokens=10,
+                    section_index=0,
+                    section_title="第一章",
+                    section_path="第一章",
+                ),
+                ChunkResult(
+                    content="第二块",
+                    chunk_index=1,
+                    page_number=2,
+                    estimated_tokens=8,
+                    section_index=0,
+                    section_title="第一章",
+                    section_path="第一章",
+                ),
+                ChunkResult(
+                    content="前言块",
+                    chunk_index=2,
+                    page_number=None,
+                    estimated_tokens=6,
+                    section_index=1,
+                    section_title=None,
+                    section_path=None,
+                ),
+            ],
+            total_chunks=3,
+        )
+
+        await _replace_sections_and_chunks(db, doc_id=1, kb_id=2, chunking_result=chunking_result)
+
+        assert db.execute.await_count == 2
+        assert db.flush.await_count == 2
+        assert len(added_sections) == 2
+        assert len(added_chunks) == 3
+        assert added_chunks[0].section_id == 100
+        assert added_chunks[1].section_id == 100
+        assert added_chunks[2].section_id == 101
+        assert added_chunks[0].metadata_ == {
+            "page": 1,
+            "section_title": "第一章",
+            "section_path": "第一章",
+        }
+        assert added_chunks[2].metadata_ is None
+
+
+class TestChromaMetadata:
+    """Chroma metadata 构建测试"""
+
+    def test_build_chroma_metadata包含section_id并保留兼容字段(self):
+        metadata = _build_chroma_metadata(
+            kb_id=2,
+            doc_id=3,
+            chunk_row={
+                "chunk_index": 4,
+                "section_id": 99,
+                "section_title": "第二章",
+                "section_path": "第一章 > 第二章",
+            },
+        )
+        assert metadata == {
+            "kb_id": 2,
+            "doc_id": 3,
+            "chunk_index": 4,
+            "section_id": 99,
+            "section_title": "第二章",
+            "section_path": "第一章 > 第二章",
+        }
+
+    def test_build_chroma_metadata无section_id时不写入该字段(self):
+        metadata = _build_chroma_metadata(
+            kb_id=2,
+            doc_id=3,
+            chunk_row={
+                "chunk_index": 4,
+                "section_id": None,
+                "section_title": "",
+                "section_path": "",
+            },
+        )
+        assert metadata == {
+            "kb_id": 2,
+            "doc_id": 3,
+            "chunk_index": 4,
+            "section_title": "",
+            "section_path": "",
+        }
