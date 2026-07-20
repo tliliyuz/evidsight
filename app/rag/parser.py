@@ -1,4 +1,4 @@
-"""文档解析 — 使用 PyPDF2 + python-docx 逐页/逐段提取文本，支持部分容错
+"""文档解析 — 使用 pymupdf + pdfplumber + python-docx 逐页/逐段提取文本，支持部分容错
 
 对齐 ARCHITECTURE.md §4.7:
 - 单页/单段失败跳过并记录 warning
@@ -8,6 +8,11 @@
 
 对齐 ROADMAP.md §8.7（Chunk 元数据增强）：
 - DOCX 标题样式自动转换为 Markdown # 标记，使 chunker 的标题检测跨格式统一
+
+PDF 解析引擎（对齐 ADR-025）：
+- pymupdf (fitz) 主力文本提取，中文支持优于 PyPDF2
+- pdfplumber 按需表格提取（仅 pymupdf 检测到表格的页面）
+- pymupdf 打开失败时 pdfplumber 全量降级
 """
 
 import logging
@@ -15,9 +20,10 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import fitz
+import pdfplumber
 from docx import Document as DocxDocument
 from docx.enum.style import WD_STYLE_TYPE
-from PyPDF2 import PdfReader
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +39,8 @@ class ParsedPage:
     content: str
     success: bool = True
     error: str | None = None
+    element_types: list[str] = field(default_factory=list)  # ["text", "table"]
+    tables: list[str] = field(default_factory=list)          # Markdown 表格文本
 
 
 @dataclass
@@ -112,13 +120,185 @@ def parse_document(file_path: str, file_type: str | None = None) -> ParseResult:
         )
 
 
+def _table_to_markdown(table_data: list[list[str | None]]) -> str:
+    """将 pdfplumber 原始表格数据转换为 GitHub-flavored Markdown 表格。
+
+    纯函数。对齐 ADR-025：表格嵌入 page.content 为 Markdown 字符串，
+    chunker 的 RecursiveCharacterTextSplitter 自然在表格边界切分。
+
+    处理规则：
+    - None 单元格 → 空字符串
+    - 多行文本 → <br> 替换换行
+    - 管道符 | → \\| 转义
+    - 空表（无数据）或单行表（仅表头无数据行）→ 返回空字符串
+    - 列数不一致时按最大列数补齐
+
+    Args:
+        table_data: pdfplumber page.extract_tables() 返回的单表数据
+
+    Returns:
+        GitHub-flavored Markdown 表格字符串，或空字符串
+    """
+    if not table_data or len(table_data) == 0:
+        return ""
+
+    # 过滤全空行（所有单元格均为 None 或空字符串）
+    rows: list[list[str | None]] = []
+    for row in table_data:
+        if row and any(
+            cell is not None and str(cell).strip()
+            for cell in row
+        ):
+            rows.append(row)
+
+    if not rows:
+        return ""
+
+    # 仅表头无数据行 → 返回空字符串
+    if len(rows) < 2:
+        return ""
+
+    # 确定最大列数
+    max_cols = max(len(row) for row in rows)
+    if max_cols == 0:
+        return ""
+
+    # 标准化：补齐列数，None → ""
+    normalized: list[list[str]] = []
+    for row in rows:
+        padded = list(row) + [""] * (max_cols - len(row))
+        normalized.append([str(cell) if cell is not None else "" for cell in padded])
+
+    def _clean_cell(text: str) -> str:
+        """转义管道符、换行转 <br>、去首尾空白"""
+        text = text.replace("\\", "\\\\")
+        text = text.replace("|", "\\|")
+        text = text.replace("\n", "<br>")
+        return text.strip()
+
+    cleaned = [[_clean_cell(cell) for cell in row] for row in normalized]
+
+    # 构建 Markdown 表格
+    lines: list[str] = []
+    # 表头
+    lines.append("| " + " | ".join(cleaned[0]) + " |")
+    # 分隔行
+    lines.append("| " + " | ".join(["---"] * max_cols) + " |")
+    # 数据行
+    for row in cleaned[1:]:
+        lines.append("| " + " | ".join(row) + " |")
+
+    return "\n".join(lines)
+
+
 def _parse_pdf(file_path: str) -> ParseResult:
-    """使用 PyPDF2 逐页解析 PDF，单页失败跳过并记录"""
+    """使用 pymupdf 主力 + pdfplumber 按需表格提取解析 PDF。
+
+    引擎协作策略（对齐 ADR-025）：
+    1. pymupdf (fitz) 主力文本提取
+    2. page.find_tables() 检测表格 → 按需打开 pdfplumber 提取该页表格
+    3. pymupdf 打开失败 → pdfplumber 全量降级
+    4. 表格渲染为 Markdown 嵌入 page.content
+    """
+    # === 主力引擎：pymupdf ===
     try:
-        reader = PdfReader(file_path)
+        doc = fitz.open(file_path)
     except Exception as e:
+        return _parse_pdf_with_pdfplumber(file_path, original_error=str(e))
+
+    pages: list[ParsedPage] = []
+    failed = 0
+    pdfplumber_doc = None  # 按需懒加载
+
+    for i in range(len(doc)):
+        try:
+            page = doc[i]
+            text = page.get_text("text")
+
+            # 表格检测
+            table_md_list: list[str] = []
+            try:
+                fitz_tables = page.find_tables()
+            except Exception:
+                fitz_tables = None
+
+            if fitz_tables:
+                # 按需打开 pdfplumber
+                if pdfplumber_doc is None:
+                    try:
+                        pdfplumber_doc = pdfplumber.open(file_path)
+                    except Exception:
+                        pdfplumber_doc = False  # 标记不可用
+
+                if pdfplumber_doc and pdfplumber_doc is not False and i < len(pdfplumber_doc.pages):
+                    try:
+                        plumber_page = pdfplumber_doc.pages[i]
+                        extracted_tables = plumber_page.extract_tables()
+                        if extracted_tables:
+                            for table_data in extracted_tables:
+                                md = _table_to_markdown(table_data)
+                                if md:
+                                    table_md_list.append(md)
+                    except Exception as exc:
+                        logger.warning(f"pdfplumber 第{i+1}页表格提取失败: {exc}")
+
+            # 组装 content：文本 + 表格
+            content_parts: list[str] = []
+            if text and text.strip():
+                content_parts.append(text.strip())
+            content_parts.extend(table_md_list)
+
+            content = "\n\n".join(content_parts)
+
+            if content:
+                element_types = ["text"] if (text and text.strip()) else []
+                if table_md_list:
+                    element_types.append("table")
+                pages.append(ParsedPage(
+                    page_number=i + 1,
+                    content=content,
+                    element_types=element_types,
+                    tables=table_md_list,
+                ))
+            else:
+                pages.append(ParsedPage(
+                    page_number=i + 1, content="",
+                    success=False, error="页面无文本或文本为空"
+                ))
+                failed += 1
+        except Exception as e:
+            pages.append(ParsedPage(
+                page_number=i + 1, content="",
+                success=False, error=f"页面解析异常: {e}"
+            ))
+            failed += 1
+
+    total = len(doc)
+
+    if pdfplumber_doc and pdfplumber_doc is not False:
+        try:
+            pdfplumber_doc.close()
+        except Exception:
+            pass
+    try:
+        doc.close()
+    except Exception:
+        pass
+
+    return ParseResult(pages=pages, total_pages=total, failed_pages=failed)
+
+
+def _parse_pdf_with_pdfplumber(file_path: str, original_error: str = "") -> ParseResult:
+    """pymupdf 无法打开文件时的 pdfplumber 全量降级模式。
+
+    仅做纯文本提取，不检测表格（降级模式优先保证文本不丢失）。
+    """
+    try:
+        doc = pdfplumber.open(file_path)
+    except Exception as e:
+        error_msg = f"pymupdf 失败: {original_error}; pdfplumber 失败: {e}" if original_error else str(e)
         return ParseResult(
-            pages=[ParsedPage(page_number=1, content="", success=False, error=str(e))],
+            pages=[ParsedPage(page_number=1, content="", success=False, error=error_msg)],
             total_pages=1,
             failed_pages=1,
         )
@@ -126,7 +306,7 @@ def _parse_pdf(file_path: str) -> ParseResult:
     pages: list[ParsedPage] = []
     failed = 0
 
-    for i, page in enumerate(reader.pages):
+    for i, page in enumerate(doc.pages):
         try:
             text = page.extract_text()
             if text and text.strip():
@@ -144,7 +324,11 @@ def _parse_pdf(file_path: str) -> ParseResult:
             ))
             failed += 1
 
-    total = len(reader.pages)
+    total = len(doc.pages)
+    try:
+        doc.close()
+    except Exception:
+        pass
     return ParseResult(pages=pages, total_pages=total, failed_pages=failed)
 
 

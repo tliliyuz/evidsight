@@ -1,4 +1,4 @@
-"""文档解析器单元测试 — 覆盖 PDF/DOCX/MD/TXT 解析 + 容错阈值判定"""
+"""文档解析器单元测试 — 覆盖 PDF/DOCX/MD/TXT 解析 + 容错阈值判定 + 表格 Markdown 转换"""
 
 import pytest
 from unittest.mock import MagicMock, PropertyMock, patch
@@ -8,9 +8,36 @@ from app.rag.parser import (
     ParseResult,
     parse_document,
     _parse_pdf,
+    _parse_pdf_with_pdfplumber,
     _parse_docx,
     _parse_text,
+    _table_to_markdown,
 )
+
+
+# === 辅助工具 ===
+
+def _make_fitz_page(text: str, tables: list | None = None) -> MagicMock:
+    """创建 mock fitz 页面对象"""
+    page = MagicMock()
+    page.get_text.return_value = text
+    page.find_tables.return_value = tables if tables is not None else []
+    return page
+
+
+def _make_fitz_doc(pages: list[MagicMock]) -> MagicMock:
+    """创建 mock fitz 文档对象，支持 len() 和 [] 索引"""
+    doc = MagicMock()
+    doc.__len__.return_value = len(pages)
+    doc.__getitem__.side_effect = lambda i: pages[i]
+    return doc
+
+
+def _make_pdfplumber_page(text: str) -> MagicMock:
+    """创建 mock pdfplumber 页面对象"""
+    page = MagicMock()
+    page.extract_text.return_value = text
+    return page
 
 
 class TestParsedPage:
@@ -147,16 +174,18 @@ class TestParseText:
 
 
 class TestParsePdf:
-    """PDF 解析测试（Mock PyPDF2）"""
+    """PDF 解析测试（Mock pymupdf + pdfplumber）"""
 
     def test_正常PDF_逐页解析全部成功(self):
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock(), MagicMock(), MagicMock()]
-        mock_reader.pages[0].extract_text.return_value = "第一页内容"
-        mock_reader.pages[1].extract_text.return_value = "第二页内容"
-        mock_reader.pages[2].extract_text.return_value = "第三页内容"
+        """pymupdf 主力模式：3 页均含文本，无表格"""
+        pages = [
+            _make_fitz_page("第一页内容"),
+            _make_fitz_page("第二页内容"),
+            _make_fitz_page("第三页内容"),
+        ]
+        mock_doc = _make_fitz_doc(pages)
 
-        with patch("app.rag.parser.PdfReader", return_value=mock_reader):
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
             result = _parse_pdf("test.pdf")
 
         assert result.total_pages == 3
@@ -165,15 +194,19 @@ class TestParsePdf:
         assert len(result.pages) == 3
         assert result.pages[0].content == "第一页内容"
         assert result.pages[2].page_number == 3
+        assert result.pages[0].element_types == ["text"]
+        assert result.pages[0].tables == []
 
     def test_部分页面无文本_标记失败(self):
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock(), MagicMock(), MagicMock()]
-        mock_reader.pages[0].extract_text.return_value = "OK"
-        mock_reader.pages[1].extract_text.return_value = ""
-        mock_reader.pages[2].extract_text.return_value = "OK"
+        """第 2 页无文本 → 标记 failed"""
+        pages = [
+            _make_fitz_page("OK"),
+            _make_fitz_page(""),
+            _make_fitz_page("OK"),
+        ]
+        mock_doc = _make_fitz_doc(pages)
 
-        with patch("app.rag.parser.PdfReader", return_value=mock_reader):
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
             result = _parse_pdf("test.pdf")
 
         assert result.total_pages == 3
@@ -182,12 +215,15 @@ class TestParsePdf:
         assert "无文本" in result.pages[1].error
 
     def test_单页解析异常_跳过继续(self):
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock(), MagicMock()]
-        mock_reader.pages[0].extract_text.return_value = "OK"
-        mock_reader.pages[1].extract_text.side_effect = RuntimeError("PDF 解析错误")
+        """第 2 页 get_text 抛异常 → 跳过，其他页正常"""
+        page_ok = _make_fitz_page("OK")
+        page_bad = MagicMock()
+        page_bad.get_text.side_effect = RuntimeError("PDF 解析错误")
+        page_bad.find_tables.return_value = []
+        pages = [page_ok, page_bad]
+        mock_doc = _make_fitz_doc(pages)
 
-        with patch("app.rag.parser.PdfReader", return_value=mock_reader):
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
             result = _parse_pdf("test.pdf")
 
         assert result.failed_pages == 1
@@ -196,34 +232,117 @@ class TestParsePdf:
         assert "PDF 解析错误" in result.pages[1].error
 
     def test_全部页面失败(self):
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock(), MagicMock()]
-        mock_reader.pages[0].extract_text.return_value = ""
-        mock_reader.pages[1].extract_text.side_effect = Exception("fail")
+        """所有页面均无文本或异常 → failure_rate=1.0"""
+        pages = [
+            _make_fitz_page(""),
+            _make_fitz_page("   "),
+        ]
+        mock_doc = _make_fitz_doc(pages)
 
-        with patch("app.rag.parser.PdfReader", return_value=mock_reader):
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
             result = _parse_pdf("test.pdf")
 
         assert result.failed_pages == 2
         assert result.failure_rate == 1.0
 
-    def test_PDF文件损坏(self):
-        with patch("app.rag.parser.PdfReader", side_effect=ValueError("PDF 文件已损坏")):
-            result = _parse_pdf("corrupted.pdf")
+    def test_pymupdf打开失败_降级到pdfplumber(self):
+        """fitz.open 异常 → pdfplumber 全量降级"""
+        with patch("app.rag.parser.fitz.open", side_effect=ValueError("PDF 文件已损坏")):
+            plumber_page = _make_pdfplumber_page("降级提取的文本")
+            mock_plumber = MagicMock()
+            mock_plumber.pages = [plumber_page, plumber_page]
+
+            with patch("app.rag.parser.pdfplumber.open", return_value=mock_plumber):
+                result = _parse_pdf("corrupted.pdf")
+
+        assert result.total_pages == 2
+        assert result.failed_pages == 0
+        assert result.pages[0].content == "降级提取的文本"
+
+    def test_两引擎均失败(self):
+        """fitz.open + pdfplumber.open 均异常 → 全部失败"""
+        with patch("app.rag.parser.fitz.open", side_effect=ValueError("fitz 错误")):
+            with patch("app.rag.parser.pdfplumber.open", side_effect=RuntimeError("plumber 错误")):
+                result = _parse_pdf("bad.pdf")
 
         assert result.failed_pages == 1
         assert result.failure_rate == 1.0
-        assert "PDF 文件已损坏" in result.pages[0].error
+        assert "fitz 错误" in result.pages[0].error
+        assert "plumber 错误" in result.pages[0].error
 
-    def test_PDF空文档_0页(self):
-        mock_reader = MagicMock()
-        mock_reader.pages = []
+    def test_空文档_0页(self):
+        """0 页 PDF → ParseResult 正常返回，failure_rate=1.0"""
+        mock_doc = _make_fitz_doc([])
 
-        with patch("app.rag.parser.PdfReader", return_value=mock_reader):
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
             result = _parse_pdf("empty.pdf")
 
         assert result.total_pages == 0
         assert result.failure_rate == 1.0
+
+    def test_含表格页面_表格嵌入content为Markdown(self):
+        """pymupdf 检测到表格 → pdfplumber 提取 → Markdown 嵌入 content"""
+        page_with_table = _make_fitz_page("页面文本段落", tables=[MagicMock()])
+
+        mock_doc = _make_fitz_doc([page_with_table])
+
+        # pdfplumber 返回表格数据
+        plumber_page = MagicMock()
+        plumber_page.extract_tables.return_value = [
+            [["姓名", "年龄"], ["张三", "30"], ["李四", "25"]]
+        ]
+
+        mock_plumber = MagicMock()
+        mock_plumber.pages = [plumber_page]
+
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
+            with patch("app.rag.parser.pdfplumber.open", return_value=mock_plumber):
+                result = _parse_pdf("table.pdf")
+
+        assert result.total_pages == 1
+        assert result.failed_pages == 0
+        assert "页面文本段落" in result.pages[0].content
+        assert "| 姓名 | 年龄 |" in result.pages[0].content
+        assert "| 张三 | 30 |" in result.pages[0].content
+        assert result.pages[0].element_types == ["text", "table"]
+        assert len(result.pages[0].tables) == 1
+
+    def test_无表格页面_pdfplumber不被调用(self):
+        """find_tables 返回空 → 不打开 pdfplumber（零开销）"""
+        page = _make_fitz_page("纯文本页面，无表格", tables=[])
+
+        mock_doc = _make_fitz_doc([page])
+
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
+            result = _parse_pdf("notext.pdf")
+
+        assert result.total_pages == 1
+        assert result.failed_pages == 0
+        assert result.pages[0].content == "纯文本页面，无表格"
+        assert result.pages[0].element_types == ["text"]
+        assert result.pages[0].tables == []
+
+    def test_仅表格无文本_页面正确标记(self):
+        """页面仅有表格、无文本 → element_types 仅含 table"""
+        page_table_only = _make_fitz_page("", tables=[MagicMock()])
+
+        mock_doc = _make_fitz_doc([page_table_only])
+
+        plumber_page = MagicMock()
+        plumber_page.extract_tables.return_value = [
+            [["A", "B"], ["1", "2"]]
+        ]
+
+        mock_plumber = MagicMock()
+        mock_plumber.pages = [plumber_page]
+
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
+            with patch("app.rag.parser.pdfplumber.open", return_value=mock_plumber):
+                result = _parse_pdf("table_only.pdf")
+
+        assert result.failed_pages == 0
+        assert result.pages[0].element_types == ["table"]
+        assert len(result.pages[0].tables) == 1
 
 
 class TestParseDocx:
@@ -348,50 +467,180 @@ class TestParseDocumentDispatch:
 
 
 class TestFaultToleranceThresholds:
-    """容错阈值场景测试（对齐 ARCHITECTURE.md §4.7）"""
+    """容错阈值场景测试（对齐 ARCHITECTURE.md §4.7）— Mock pymupdf"""
 
     def test_5页PDF_1页失败_正好20pct(self):
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock() for _ in range(5)]
-        for i in range(4):
-            mock_reader.pages[i].extract_text.return_value = f"第{i+1}页"
-        mock_reader.pages[4].extract_text.return_value = ""
+        pages = [_make_fitz_page(f"第{i+1}页") for i in range(4)]
+        pages.append(_make_fitz_page(""))  # 第 5 页无文本
+        mock_doc = _make_fitz_doc(pages)
 
-        with patch("app.rag.parser.PdfReader", return_value=mock_reader):
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
             result = _parse_pdf("test.pdf")
 
         assert result.failure_rate == 0.2
 
     def test_3页PDF_1页失败_33pct_在20到50区间(self):
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock() for _ in range(3)]
-        mock_reader.pages[0].extract_text.return_value = "OK"
-        mock_reader.pages[1].extract_text.side_effect = Exception("fail")
-        mock_reader.pages[2].extract_text.return_value = "OK"
+        page_bad = MagicMock()
+        page_bad.get_text.side_effect = Exception("fail")
+        page_bad.find_tables.return_value = []
+        pages = [
+            _make_fitz_page("OK"),
+            page_bad,
+            _make_fitz_page("OK"),
+        ]
+        mock_doc = _make_fitz_doc(pages)
 
-        with patch("app.rag.parser.PdfReader", return_value=mock_reader):
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
             result = _parse_pdf("test.pdf")
 
         assert 0.2 < result.failure_rate < 0.5
 
     def test_2页PDF_1页失败_正好50pct(self):
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock(), MagicMock()]
-        mock_reader.pages[0].extract_text.return_value = "OK"
-        mock_reader.pages[1].extract_text.side_effect = Exception("fail")
+        page_bad = MagicMock()
+        page_bad.get_text.side_effect = Exception("fail")
+        page_bad.find_tables.return_value = []
+        pages = [
+            _make_fitz_page("OK"),
+            page_bad,
+        ]
+        mock_doc = _make_fitz_doc(pages)
 
-        with patch("app.rag.parser.PdfReader", return_value=mock_reader):
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
             result = _parse_pdf("test.pdf")
 
         assert result.failure_rate == 0.5
 
     def test_2页PDF_全部失败_100pct(self):
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock(), MagicMock()]
-        mock_reader.pages[0].extract_text.side_effect = Exception("fail1")
-        mock_reader.pages[1].extract_text.side_effect = Exception("fail2")
+        pages = [
+            _make_fitz_page(""),
+            _make_fitz_page(""),
+        ]
+        mock_doc = _make_fitz_doc(pages)
 
-        with patch("app.rag.parser.PdfReader", return_value=mock_reader):
+        with patch("app.rag.parser.fitz.open", return_value=mock_doc):
             result = _parse_pdf("test.pdf")
 
         assert result.failure_rate == 1.0
+
+
+class TestTableToMarkdown:
+    """_table_to_markdown 纯函数测试 — 表格数据 → Markdown 字符串"""
+
+    def test_标准2列表格_完整Markdown输出(self):
+        """标准表头+2行数据 → 正确 Markdown 表格"""
+        data = [["姓名", "年龄"], ["张三", "30"], ["李四", "25"]]
+
+        result = _table_to_markdown(data)
+
+        lines = result.split("\n")
+        assert len(lines) == 4  # 表头 + 分隔 + 2 数据行
+        assert lines[0] == "| 姓名 | 年龄 |"
+        assert lines[1] == "| --- | --- |"
+        assert "| 张三 | 30 |" in result
+        assert "| 李四 | 25 |" in result
+
+    def test_3列表格含None单元格(self):
+        """None 单元格 → 空字符串占位，列数按最大补齐"""
+        data = [
+            ["A", "B", "C"],
+            ["1", None, "3"],
+            [None, "2", None],
+        ]
+
+        result = _table_to_markdown(data)
+
+        # 第 2 行第 2 列为空
+        assert "| 1 |  | 3 |" in result
+        # 第 3 行第 1、3 列为空
+        assert "|  | 2 |  |" in result
+
+    def test_空列表_返回空字符串(self):
+        """输入 [] → 返回 "" """
+        assert _table_to_markdown([]) == ""
+
+    def test_单行表仅表头_返回空字符串(self):
+        """仅一行表头无数据行 → 返回 "" """
+        data = [["列1", "列2"]]
+        assert _table_to_markdown(data) == ""
+
+    def test_管道符转义和多行文本(self):
+        """| 转义为 \\|，换行符替换为 <br>"""
+        data = [
+            ["名称", "描述"],
+            ["A|B", "第一行\n第二行"],
+        ]
+
+        result = _table_to_markdown(data)
+
+        assert "A\\|B" in result
+        assert "第一行<br>第二行" in result
+
+    def test_全空行被过滤(self):
+        """表中包含全 None 空行 → 过滤掉"""
+        data = [
+            ["姓名", "年龄"],
+            [None, None],
+            ["张三", "30"],
+        ]
+
+        result = _table_to_markdown(data)
+
+        lines = result.split("\n")
+        # 应只有 3 行：表头 + 分隔 + 1 数据行
+        assert len(lines) == 3
+
+    def test_列数不一致自动补齐(self):
+        """不同行列数不一致 → 按最大列数补齐空白列"""
+        data = [
+            ["A", "B", "C"],
+            ["1", "2"],  # 少一列
+        ]
+
+        result = _table_to_markdown(data)
+
+        assert "| 1 | 2 |  |" in result
+
+
+class TestParsePdfWithPlumber:
+    """_parse_pdf_with_pdfplumber 降级模式测试"""
+
+    def test_降级模式_正常逐页提取(self):
+        """pdfplumber 降级模式：逐页 extract_text"""
+        plumber_pages = [
+            _make_pdfplumber_page("降级页1"),
+            _make_pdfplumber_page("降级页2"),
+        ]
+        mock_plumber = MagicMock()
+        mock_plumber.pages = plumber_pages
+
+        with patch("app.rag.parser.pdfplumber.open", return_value=mock_plumber):
+            result = _parse_pdf_with_pdfplumber("test.pdf")
+
+        assert result.total_pages == 2
+        assert result.failed_pages == 0
+        assert result.pages[0].content == "降级页1"
+        assert result.pages[1].content == "降级页2"
+
+    def test_降级模式_部分页面无文本(self):
+        """降级模式下空页面 → 标记失败"""
+        plumber_pages = [
+            _make_pdfplumber_page("OK"),
+            _make_pdfplumber_page(""),
+        ]
+        mock_plumber = MagicMock()
+        mock_plumber.pages = plumber_pages
+
+        with patch("app.rag.parser.pdfplumber.open", return_value=mock_plumber):
+            result = _parse_pdf_with_pdfplumber("test.pdf")
+
+        assert result.failed_pages == 1
+        assert not result.pages[1].success
+
+    def test_降级模式_pdfplumber也失败(self):
+        """两引擎均失败 → error 包含双方信息"""
+        with patch("app.rag.parser.pdfplumber.open", side_effect=RuntimeError("plumber 失败")):
+            result = _parse_pdf_with_pdfplumber("bad.pdf", original_error="fitz 失败")
+
+        assert result.failed_pages == 1
+        assert "fitz 失败" in result.pages[0].error
+        assert "plumber 失败" in result.pages[0].error
