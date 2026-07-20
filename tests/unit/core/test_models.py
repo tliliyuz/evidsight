@@ -15,8 +15,15 @@ from app.core.database import async_session, engine
 
 
 @pytest.fixture(autouse=True)
-async def dispose_engine_after():
-    """每个测试后清理连接池，避免 Windows ProactorEventLoop 残留连接异常"""
+async def dispose_engine_around():
+    """每个测试前后清理连接池。
+
+    前置：丢弃前序测试文件可能残留的连接（close=False 仅弃引用不触碰 socket——
+    残留连接可能挂在已关闭的 event loop 上，跨 loop close 会抛异常）,
+    确保本文件测试总是新建属于当前 loop 的连接，pool_pre_ping 也不会跨 loop ping。
+    后置：清空本文件产生的连接，避免 Windows ProactorEventLoop 残留连接异常。
+    """
+    await engine.dispose(close=False)
     yield
     await engine.dispose()
 

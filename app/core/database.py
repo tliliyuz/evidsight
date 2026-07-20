@@ -9,6 +9,8 @@ engine = create_async_engine(
     settings.mysql_url,
     pool_size=10,
     max_overflow=20,
+    pool_pre_ping=True,   # 取用连接前先 ping,发现失效连接自动重连,避免 MySQL wait_timeout 断连后报 2013
+    pool_recycle=3600,    # 连接使用满 1 小时主动回收重建,须小于 MySQL wait_timeout(默认 28800s)
     echo=settings.DEBUG,
 )
 

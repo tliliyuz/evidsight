@@ -291,7 +291,12 @@ class TestRagasEvaluatorCore:
                         "context_precision": 0.80,
                     }
 
-                    summary = await evaluator.evaluate_all()
+                    # Mock load_doc_map：避免真实查库覆盖上方预置的 doc_map,
+                    # 同时防止真实连接残留在全局连接池（跨 event loop 污染后续测试）
+                    with patch.object(
+                        evaluator, "load_doc_map", new_callable=AsyncMock,
+                    ):
+                        summary = await evaluator.evaluate_all()
 
         # 验证汇总（28 题，排除 2 题 out-of-scope）
         assert summary.total == 28
