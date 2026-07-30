@@ -140,10 +140,19 @@ class AgentRuntime:
                 agent_context=self._agent_context,
                 working_memory=self._working_memory,
             )
-            await self._loop.run(tool_context, self._execute_tool)
+            await self._loop.run(
+                tool_context, self._execute_tool, cancel_check=self._is_task_canceled
+            )
 
             # 捕获 loop 中非 tool 分支（LLM 失败 / 无 tool call）产生的 entries
             await self._persist_memory_entries()
+
+            # 任务已被用户取消：canceled 终态与 completed_at 已由 Cancel API 写入，
+            # 跳过最终化，避免误发终态 SSE 事件与状态转换指标
+            if self._task.status == "canceled":
+                logger.info("任务已取消，跳过最终化: task_id=%s", task_id)
+                return
+
             await self._finalize_task()
 
         except Exception as e:
@@ -168,6 +177,15 @@ class AgentRuntime:
                 memory_items, max_entries=self._memory_max_entries
             )
         return agent_context, working_memory
+
+    async def _is_task_canceled(self) -> bool:
+        """重载任务状态，检测用户取消（AgentLoop 每轮迭代开始前调用）。
+
+        每个 Step 完成后的 commit 会开启新事务，因此至少能在 phase 边界
+        读到最新状态，与旧版 PipelineOrchestrator 的 Phase 间取消检测粒度一致。
+        """
+        await self._session.refresh(self._task, ["status"])
+        return self._task.status == "canceled"
 
     async def _execute_tool(self, tool: Tool, tool_call: ToolCall) -> ToolExecutionResult:
         """AgentLoop 的 Tool 执行回调：创建 Step → 执行 Tool → 持久化。"""

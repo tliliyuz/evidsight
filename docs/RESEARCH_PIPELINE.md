@@ -1158,19 +1158,20 @@ WHERE task_id = ? AND status IN ('completed', 'skipped')
 **单轮循环控制流程**：
 
 1. `AgentLoop` 检查 `AgentContext.finished` 或 `current_phase is None`，满足则退出循环。
-2. 构造 LLM 消息：system prompt（含 phase 顺序、当前 phase、已完成 phase、当前阶段主工具）+ `WorkingMemory.to_messages()` + 当前 phase 用户级指令。
-3. `PhaseController.get_available_tools()` 返回当前 phase 可用 Tool 列表（当前 phase tool + `finish_tool` + `memory_tool`）。
-4. 调用 `chat_completion(messages, tools=tool_schemas, tool_choice="auto")`。
-5. 若 LLM 返回 `reasoning_content`，发布 `agent.thought` SSE。
-6. 解析 `tool_calls`；对每个 `ToolCall`：
+2. 通过 `cancel_check` 回调（由 `AgentRuntime._is_task_canceled()` 注入，重载 `task.status`）检查任务是否已被用户取消；若已取消，置 `AgentContext.finished = True`、`finish_reason = "canceled"` 并退出循环。
+3. 构造 LLM 消息：system prompt（含 phase 顺序、当前 phase、已完成 phase、当前阶段主工具）+ `WorkingMemory.to_messages()` + 当前 phase 用户级指令。
+4. `PhaseController.get_available_tools()` 返回当前 phase 可用 Tool 列表（当前 phase tool + `finish_tool` + `memory_tool`）。
+5. 调用 `chat_completion(messages, tools=tool_schemas, tool_choice="auto")`。
+6. 若 LLM 返回 `reasoning_content`，发布 `agent.thought` SSE。
+7. 解析 `tool_calls`；对每个 `ToolCall`：
    - 发布 `agent.action` SSE。
    - `PhaseController.is_tool_available(name)` 校验；若不可用，直接返回错误 observation。
    - `AgentRuntime._execute_tool()` 创建/复用 `ResearchStep`、调用 `Tool.execute()`、写入 Step 状态与 output、发布 `step.*` SSE。
    - 发布 `agent.observation` SSE。
    - 将 `ReActEntry` 写入 `WorkingMemory`。
    - 若当前 phase 的 primary tool 成功执行，调用 `mark_phase_done()`。
-7. 本轮全部 Tool Call 处理完成后，若 `current_phase_done`，调用 `advance()` 推进到下一 phase。
-8. `AgentContext.iteration_count` 自增，进入下一轮。
+8. 本轮全部 Tool Call 处理完成后，若 `current_phase_done`，调用 `advance()` 推进到下一 phase。
+9. `AgentContext.iteration_count` 自增，进入下一轮。
 
 **终止条件**：
 
@@ -1178,6 +1179,7 @@ WHERE task_id = ? AND status IN ('completed', 'skipped')
 |:---|:---|:---|
 | 所有 phase 完成 | `PhaseController.advance()` 返回 False | `AgentContext.finished = True`，循环正常退出 |
 | LLM 显式调用 `finish_tool` | `finish_tool.execute()` | `AgentContext.finished = True`，循环立即退出 |
+| 任务被用户取消 | `AgentLoop.run()` 每轮迭代开始前的 `cancel_check` 回调 | `AgentContext.finished = True`、`finish_reason = "canceled"`，`AgentRuntime` 跳过最终化（`canceled` 终态与 `completed_at` 已由 Cancel API 写入） |
 | 达到最大迭代次数 | `AgentLoop.run()` 循环判断 | 抛出 `AgentLoopExhaustedError`，由 `AgentRuntime` 捕获后按证据阈值判定 Task 状态 |
 
 **最大迭代次数**：由 `app/config.py` 的 `MAX_AGENT_ITERATIONS` 控制，默认 **30**。该上限用于防止 LLM 因 prompt 误解或 `memory_tool` 滥用而陷入无限循环；达到上限时任务通常标记为 `failed` 且 `recoverable=true`，用户可通过 Retry 继续执行。

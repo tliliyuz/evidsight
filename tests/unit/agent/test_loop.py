@@ -154,6 +154,65 @@ class TestAgentLoop:
         assert "search" in agent_ctx.completed_phases
 
 
+class TestAgentLoopCancel:
+    """取消检查回调测试。"""
+
+    async def test_取消命中_不调用LLM直接退出(self, setup, monkeypatch):
+        loop, tool_ctx, sse, reg, agent_ctx = setup
+        chat_mock = AsyncMock()
+        monkeypatch.setattr("app.agent.loop.chat_completion", chat_mock)
+        callback = AsyncMock()
+
+        async def cancel_check():
+            return True
+
+        await loop.run(tool_ctx, callback, cancel_check=cancel_check)
+
+        assert agent_ctx.finished is True
+        assert agent_ctx.finish_reason == "canceled"
+        assert agent_ctx.iteration_count == 0
+        chat_mock.assert_not_awaited()
+        callback.assert_not_awaited()
+        sse.publish.assert_not_awaited()
+
+    async def test_第二轮命中取消_仅执行一轮(self, setup, monkeypatch):
+        loop, tool_ctx, sse, reg, agent_ctx = setup
+
+        async def fake_chat(*args, **kwargs):
+            return _make_llm_result(tool_calls=[ToolCall(id="1", name="plan_tool", arguments={})])
+
+        monkeypatch.setattr("app.agent.loop.chat_completion", fake_chat)
+
+        cancel_results = iter([False, True])
+
+        async def cancel_check():
+            return next(cancel_results)
+
+        await loop.run(tool_ctx, _callback_factory(agent_ctx), cancel_check=cancel_check)
+
+        assert agent_ctx.finished is True
+        assert agent_ctx.finish_reason == "canceled"
+        assert agent_ctx.iteration_count == 1
+        assert agent_ctx.completed_phases == {"planning"}
+
+    async def test_未取消_循环正常结束不置canceled(self, setup, monkeypatch):
+        loop, tool_ctx, sse, reg, agent_ctx = setup
+
+        async def fake_chat(*args, **kwargs):
+            return _make_llm_result(tool_calls=[ToolCall(id="1", name="finish_tool", arguments={})])
+
+        monkeypatch.setattr("app.agent.loop.chat_completion", fake_chat)
+
+        async def cancel_check():
+            return False
+
+        await loop.run(tool_ctx, _callback_factory(agent_ctx), cancel_check=cancel_check)
+
+        assert agent_ctx.finished is True
+        assert agent_ctx.finish_reason is None
+        assert agent_ctx.iteration_count == 1
+
+
 class TestAgentLoopSanitize:
     """SSE 参数脱敏测试。"""
 

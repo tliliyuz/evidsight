@@ -74,6 +74,11 @@
   - ROADMAP §7.2 原列「SSE 日志 7 天轮转 / 应用日志 14 天 logrotate」。当前系统 SSE 通过 Redis Pub/Sub 实时转发，无持久化 SSE 日志表；应用日志输出 stdout。落地方式改为 Docker `json-file` 日志驱动按大小/文件数轮转；严格按天保留需后续接入集中式日志系统（Loki/ELK/CloudWatch）。已在 `resource/docs/ROADMAP.md` §7.2 标注 `[Deviation]`。
 
 ### Fixed
+- **Agent Runtime 取消中断失效**：旧版 `PipelineOrchestrator` 在每个 Phase 开始前检查任务取消，切换到 `AgentRuntime` 后该检查丢失——用户取消后 Worker 仍会执行完整 Pipeline（持续消耗 LLM 成本），仅靠最终化 CAS 静默兜底。
+  - `app/agent/loop.py`：`AgentLoop.run()` 新增 `cancel_check` 回调参数，每轮迭代开始前检查；命中后置 `finished=True`、`finish_reason="canceled"` 并退出循环，不再调用 LLM。
+  - `app/agent/runtime.py`：新增 `_is_task_canceled()`（重载 `task.status`）注入 AgentLoop；取消命中后跳过 `_finalize_task()`，避免误发终态 SSE 事件与状态转换指标（`canceled` 终态与 `completed_at` 已由 Cancel API 写入）。
+  - 测试：`tests/unit/agent/test_loop.py::TestAgentLoopCancel`、`tests/unit/agent/test_runtime.py::TestRunCancel`。
+  - 文档：`docs/RESEARCH_PIPELINE.md` §10.6 控制流与终止条件补充取消检查。
 - **Celery Worker asyncio 事件循环错位**：生产环境日志反复出现 `Future attached to a different loop` / `Event loop is closed`。
   - 根因：`app/tasks/periodic.py` 使用 `asyncio.run(...)` 每次定时任务都新建并关闭事件循环，导致全局单例 `SQLAlchemy async engine` / `Redis async pool` 里绑定的 Future 指向已关闭 loop；`app/tasks/research_task.py` 与 `app/tasks/celery_app.py` 又各自维护 loop 创建逻辑，策略不统一。
   - 新增 `app/tasks/event_loop.py`：统一提供 Worker 进程内持久事件循环 `get_worker_loop()`，Windows 下前置设置 `WindowsSelectorEventLoopPolicy`；检测到 loop 被关闭时调用 `_reset_async_resources()` 清理 engine / Redis async 单例，使下次使用新 loop 时重新初始化。

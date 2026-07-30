@@ -35,3 +35,7 @@ dist/
 /CLAUDE.md
 /.claude/commands/review.md
 /frontend/node_modules/
+/scripts/batch_research_runner.py
+/scripts/data/
+/scripts/output/batch_result_20260708_125304.csv
+/ResearchMind_项目深挖问答.md

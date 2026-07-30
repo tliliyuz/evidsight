@@ -34,6 +34,7 @@ class ToolExecutionResult:
 
 
 ExecuteToolCallback = Callable[[Tool, ToolCall], Awaitable[ToolExecutionResult]]
+CancelCheckCallback = Callable[[], Awaitable[bool]]
 
 
 class AgentLoop:
@@ -51,17 +52,29 @@ class AgentLoop:
         self._sse = sse_bridge
         self._max_iterations = max_iterations or settings.MAX_AGENT_ITERATIONS
 
-    async def run(self, tool_context: ToolContext, execute_callback: ExecuteToolCallback) -> None:
+    async def run(
+        self,
+        tool_context: ToolContext,
+        execute_callback: ExecuteToolCallback,
+        cancel_check: CancelCheckCallback | None = None,
+    ) -> None:
         """运行 Agent Loop 直到结束或迭代耗尽。
 
         Args:
             tool_context: Tool 执行上下文（agent_context 会被更新）
             execute_callback: Tool 执行回调，接收 Tool 和 ToolCall，返回 ToolResult
+            cancel_check: 取消检查回调，每轮迭代开始前调用；返回 True 时立即终止循环
         """
         agent_ctx = tool_context.agent_context
         iteration = agent_ctx.iteration_count or 0
 
         while not agent_ctx.finished and iteration < self._max_iterations:
+            # 每轮迭代开始前检查任务是否已被用户取消，避免取消后继续消耗 LLM 成本
+            if cancel_check is not None and await cancel_check():
+                logger.info("任务已被取消，停止 Agent Loop")
+                agent_ctx.finished = True
+                agent_ctx.finish_reason = "canceled"
+                break
             iteration += 1
             agent_ctx.iteration_count = iteration
             current_phase = self._phase_controller.current_phase
