@@ -1,0 +1,17 @@
+services:
+  nginx:
+    mem_limit: 48m
+  knowledge-api:
+    mem_limit: 256m
+  knowledge-worker:
+    mem_limit: 320m
+  research-api:
+    mem_limit: 256m
+  research-worker:
+    mem_limit: 320m
+  research-beat:
+    mem_limit: 64m
+  mysql:
+    mem_limit: 448m
+  redis:
+    mem_limit: 96m
