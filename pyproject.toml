@@ -1,0 +1,19 @@
+[project]
+name = "evidsight"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "yyuer", email = "1654091169@qq.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.34.2",
+]
+
+[project.scripts]
+evidsight = "evidsight:main"
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"

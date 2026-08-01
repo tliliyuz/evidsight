@@ -7,7 +7,7 @@
 | 日期 | 2026-07-31 |
 | 部署基线 | 单机 Docker Compose，2 vCPU / 2 GB RAM |
 
-> 本文档是据见总体架构、服务边界、部署拓扑和系统级非功能要求的权威规范。产品定位与整合范围见 [PRODUCT_AND_INTEGRATION_DESIGN.md](PRODUCT_AND_INTEGRATION_DESIGN.md)。字段级 API、事件、数据库和 Pipeline 细节由各自专项规范定义，本文不复制其定义。
+> 本文档是据见总体架构、服务边界、部署拓扑和系统级技术要求的权威规范。产品定位、用户、功能范围和验收标准见 [PRD.md](PRD.md)。字段级 API、事件、数据库和 Pipeline 细节由各自专项规范定义，本文不复制其定义。
 
 ## 1. 目标与范围
 
@@ -542,11 +542,16 @@ Redis 不作为唯一业务事实，不以 Redis dump 替代 MySQL 和文件/向
 
 本文确认总体边界，以下细节仍由后续文档按顺序定义：
 
-1. Monorepo 迁移实施计划：历史导入、目录迁移、构建和阶段验收；
-2. 统一身份与权限设计：JWT Claims、服务凭证、权限矩阵和敏感数据外发策略；
-3. Internal Retrieval API 与 Evidence Contract：字段、错误码、版本和契约测试；
-4. 统一前端信息架构：路由、模块、状态机、引用交互和 Design Token；
-5. 数据迁移与回滚方案：源数据映射、停机窗口、校验与恢复；
-6. 测试策略与验收清单：环境矩阵、端到端用例、性能基线和发布门禁。
+1. `docs/MONOREPO_MIGRATION_PLAN.md`：历史导入、目录迁移、构建和第一阶段迁移验收；
+2. `docs/IDENTITY_AND_ACCESS.md`：JWT Claims、令牌生命周期、服务凭证、授权上下文和敏感数据外发策略；
+3. `docs/API.md` 与 [`packages/contracts/`](../packages/contracts/README.md)：外部/内部协议表面、错误语义、SSE、跨服务字段、版本和契约测试；
+4. [`services/knowledge/docs/DATABASE.md`](../services/knowledge/docs/DATABASE.md) 与 [`RAG_PIPELINE.md`](../services/knowledge/docs/RAG_PIPELINE.md)：Knowledge 数据所有权、迁移链和 Internal Retrieval Provider；
+5. [`services/research/docs/DATABASE.md`](../services/research/docs/DATABASE.md) 与 [`RESEARCH_PIPELINE.md`](../services/research/docs/RESEARCH_PIPELINE.md)：Research 数据、状态解析、Consumer、Evidence Graph 和报告生成；
+6. `apps/web/docs/FRONTEND.md` 与 `UIDESIGN.md`：统一路由、模块、状态机、引用交互和 Design Token；
+7. `docs/DATA_MIGRATION_AND_ROLLBACK.md`：源数据映射、停机窗口、校验、恢复和回滚；
+8. `docs/TESTING.md`：环境矩阵、契约与端到端用例、性能基线和发布门禁；
+9. `docs/CHANGELOG.md` 与 `docs/decisions/`：随规范和实现持续记录变更及重要架构决策。
 
 上述专项文档不得改变本文的服务所有权、网络边界和数据隔离原则；确需改变时先更新本文并新增 ADR。
+
+Monorepo 迁移实施计划完成只代表代码布局与构建基线已就绪，不代表统一身份、Internal Retrieval、统一前端、生产数据迁移或 v1.0 发布验收已完成。上述能力必须分别通过对应专项设计与验收。

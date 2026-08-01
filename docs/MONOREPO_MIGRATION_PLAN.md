@@ -1,22 +1,23 @@
-# EvidSight Monorepo Migration Implementation Plan
+# EvidSight Monorepo 迁移实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **面向 Agent 执行者：** 必须使用 `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans` 子技能，逐个任务执行本计划。步骤使用复选框（`- [ ]`）跟踪状态。
 
-**Goal:** 将 DocMind 与 ResearchMind 按已确认的双服务边界迁入 EvidSight Monorepo，在不改变业务行为的前提下形成可独立测试、统一构建和单机部署的仓库基线。
+**目标：** 将 DocMind 与 ResearchMind 按已确认的双服务边界迁入 EvidSight Monorepo，在不改变业务行为的前提下形成可独立测试、统一构建和可验证单机编排的代码布局基线。本计划是第一阶段结构迁移，不代表 EvidSight v1.0 整体交付完成。
 
-**Architecture:** 使用非压缩 Git subtree 保留来源历史：DocMind 的 `backend/` 与 `frontend/` 分别导入 `services/knowledge/` 和 `apps/web/`；ResearchMind 固定提交整体导入临时前缀后，以可审查的 `git mv` 整形到 `services/research/`，研究前端保留为后续统一前端迁移输入。两个 Python 服务继续作为独立依赖、配置、Alembic 和测试单元，根目录只负责编排、统一验证与部署。
+**架构：** 使用非压缩 Git subtree 保留来源历史：DocMind 的 `backend/` 与 `frontend/` 分别导入 `services/knowledge/` 和 `apps/web/`；ResearchMind 固定提交整体导入临时前缀后，以可审查的 `git mv` 整形到 `services/research/`，研究前端保留为后续统一前端迁移输入。两个 Python 服务继续作为独立依赖、配置、Alembic 和测试单元，根目录只负责编排与统一验证。
 
-**Tech Stack:** Git subtree、Python 3.12、FastAPI、Celery 5.4、MySQL 8、Redis 7、Vue 3、Vite 6、Vitest 2、Docker Compose v2、Nginx。
+**技术栈：** Git subtree、Python 3.12、FastAPI、Celery 5.4、MySQL 8、Redis 7、Vue 3、Vite 6、Vitest 2、Docker Compose v2、Nginx。
 
-## Global Constraints
+## 全局约束
 
 - 部署基线固定为单机 Docker Compose，`2 vCPU / 2 GB RAM`。
-- Knowledge Service 与 Research Service 保持独立 Python 应用、依赖单元、Alembic 迁移链和数据库所有权。
+- Knowledge Service 与 Research Service 保持独立 Python 应用、依赖单元、Alembic 迁移链和数据库所有权。本阶段仅保留两个来源仓库已有的 Knowledge 与 Research 迁移链；架构要求的 `platform_db` 独立迁移链必须由统一身份与权限专项在生产部署验收前建立。
 - Research Service 禁止直接读取 `knowledge_db`、Knowledge Chroma 数据或上传文件卷。
 - 跨服务复用只允许 HTTP/事件契约、`packages/contracts/` 中的纯契约类型，或有独立版本边界的无业务状态工具包。
 - DocMind 来源固定为提交 `a390a2a`；ResearchMind 来源固定为提交 `40f7faa`。执行前若负责人选择更新来源提交，必须先更新本计划并重新完成基线测试。
 - 导入历史不得使用 `--squash`，不得修改或 force-push 来源仓库。
 - 第一阶段迁移不得改变外部业务行为、API 路径、状态机、权限语义、数据库 Schema 或 SSE 事件语义。
+- 本计划的 Compose 产物是代码布局阶段的可验证编排骨架；在 `platform_db` 迁移链、统一身份、Internal Retrieval、统一研究前端及生产数据迁移分别验收前，不得将其声称为 v1.0 可发布部署。
 - Chat SSE 与 Research SSE 保持独立业务解析器。
 - 两个服务不得使用默认 `celery` 队列；队列分别使用 `knowledge.*` 与 `research.*`。
 - 所有新增行为严格执行 SDD/TDD；纯移动步骤以移动前后同一测试集结果一致作为验收。
@@ -24,7 +25,7 @@
 
 ---
 
-## File Structure
+## 文件结构
 
 迁移完成后的第一阶段结构：
 
@@ -72,20 +73,20 @@ evidsight/
 
 ---
 
-### Task 1: Freeze and Verify Source Baselines
+### 任务 1：冻结并验证源仓库基线
 
-**Files:**
-- Create: `scripts/verify_source_baselines.sh`
-- Create: `docs/migration/BASELINE_RESULTS.md`
-- Modify: `.gitignore`
+**文件：**
+- 新建：`scripts/verify_source_baselines.sh`
+- 新建：`docs/migration/BASELINE_RESULTS.md`
+- 修改：`.gitignore`
 
-**Interfaces:**
-- Consumes: sibling repositories `../docmind` and `../ResearchMind` at the pinned commits.
-- Produces: executable `scripts/verify_source_baselines.sh`; an immutable record of source revisions and test commands.
+**输入与产物：**
+- 输入：位于固定提交的同级仓库 `../docmind` 和 `../ResearchMind`。
+- 产物：可执行的 `scripts/verify_source_baselines.sh`；不可变更的源版本与测试命令记录。
 
-- [ ] **Step 1: Protect local-only files**
+- [ ] **步骤 1：保护仅存在于本地的文件**
 
-Add these entries to `.gitignore` without removing existing user rules:
+在不删除用户现有规则的前提下，将以下条目加入 `.gitignore`：
 
 ```gitignore
 .superpowers/
@@ -101,9 +102,9 @@ Add these entries to `.gitignore` without removing existing user rules:
 htmlcov/
 ```
 
-- [ ] **Step 2: Write the baseline verification script**
+- [ ] **步骤 2：编写基线验证脚本**
 
-Create `scripts/verify_source_baselines.sh`:
+创建 `scripts/verify_source_baselines.sh`：
 
 ```bash
 #!/usr/bin/env bash
@@ -120,21 +121,21 @@ git -C "$DOCMIND_DIR" status --short
 git -C "$RESEARCHMIND_DIR" status --short
 ```
 
-The script prints source worktree changes rather than deleting or hiding them. Any change overlapping imported paths must be resolved before migration.
+脚本应输出源工作树变更，不得删除或隐藏它们。与待导入路径重叠的变更必须在迁移前处理。
 
-- [ ] **Step 3: Run the baseline guard**
+- [ ] **步骤 3：运行基线门禁**
 
-Run:
+运行：
 
 ```bash
 bash scripts/verify_source_baselines.sh
 ```
 
-Expected: exit code `0`; both short revisions match. Dirty source output is reviewed, not automatically cleaned.
+预期结果：退出码为 `0`，两个短版本号均匹配。对源仓库未提交的输出进行人工审查，不得自动清理。
 
-- [ ] **Step 4: Run source backend tests from their own environments**
+- [ ] **步骤 4：在各自环境中运行源后端测试**
 
-Run:
+运行：
 
 ```bash
 cd ../docmind/backend
@@ -143,11 +144,11 @@ cd ../../ResearchMind
 .venv/bin/python -m pytest -m "not integration and not slow" --tb=short
 ```
 
-Expected: both commands pass. If a source repository has no usable `.venv`, create a temporary environment outside the repository and install its pinned `requirements.txt`; do not add generated environment files to either source repository.
+预期结果：两条命令均通过。如果源仓库没有可用的 `.venv`，应在仓库外创建临时环境并安装其固定的 `requirements.txt`；不得向任一源仓库添加生成的环境文件。
 
-- [ ] **Step 5: Run source frontend tests and builds**
+- [ ] **步骤 5：运行源前端测试与构建**
 
-Run:
+运行：
 
 ```bash
 npm --prefix ../docmind/frontend test
@@ -156,28 +157,28 @@ npm --prefix ../ResearchMind/frontend test
 npm --prefix ../ResearchMind/frontend run build
 ```
 
-Expected: all four commands exit `0`.
+预期结果：四条命令的退出码均为 `0`。
 
-- [ ] **Step 6: Record the evidence**
+- [ ] **步骤 6：记录验证证据**
 
-Create `docs/migration/BASELINE_RESULTS.md` with this exact structure and replace only command outcome fields with observed values:
+使用以下精确结构创建 `docs/migration/BASELINE_RESULTS.md`，仅将命令结果字段替换为实际观察值：
 
 ```markdown
-# Source Baseline Results
+# 源仓库基线结果
 
-| Source | Commit | Command | Result |
+| 来源 | 提交 | 命令 | 结果 |
 |:---|:---|:---|:---|
-| DocMind backend | `a390a2a` | `.venv/bin/python -m pytest -m "not integration and not performance" --tb=short` | PASS with observed test count |
-| DocMind frontend | `a390a2a` | `npm test && npm run build` | PASS with observed test count |
-| ResearchMind backend | `40f7faa` | `.venv/bin/python -m pytest -m "not integration and not slow" --tb=short` | PASS with observed test count |
-| ResearchMind frontend | `40f7faa` | `npm test && npm run build` | PASS with observed test count |
+| DocMind 后端 | `a390a2a` | `.venv/bin/python -m pytest -m "not integration and not performance" --tb=short` | PASS，附实际测试数量 |
+| DocMind 前端 | `a390a2a` | `npm test && npm run build` | PASS，附实际测试数量 |
+| ResearchMind 后端 | `40f7faa` | `.venv/bin/python -m pytest -m "not integration and not slow" --tb=short` | PASS，附实际测试数量 |
+| ResearchMind 前端 | `40f7faa` | `npm test && npm run build` | PASS，附实际测试数量 |
 
-Recorded at: ISO 8601 UTC timestamp
+记录时间：ISO 8601 UTC 时间戳
 ```
 
-Do not record `PASS` unless the command was run in this task. A pre-existing failure must be documented with its failing test and approved before import.
+除非已在本任务中实际运行命令，否则不得记录 `PASS`。已存在的失败必须记录具体失败测试，并在导入前获得批准。
 
-- [ ] **Step 7: Commit the baseline gate**
+- [ ] **步骤 7：提交基线门禁**
 
 ```bash
 git add .gitignore scripts/verify_source_baselines.sh docs/migration/BASELINE_RESULTS.md
@@ -186,33 +187,33 @@ git commit -m "chore: record source migration baselines"
 
 ---
 
-### Task 2: Create the Monorepo Control Plane
+### 任务 2：建立 Monorepo 控制层
 
-**Files:**
-- Create: `Makefile`
-- Create: `scripts/test_all.sh`
-- Create: `requirements-dev.txt`
-- Create: `packages/contracts/README.md`
-- Create: `packages/frontend-shared/README.md`
-- Modify: `README.md`
+**文件：**
+- 新建：`Makefile`
+- 新建：`scripts/test_all.sh`
+- 新建：`requirements-dev.txt`
+- 新建：`packages/contracts/README.md`
+- 新建：`packages/frontend-shared/README.md`
+- 修改：`README.md`
 
-**Interfaces:**
-- Consumes: independent service test commands defined by each imported project.
-- Produces: `make test`, `make test-knowledge`, `make test-research`, `make test-web`; explicit package boundaries.
+**输入与产物：**
+- 输入：各导入项目定义的独立服务测试命令。
+- 产物：`make test`、`make test-knowledge`、`make test-research`、`make test-web`；明确的包边界。
 
-- [ ] **Step 1: Write a failing command-surface test**
+- [ ] **步骤 1：编写预期失败的命令入口测试**
 
-Run before creating the Makefile:
+在创建 Makefile 前运行：
 
 ```bash
 make -n test
 ```
 
-Expected: FAIL with `No rule to make target 'test'` or equivalent.
+预期结果：测试失败，并显示 `No rule to make target 'test'` 或等价信息。
 
-- [ ] **Step 2: Create the root test runner**
+- [ ] **步骤 2：创建根目录测试运行器**
 
-Create `scripts/test_all.sh`:
+创建 `scripts/test_all.sh`：
 
 ```bash
 #!/usr/bin/env bash
@@ -223,9 +224,9 @@ services/research/.venv/bin/python -m pytest -c services/research/pytest.ini ser
 npm --prefix apps/web test
 ```
 
-The service-local `.venv` paths are deliberate: each Python service remains an independent dependency unit.
+服务内部的 `.venv` 路径是有意设计：每个 Python 服务仍是独立的依赖单元。
 
-- [ ] **Step 3: Create the Makefile**
+- [ ] **步骤 3：创建 Makefile**
 
 ```makefile
 .PHONY: test test-knowledge test-research test-web build-web config compose-config
@@ -249,38 +250,38 @@ compose-config:
 	docker compose config --quiet
 ```
 
-Create `requirements-dev.txt` for root-only repository tests:
+为仅在根目录运行的仓库测试创建 `requirements-dev.txt`：
 
 ```text
 pytest==8.*
 PyYAML==6.*
 ```
 
-- [ ] **Step 4: Define package boundaries without premature implementation**
+- [ ] **步骤 4：定义包边界，不提前实现**
 
-Create `packages/contracts/README.md` stating:
-
-```markdown
-# EvidSight Contracts
-
-This package owns versioned cross-service request, response, event, and Evidence contracts. It contains pure data schemas and contract fixtures only. It must not import either service's `app` package or ORM models.
-```
-
-Create `packages/frontend-shared/README.md` stating:
+创建 `packages/contracts/README.md`，内容如下：
 
 ```markdown
-# EvidSight Frontend Shared
+# EvidSight 契约
 
-This directory is reserved for stable, framework-level frontend capabilities proven to be shared by multiple modules. Migration must not move service-specific SSE events or business stores here.
+本包负责带版本的跨服务请求、响应、事件和 Evidence 契约。其中只能包含纯数据 Schema 与契约 Fixture，不得导入任一服务的 `app` 包或 ORM Model。
 ```
 
-- [ ] **Step 5: Document root commands and ownership**
+创建 `packages/frontend-shared/README.md`，内容如下：
 
-Update `README.md` with the target tree, prerequisites, service-local environment setup, root verification commands, and links to `docs/ARCHITECTURE.md`, `docs/PRD.md`, and this plan. Do not duplicate architecture rules.
+```markdown
+# EvidSight 前端共享边界
 
-- [ ] **Step 6: Verify the command surface**
+本目录仅为经过多模块共用验证的稳定、框架级前端能力保留。迁移不得将服务特定的 SSE 事件或业务 Store 移入此处。
+```
 
-Run:
+- [ ] **步骤 5：记录根目录命令与所有权**
+
+更新 `README.md`，写明目标目录树、前置条件、服务内部环境设置、根目录验证命令，并链接 `docs/ARCHITECTURE.md`、`docs/PRD.md` 和本计划。不得重复架构规则。
+
+- [ ] **步骤 6：验证命令入口**
+
+运行：
 
 ```bash
 make -n test
@@ -290,9 +291,9 @@ make -n test-web
 make -n build-web
 ```
 
-Expected: each command prints the exact child command without a missing-target error.
+预期结果：每条命令都输出准确的子命令，不出现目标缺失错误。
 
-- [ ] **Step 7: Commit the control plane**
+- [ ] **步骤 7：提交控制层**
 
 ```bash
 git add Makefile README.md requirements-dev.txt scripts/test_all.sh packages/contracts/README.md packages/frontend-shared/README.md
@@ -301,17 +302,17 @@ git commit -m "chore: add monorepo command and package boundaries"
 
 ---
 
-### Task 3: Import DocMind Backend History as Knowledge Service
+### 任务 3：将 DocMind 后端历史导入为 Knowledge Service
 
-**Files:**
-- Create through history import: `services/knowledge/**`
-- Modify: `services/knowledge/.env.example`
+**文件：**
+- 通过历史导入新建：`services/knowledge/**`
+- 修改：`services/knowledge/.env.example`
 
-**Interfaces:**
-- Consumes: DocMind commit `a390a2a`, subtree `backend/`.
-- Produces: `services/knowledge/app`, tests, Alembic history, requirements, and service-local configuration.
+**输入与产物：**
+- 输入：DocMind 提交 `a390a2a` 的 `backend/` 子树。
+- 产物：`services/knowledge/app`、测试、Alembic 历史、依赖与服务内部配置。
 
-- [ ] **Step 1: Fetch the pinned source history**
+- [ ] **步骤 1：拉取固定的源历史**
 
 ```bash
 git remote add migration-docmind ../docmind
@@ -320,37 +321,37 @@ git cat-file -e a390a2a^{commit}
 git branch imports/docmind-a390a2a a390a2a
 ```
 
-Expected: `git rev-parse --short=7 imports/docmind-a390a2a` prints `a390a2a`.
+预期结果：`git rev-parse --short=7 imports/docmind-a390a2a` 输出 `a390a2a`。
 
-- [ ] **Step 2: Split the backend history**
+- [ ] **步骤 2：拆分后端历史**
 
 ```bash
 git subtree split --prefix=backend imports/docmind-a390a2a -b imports/docmind-backend
 ```
 
-Expected: the branch contains `app/`, `tests/`, `alembic/`, `requirements.txt`, `pytest.ini`, and `alembic.ini` at its root.
+预期结果：该分支根目录包含 `app/`、`tests/`、`alembic/`、`requirements.txt`、`pytest.ini` 和 `alembic.ini`。
 
-- [ ] **Step 3: Import without squashing**
+- [ ] **步骤 3：不压缩历史地导入**
 
 ```bash
 git subtree add --prefix=services/knowledge imports/docmind-backend
 ```
 
-Expected: `git log --follow -- services/knowledge/app/main.py` includes commits preceding `a390a2a`.
+预期结果：`git log --follow -- services/knowledge/app/main.py` 包含早于 `a390a2a` 的提交。
 
-- [ ] **Step 4: Remove local runtime artifacts if history contains them**
+- [ ] **步骤 4：如历史中含有本地运行产物，则将其移除**
 
-Use tracked-file checks first:
+首先检查已跟踪文件：
 
 ```bash
 git ls-files services/knowledge | rg '(^|/)(\.env|\.venv|\.pytest_cache|__pycache__|uploads|chroma_data)(/|$)'
 ```
 
-For each tracked generated path reported, remove only that exact path with `git rm -r <reported-path>`. Keep `.env.example`, test fixtures, and intentionally versioned sample documents.
+对报告的每个已跟踪生成路径，仅使用 `git rm -r <报告的路径>` 移除该精确目标。保留 `.env.example`、测试 Fixture 和有意纳入版本控制的示例文档。
 
-- [ ] **Step 5: Add service identity configuration**
+- [ ] **步骤 5：添加服务标识配置**
 
-In `services/knowledge/.env.example`, preserve every existing variable and add or rename only the deployment identity variables:
+在 `services/knowledge/.env.example` 中保留所有现有变量，仅添加或重命名部署标识变量：
 
 ```dotenv
 SERVICE_NAME=evidsight-knowledge
@@ -360,9 +361,9 @@ CELERY_INGEST_QUEUE=knowledge.ingest
 CELERY_DELETE_QUEUE=knowledge.delete
 ```
 
-This step changes defaults only; it must not change API behavior.
+此步骤仅修改默认值，不得改变 API 行为。
 
-- [ ] **Step 6: Recreate the service environment and run tests**
+- [ ] **步骤 6：重建服务环境并运行测试**
 
 ```bash
 python3.12 -m venv services/knowledge/.venv
@@ -370,9 +371,9 @@ services/knowledge/.venv/bin/pip install -r services/knowledge/requirements.txt
 services/knowledge/.venv/bin/python -m pytest -c services/knowledge/pytest.ini services/knowledge/tests -m "not integration and not performance" --tb=short
 ```
 
-Expected: same selected test count and outcome as `docs/migration/BASELINE_RESULTS.md`.
+预期结果：选定测试的数量和结果与 `docs/migration/BASELINE_RESULTS.md` 一致。
 
-- [ ] **Step 7: Verify Alembic remains independent**
+- [ ] **步骤 7：验证 Alembic 仍保持独立**
 
 ```bash
 cd services/knowledge
@@ -380,9 +381,9 @@ cd services/knowledge
 .venv/bin/alembic history
 ```
 
-Expected: the original DocMind head and all 16 migration files are present; no ResearchMind revision appears.
+预期结果：原 DocMind head 和全部 16 个迁移文件均存在，不出现 ResearchMind revision。
 
-- [ ] **Step 8: Commit post-import normalization**
+- [ ] **步骤 8：提交导入后规范化变更**
 
 ```bash
 git add services/knowledge
@@ -391,36 +392,36 @@ git commit -m "chore(knowledge): normalize imported service configuration"
 
 ---
 
-### Task 4: Import DocMind Frontend History as the Unified Web Baseline
+### 任务 4：将 DocMind 前端历史导入为统一 Web 基线
 
-**Files:**
-- Create through history import: `apps/web/**`
-- Modify: `apps/web/package.json`
+**文件：**
+- 通过历史导入新建：`apps/web/**`
+- 修改：`apps/web/package.json`
 
-**Interfaces:**
-- Consumes: DocMind commit `a390a2a`, subtree `frontend/`.
-- Produces: the sole `apps/web` Vue application and its existing tests.
+**输入与产物：**
+- 输入：DocMind 提交 `a390a2a` 的 `frontend/` 子树。
+- 产物：唯一的 `apps/web` Vue 应用及其现有测试。
 
-- [ ] **Step 1: Split and import frontend history**
+- [ ] **步骤 1：拆分并导入前端历史**
 
 ```bash
 git subtree split --prefix=frontend imports/docmind-a390a2a -b imports/docmind-frontend
 git subtree add --prefix=apps/web imports/docmind-frontend
 ```
 
-Expected: `apps/web/src`, `apps/web/tests`, `apps/web/package.json`, and `apps/web/package-lock.json` exist, and `git log --follow -- apps/web/src/main.js` reaches DocMind history.
+预期结果：`apps/web/src`、`apps/web/tests`、`apps/web/package.json` 和 `apps/web/package-lock.json` 均存在，且 `git log --follow -- apps/web/src/main.js` 能追溯到 DocMind 历史。
 
-- [ ] **Step 2: Remove generated frontend artifacts from tracking**
+- [ ] **步骤 2：将生成的前端产物移出版本跟踪**
 
 ```bash
 git ls-files apps/web | rg '(^|/)(node_modules|dist|\.vite|\.pytest_cache)(/|$)'
 ```
 
-Remove only reported generated paths using exact `git rm -r` targets.
+仅对报告的生成路径使用精确的 `git rm -r` 目标进行移除。
 
-- [ ] **Step 3: Rename package identity without changing dependencies**
+- [ ] **步骤 3：重命名包标识，不改变依赖**
 
-Change only these values in `apps/web/package.json`:
+仅修改 `apps/web/package.json` 中的以下值：
 
 ```json
 {
@@ -430,9 +431,9 @@ Change only these values in `apps/web/package.json`:
 }
 ```
 
-Preserve scripts and dependency versions in this migration task.
+在本迁移任务中保留脚本和依赖版本。
 
-- [ ] **Step 4: Install from the lockfile and verify parity**
+- [ ] **步骤 4：按锁定文件安装并验证一致性**
 
 ```bash
 npm --prefix apps/web ci
@@ -440,9 +441,9 @@ npm --prefix apps/web test
 npm --prefix apps/web run build
 ```
 
-Expected: test count and outcome match the DocMind frontend baseline; production build exits `0`.
+预期结果：测试数量和结果与 DocMind 前端基线一致，生产构建的退出码为 `0`。
 
-- [ ] **Step 5: Commit frontend normalization**
+- [ ] **步骤 5：提交前端规范化变更**
 
 ```bash
 git add apps/web
@@ -451,19 +452,19 @@ git commit -m "chore(web): establish unified frontend baseline"
 
 ---
 
-### Task 5: Import and Reshape ResearchMind History
+### 任务 5：导入并整形 ResearchMind 历史
 
-**Files:**
-- Import temporarily: `.migration/researchmind/**`
-- Create through moves: `services/research/**`
-- Create: `docs/migration/RESEARCH_FRONTEND_SOURCE.md`
-- Delete after recorded moves: `.migration/researchmind/`
+**文件：**
+- 临时导入：`.migration/researchmind/**`
+- 通过移动新建：`services/research/**`
+- 新建：`docs/migration/RESEARCH_FRONTEND_SOURCE.md`
+- 完成移动记录后删除：`.migration/researchmind/`
 
-**Interfaces:**
-- Consumes: full ResearchMind repository at commit `40f7faa`.
-- Produces: Research backend, tests, migrations, service scripts and observability assets under owned target paths; a traceable record for later frontend migration.
+**输入与产物：**
+- 输入：位于提交 `40f7faa` 的完整 ResearchMind 仓库。
+- 产物：位于归属目标路径下的 Research 后端、测试、迁移、服务脚本和可观测性资产；用于后续前端迁移的可追溯记录。
 
-- [ ] **Step 1: Fetch and import the full pinned history**
+- [ ] **步骤 1：拉取并导入完整的固定历史**
 
 ```bash
 git remote add migration-researchmind ../ResearchMind
@@ -473,9 +474,9 @@ git branch imports/researchmind-40f7faa 40f7faa
 git subtree add --prefix=.migration/researchmind imports/researchmind-40f7faa
 ```
 
-Do not use `--squash`.
+不得使用 `--squash`。
 
-- [ ] **Step 2: Create the Research service destination**
+- [ ] **步骤 2：创建 Research Service 目标路径**
 
 ```bash
 mkdir -p services/research
@@ -491,7 +492,7 @@ git mv .migration/researchmind/docker-entrypoint.sh services/research/docker-ent
 git mv .migration/researchmind/Dockerfile.backend services/research/Dockerfile
 ```
 
-- [ ] **Step 3: Move service-owned documentation and observability assets**
+- [ ] **步骤 3：移动服务所有的文档与可观测性资产**
 
 ```bash
 git mv .migration/researchmind/docs services/research/docs
@@ -501,35 +502,35 @@ git mv .migration/researchmind/grafana/provisioning deploy/grafana/provisioning
 git mv .migration/researchmind/grafana/dashboards deploy/grafana/dashboards
 ```
 
-- [ ] **Step 4: Record the Research frontend source before pruning**
+- [ ] **步骤 4：在裁剪前记录 Research 前端来源**
 
-Create `docs/migration/RESEARCH_FRONTEND_SOURCE.md`:
+创建 `docs/migration/RESEARCH_FRONTEND_SOURCE.md`：
 
 ```markdown
-# Research Frontend Migration Source
+# Research 前端迁移来源
 
-- Source repository: `../ResearchMind`
-- Pinned commit: `40f7faa`
-- Imported historical path: `.migration/researchmind/frontend/`
-- Target integration path: `apps/web/src/modules/research/`
-- Migration owner: unified frontend information architecture plan
+- 源仓库：`../ResearchMind`
+- 固定提交：`40f7faa`
+- 已导入历史路径：`.migration/researchmind/frontend/`
+- 目标集成路径：`apps/web/src/modules/research/`
+- 迁移所属专项：统一前端信息架构计划
 
-The source frontend is intentionally not made runnable in the EvidSight root. Its pages, stores, API client behavior, SSE parser, tests, and prototypes must be mapped through the frontend专项 design before selective migration.
+源前端有意不在 EvidSight 根目录中保持可运行状态。其页面、Store、API 客户端行为、SSE 解析器、测试和原型必须先通过前端专项设计建立映射，再进行选择性迁移。
 ```
 
-- [ ] **Step 5: Remove non-runtime imported copies after reviewing tracked paths**
+- [ ] **步骤 5：审查已跟踪路径后移除非运行时导入副本**
 
-Run:
+运行：
 
 ```bash
 find .migration/researchmind -maxdepth 2 -mindepth 1 -print | sort
 ```
 
-Keep no runnable second frontend in the target tree. Remove the remaining `.migration/researchmind` directory with `git rm -r .migration/researchmind` only after confirming all backend, test, migration, service docs and required deployment assets were moved in Steps 2–3 and the frontend source record was created.
+目标目录树中不得保留可运行的第二个前端。仅在确认所有后端、测试、迁移、服务文档和必需部署资产已在步骤 2–3 中移动，且已创建前端来源记录后，才能使用 `git rm -r .migration/researchmind` 移除剩余目录。
 
-- [ ] **Step 6: Normalize Research service identity only**
+- [ ] **步骤 6：仅规范化 Research Service 标识**
 
-Preserve every existing `.env.example` variable by moving it to `services/research/.env.example`, then set these deployment defaults:
+将现有 `.env.example` 移到 `services/research/.env.example` 并保留其全部变量，然后设置以下部署默认值：
 
 ```dotenv
 SERVICE_NAME=evidsight-research
@@ -540,9 +541,9 @@ CELERY_RECOVERY_QUEUE=research.recovery
 CELERY_PERIODIC_QUEUE=research.periodic
 ```
 
-Do not merge Knowledge variables or dependencies into this file.
+不得将 Knowledge 变量或依赖合并到此文件。
 
-- [ ] **Step 7: Recreate the service environment and run tests**
+- [ ] **步骤 7：重建服务环境并运行测试**
 
 ```bash
 python3.12 -m venv services/research/.venv
@@ -550,9 +551,9 @@ services/research/.venv/bin/pip install -r services/research/requirements.txt
 services/research/.venv/bin/python -m pytest -c services/research/pytest.ini services/research/tests -m "not integration and not slow" --tb=short
 ```
 
-Expected: same selected test count and outcome as the ResearchMind backend baseline.
+预期结果：选定测试的数量和结果与 ResearchMind 后端基线一致。
 
-- [ ] **Step 8: Verify imports and Alembic isolation**
+- [ ] **步骤 8：验证导入与 Alembic 隔离**
 
 ```bash
 PYTHONPATH=services/research services/research/.venv/bin/python -c "from app.main import app; print(app.title)"
@@ -561,9 +562,9 @@ cd services/research
 .venv/bin/alembic history
 ```
 
-Expected: application import succeeds; the original ResearchMind head and all 11 migration files are present; no DocMind revision appears.
+预期结果：应用导入成功；原 ResearchMind head 和全部 11 个迁移文件均存在，不出现 DocMind revision。
 
-- [ ] **Step 9: Commit the reshape**
+- [ ] **步骤 9：提交整形变更**
 
 ```bash
 git add services/research deploy/prometheus deploy/grafana docs/migration/RESEARCH_FRONTEND_SOURCE.md
@@ -572,23 +573,23 @@ git commit -m "chore(research): import service with preserved history"
 
 ---
 
-### Task 6: Make Service Build Contexts Independent
+### 任务 6：使服务构建上下文保持独立
 
-**Files:**
-- Create: `services/knowledge/Dockerfile`
-- Modify: `services/research/Dockerfile`
-- Modify: `services/research/docker-entrypoint.sh`
-- Create: `services/knowledge/.dockerignore`
-- Create: `services/research/.dockerignore`
-- Create: `tests/architecture/test_service_boundaries.py`
+**文件：**
+- 新建：`services/knowledge/Dockerfile`
+- 修改：`services/research/Dockerfile`
+- 修改：`services/research/docker-entrypoint.sh`
+- 新建：`services/knowledge/.dockerignore`
+- 新建：`services/research/.dockerignore`
+- 新建：`tests/architecture/test_service_boundaries.py`
 
-**Interfaces:**
-- Consumes: service-local `requirements.txt` and `app` packages.
-- Produces: images `evidsight/knowledge:<version>` and `evidsight/research:<version>` built only from their service directories.
+**输入与产物：**
+- 输入：服务内部的 `requirements.txt` 和 `app` 包。
+- 产物：仅从各自服务目录构建的镜像 `evidsight/knowledge:<version>` 和 `evidsight/research:<version>`。
 
-- [ ] **Step 1: Write the failing boundary test**
+- [ ] **步骤 1：编写预期失败的边界测试**
 
-Create `tests/architecture/test_service_boundaries.py`:
+创建 `tests/architecture/test_service_boundaries.py`：
 
 ```python
 from pathlib import Path
@@ -615,17 +616,17 @@ def test_services_do_not_import_each_other_app_package():
     assert "services.knowledge.app" not in research
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **步骤 2：运行测试并确认其失败**
 
 ```bash
 python3.12 -m pytest tests/architecture/test_service_boundaries.py -v
 ```
 
-Expected: FAIL because at least one `.dockerignore` does not exist.
+预期结果：测试失败，因为至少有一个 `.dockerignore` 不存在。
 
-- [ ] **Step 3: Normalize Dockerfiles**
+- [ ] **步骤 3：规范化 Dockerfile**
 
-Each Dockerfile must use its service directory as build context and contain these equivalent stages:
+每个 Dockerfile 必须使用所属服务目录作为构建上下文，并包含以下等价阶段：
 
 ```dockerfile
 FROM python:3.12-slim
@@ -636,11 +637,11 @@ COPY . .
 ENV PYTHONPATH=/app
 ```
 
-Preserve each source image's OS packages and entrypoint behavior. Do not copy from `../../packages` in this task because contracts have no runtime implementation yet.
+保留每个源镜像的操作系统包和入口行为。本任务不得从 `../../packages` 复制文件，因为契约尚无运行时实现。
 
-- [ ] **Step 4: Add deterministic Docker ignores**
+- [ ] **步骤 4：添加确定性 Docker 忽略规则**
 
-Create the same focused `.dockerignore` in both services:
+在两个服务中创建相同且范围明确的 `.dockerignore`：
 
 ```dockerignore
 .env
@@ -653,7 +654,7 @@ htmlcov
 tests
 ```
 
-- [ ] **Step 5: Run boundary tests and image builds**
+- [ ] **步骤 5：运行边界测试与镜像构建**
 
 ```bash
 python3.12 -m pytest tests/architecture/test_service_boundaries.py -v
@@ -661,18 +662,18 @@ docker build -t evidsight/knowledge:migration services/knowledge
 docker build -t evidsight/research:migration services/research
 ```
 
-Expected: test PASS; both images build without reading files outside their service context.
+预期结果：测试通过；两个镜像均能构建，且不读取各自服务上下文之外的文件。
 
-- [ ] **Step 6: Smoke-import both images**
+- [ ] **步骤 6：对两个镜像执行导入冒烟测试**
 
 ```bash
 docker run --rm --entrypoint python evidsight/knowledge:migration -c "from app.main import app; print(app.title)"
 docker run --rm --entrypoint python evidsight/research:migration -c "from app.main import app; print(app.title)"
 ```
 
-Expected: both commands exit `0` and print their application title.
+预期结果：两条命令的退出码均为 `0`，并输出各自的应用标题。
 
-- [ ] **Step 7: Commit independent build contexts**
+- [ ] **步骤 7：提交独立构建上下文**
 
 ```bash
 git add services/knowledge services/research tests/architecture/test_service_boundaries.py
@@ -681,22 +682,22 @@ git commit -m "build: isolate backend service images"
 
 ---
 
-### Task 7: Add the 2C2G Compose and Nginx Skeleton
+### 任务 7：添加 2C2G Compose 与 Nginx 编排骨架
 
-**Files:**
-- Create: `docker-compose.yml`
-- Create: `.env.example`
-- Create: `deploy/nginx/default.conf`
-- Create: `scripts/smoke_compose.sh`
-- Create: `tests/architecture/test_compose_contract.py`
+**文件：**
+- 新建：`docker-compose.yml`
+- 新建：`.env.example`
+- 新建：`deploy/nginx/default.conf`
+- 新建：`scripts/smoke_compose.sh`
+- 新建：`tests/architecture/test_compose_contract.py`
 
-**Interfaces:**
-- Consumes: service images and frontend build from earlier tasks.
-- Produces: a single-host deployment with only Nginx externally exposed; named services and queues matching `docs/ARCHITECTURE.md`.
+**输入与产物：**
+- 输入：前续任务产生的服务镜像与前端构建产物。
+- 产物：仅对外暴露 Nginx 的单机编排骨架；服务命名和队列与 `docs/ARCHITECTURE.md` 一致。该产物不构成 v1.0 生产部署验收。
 
-- [ ] **Step 1: Write the failing Compose contract test**
+- [ ] **步骤 1：编写预期失败的 Compose 契约测试**
 
-Create `tests/architecture/test_compose_contract.py`:
+创建 `tests/architecture/test_compose_contract.py`：
 
 ```python
 from pathlib import Path
@@ -726,19 +727,19 @@ def test_workers_use_explicit_queues():
     assert "research.execute,research.recovery,research.periodic" in research
 ```
 
-Install the already-defined root architecture-test dependencies with `python3.12 -m pip install -r requirements-dev.txt`; do not add PyYAML to either service requirements unless the service imports it.
+使用 `python3.12 -m pip install -r requirements-dev.txt` 安装已定义的根目录架构测试依赖；除非服务本身导入 PyYAML，否则不得将其添加到任一服务依赖中。
 
-- [ ] **Step 2: Run the contract test to verify it fails**
+- [ ] **步骤 2：运行契约测试并确认其失败**
 
 ```bash
 python3.12 -m pytest tests/architecture/test_compose_contract.py -v
 ```
 
-Expected: FAIL because `docker-compose.yml` does not exist.
+预期结果：测试失败，因为 `docker-compose.yml` 不存在。
 
-- [ ] **Step 3: Create Compose with exact service and isolation rules**
+- [ ] **步骤 3：按精确的服务与隔离规则创建 Compose**
 
-Define the eight services from the test. Required settings:
+定义测试中的八个服务。必需设置如下：
 
 ```yaml
 services:
@@ -771,11 +772,11 @@ services:
     mem_limit: 96m
 ```
 
-Complete the file with health checks, the five named volumes from `docs/ARCHITECTURE.md`, edge/internal networks, service-local environment files, MySQL UTC/utf8mb4 settings, and dependency health conditions. Do not expose backend or data ports.
+补全健康检查、`docs/ARCHITECTURE.md` 中的五个命名卷、edge/internal 网络、服务内部环境文件、MySQL UTC/utf8mb4 设置和依赖健康条件。不得暴露后端或数据端口。
 
-- [ ] **Step 4: Create Nginx routing**
+- [ ] **步骤 4：创建 Nginx 路由**
 
-`deploy/nginx/default.conf` must serve `apps/web/dist`, proxy public Knowledge and Research routes to their APIs, disable proxy buffering for SSE, and reject internal routes:
+`deploy/nginx/default.conf` 必须托管 `apps/web/dist`，将公开的 Knowledge 和 Research 路由代理到各自 API，对 SSE 禁用代理缓冲，并拒绝内部路由：
 
 ```nginx
 location ^~ /internal/v1/ {
@@ -795,11 +796,11 @@ location /api/ {
 }
 ```
 
-- [ ] **Step 5: Add environment schema and config smoke script**
+- [ ] **步骤 5：添加环境变量 Schema 与配置冒烟脚本**
 
-`.env.example` lists names only for MySQL credentials, JWT settings, service DB URLs, isolated Redis URLs/DBs, Provider keys, image versions and backup paths. It contains no working secret.
+`.env.example` 仅列出 MySQL 凭据、JWT 设置、服务数据库 URL、隔离的 Redis URL/DB、Provider 密钥、镜像版本和备份路径的变量名，不得包含可用密钥。
 
-Create `scripts/smoke_compose.sh`:
+创建 `scripts/smoke_compose.sh`：
 
 ```bash
 #!/usr/bin/env bash
@@ -812,7 +813,7 @@ test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost/internal/v1/ret
 docker compose ps
 ```
 
-- [ ] **Step 6: Run static and runtime verification**
+- [ ] **步骤 6：运行静态与运行时验证**
 
 ```bash
 python3.12 -m pytest tests/architecture/test_compose_contract.py -v
@@ -820,17 +821,17 @@ docker compose --env-file .env.test config --quiet
 bash scripts/smoke_compose.sh
 ```
 
-Expected: contract tests PASS; Compose config is valid; both public health checks return 2xx; external Internal API returns `404`; all required containers are healthy.
+预期结果：契约测试通过；Compose 配置有效；两个公开健康检查均返回 2xx；从外部访问 Internal API 返回 `404`；所有必需容器处于健康状态。
 
-- [ ] **Step 7: Stop without deleting persistent data**
+- [ ] **步骤 7：停止服务但不删除持久化数据**
 
 ```bash
 docker compose down
 ```
 
-Do not use `down -v` during ordinary verification.
+常规验证期间不得使用 `down -v`。
 
-- [ ] **Step 8: Commit deployment skeleton**
+- [ ] **步骤 8：提交编排骨架**
 
 ```bash
 git add docker-compose.yml .env.example deploy/nginx/default.conf scripts/smoke_compose.sh tests/architecture/test_compose_contract.py
@@ -839,21 +840,21 @@ git commit -m "build: add single-node EvidSight deployment"
 
 ---
 
-### Task 8: Add Cross-Repository Verification and Migration Acceptance
+### 任务 8：添加跨仓库验证与第一阶段迁移验收
 
-**Files:**
-- Modify: `scripts/test_all.sh`
-- Create: `tests/architecture/test_repository_layout.py`
-- Create: `docs/migration/MIGRATION_ACCEPTANCE.md`
-- Modify: `docs/CHANGELOG.md`
+**文件：**
+- 修改：`scripts/test_all.sh`
+- 新建：`tests/architecture/test_repository_layout.py`
+- 新建：`docs/migration/MIGRATION_ACCEPTANCE.md`
+- 修改：`docs/CHANGELOG.md`
 
-**Interfaces:**
-- Consumes: all imported service tests, web tests, architecture tests and image builds.
-- Produces: one repeatable migration acceptance command and recorded parity evidence.
+**输入与产物：**
+- 输入：所有已导入的服务测试、Web 测试、架构测试和镜像构建。
+- 产物：一条可重复执行的第一阶段迁移验收命令，以及记录的一致性证据。
 
-- [ ] **Step 1: Write the repository layout test**
+- [ ] **步骤 1：编写仓库布局测试**
 
-Create `tests/architecture/test_repository_layout.py`:
+创建 `tests/architecture/test_repository_layout.py`：
 
 ```python
 from pathlib import Path
@@ -885,17 +886,17 @@ def test_migration_scratch_tree_is_gone():
     assert not (ROOT / ".migration").exists()
 ```
 
-- [ ] **Step 2: Run layout tests**
+- [ ] **步骤 2：运行布局测试**
 
 ```bash
 python3.12 -m pytest tests/architecture/test_repository_layout.py tests/architecture/test_service_boundaries.py tests/architecture/test_compose_contract.py -v
 ```
 
-Expected: PASS.
+预期结果：测试通过。
 
-- [ ] **Step 3: Extend the all-tests runner**
+- [ ] **步骤 3：扩展全量测试运行器**
 
-Prepend architecture tests and append the web build to `scripts/test_all.sh`:
+在 `scripts/test_all.sh` 开头加入架构测试，并在末尾加入 Web 构建：
 
 ```bash
 python3.12 -m pytest tests/architecture -v
@@ -906,7 +907,7 @@ npm --prefix apps/web run build
 docker compose config --quiet
 ```
 
-- [ ] **Step 4: Run complete migration verification**
+- [ ] **步骤 4：运行完整迁移验证**
 
 ```bash
 bash scripts/verify_source_baselines.sh
@@ -915,9 +916,9 @@ docker build -t evidsight/knowledge:migration services/knowledge
 docker build -t evidsight/research:migration services/research
 ```
 
-Expected: architecture tests, both backend suites, web tests, web build, Compose parsing and both image builds pass.
+预期结果：架构测试、两个后端测试集、Web 测试、Web 构建、Compose 解析和两个镜像构建均通过。
 
-- [ ] **Step 5: Verify history preservation**
+- [ ] **步骤 5：验证历史保留**
 
 ```bash
 git log --follow --oneline -- services/knowledge/app/main.py | tail -5
@@ -925,26 +926,27 @@ git log --follow --oneline -- apps/web/src/main.js | tail -5
 git log --follow --oneline -- services/research/app/main.py | tail -5
 ```
 
-Expected: each command displays source-project commits older than the EvidSight import commits.
+预期结果：每条命令均显示早于 EvidSight 导入提交的源项目提交。
 
-- [ ] **Step 6: Write migration acceptance evidence**
+- [ ] **步骤 6：编写迁移验收证据**
 
-Create `docs/migration/MIGRATION_ACCEPTANCE.md` containing:
+创建 `docs/migration/MIGRATION_ACCEPTANCE.md`，包含：
 
-- pinned source commits;
-- exact commands from Steps 2, 4 and 5;
-- observed test counts and outcomes;
-- imported Alembic heads and migration counts (`16` Knowledge, `11` Research at the pinned baselines);
-- Docker image IDs;
-- known source failures or approved deviations;
-- confirmation that no business API, state, permission or SSE behavior intentionally changed;
-- rollback point: the commit immediately before the first subtree import.
+- 固定的源提交；
+- 步骤 2、4 和 5 中的精确命令；
+- 实际观察到的测试数量和结果；
+- 已导入的 Alembic head 和迁移数量（固定基线中 Knowledge 为 `16`、Research 为 `11`）；
+- Docker 镜像 ID；
+- 已知源失败或已批准偏差；
+- 确认没有有意改变业务 API、状态、权限或 SSE 行为；
+- 回滚点：首次 subtree 导入之前的紧邻提交；
+- 明确声明本验收仅覆盖代码布局迁移第一阶段，不覆盖 `platform_db` 迁移链、统一身份、Internal Retrieval、统一研究前端、生产数据迁移或 v1.0 发布验收。
 
-- [ ] **Step 7: Update changelog**
+- [ ] **步骤 7：更新变更日志**
 
-Add a migration entry to `docs/CHANGELOG.md` that links to `MIGRATION_ACCEPTANCE.md` and states only structural outcomes. Do not claim identity unification, Internal Retrieval or frontend research integration is implemented by this plan.
+向 `docs/CHANGELOG.md` 添加迁移条目，链接到 `MIGRATION_ACCEPTANCE.md`，且仅陈述结构性成果。不得声称本计划已实现统一身份、Internal Retrieval 或研究前端集成。
 
-- [ ] **Step 8: Commit acceptance evidence**
+- [ ] **步骤 8：提交验收证据**
 
 ```bash
 git add scripts/test_all.sh tests/architecture docs/migration/MIGRATION_ACCEPTANCE.md docs/CHANGELOG.md
@@ -953,14 +955,14 @@ git commit -m "test: verify monorepo migration parity"
 
 ---
 
-## Migration Rollback
+## 迁移回滚
 
-Before Task 3, record the clean control-plane commit:
+在任务 3 之前，记录干净的控制层提交：
 
 ```bash
 git rev-parse HEAD
 ```
 
-If an import task fails, preserve diagnostics, fix forward on the import branch, or abandon that unmerged branch. Do not run `git reset --hard` in a worktree containing user changes. Because each subtree import and normalization is committed separately, reviewers can reject one imported unit without discarding the accepted units.
+如果导入任务失败，应保留诊断信息，在导入分支上前向修复，或放弃该未合并分支。不得在包含用户变更的工作树中运行 `git reset --hard`。由于每个 subtree 导入和规范化变更都单独提交，审查者可以拒绝某个导入单元，而不必丢弃已接受的单元。
 
-The migration is complete only when Task 8 evidence passes. Source repositories remain writable and authoritative until production data migration, unified frontend, identity integration, deployment rehearsal and rollback rehearsal are separately accepted; this code-layout plan does not authorize archiving them.
+仅当任务 8 的证据通过时，才能声称“Monorepo 代码布局迁移第一阶段完成”。在生产数据迁移、统一前端、身份集成、部署演练和回滚演练分别通过验收前，源仓库仍保持可写，并作为未完成迁移部分的实现基线；本代码布局计划不授权归档源仓库，也不代表 EvidSight v1.0 已可发布。
