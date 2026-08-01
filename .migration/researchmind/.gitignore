@@ -1,0 +1,41 @@
+﻿# Python 缓存
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 测试与覆盖率
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 构建产物
+dist/
+*.egg-info/
+/INFRASTRUCTURE_REUSE.md
+/INFRASTRUCTURE_REUSE_FRONTEND.md
+/CLAUDE.md
+/.claude/commands/review.md
+/frontend/node_modules/
+/scripts/batch_research_runner.py
+/scripts/data/
+/scripts/output/batch_result_20260708_125304.csv
+/ResearchMind_项目深挖问答.md

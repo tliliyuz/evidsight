@@ -1,0 +1,31 @@
+{
+  "round": 4,
+  "task_id": "d94afa6f-0255-4d42-bcec-ba546cb03ea1",
+  "topic": "分析 AI Agent 框架（如 LangGraph、CrewAI、AutoGen）在 2025-2026 年的发展格局：市场渗透率、技术成熟度曲线、关键差异化能力，以及未来 12 个月的可能走向。",
+  "task_type": "analysis",
+  "rater": "aggregated",
+  "scores": [
+    {
+      "dimension": "结构完整性",
+      "score": 4.7,
+      "comment": "三位评委均认可五段式分析框架完整、因果链清晰；Kimi 指出对市场渗透率与技术成熟度曲线两项关键要求仅标注知识缺口，未用替代指标补充分析。"
+    },
+    {
+      "dimension": "引用准确性",
+      "score": 4.7,
+      "comment": "锚点与 Evidence Graph 对应正确，引用语义一致；Kimi 认为部分引用粒度偏粗，对具体特性描述的支撑力度不足。"
+    },
+    {
+      "dimension": "综合质量",
+      "score": 4.3,
+      "comment": "报告整合多源观点并诚实标注知识缺口；DeepSeek/Kimi 认为推演偏定性，缺少量化指标支撑，且对来源间细微冲突挖掘不足。"
+    },
+    {
+      "dimension": "可读性",
+      "score": 5.0,
+      "comment": "三位评委一致认为 Markdown 格式规范、语言流畅、术语准确，目标读者无需额外背景即可理解核心结论。"
+    }
+  ],
+  "overall_score": 4.7,
+  "evaluated_at": "2026-06-30T18:00:00+00:00"
+}
