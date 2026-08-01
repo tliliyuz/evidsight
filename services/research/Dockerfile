@@ -1,13 +1,13 @@
-# ResearchMind 后端统一镜像
+# EvidSight Research Service 统一镜像
 # 支持多角色：web / worker / beat / migrate
 #
 # 构建：
-#   docker build -f Dockerfile.backend -t researchmind/backend .
+#   docker build -t evidsight/research:migration .
 # 运行：
-#   docker run --rm researchmind/backend web
-#   docker run --rm researchmind/backend worker
-#   docker run --rm researchmind/backend beat
-#   docker run --rm researchmind/backend migrate
+#   docker run --rm evidsight/research:migration web
+#   docker run --rm evidsight/research:migration worker
+#   docker run --rm evidsight/research:migration beat
+#   docker run --rm evidsight/research:migration migrate
 
 FROM python:3.12-slim AS builder
 
@@ -24,7 +24,7 @@ RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/source
     && rm -rf /var/lib/apt/lists/*
 
 # 先单独复制 requirements，利用 Docker 缓存层
-COPY requirements.txt .
+COPY requirements.txt ./requirements.txt
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
     && pip install --no-cache-dir --user -r requirements.txt
 

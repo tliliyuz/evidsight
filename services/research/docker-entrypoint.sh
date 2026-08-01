@@ -1,5 +1,5 @@
 #!/bin/sh
-# ResearchMind 后端统一入口脚本
+# EvidSight Research Service 统一入口脚本
 # 支持角色：web / worker / beat / migrate
 
 set -e
