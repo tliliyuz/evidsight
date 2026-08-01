@@ -37,6 +37,33 @@
 
 开发行为遵循 [AGENT.md](AGENT.md) 的规范驱动开发门禁：先确认权威规范和验收条件，再写测试与实现，最后同步文档和变更记录。
 
+## M0 Monorepo 开发入口
+
+M0 按 [总体架构](docs/specs/ARCHITECTURE.md)、[PRD](docs/specs/PRD.md) 和 [迁移计划](docs/plans/MONOREPO_MIGRATION_PLAN.md) 将两个来源项目迁入以下独立边界：
+
+```text
+apps/web/                 # M0 阶段的统一 Web 基线
+services/knowledge/       # Knowledge Service，独立 Python 环境与迁移链
+services/research/        # Research Service，独立 Python 环境与迁移链
+packages/contracts/       # 跨服务纯数据契约
+packages/frontend-shared/ # 经验证后才能进入的前端共享能力
+```
+
+本地开发需要 Python 3.12、Node.js 20+、Docker Engine、Docker Compose v2 和 Git。迁移完成后，两个后端分别在自己的服务目录创建 `.venv` 并安装各自 `requirements.txt`；Web 严格使用 `apps/web/package-lock.json` 安装依赖。根目录不合并两个服务的运行时依赖。
+
+根验证入口：
+
+```bash
+make test
+make test-knowledge
+make test-research
+make test-web
+make build-web
+make compose-config
+```
+
+在对应来源代码完成迁入前，这些命令只表示已经建立的目标入口，不代表服务当前可运行。
+
 ## License
 
 许可证见后续迁移保留的项目授权文件；正式发布前必须完成来源项目许可证兼容复核。
