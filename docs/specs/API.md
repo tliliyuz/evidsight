@@ -6,7 +6,7 @@
 | 文档版本 | v1.0 |
 | 最后更新 | 2026-07-31 |
 
-> 本文是外部/内部 HTTP、错误语义和 SSE 的权威规范。产品行为见 [PRD.md](PRD.md)，身份与授权见 [IDENTITY_AND_ACCESS.md](IDENTITY_AND_ACCESS.md)，服务边界见 [ARCHITECTURE.md](ARCHITECTURE.md)。跨服务字段 Schema 由 [`packages/contracts/`](../packages/contracts/README.md) 定义；本文不复制 ORM、数据库或 Pipeline 内部结构。
+> 本文是外部/内部 HTTP、错误语义和 SSE 的权威规范。产品行为见 [PRD.md](PRD.md)，身份与授权见 [IDENTITY_AND_ACCESS.md](IDENTITY_AND_ACCESS.md)，服务边界见 [ARCHITECTURE.md](ARCHITECTURE.md)。跨服务字段 Schema 由 [`packages/contracts/`](../../packages/contracts/README.md) 定义；本文不复制 ORM、数据库或 Pipeline 内部结构。
 
 ## 1. 目标与边界
 
@@ -22,7 +22,8 @@
 - HTTP 使用 HTTPS；JSON 与 SSE 均为 UTF-8。
 - 时间使用 RFC 3339 UTC（推荐 `Z`）；持续时间使用毫秒整数。
 - ID 对外为不透明 UUID 字符串，客户端不得依赖排序或内部主键。
-- Breaking Change 使用新主版本；新增可选字段或枚举值必须允许旧客户端安全忽略。
+- 外部 `/api/v1` 的 Breaking Change 使用新主版本；新增可选字段或非终态枚举值必须允许旧客户端安全降级。
+- Internal Retrieval 使用精确 Contract 版本和 `additionalProperties: false`；其未知字段/枚举必须拒绝，不适用外部客户端的宽容读取规则。
 - 迁移期旧 DocMind/ResearchMind 路由保持原行为，由兼容层映射；废弃前必须有调用方清单、替代路径、观测窗口和回归测试。
 
 ## 3. 通用请求约定
@@ -37,6 +38,26 @@
 | 条件更新 | 支持资源版本时使用 `If-Match`；版本冲突返回 `409` |
 
 未知请求字段默认由 Schema 拒绝。查询筛选、排序字段和上传大小必须使用允许列表；不得把客户端字段直接拼接到 SQL、文件路径或 Provider 请求。
+
+### 3.1 外部 DTO 最小基线
+
+在 OpenAPI 落地前，下列字段是实现与测试不得偏离的最小基线；OpenAPI 建立后成为字段、类型和约束的唯一权威源，本文改为引用。
+
+| DTO | 必需字段 | 关键约束 |
+|:---|:---|:---|
+| `LoginRequest` | `username`、`password` | 非空；错误不区分账号不存在和密码错误 |
+| `UserSummary` | `id`、`username`、`role`、`status` | UUID；`role=user|admin`，`status=active|disabled` |
+| `KnowledgeBaseCreate` | `name`、`visibility` | `visibility=private|public` |
+| `KnowledgeBaseResponse` | `id`、`name`、`visibility`、`owner`、`index_status`、时间 | 不返回内部主键、Collection 或路径 |
+| `DocumentResponse` | `id`、`knowledge_base_id`、`display_name`、`status`、时间 | `queued|processing|completed|partial|failed` |
+| `ChatStreamRequest` | `conversation_id`、`knowledge_base_id`、`message` | v1.0 只有单数 KB；消息非空 |
+| `ConversationResponse` | `id`、`knowledge_base_id`、`title`、时间 | 会话只属于一个用户和一个 KB |
+| `ResearchTaskCreate` | `topic`、`task_type`、`source_strategy`、`knowledge_base_ids`、预算摘要 | knowledge/hybrid 为 1—50 个 KB；web 必须为空 |
+| `ResearchTaskResponse` | `id`、`status`、`phase`、`progress`、`recoverable`、时间 | 状态和 Phase 引用 Research Pipeline |
+| `EvidenceResponse` | Contract `EvidenceReference` 的公开投影 | Internal 不含正文；展开时实时鉴权 |
+| `ReportResponse` | `id`、`task_id`、`revision`、`status`、章节、引用、完整度摘要 | published Revision 不可变 |
+
+正式 Schema 还必须定义分页对象、条件更新版本、上传 multipart、错误 `details` 白名单以及 Chat/Research SSE 每种 `data` 对象。
 
 ## 4. 通用响应与错误
 
@@ -108,14 +129,16 @@ READ、owner 和 admin 治理分别判断，权限矩阵引用 PRD §8。
 
 | 方法与路径 | 权限 | 成功 |
 |:---|:---|:---:|
-| `POST /api/v1/chat/stream` | 所选 KB READ | 200 SSE |
+| `POST /api/v1/chat/stream` | 单个所选 KB READ | 200 SSE |
 | `POST /api/v1/chat/generations/{generation_id}/cancel` | 创建者 | 202 |
 | `GET /api/v1/conversations` | owner | 200 |
 | `GET /api/v1/conversations/{conversation_id}` | owner | 200 |
 | `PATCH /api/v1/conversations/{conversation_id}` | owner | 200 |
 | `DELETE /api/v1/conversations/{conversation_id}` | owner | 204 |
 
-每次问答实时校验 KB 范围；多轮上下文不得扩展到未选择或已撤权 KB。取消命令幂等，SSE 断开也可终止当前生成。检索或生成失败不得发送成功终态或伪造答案。
+v1.0 Chat 请求只接受一个 `knowledge_base_id`，Conversation 也只绑定一个 KB。每次问答实时校验该 KB；多轮上下文不得扩展到其他或已撤权 KB。多 KB Chat 属于 v1.x 规划能力，不得由客户端并发请求模拟。取消命令幂等，SSE 断开也可终止当前生成。检索或生成失败不得发送成功终态或伪造答案。
+
+外部 API 的字段级请求、响应和事件 `data` Schema 由后续建立的 `docs/openapi/evidsight-v1.yaml` 统一维护；本文只定义行为、权限、状态码和兼容语义。在该 OpenAPI 文件建立前，不得把实现中的临时 DTO 视为已发布契约。
 
 ## 8. Research Task API
 
@@ -155,18 +178,26 @@ Evidence 明确 `internal|web` 来源类型。内部原文链接指向 Knowledge
 | `POST /api/v1/admin/users/{user_id}/enable` | 200 | 不恢复旧 Token/任务 |
 | `POST /api/v1/admin/users/{user_id}/password-reset` | 202 | 受控流程，不回传密码 |
 | `GET /api/v1/admin/audit/knowledge-bases` | 200 | 审计范围 |
+| `GET /api/v1/admin/audit/documents` | 200 | 审计范围；不自动返回私有正文 |
 | `GET /api/v1/admin/audit/research-tasks` | 200 | 审计范围 |
+| `GET /api/v1/admin/audit/events` | 200 | 治理和安全事件安全摘要 |
+| `GET /api/v1/admin/traces/knowledge` | 200 | Knowledge 性能诊断，无正文/Prompt |
+| `GET /api/v1/admin/traces/research` | 200 | Research 性能诊断，无正文/Prompt |
 | `DELETE /api/v1/admin/governance/{resource_type}/{resource_id}` | 204 | 原因、审计、幂等 |
 
 管理员只能修改 PRD 允许的治理元数据，不能替普通用户上传业务文档。危险操作必须记录操作者、原因、目标、请求 ID 与结果。
 
+完整成本与计费、可配置角色权限和组织级设置属于 P1，不属于 v1.0 P0 Admin API；前端可以保留原型入口，但不得调用未定义接口或展示伪造数据。
+
 ## 11. Internal Retrieval API
 
-`POST /internal/v1/retrieval/search` 是 Research 使用 Knowledge 的唯一检索入口。请求/响应完整字段、Evidence Contract、固定样例和版本由 `packages/contracts/` 拥有。
+`POST /internal/v1/retrieval/search` 是 Research 使用 Knowledge 发现候选的唯一搜索入口。请求/响应完整字段、Evidence Contract、固定样例和版本由 `packages/contracts/` 拥有。
+
+`POST /internal/v1/retrieval/resolve` 是 Research 对已选定内部 Candidate 进行精确正文重取的唯一入口。它按 KB、Document、Document Version、Segment 稳定身份读取，不执行相似检索，也不静默切换到新的 Active Version。
 
 HTTP 层必须携带 Research 服务身份、Platform User ID、目标 KB、`X-Request-ID`、调用链 ID 和 Contract 版本。Knowledge 依次验证服务身份、版本/结构、用户启用状态及每个 KB 当前 READ 权限，再执行检索。
 
-主要错误：`INTERNAL_SERVICE_UNAUTHENTICATED`、`INTERNAL_CONTRACT_UNSUPPORTED`、`AUTH_USER_DISABLED`、`KB_FORBIDDEN`、`INTERNAL_RATE_LIMITED`、`INTERNAL_RETRIEVAL_UNAVAILABLE`。服务认证成功不能替代用户授权。响应不得暴露 ORM、Chroma Collection、磁盘路径或缓存 Key。
+主要错误：`INTERNAL_SERVICE_UNAUTHENTICATED`、`INTERNAL_CONTRACT_UNSUPPORTED`、`AUTH_USER_DISABLED`、`KB_FORBIDDEN`、`EVIDENCE_SOURCE_UNAVAILABLE`、`INTERNAL_RATE_LIMITED`、`INTERNAL_RETRIEVAL_UNAVAILABLE`。服务认证成功不能替代用户授权。响应不得暴露 ORM、Chroma Collection、磁盘路径或缓存 Key。
 
 ## 12. Chat SSE
 
@@ -225,4 +256,4 @@ Research SSE 是持久任务订阅，断开不得取消研究任务。重连携�
 | FR-RP-001、FR-RP-002、FR-RP-003 | Report API、Evidence/引用联动数据 |
 | FR-AD-001、FR-AD-002 | Admin API 与治理审计 |
 
-PRD §13 的十个端到端场景分别由文档入库/Chat、KB 越权、web/knowledge/hybrid Research、冲突 Evidence、取消、恢复、历史报告二次鉴权和管理员禁用链路覆盖。实际测试名称、环境和结果记录在 `docs/TESTING.md`，不在本文伪造完成状态。
+PRD §13 的十个端到端场景分别由文档入库/Chat、KB 越权、web/knowledge/hybrid Research、冲突 Evidence、取消、恢复、历史报告二次鉴权和管理员禁用链路覆盖。实际测试名称、环境和结果记录在 `docs/specs/TESTING.md`，不在本文伪造完成状态。

@@ -8,6 +8,8 @@
 
 **技术栈：** Git subtree、Python 3.12、FastAPI、Celery 5.4、MySQL 8、Redis 7、Vue 3、Vite 6、Vitest 2、Docker Compose v2、Nginx。
 
+> 前端阶段说明：M0 的唯一目标是无行为变化地保留 DocMind Vue 3 基线及历史；v1.0 目标前端由 `apps/web/docs/FRONTEND.md` 定义为 React + TypeScript。Vue → React 的替换属于 ROADMAP M4，必须在稳定 API/SSE、专项规格和回归测试下执行，不得夹带进本迁移计划。
+
 ## 全局约束
 
 - 部署基线固定为单机 Docker Compose，`2 vCPU / 2 GB RAM`。
@@ -277,7 +279,7 @@ PyYAML==6.*
 
 - [ ] **步骤 5：记录根目录命令与所有权**
 
-更新 `README.md`，写明目标目录树、前置条件、服务内部环境设置、根目录验证命令，并链接 `docs/ARCHITECTURE.md`、`docs/PRD.md` 和本计划。不得重复架构规则。
+更新 `README.md`，写明目标目录树、前置条件、服务内部环境设置、根目录验证命令，并链接 `docs/specs/ARCHITECTURE.md`、`docs/specs/PRD.md` 和本计划。不得重复架构规则。
 
 - [ ] **步骤 6：验证命令入口**
 
@@ -400,7 +402,7 @@ git commit -m "chore(knowledge): normalize imported service configuration"
 
 **输入与产物：**
 - 输入：DocMind 提交 `a390a2a` 的 `frontend/` 子树。
-- 产物：唯一的 `apps/web` Vue 应用及其现有测试。
+- 产物：M0 阶段唯一的 `apps/web` Vue 迁移基线及其现有测试；它不是 M4 的最终 React 交付物。
 
 - [ ] **步骤 1：拆分并导入前端历史**
 
@@ -693,7 +695,7 @@ git commit -m "build: isolate backend service images"
 
 **输入与产物：**
 - 输入：前续任务产生的服务镜像与前端构建产物。
-- 产物：仅对外暴露 Nginx 的单机编排骨架；服务命名和队列与 `docs/ARCHITECTURE.md` 一致。该产物不构成 v1.0 生产部署验收。
+- 产物：仅对外暴露 Nginx 的单机编排骨架；服务命名和队列与 `docs/specs/ARCHITECTURE.md` 一致。该产物不构成 v1.0 生产部署验收。
 
 - [ ] **步骤 1：编写预期失败的 Compose 契约测试**
 
@@ -772,7 +774,7 @@ services:
     mem_limit: 96m
 ```
 
-补全健康检查、`docs/ARCHITECTURE.md` 中的五个命名卷、edge/internal 网络、服务内部环境文件、MySQL UTC/utf8mb4 设置和依赖健康条件。不得暴露后端或数据端口。
+补全健康检查、`docs/specs/ARCHITECTURE.md` 中的五个命名卷、edge/internal 网络、服务内部环境文件、MySQL UTC/utf8mb4 设置和依赖健康条件。不得暴露后端或数据端口。
 
 - [ ] **步骤 4：创建 Nginx 路由**
 

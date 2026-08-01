@@ -4,8 +4,8 @@
 > 最后更新：2026-08-01  
 > 权威范围：`apps/web/` 的信息架构、页面行为、客户端状态机与前端验收  
 > 视觉规范：[UIDESIGN.md](UIDESIGN.md)  
-> 产品需求：[PRD.md](../../../docs/PRD.md)  
-> 接口协议：[API.md](../../../docs/API.md)
+> 产品需求：[PRD.md](../../../docs/specs/PRD.md)
+> 接口协议：[API.md](../../../docs/specs/API.md)
 
 ## 1. 目标与边界
 
@@ -175,13 +175,14 @@ Query Key 必须包含资源范围，例如 `['knowledge-base', kbId]`、`['conv
 
 页面以对话为主体，系统消息位于左侧、用户消息位于右侧，不显示装饰性机器人头像。角色名称字号高于元数据。
 
-知识范围选择是多知识库选择器，而不是抽象的“文档范围”：
+知识范围使用可演进的知识库选择器，而不是抽象的“文档范围”。v1.0 的 Chat 只允许选择一个知识库；组件保留未来多选的布局与信息层级，但多选控件不可执行，并以“多知识库问答规划中”提示用户，不得通过前端聚合或重复请求模拟多 KB Chat：
 
 - 支持名称搜索；
 - 默认按最近更新时间倒序；
 - 展示 owner、可见性和文档量作为辅助信息；
-- 用户逐个勾选知识库；
-- 已选范围在发送时形成不可隐式扩大的 KB ID 集合。
+- 用户单选一个知识库；切换知识库前必须明确提示会话范围变化；
+- 发送时只提交一个 `knowledge_base_id`，服务端不得隐式扩大范围；
+- 多选能力作为 v1.x TODO 保留，启用前必须解决 Per-KB Collection 的缓存、内存、跨 KB 排序和部分失败语义，并先修订权威规范。
 
 选择器从右侧滑出或以宽 Popover 展示，不长期占用对话宽度。来源编号打开右侧来源卡片，来源卡片可继续进入对应文档切片。
 
@@ -244,6 +245,8 @@ Query Key 必须包含资源范围，例如 `['knowledge-base', kbId]`、`['conv
 | 角色与权限 | 预设角色和权限说明 | [18-admin-roles.png](../../../resource/prototype/18-admin-roles.png) |
 | 审计日志 | 治理操作记录 | [19-admin-audit.png](../../../resource/prototype/19-admin-audit.png) |
 | 系统设置 | 组织级默认策略 | [20-admin-settings.png](../../../resource/prototype/20-admin-settings.png) |
+
+v1.0 P0 页面为运行概览、知识库管理、文档管理、Knowledge Trace、Research Trace、用户管理和审计日志。完整成本与计费、可配置角色权限和组织级系统设置属于 P1；这些原型在 v1.0 只作为视觉演进基线，不得提供虚假数据、无后端语义的保存按钮或“已上线”提示。若 P0 页面需要展示基础 Token/调用计数，只能使用 API 已定义的安全运行摘要，不提前实现完整计费账本。
 
 ### 6.2 Trace 与计费边界
 
@@ -371,7 +374,7 @@ Research SSE 只是持久任务的观察通道：
 
 1. 匿名用户登录并进入工作台；
 2. 创建知识库、上传文档、观察入库终态并查看切片；
-3. 勾选多个知识库问答、中止一次生成、完成一次生成并打开来源切片；
+3. 选择一个知识库问答、中止一次生成、完成一次生成并打开来源切片；确认多选入口不可执行且展示“规划中”提示；
 4. 创建 hybrid 研究，离开运行态后返回，确认任务持续且状态可恢复；
 5. 从完成任务进入报告，验证引用与 Evidence Graph 双向联动；
 6. 撤销内部来源权限后，报告保留引用元数据但不再展示原文；
@@ -380,11 +383,11 @@ Research SSE 只是持久任务的观察通道：
 
 ## 14. 前端验收门禁
 
-- 20 个原型页面均有对应实现入口，页面层级与主要操作不偏离截图基线；
+- P0 原型页面均有对应实现入口；P1 原型可保留视觉基线，但不得伪装成已可用功能；
 - 不出现第二套普通业务壳层或嵌套管理侧边栏；
 - Chat SSE 断开语义与 Research SSE 断开语义严格区分；
 - 报告正文先呈现结论，Trace 只作为末尾附录；
-- 多知识库选择以 KB 为单位，不使用不可解释的“可检索文档范围”；
+- Chat 知识库选择以 KB 为单位且 v1.0 仅单选；多选只展示不可执行的“规划中”提示；
 - 文档切片在知识库与回答来源中均可访问且实时鉴权；
 - 主要列表操作均使用可识别按钮，不隐藏在微小文字或仅 Hover 状态；
 - 桌面 1280px 宽无主要功能遮挡，移动端无水平滚动阻塞主操作；
@@ -394,10 +397,9 @@ Research SSE 只是持久任务的观察通道：
 ## 15. 相关文档
 
 - [UIDESIGN.md](UIDESIGN.md)
-- [PRD.md](../../../docs/PRD.md)
-- [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md)
-- [IDENTITY_AND_ACCESS.md](../../../docs/IDENTITY_AND_ACCESS.md)
-- [API.md](../../../docs/API.md)
+- [PRD.md](../../../docs/specs/PRD.md)
+- [ARCHITECTURE.md](../../../docs/specs/ARCHITECTURE.md)
+- [IDENTITY_AND_ACCESS.md](../../../docs/specs/IDENTITY_AND_ACCESS.md)
+- [API.md](../../../docs/specs/API.md)
 - [Knowledge RAG Pipeline](../../../services/knowledge/docs/RAG_PIPELINE.md)
 - [Research Pipeline](../../../services/research/docs/RESEARCH_PIPELINE.md)
-

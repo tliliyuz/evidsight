@@ -1,7 +1,7 @@
 [project]
 name = "evidsight"
 version = "0.1.0"
-description = "Add your description here"
+description = "Evidence-driven enterprise knowledge and deep research platform"
 readme = "README.md"
 authors = [
     { name = "yyuer", email = "1654091169@qq.com" }

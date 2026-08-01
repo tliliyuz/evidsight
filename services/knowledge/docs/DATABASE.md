@@ -7,7 +7,7 @@
 | 最后更新 | 2026-07-31 |
 | 来源基线 | DocMind `backend/docs/DATABASE.md` 与既有 Alembic 历史 |
 
-> 本文是 `platform_db` 与 `knowledge_db` 的表、索引、外键、生命周期和迁移边界的权威规范。身份语义见 [`docs/IDENTITY_AND_ACCESS.md`](../../../docs/IDENTITY_AND_ACCESS.md)，系统数据所有权见 [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md)，跨服务字段见 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 HTTP 字段、RAG 算法或 Research 数据表。
+> 本文是 `platform_db` 与 `knowledge_db` 的表、索引、外键、生命周期和迁移边界的权威规范。身份语义见 [`docs/specs/IDENTITY_AND_ACCESS.md`](../../../docs/specs/IDENTITY_AND_ACCESS.md)，系统数据所有权见 [`docs/specs/ARCHITECTURE.md`](../../../docs/specs/ARCHITECTURE.md)，跨服务字段见 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 HTTP 字段、RAG 算法或 Research 数据表。
 
 ## 1. 目标与边界
 
@@ -372,7 +372,7 @@ Document Version 状态与 `last_success_batch` 共同表示恢复点。数据�
 7. 在 Consumer 全部切换后删除 Knowledge 旧 `users`、`refresh_tokens`、BIGINT 用户外键、`thinking_content` 和失效 JSON 引用。
 8. 建立或验证新索引、约束和外键，执行 MySQL/文件/Chroma 抽样一致性检查。
 
-具体停机窗口、批次大小、校验 SQL、备份、前滚修复和回滚点由 `docs/DATA_MIGRATION_AND_ROLLBACK.md` 定义。不可逆内容删除在可验证备份前不得执行。
+具体停机窗口、批次大小、校验 SQL、备份、前滚修复和回滚点由 `docs/specs/DATA_MIGRATION_AND_ROLLBACK.md` 定义。不可逆内容删除在可验证备份前不得执行。
 
 ## 12. 备份、恢复与保留
 

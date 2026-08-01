@@ -38,22 +38,28 @@
 
 ## 权威文档矩阵
 
-开始任务前，按变更范围读取对应文档；目标文档尚未建立时，先补齐规范，不得在无规范情况下推断设计。
+项目级规范统一收录在 `docs/specs/`，完整分层与导航见 `docs/README.md`。开始任务前，按变更范围读取对应文档；目标文档尚未建立时，先补齐规范，不得在无规范情况下推断设计。
 
 | 主题 | 唯一权威来源 |
 |---|---|
-| 产品定位、用户、范围、功能与验收 | `docs/PRD.md` |
-| 总体架构、服务边界与部署拓扑 | `docs/ARCHITECTURE.md` |
-| 身份、权限与数据访问策略 | `docs/IDENTITY_AND_ACCESS.md` |
-| 外部/内部 API、错误码与 SSE | `docs/API.md` |
+| 产品定位、用户、范围、功能与验收 | `docs/specs/PRD.md` |
+| 总体架构、服务边界与部署拓扑 | `docs/specs/ARCHITECTURE.md` |
+| 身份、权限与数据访问策略 | `docs/specs/IDENTITY_AND_ACCESS.md` |
+| 外部/内部 API、错误码与 SSE | `docs/specs/API.md` |
 | 跨服务请求、事件与 Evidence Contract | `packages/contracts/` |
 | 数据库、索引、外键与迁移 | 各服务的 `docs/DATABASE.md` |
 | Knowledge RAG Pipeline | `services/knowledge/docs/RAG_PIPELINE.md` |
 | Research Agent Pipeline | `services/research/docs/RESEARCH_PIPELINE.md` |
 | 前端页面、交互与状态机 | `apps/web/docs/FRONTEND.md` |
 | Design Token 与组件样式 | `apps/web/docs/UIDESIGN.md` |
-| Monorepo 迁移约束 | `docs/MONOREPO_MIGRATION_PLAN.md` |
-| 阶段目标与排期 | `docs/ROADMAP.md` |
+| Monorepo 迁移约束 | `docs/plans/MONOREPO_MIGRATION_PLAN.md` |
+| 开发环境、目录、命令与工作流 | `docs/guides/DEVELOPMENT.md` |
+| 测试矩阵与发布验证 | `docs/specs/TESTING.md` |
+| 配置键与运行边界 | `docs/specs/CONFIGURATION.md` |
+| 数据迁移、校验与回滚 | `docs/specs/DATA_MIGRATION_AND_ROLLBACK.md` |
+| 数据保留与清理 | `docs/specs/DATA_RETENTION.md` |
+| 部署、备份、恢复与故障处理 | `docs/specs/OPERATIONS.md` |
+| 阶段目标与排期 | `docs/plans/ROADMAP.md` |
 | 行为变更记录 | `docs/CHANGELOG.md` |
 | 重要架构决策 | `docs/decisions/ADR-NNN.md` |
 | 代码审查流程与检查项 | `.claude/commands/review.md` |

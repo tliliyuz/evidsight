@@ -7,7 +7,7 @@
 | 最后更新 | 2026-07-31 |
 | 来源基线 | DocMind RAG Pipeline 与已采纳 ADR |
 
-> 本文是 Knowledge 文档入库、检索核心、Chat 编排和 Internal Retrieval Provider 的权威规范。数据持久化见 [DATABASE.md](DATABASE.md)，HTTP/SSE 见 [`docs/API.md`](../../../docs/API.md)，跨服务字段见 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 Research Agent、Evidence Graph 或报告生成。
+> 本文是 Knowledge 文档入库、检索核心、Chat 编排和 Internal Retrieval Provider 的权威规范。数据持久化见 [DATABASE.md](DATABASE.md)，HTTP/SSE 见 [`docs/specs/API.md`](../../../docs/specs/API.md)，跨服务字段见 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 Research Agent、Evidence Graph 或报告生成。
 
 ## 1. 目标与边界
 
@@ -126,6 +126,8 @@ Vector Store 必须显式接收单个 KB 内部 ID，并只读取 Document Activ
 
 Internal Retrieval 不执行 Chat Intent、历史 Rewrite、Prompt、答案生成、SSE 或持久化 EvidenceReference。
 
+`/internal/v1/retrieval/resolve` 只按 Contract 中的 KB/Document/Document Version/Segment 稳定身份精确读取当前仍可访问的最小正文。它复用相同的服务认证、用户启用和逐 KB READ 校验，但不执行向量/BM25、RRF 或 Rerank；不得把已删除 Version 静默解析为当前 Active Version。
+
 ## 8. Chat Orchestrator
 
 Chat v1.0 绑定单个 KB。处理顺序：
@@ -197,7 +199,7 @@ Internal Query 和最小片段仅用于内部处理，不得自动转发互联�
 - 固定评估集 Recall@5、引用定位率、无证据拒答率和跨 KB 泄漏；
 - 2C2G 下峰值内存、P95 检索延迟和大 KB BM25保护。
 
-质量阈值的数值和评估集版本由 `docs/TESTING.md` 统一发布；没有实际运行证据不得声称达到发布门禁。
+质量阈值的数值和评估集版本由 `docs/specs/TESTING.md` 统一发布；没有实际运行证据不得声称达到发布门禁。
 
 ## 14. 验收场景
 

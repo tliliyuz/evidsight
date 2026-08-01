@@ -7,7 +7,7 @@
 | 最后更新 | 2026-07-31 |
 | 适用范围 | Research API、Worker、Recovery Scanner 与 Research SSE 投影 |
 
-> 本文是 Research Task/Phase/Step 状态、`knowledge|web|hybrid` 来源策略、Evidence Graph、完整度判定、失败恢复和报告发布的权威规范。持久化结构见 [`DATABASE.md`](DATABASE.md)，HTTP/SSE 表面见 [`docs/API.md`](../../../docs/API.md)，Internal Retrieval 与 Evidence 字段见 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 Knowledge 检索实现、数据库 DDL 或前端布局。
+> 本文是 Research Task/Phase/Step 状态、`knowledge|web|hybrid` 来源策略、Evidence Graph、完整度判定、失败恢复和报告发布的权威规范。持久化结构见 [`DATABASE.md`](DATABASE.md)，HTTP/SSE 表面见 [`docs/specs/API.md`](../../../docs/specs/API.md)，Internal Retrieval 与 Evidence 字段见 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 Knowledge 检索实现、数据库 DDL 或前端布局。
 
 ## 1. 目标、原则与范围
 
@@ -160,7 +160,7 @@ Hybrid 中两套查询计划在 Planning 输出即显式分离，并由外发策
 
 Knowledge 在执行前验证服务身份、Contract、用户 active、全部 KB active 和逐 KB READ。任一 KB 失败时整次多 KB 请求失败。Research 不拆分重试来绕过全量授权。
 
-响应中的 RetrievalHit 转为内存 Candidate：稳定 KB/Document/Segment ID、显示信息、位置、评分摘要、时间和 `minimal_excerpt`。Research 严格校验响应 Schema；未知字段、版本不支持、ID 缺失或返回数量不一致均失败关闭。
+响应中的 RetrievalHit 转为内存 Candidate：稳定 KB/Document/Document Version/Segment ID、显示信息、位置、评分摘要、时间和 `minimal_excerpt`。Research 严格校验响应 Schema；未知字段、版本不支持、ID 缺失或返回数量不一致均失败关闭。
 
 重试策略：
 
@@ -195,7 +195,7 @@ Fetch 只接受 Web Search 产生且通过 URL 校验的目标：
 2. **公平抽取**：以子问题为首要分组，从每个可用通道按轮次抽取候选；在达到每个 required 子问题最低候选额度前，不允许单个通道消耗全部预算。
 3. **全局重排**：对统一 Candidate DTO 评估与子问题相关性、来源质量、时效、观点多样性和重复度，输出最终顺序。
 
-全局 Reranker 可以使用 LLM，但输入必须遵守预算并只包含任务内受允内容。内部候选必须由当前 Rerank Step attempt 重新检索，不能复用 Searching Step 的 excerpt。输出只接受 Candidate ID 与受控评分维度，不接受模型生成的新来源或引用；Step 结束前释放全部内部正文。
+全局 Reranker 可以使用 LLM，但输入必须遵守预算并只包含任务内受允内容。内部候选必须由当前 Rerank Step attempt 通过 Contract `EvidenceResolveRequest` 按 KB/Document/Document Version/Segment 稳定身份精确重取，不能复用 Searching Step 的 excerpt，也不能用文本查询重新搜索后替换候选。输出只接受 Candidate ID 与受控评分维度，不接受模型生成的新来源或引用；Step 结束前释放全部内部正文。
 
 Rerank 失败时允许一次确定性回退：使用通道内标准化排序与公平抽取结果。回退必须记录降级；若仍满足硬门槛，可继续并影响局限披露，不可静默宣称完整重排成功。
 
@@ -203,7 +203,7 @@ Rerank 失败时允许一次确定性回退：使用通道内标准化排序与�
 
 ### 8.1 Synthesis 输入输出
 
-Synthesizer 接收 Research Plan 和已选 Candidate 身份列表；其 Step attempt 根据稳定 ID 与查询摘要重新 Internal Retrieval，在当前 Step 内构造临时工作集并输出结构化：
+Synthesizer 接收 Research Plan 和已选 Candidate 身份列表；其 Step attempt 使用 `EvidenceResolveRequest` 根据稳定 KB/Document/Document Version/Segment ID 精确重取，在当前 Step 内构造临时工作集并输出结构化：
 
 - Claim 草案及 `critical` 标记；
 - 每个 Claim 的 Candidate ID 列表与拟议关系；
@@ -359,11 +359,11 @@ Internal Retrieval、Rerank 和 Synthesis 可以记录 Step 完成及结构化�
 
 ### 13.4 工作集重建与依赖失效
 
-恢复时使用保存的 Research Plan、查询参数、KB UUID 和稳定 Evidence ID 重新请求 Knowledge：
+恢复时使用保存的 Research Plan、查询参数和稳定 KB/Document/Document Version/Segment ID，通过 `EvidenceResolveRequest` 重新请求 Knowledge：
 
 1. 重新执行当前用户与全部 KB 权限校验。
-2. 校验新 RetrievalResponse Contract。
-3. 比较稳定 Segment ID 集合和来源更新时间摘要。
+2. 校验新 EvidenceResolveResponse Contract。
+3. 精确 Version/Segment 不可用时不替换为新 Active Version；当前 attempt 按受控来源失效处理，必要时使依赖步骤失效并从 Searching 创建新的候选闭包。
 4. 若工作集变化，令依赖它的 Rerank、Synthesis、Graph 和未发布 Revision 失效并重跑。
 5. 已完成 Web Fetch 按内容过期策略复用；正文已过期则重新抓取或按失败策略处理。
 6. 已发布 Revision 不修改；用户主动重新研究创建新 Task，整份报告重生成才创建新 Revision。
@@ -387,7 +387,7 @@ v1.0 基线为单 Research Worker、concurrency 1：
 - 子问题和 Web Fetch 默认串行；
 - Knowledge Internal Retrieval 使用 Provider 已限定的多 KB 并发；Research 不再展开并行；
 - LLM 同一 Task 同时最多一个调用；
-- 新任务超过 API 并发或队列上限时按 `docs/API.md` 返回可重试 `429`；
+- 新任务超过 API 并发或队列上限时按 `docs/specs/API.md` 返回可重试 `429`；
 - Worker 不在内存中保留超过当前阶段预算的正文集合，候选需分批处理并及时释放。
 
 ## 15. Research SSE 投影
@@ -454,9 +454,9 @@ Research SSE 是持久任务订阅，断开不取消 Task。事件由数据库�
 ## 18. 相关文档与变更门禁
 
 - [`DATABASE.md`](DATABASE.md)：Task、Step、来源、Evidence、Claim、Report、租约和保留结构。
-- [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md)：服务边界、故障语义、队列与部署资源。
-- [`docs/IDENTITY_AND_ACCESS.md`](../../../docs/IDENTITY_AND_ACCESS.md)：Platform User、内部服务身份、禁用和 KB 实时授权。
-- [`docs/API.md`](../../../docs/API.md)：Task 命令、Evidence/Report 查询与 Research SSE。
+- [`docs/specs/ARCHITECTURE.md`](../../../docs/specs/ARCHITECTURE.md)：服务边界、故障语义、队列与部署资源。
+- [`docs/specs/IDENTITY_AND_ACCESS.md`](../../../docs/specs/IDENTITY_AND_ACCESS.md)：Platform User、内部服务身份、禁用和 KB 实时授权。
+- [`docs/specs/API.md`](../../../docs/specs/API.md)：Task 命令、Evidence/Report 查询与 Research SSE。
 - [`packages/contracts/`](../../../packages/contracts/README.md)：Internal Retrieval、EvidenceReference、Relation 和错误契约。
 - [`services/knowledge/docs/RAG_PIPELINE.md`](../../knowledge/docs/RAG_PIPELINE.md)：Provider 的多 KB 检索、授权顺序和失败关闭语义。
 

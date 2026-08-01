@@ -7,7 +7,7 @@
 | 最后更新 | 2026-07-31 |
 | 适用范围 | `research_db` |
 
-> 本文是 Research Service 表、约束、索引、生命周期与旧 ResearchMind 数据迁移边界的权威规范。任务状态算法、Evidence Completeness Threshold 和阶段输入输出见 [`RESEARCH_PIPELINE.md`](RESEARCH_PIPELINE.md)；HTTP/SSE 归 [`docs/API.md`](../../../docs/API.md)；跨服务字段归 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 Knowledge 数据表、检索算法或 REST DTO。
+> 本文是 Research Service 表、约束、索引、生命周期与旧 ResearchMind 数据迁移边界的权威规范。任务状态算法、Evidence Completeness Threshold 和阶段输入输出见 [`RESEARCH_PIPELINE.md`](RESEARCH_PIPELINE.md)；HTTP/SSE 归 [`docs/specs/API.md`](../../../docs/specs/API.md)；跨服务字段归 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 Knowledge 数据表、检索算法或 REST DTO。
 
 ## 1. 目标与非目标
 
@@ -357,9 +357,9 @@ Redis 丢失不得改变 MySQL 中的任务完成事实。消息重复投递通�
 
 ## 14. 相关文档与后续边界
 
-- [`docs/ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md)：服务职责、数据所有权、故障与部署边界。
-- [`docs/IDENTITY_AND_ACCESS.md`](../../../docs/IDENTITY_AND_ACCESS.md)：Platform User、禁用语义、内部服务身份和实时授权。
-- [`docs/API.md`](../../../docs/API.md)：Research Task、Evidence、Report 与 SSE 接口。
+- [`docs/specs/ARCHITECTURE.md`](../../../docs/specs/ARCHITECTURE.md)：服务职责、数据所有权、故障与部署边界。
+- [`docs/specs/IDENTITY_AND_ACCESS.md`](../../../docs/specs/IDENTITY_AND_ACCESS.md)：Platform User、禁用语义、内部服务身份和实时授权。
+- [`docs/specs/API.md`](../../../docs/specs/API.md)：Research Task、Evidence、Report 与 SSE 接口。
 - [`packages/contracts/`](../../../packages/contracts/README.md)：RetrievalHit、EvidenceReference、EvidenceRelation 与错误契约。
 - [`services/knowledge/docs/DATABASE.md`](../../knowledge/docs/DATABASE.md)：Knowledge 稳定 ID、数据库隔离和内部正文边界。
 - [`services/knowledge/docs/RAG_PIPELINE.md`](../../knowledge/docs/RAG_PIPELINE.md)：Internal Retrieval Provider、per-KB 检索和失败关闭语义。

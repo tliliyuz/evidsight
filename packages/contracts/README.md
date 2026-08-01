@@ -4,10 +4,10 @@
 |:---|:---|
 | 文档状态 | 已确认设计 |
 | 文档版本 | v1.0 |
-| Contract 基线 | `1.0.0` |
+| Contract 设计基线 | `1.0.0-draft`（Schema/Fixture 落地并通过双方测试后发布 `1.0.0`） |
 | 最后更新 | 2026-07-31 |
 
-> 本文是 `packages/contracts/` 的权威设计入口。HTTP 路由、认证载体和状态码由 [`docs/API.md`](../../docs/API.md) 定义，身份与实时授权由 [`docs/IDENTITY_AND_ACCESS.md`](../../docs/IDENTITY_AND_ACCESS.md) 定义，服务边界由 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) 定义。本文只定义跨服务纯数据 Schema、版本规则与契约测试。
+> 本文是 `packages/contracts/` 的权威设计入口。HTTP 路由、认证载体和状态码由 [`docs/specs/API.md`](../../docs/specs/API.md) 定义，身份与实时授权由 [`docs/specs/IDENTITY_AND_ACCESS.md`](../../docs/specs/IDENTITY_AND_ACCESS.md) 定义，服务边界由 [`docs/specs/ARCHITECTURE.md`](../../docs/specs/ARCHITECTURE.md) 定义。本文只定义跨服务纯数据 Schema、版本规则与契约测试。
 
 ## 1. 目标与边界
 
@@ -16,6 +16,7 @@
 v1.0 只包含：
 
 - Internal Retrieval Request/Response；
+- Internal Evidence Resolve Request/Response；
 - 仅供当前研究步骤使用的 `RetrievalHit`；
 - 可持久化和进入报告的 `EvidenceReference`；
 - Evidence 与结论之间的 `EvidenceRelation`；
@@ -45,6 +46,8 @@ packages/contracts/
 │       ├── retrieval-request.schema.json
 │       ├── retrieval-response.schema.json
 │       ├── retrieval-hit.schema.json
+│       ├── evidence-resolve-request.schema.json
+│       ├── evidence-resolve-response.schema.json
 │       ├── evidence-reference.schema.json
 │       ├── evidence-relation.schema.json
 │       └── error-response.schema.json
@@ -96,7 +99,7 @@ packages/contracts/
 
 ## 5. 版本与协商
 
-Contract 使用 SemVer 字符串，首个基线为 `1.0.0`。Internal Retrieval 请求同时在 `X-EvidSight-Contract-Version` 头和请求体 `contract_version` 中携带版本，两处必须一致；响应回显实际使用的 `contract_version`。
+Contract 使用 SemVer 字符串，首个发布目标为 `1.0.0`；当前文档只代表 `1.0.0-draft` 设计。Internal Retrieval 请求同时在 `X-EvidSight-Contract-Version` 头和请求体 `contract_version` 中携带已发布版本，两处必须一致；响应回显实际使用的 `contract_version`。Schema、Fixture、生成物以及 Knowledge Provider/Research Consumer 测试全部通过前，任何服务不得宣称支持 `1.0.0`。
 
 版本规则：
 
@@ -147,7 +150,7 @@ Contract 使用 SemVer 字符串，首个基线为 `1.0.0`。Internal Retrieval 
 
 | 字段组 | 必需内容 |
 |:---|:---|
-| 命中身份 | `hit_id`、`knowledge_base_id`、`document_id`、`segment_id` |
+| 命中身份 | `hit_id`、`knowledge_base_id`、`document_id`、`document_version_id`、`segment_id` |
 | 显示信息 | `document_display_name`、可选 `section_title` |
 | 来源位置 | 页码、章节路径或字符区间中的至少一种可解释定位 |
 | 临时内容 | `minimal_excerpt`，1—8000 字符 |
@@ -156,6 +159,21 @@ Contract 使用 SemVer 字符串，首个基线为 `1.0.0`。Internal Retrieval 
 | 访问范围 | 固定为 `internal` |
 
 `minimal_excerpt` 只允许在当前研究步骤的内存或受控短期执行上下文中使用。它不得进入 Research 业务表、Evidence Graph 持久层、报告、SSE、日志、Trace 或错误详情。执行上下文确需短时保存以支持故障恢复时，必须由 Research Pipeline 另行定义加密、TTL、清理与禁用用户失效语义；本 Contract 不授予默认持久化权。
+
+### 7.2 Internal Evidence Resolve
+
+Research 在 Reranking、Synthesis 或恢复时需要重新取得已经选定的内部候选正文，不得用文本查询猜测原命中。`EvidenceResolveRequest` 包含：
+
+| 字段 | 类型与约束 | 语义 |
+|:---|:---|:---|
+| `contract_version` | 必填 SemVer | 与版本头一致 |
+| `user_id` | 必填 UUID | 当前授权主体 |
+| `references` | 1—100 个唯一 `InternalSourceIdentity` | 每项包含 `knowledge_base_id`、`document_id`、`document_version_id`、`segment_id` |
+| `purpose` | `research_evidence_resolve` | 禁止复用于其他正文读取 |
+
+`POST /internal/v1/retrieval/resolve` 对每项重新验证用户、KB、Document、Version 和 Segment 的当前可访问性。任一项无权时整批失败；已删除、被替换或不可用但不涉及资源枚举时返回受控 `EVIDENCE_SOURCE_UNAVAILABLE`，不自动改取 Active Version、相邻 Segment 或相似结果。
+
+成功响应按请求顺序返回相同稳定身份、`minimal_excerpt`、安全位置和 `source_updated_at`。正文仍只允许存在于当前 Step 内存，响应不得被持久化。该操作只恢复已经由先前 RetrievalHit 选定的工作集，不执行搜索、排序或生成新 Candidate。
 
 ## 8. Evidence Contract
 
@@ -174,7 +192,7 @@ Contract 使用 SemVer 字符串，首个基线为 `1.0.0`。Internal Retrieval 
 | `score_summary` | 生成时的受控评分摘要，不作为当前权限或有效性证明 |
 | `validity` | `available`、`restricted`、`missing` 或 `stale` |
 
-内部 `source_identity` 必须包含 Knowledge Base、Document 和 Segment 的稳定 ID，不得包含正文或可直接访问存储的路径。外部 `source_identity` 必须包含规范化 URL 和获取时间，不得伪装成内部来源。两类来源字段使用 `oneOf` 严格互斥。
+内部 `source_identity` 必须包含 Knowledge Base、Document、Document Version 和 Segment 的稳定 ID，不得包含正文或可直接访问存储的路径。Document Version 用于解释重处理后的历史来源身份，但不授予旧版本正文访问权；旧版本被清理或不再可访问时返回 `missing` 或 `stale`。外部 `source_identity` 必须包含规范化 URL 和获取时间，不得伪装成内部来源。两类来源字段使用 `oneOf` 严格互斥。
 
 内部 Evidence 可长期保留文档显示名和位置描述，但这不授予原文访问权。展开原文必须调用 Knowledge 来源访问 API 并按当前用户、KB、文档状态重新鉴权。
 
@@ -233,6 +251,7 @@ v1.0 稳定错误码至少包括：
 | `KB_FORBIDDEN` | 否 | 至少一个目标 KB 当前不可读 |
 | `INTERNAL_RATE_LIMITED` | 是 | 内部调用达到受控限额 |
 | `INTERNAL_RETRIEVAL_UNAVAILABLE` | 是 | 检索依赖暂时不可用 |
+| `EVIDENCE_SOURCE_UNAVAILABLE` | 否 | 指定 Version/Segment 已删除、失效或不可用于当前步骤 |
 
 错误详情只能包含 Schema 明确允许的安全字段。不得包含正文、查询原文回显、凭证、SQL、堆栈、内部路径、Collection 或缓存 Key。认证和授权失败不得泄露目标资源是否存在。
 
@@ -243,6 +262,7 @@ v1.0 稳定错误码至少包括：
 有效样例至少覆盖：
 
 - 单 KB 与多 KB 请求；
+- 单条与批量精确 Evidence Resolve；
 - 空结果与多条结果；
 - 页码、章节和字符区间位置；
 - Internal `EvidenceReference`、Web `EvidenceReference`；
@@ -254,6 +274,7 @@ v1.0 稳定错误码至少包括：
 - 未知字段、缺少必填字段和错误类型；
 - 版本头与正文不一致、不受支持版本；
 - 空 KB 集合、重复 KB、非法 `limit` 和反向时间范围；
+- Resolve 身份缺少 Document Version、重复引用或混入查询/排序字段；
 - 请求携带角色或授权结论；
 - Internal/Web 来源字段混用；
 - `EvidenceReference` 包含正文、Embedding、Prompt、文件路径或缓存信息；
@@ -278,7 +299,7 @@ Contract 变更必须依次通过：
 
 ## 13. 验收场景
 
-1. 合法 Research 服务以 `1.0.0` 请求用户当前可读 KB，双方使用同一 Schema 成功交换结果。
+1. 合法 Research 服务以已发布 Contract 版本请求用户当前可读 KB，双方使用同一 Schema 成功交换结果。
 2. 未认证服务、禁用用户或任一 KB 无权时，在检索前失败且不返回部分 Evidence。
 3. 服务身份通过后，不支持版本或版本载体不一致时返回稳定错误，不进入用户授权与检索。
 4. Knowledge 返回的每个 `RetrievalHit` 都可定位来源，且不暴露内部实现标识。
@@ -288,6 +309,7 @@ Contract 变更必须依次通过：
 8. 所有未知字段和未知 Contract 枚举均被严格拒绝。
 9. 生成物可重复生成，Provider/Consumer 使用共同 Fixture 且结果一致。
 10. 文档、Schema、Fixture 和生成物不包含服务内部模型、路径、缓存键或敏感正文。
+11. Research 可以按完整 KB/Document/Document Version/Segment 身份精确重取当前可访问正文，且不会静默切换版本或产生新候选。
 
 ## 14. 后续实施边界
 

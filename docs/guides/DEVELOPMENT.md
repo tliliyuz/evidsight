@@ -1,0 +1,262 @@
+# DEVELOPMENT — EvidSight 开发指南
+
+| 属性 | 值 |
+|:---|:---|
+| 文档状态 | v1.0 开发基线 |
+| 最后更新 | 2026-08-01 |
+| 当前阶段 | M0：规范基线与 Monorepo 迁移 |
+
+> 本文定义开发入口、Monorepo 目录职责、环境准备、常用命令和交付门禁。产品行为以 [PRD.md](../specs/PRD.md) 为准，服务边界以 [ARCHITECTURE.md](../specs/ARCHITECTURE.md) 为准。当前仓库尚未完成源项目迁移，命令分为“当前可用”和“M0 完成后目标”两类，禁止把目标命令误称为已经可运行。
+
+## 1. 环境要求
+
+| 工具 | 目标版本 | 用途 |
+|:---|:---|:---|
+| Python | 3.12+ | Knowledge/Research 服务、契约生成和测试 |
+| uv | 与根 `uv.lock` 兼容 | 根工具与 Python 环境管理 |
+| Node.js | 20+ | React/Vite Web 构建与测试 |
+| Docker Engine | 24+ | 服务镜像与本地部署 |
+| Docker Compose | v2 | 单机 2C2G 编排基线 |
+| MySQL | 8.0+ | `platform_db`、`knowledge_db`、`research_db` |
+| Redis | 7.0+ | 队列、锁、租约和短期缓存 |
+| Git | 2.39+ | 历史保留迁移与常规协作 |
+
+所有时间使用 UTC；本地显示由客户端按 ISO/RFC 3339 时间转换。密钥和密码只能通过未提交的环境文件或 Secret 注入。
+
+## 2. 项目目录结构
+
+### 2.1 当前仓库
+
+```text
+evidsight/
+├── AGENT.md                       # Agent 开发门禁与权威文档矩阵
+├── CLAUDE.md                      # 与 AGENT.md 同步的协作入口
+├── README.md                      # 项目入口和当前状态
+├── pyproject.toml                 # 当前根工具骨架，不是后端服务依赖集合
+├── uv.lock
+├── docs/
+│   ├── README.md                   # 文档中心与分层规则
+│   ├── specs/                     # 项目级权威规范及索引
+│   ├── guides/                    # 开发与操作指南
+│   ├── plans/                     # 路线图与实施计划
+│   ├── CHANGELOG.md
+│   └── decisions/                  # 已接受的重要架构决策
+├── packages/
+│   └── contracts/
+│       └── README.md              # Contract 设计；Schema/Fixture 尚待落地
+├── services/
+│   ├── knowledge/docs/            # Knowledge Database 与 RAG Pipeline
+│   └── research/docs/             # Research Database 与 Pipeline
+├── apps/
+│   └── web/docs/                  # 前端与 UI 设计；实现尚待迁入
+├── resource/prototype/            # 20 张界面原型基线
+└── src/evidsight/                 # 根 CLI 占位，不代表产品运行入口
+```
+
+### 2.2 M0 完成后的目标结构
+
+```text
+evidsight/
+├── apps/
+│   └── web/                       # 唯一 React + TypeScript Web
+│       ├── src/
+│       ├── tests/
+│       ├── package.json
+│       └── docs/
+├── services/
+│   ├── knowledge/                 # FastAPI、Celery、Alembic、Knowledge-owned 数据
+│   │   ├── app/
+│   │   ├── alembic/
+│   │   ├── tests/
+│   │   ├── docs/
+│   │   ├── pyproject.toml
+│   │   └── Dockerfile
+│   └── research/                  # Research API、Worker、Beat、Recovery Scanner
+│       ├── app/
+│       ├── alembic/
+│       ├── tests/
+│       ├── docs/
+│       ├── pyproject.toml
+│       └── Dockerfile
+├── packages/
+│   ├── contracts/                 # Internal Retrieval/Evidence JSON Schema
+│   └── api-contracts/             # 外部 OpenAPI 与 SSE data Schema
+├── deploy/
+│   └── nginx/default.conf
+├── docs/
+│   ├── README.md
+│   ├── specs/
+│   ├── guides/
+│   ├── plans/
+│   ├── decisions/
+│   ├── migration/
+│   └── CHANGELOG.md
+├── scripts/                       # 全仓测试、配置检查、smoke、备份恢复
+├── tests/architecture/            # 服务边界、Compose 和目录契约测试
+├── docker-compose.yml
+└── .env.example
+```
+
+目录所有权规则：
+
+- `apps/web` 只消费正式 API/事件，不访问服务数据库或内部模型；
+- `services/research` 只通过 `/internal/v1` 和 Contract 使用 Knowledge；
+- `services/knowledge` 不依赖 Research Task、Evidence Graph 或报告实现；
+- `packages/contracts` 不导入任何服务 `app` 包；
+- 根目录只负责规范、编排、契约和跨仓库验证，不合并服务依赖。
+
+## 3. 当前可用命令
+
+```bash
+# 安装根工具环境
+uv sync --locked
+
+# 运行当前根占位 CLI（仅用于确认 Python 包可加载）
+uv run evidsight
+
+# 查看迁移计划未完成项
+rg -- '- \[ \]' docs/plans/MONOREPO_MIGRATION_PLAN.md
+
+# 检查工作区状态（只读）
+git status --short
+```
+
+`uv run evidsight` 当前只输出占位信息，不是 Knowledge API、Research API 或 Web 的启动方式。
+
+## 4. M0 完成后的本地启动目标
+
+以下命令只有对应目录和依赖迁入后才允许使用：
+
+```bash
+# Knowledge Service
+uv sync --project services/knowledge --locked
+uv run --project services/knowledge alembic upgrade head
+uv run --project services/knowledge uvicorn app.main:app --reload --port 8000
+
+# Research Service
+uv sync --project services/research --locked
+uv run --project services/research alembic upgrade head
+uv run --project services/research uvicorn app.main:app --reload --port 8001
+
+# Web
+npm --prefix apps/web ci
+npm --prefix apps/web run dev
+```
+
+Knowledge 与 Research 必须使用独立虚拟环境、依赖锁、Alembic 配置和数据库账号。不得从根环境偶然导入某个服务的依赖。
+
+## 5. 环境变量与配置
+
+键名、类型、默认值、安全级别和作用服务统一记录在 [CONFIGURATION.md](../specs/CONFIGURATION.md)。基本规则：
+
+- 提交 `.env.example`，不提交 `.env`；
+- JWT 签名材料和服务凭证必须可轮换并带 Key ID；
+- Knowledge/Research 使用独立数据库 DSN、Redis DB、队列和 Key 前缀；
+- 外部 Provider 默认不得接收未经策略允许的内部正文；
+- 配置缺失必须使 readiness 或启动明确失败，不回退到不安全默认值。
+
+## 6. 数据库与迁移
+
+- `platform_db` 与 `knowledge_db` 由 Knowledge Service 管理；
+- `research_db` 由 Research Service 管理；
+- 三条 Alembic 链分别维护 version table；
+- 跨数据库稳定 ID 不建立外键；
+- Schema 或数据迁移先更新对应 Database 规范；
+- 生产数据映射、校验和回滚见 [DATA_MIGRATION_AND_ROLLBACK.md](../specs/DATA_MIGRATION_AND_ROLLBACK.md)。
+
+禁止为了本地便利让 Research 获得 `knowledge_db`、Chroma 或上传目录访问权。
+
+## 7. 测试与验证
+
+测试策略和发布门禁见 [TESTING.md](../specs/TESTING.md)。M0 目标统一入口为：
+
+```bash
+python3.12 -m pytest tests/architecture -v
+uv run --project services/knowledge pytest
+uv run --project services/research pytest
+npm --prefix apps/web test
+npm --prefix apps/web run build
+docker compose config --quiet
+```
+
+当前目录尚未全部存在时，应明确报告“未迁入/未验证”，不得跳过后声称全量通过。
+
+## 8. 规范驱动开发流程
+
+所有行为变更遵循 [AGENT.md](../../AGENT.md)：
+
+```text
+权威规格确认
+→ 验收条件和测试场景
+→ RED
+→ GREEN
+→ REFACTOR
+→ 受影响模块完整验证
+→ CHANGELOG/ADR/权威文档同步
+→ 代码审查
+```
+
+变更入口：
+
+| 变更类型 | 先更新 |
+|:---|:---|
+| 产品范围或验收 | `docs/specs/PRD.md` |
+| 服务边界或部署 | `docs/specs/ARCHITECTURE.md`，必要时 ADR |
+| 身份、权限、外发 | `docs/specs/IDENTITY_AND_ACCESS.md`，必要时 ADR |
+| HTTP/SSE | `docs/specs/API.md` 与 API Contract |
+| 跨服务字段 | `packages/contracts/` |
+| 数据库 | 对应服务 `docs/DATABASE.md` |
+| Pipeline | 对应 Pipeline 文档 |
+| 页面和状态机 | `apps/web/docs/FRONTEND.md` |
+
+纯文档变更可以不制造业务 RED，但必须执行 Markdown 链接、术语、Schema 或相关 smoke 检查。
+
+## 9. 编码与安全约定
+
+- 文档、注释和提交信息使用中文；代码标识符使用英文；
+- Python IO 使用 async，数据库 Session 依赖注入；
+- API 层只校验、鉴权并调用 Service；
+- React 使用 TypeScript、函数组件和统一 API 客户端；
+- 时间统一存储为 UTC；
+- 日志、Trace、SSE 和错误不得包含密码、Token、服务凭证、完整 Prompt、隐藏推理或内部正文；
+- Chat SSE 与 Research SSE 使用独立解析器和状态机；
+- 新依赖必须说明用途、维护状态、体积和替代方案。
+
+## 10. Docker Compose 与运维
+
+M0 目标是单机 2 vCPU / 2 GB RAM 基线。正式 Compose 必须：
+
+- 只由 Nginx 暴露 Web 和 `/api/v1/*`；
+- 不对外暴露 `/internal/v1/*`、MySQL、Redis、Chroma 和 `/metrics`；
+- Knowledge/Research 使用独立队列和资源限制；
+- 默认不常驻完整 Prometheus/Grafana 套件；
+- 提供 liveness、readiness 和配置 smoke；
+- 停止服务默认保留持久卷。
+
+部署、备份、恢复和故障处理见 [OPERATIONS.md](../specs/OPERATIONS.md)。
+
+## 11. 常用检查
+
+```bash
+# 文档中的规划占位
+rg -n 'TODO|TBD|待编写|后续建立' docs packages services apps
+
+# 服务边界违规候选
+rg -n 'services\.(knowledge|research)\.app|knowledge_db|chroma' services
+
+# 单 KB Chat / 多 KB Research 术语
+rg -n '多 KB Chat|多知识库问答|knowledge_base_ids|knowledge_base_id' docs packages services apps
+
+# 文档相对链接由项目文档检查脚本统一验证；脚本在 M0 建立
+```
+
+## 12. 相关文档
+
+- [PRD](../specs/PRD.md)
+- [总体架构](../specs/ARCHITECTURE.md)
+- [路线图](../plans/ROADMAP.md)
+- [测试策略](../specs/TESTING.md)
+- [配置规范](../specs/CONFIGURATION.md)
+- [运维指南](../specs/OPERATIONS.md)
+- [数据迁移与回滚](../specs/DATA_MIGRATION_AND_ROLLBACK.md)
+- [变更日志](../CHANGELOG.md)

@@ -294,6 +294,8 @@
 
 用户选择有权访问的知识库并用自然语言提问，系统返回流式答案和来源引用。
 
+v1.0 每个问答会话只绑定一个知识库。前端可以保留面向未来的多知识库选择器形态，但当前只允许单选；多 KB 问答属于 v1.x 规划能力，不得通过客户端并发多个单 KB 请求模拟。
+
 验收条件：
 
 - 回答只使用用户有权检索的知识库；
@@ -515,6 +517,7 @@ v1.0 采用资源所有权、知识库可见性和管理员治理三类权限维
 
 ### 10.2 v1.x 增强（P1）
 
+- 多 KB 企业知识问答；启用前完成 Per-KB Collection 的缓存、内存、跨 KB 排序、索引状态和部分失败语义评估；
 - 跨任务证据发现和复用；
 - 报告版本与局部重新生成；
 - PDF/Word 正式导出；
@@ -611,18 +614,22 @@ v1.0 发布前至少通过以下端到端验收：
 ## 14. 相关文档
 
 - [总体技术架构与部署拓扑](ARCHITECTURE.md)
-- `docs/MONOREPO_MIGRATION_PLAN.md` — Monorepo 代码布局迁移实施计划
-- [产品实施路线图](ROADMAP.md)
-- `docs/IDENTITY_AND_ACCESS.md` — 统一身份、授权、服务凭证和敏感数据外发规范
-- `docs/API.md` — 外部与内部 API、错误码和 SSE 协议
-- [`packages/contracts/`](../packages/contracts/README.md) — Internal Retrieval、Evidence、错误、版本与固定 Fixture 契约
-- [`services/knowledge/docs/DATABASE.md`](../services/knowledge/docs/DATABASE.md) — Platform 与 Knowledge 数据、索引、生命周期和迁移边界
-- [`services/knowledge/docs/RAG_PIPELINE.md`](../services/knowledge/docs/RAG_PIPELINE.md) — 入库、检索、Chat 与 Internal Retrieval Pipeline
-- [`services/research/docs/DATABASE.md`](../services/research/docs/DATABASE.md) — Research Service 数据库设计
-- [`services/research/docs/RESEARCH_PIPELINE.md`](../services/research/docs/RESEARCH_PIPELINE.md) — Research Pipeline
-- `apps/web/docs/FRONTEND.md` — 页面、交互和状态机（待编写）
-- `apps/web/docs/UIDESIGN.md` — Design Token 和视觉规范（待编写）
-- `docs/DATA_MIGRATION_AND_ROLLBACK.md` — 生产数据迁移、校验和回滚方案（待编写）
-- `docs/TESTING.md` — 测试策略、环境矩阵和发布验收清单（待编写）
-- `docs/CHANGELOG.md` — 产品与实现变更记录（待建立）
-- `docs/decisions/` — 架构决策记录（按需建立）
+- `docs/plans/MONOREPO_MIGRATION_PLAN.md` — Monorepo 代码布局迁移实施计划
+- [产品实施路线图](../plans/ROADMAP.md)
+- `docs/specs/IDENTITY_AND_ACCESS.md` — 统一身份、授权、服务凭证和敏感数据外发规范
+- `docs/specs/API.md` — 外部与内部 API、错误码和 SSE 协议
+- [`packages/contracts/`](../../packages/contracts/README.md) — Internal Retrieval、Evidence、错误、版本与固定 Fixture 契约
+- [`services/knowledge/docs/DATABASE.md`](../../services/knowledge/docs/DATABASE.md) — Platform 与 Knowledge 数据、索引、生命周期和迁移边界
+- [`services/knowledge/docs/RAG_PIPELINE.md`](../../services/knowledge/docs/RAG_PIPELINE.md) — 入库、检索、Chat 与 Internal Retrieval Pipeline
+- [`services/research/docs/DATABASE.md`](../../services/research/docs/DATABASE.md) — Research Service 数据库设计
+- [`services/research/docs/RESEARCH_PIPELINE.md`](../../services/research/docs/RESEARCH_PIPELINE.md) — Research Pipeline
+- [`apps/web/docs/FRONTEND.md`](../../apps/web/docs/FRONTEND.md) — 页面、交互和状态机
+- [`apps/web/docs/UIDESIGN.md`](../../apps/web/docs/UIDESIGN.md) — Design Token 和视觉规范
+- [开发指南](../guides/DEVELOPMENT.md) — 环境、目录结构、命令与工作流
+- [生产数据迁移、校验和回滚](DATA_MIGRATION_AND_ROLLBACK.md)
+- [测试策略、环境矩阵和发布验收](TESTING.md)
+- [配置规范](CONFIGURATION.md)
+- [数据保留与清理](DATA_RETENTION.md)
+- [部署与运维](OPERATIONS.md)
+- [产品与实现变更记录](../CHANGELOG.md)
+- [架构决策记录](../decisions/README.md)

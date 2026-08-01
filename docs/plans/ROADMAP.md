@@ -7,7 +7,7 @@
 | 日期 | 2026-07-31 |
 | 排期方式 | 阶段里程碑与验收门禁，不绑定具体日期 |
 
-> 本文档是据见实施顺序、阶段依赖和发布门禁的权威规范。产品范围与成功指标见 [PRD.md](PRD.md)，总体服务边界与部署约束见 [ARCHITECTURE.md](ARCHITECTURE.md)，第一阶段代码布局迁移步骤见 [MONOREPO_MIGRATION_PLAN.md](MONOREPO_MIGRATION_PLAN.md)。字段、状态机、算法和界面细节由对应专项规范定义，本文不复制其定义。
+> 本文档是据见实施顺序、阶段依赖和发布门禁的权威计划。产品范围与成功指标见 [PRD.md](../specs/PRD.md)，总体服务边界与部署约束见 [ARCHITECTURE.md](../specs/ARCHITECTURE.md)，第一阶段代码布局迁移步骤见 [MONOREPO_MIGRATION_PLAN.md](MONOREPO_MIGRATION_PLAN.md)。字段、状态机、算法和界面细节由对应专项规范定义，本文不复制其定义。
 
 ## 1. 定位与使用原则
 
@@ -46,15 +46,17 @@
 
 ## 2. 里程碑总览
 
-| 里程碑 | 阶段名称 | 核心结果 | 主要依赖 |
-|:---|:---|:---|:---|
-| M0 | 规范基线与 Monorepo 迁移 | 两个来源项目进入统一仓库并保持独立构建、测试和数据边界 | 已确认 PRD、总体架构、来源基线 |
-| M1 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
-| M2 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence | M1 的身份与 Contract 基线 |
-| M3 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 |
-| M4 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
-| M5 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的 2C2G 试点部署 | M1—M4 |
-| M6 | v1.0 发布门禁与后续演进 | 全部 P0、成功指标和端到端场景完成发布验收 | M0—M5 |
+| 里程碑 | 状态 | 阶段名称 | 核心结果 | 主要依赖 |
+|:---|:---|:---|:---|:---|
+| M0 | 进行中 | 规范基线与 Monorepo 迁移 | 两个来源项目进入统一仓库并保持独立构建、测试和数据边界 | 已确认 PRD、总体架构、来源基线 |
+| M1 | 未开始 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
+| M2 | 未开始 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence | M1 的身份与 Contract 基线 |
+| M3 | 未开始 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 |
+| M4 | 未开始 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
+| M5 | 未开始 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的 2C2G 试点部署 | M1—M4 |
+| M6 | 未开始 | v1.0 发布门禁与后续演进 | 全部 P0、成功指标和端到端场景完成发布验收 | M0—M5 |
+
+M0 的“进行中”仅表示规范和迁移准备已投入；当前迁移计划仍有未完成步骤，且尚无 `docs/migration/MIGRATION_ACCEPTANCE.md`，因此不得标记已完成。
 
 总体主线为：`M0 → M1 → M2 → M3 → M4 → M5 → M6`。
 
@@ -66,8 +68,8 @@
 
 ### 进入条件
 
-- `docs/PRD.md` 已确认产品定位、P0/P1/P2 和验收场景；
-- `docs/ARCHITECTURE.md` 已确认服务边界、部署基线和数据隔离；
+- `docs/specs/PRD.md` 已确认产品定位、P0/P1/P2 和验收场景；
+- `docs/specs/ARCHITECTURE.md` 已确认服务边界、部署基线和数据隔离；
 - DocMind 与 ResearchMind 来源提交已冻结，未提交改动已人工确认；
 - Monorepo 迁移范围不包含业务行为、Schema、API 或 SSE 语义变更。
 
@@ -82,7 +84,7 @@
 
 ### 必须完成的规范
 
-- `docs/MONOREPO_MIGRATION_PLAN.md`；
+- `docs/plans/MONOREPO_MIGRATION_PLAN.md`；
 - 根目录 `CLAUDE.md` 与 `AGENT.md` 的 SDD、TDD 和服务边界约束；
 - 来源基线结果、迁移验收记录和回滚说明。
 
@@ -134,7 +136,7 @@
 
 ### 必须完成的规范
 
-- `docs/API.md` 中的统一认证、服务认证、错误码和版本规则；
+- `docs/specs/API.md` 中的统一认证、服务认证、错误码和版本规则；
 - `packages/contracts/` 中的基础请求、响应、错误与 Evidence 类型；
 - Knowledge 与 Research 数据库规范中与统一用户 ID 相关的引用规则；
 - 身份、权限和敏感数据外发策略 ADR。
@@ -187,7 +189,7 @@
 
 ### 必须完成的规范
 
-- `docs/API.md` 中的 Knowledge 外部 API 与 Internal Retrieval API；
+- `docs/specs/API.md` 中的 Knowledge 外部 API 与 Internal Retrieval API；
 - `packages/contracts/` 中的 Internal Retrieval 与内部 Evidence Contract；
 - `services/knowledge/docs/DATABASE.md`；
 - `services/knowledge/docs/RAG_PIPELINE.md`；
@@ -243,10 +245,10 @@
 
 ### 必须完成的规范
 
-- `docs/API.md` 中的研究任务、状态、取消、恢复、报告、Evidence 和 Research SSE；
+- `docs/specs/API.md` 中的研究任务、状态、取消、恢复、报告、Evidence 和 Research SSE；
 - `packages/contracts/` 中的 Evidence Contract 与 Internal Retrieval Consumer；
-- [`services/research/docs/DATABASE.md`](../services/research/docs/DATABASE.md)；
-- [`services/research/docs/RESEARCH_PIPELINE.md`](../services/research/docs/RESEARCH_PIPELINE.md)；
+- [`services/research/docs/DATABASE.md`](../../services/research/docs/DATABASE.md)；
+- [`services/research/docs/RESEARCH_PIPELINE.md`](../../services/research/docs/RESEARCH_PIPELINE.md)；
 - 任务生命周期、Evidence Graph、内部知识外发和恢复策略 ADR。
 
 ### 主要交付物
@@ -280,7 +282,7 @@
 
 ### 阶段目标
 
-将知识问答、研究创建、执行过程、历史、报告和 Evidence 复核整合到唯一 Vue Web 中，使用户不需要理解服务边界即可完成从问题到可追溯结论的完整流程。
+将知识问答、研究创建、执行过程、历史、报告和 Evidence 复核整合到唯一 React Web 中，使用户不需要理解服务边界即可完成从问题到可追溯结论的完整流程。M0 为保持来源行为只迁入 DocMind Vue 基线；从 Vue 迁移到 React 属于本阶段的受规格与测试约束的前端替换，不得在 M0 静默完成。
 
 ### 进入条件
 
@@ -303,12 +305,12 @@
 
 - `apps/web/docs/FRONTEND.md`；
 - `apps/web/docs/UIDESIGN.md`；
-- `docs/API.md` 中供前端消费的认证、问答、研究、报告和治理接口；
+- `docs/specs/API.md` 中供前端消费的认证、问答、研究、报告和治理接口；
 - 引用交互、权限复核、错误恢复和 SSE 重连相关测试场景。
 
 ### 主要交付物
 
-- 单一 Vue 3 Web Application；
+- 单一 React + TypeScript Web Application；
 - 统一身份与导航体验；
 - 知识问答、研究创建、运行、历史和报告页面；
 - 报告—引用—Evidence 双向联动；
@@ -356,7 +358,7 @@
 
 ### 必须完成的规范
 
-- `docs/API.md` 中的管理和审计接口；
+- `docs/specs/API.md` 中的管理和审计接口；
 - 两个服务的 Database、运维和测试规范；
 - `docs/CHANGELOG.md`；
 - 部署、备份恢复、监控、容量和数据迁移相关 ADR 或专项方案。
@@ -409,8 +411,8 @@
 
 ### 必须完成的规范
 
-- `docs/PRD.md`、`docs/ARCHITECTURE.md` 与本路线图；
-- `docs/API.md`、`packages/contracts/` 和全部服务专项规范；
+- `docs/specs/PRD.md`、`docs/specs/ARCHITECTURE.md` 与本路线图；
+- `docs/specs/API.md`、`packages/contracts/` 和全部服务专项规范；
 - `docs/CHANGELOG.md` 与必要 ADR；
 - 测试结果、评估报告、恢复演练和发布检查清单。
 
@@ -456,15 +458,15 @@
 
 后续文档按依赖顺序编写：
 
-1. `docs/MONOREPO_MIGRATION_PLAN.md`：先建立不改变业务行为的代码布局、构建和部署骨架；
-2. `docs/IDENTITY_AND_ACCESS.md`：定义 JWT Claims、令牌生命周期、用户禁用、服务凭证、授权上下文和敏感数据外发策略；
-3. `docs/API.md`：定义 `/api/v1/*` 与 `/internal/v1/*` 协议表面、错误语义、幂等、分页和两类 SSE；
-4. [`packages/contracts/`](../packages/contracts/README.md)：在 API 语义稳定后固化 Internal Retrieval、Evidence、错误、版本与固定样例；
-5. [`services/knowledge/docs/DATABASE.md`](../services/knowledge/docs/DATABASE.md) 与 [`RAG_PIPELINE.md`](../services/knowledge/docs/RAG_PIPELINE.md)：定义 Knowledge 数据和 Internal Retrieval Provider；
-6. [`services/research/docs/DATABASE.md`](../services/research/docs/DATABASE.md) 与 [`RESEARCH_PIPELINE.md`](../services/research/docs/RESEARCH_PIPELINE.md)：定义 Research 数据、Contract Consumer、研究状态、Evidence Graph 和报告生成；
+1. `docs/plans/MONOREPO_MIGRATION_PLAN.md`：先建立不改变业务行为的代码布局、构建和部署骨架；
+2. `docs/specs/IDENTITY_AND_ACCESS.md`：定义 JWT Claims、令牌生命周期、用户禁用、服务凭证、授权上下文和敏感数据外发策略；
+3. `docs/specs/API.md`：定义 `/api/v1/*` 与 `/internal/v1/*` 协议表面、错误语义、幂等、分页和两类 SSE；
+4. [`packages/contracts/`](../../packages/contracts/README.md)：在 API 语义稳定后固化 Internal Retrieval、Evidence、错误、版本与固定样例；
+5. [`services/knowledge/docs/DATABASE.md`](../../services/knowledge/docs/DATABASE.md) 与 [`RAG_PIPELINE.md`](../../services/knowledge/docs/RAG_PIPELINE.md)：定义 Knowledge 数据和 Internal Retrieval Provider；
+6. [`services/research/docs/DATABASE.md`](../../services/research/docs/DATABASE.md) 与 [`RESEARCH_PIPELINE.md`](../../services/research/docs/RESEARCH_PIPELINE.md)：定义 Research 数据、Contract Consumer、研究状态、Evidence Graph 和报告生成；
 7. `apps/web/docs/FRONTEND.md` 与 `UIDESIGN.md`：在稳定 API、SSE 和 Evidence Contract 基础上定义统一路由、页面、状态机、引用交互、Design Token 和可访问性；
-8. `docs/DATA_MIGRATION_AND_ROLLBACK.md`：定义生产源数据映射、停机窗口、双边校验、恢复与回滚；
-9. `docs/TESTING.md`：汇总环境矩阵、契约与端到端用例、性能基线、恢复演练和发布门禁。
+8. [`docs/specs/DATA_MIGRATION_AND_ROLLBACK.md`](../specs/DATA_MIGRATION_AND_ROLLBACK.md)：定义生产源数据映射、停机窗口、双边校验、恢复与回滚；
+9. [`docs/specs/TESTING.md`](../specs/TESTING.md)：汇总环境矩阵、契约与端到端用例、性能基线、恢复演练和发布门禁。
 
 `docs/CHANGELOG.md` 与 `docs/decisions/` 随以上规范和实现持续维护，不在最后一次性补写。同一技术事实只在一个权威文档中定义；其他文档必须使用交叉引用。
 
@@ -474,6 +476,7 @@
 
 v1.0 通过发布门禁后，以下能力分别进入独立规格、验收和实施周期：
 
+- 多 KB 企业知识问答；前端选择器保留扩展形态，当前只允许单选并提示“规划中”；
 - 跨任务 Evidence 发现和复用；
 - 报告版本与局部重新生成；
 - PDF/Word 正式导出；
@@ -492,7 +495,7 @@ v1.0 通过发布门禁后，以下能力分别进入独立规格、验收和实
 
 ### 5.3 基础设施演进触发条件
 
-当持续内存压力、队列等待、单机故障风险、备份恢复目标或试点规模超过总体架构基线时，按 `docs/ARCHITECTURE.md` §16 评估主机升级、数据服务拆分、共享存储、水平扩展和 Kubernetes。演进不得静默改变外部 API、Internal Retrieval 或 Evidence Contract 语义。
+当持续内存压力、队列等待、单机故障风险、备份恢复目标或试点规模超过总体架构基线时，按 `docs/specs/ARCHITECTURE.md` §16 评估主机升级、数据服务拆分、共享存储、水平扩展和 Kubernetes。演进不得静默改变外部 API、Internal Retrieval 或 Evidence Contract 语义。
 
 ## 6. 路线图维护规则
 
@@ -506,19 +509,23 @@ v1.0 通过发布门禁后，以下能力分别进入独立规格、验收和实
 
 ## 7. 相关文档
 
-- [产品需求文档](PRD.md)
-- [总体技术架构与部署拓扑](ARCHITECTURE.md)
+- [产品需求文档](../specs/PRD.md)
+- [总体技术架构与部署拓扑](../specs/ARCHITECTURE.md)
 - [Monorepo 迁移实施计划](MONOREPO_MIGRATION_PLAN.md)
-- `docs/IDENTITY_AND_ACCESS.md` — 统一身份、授权、服务凭证和敏感数据外发规范
-- `docs/API.md` — 外部与内部 API、错误码和 SSE 协议
-- [`packages/contracts/`](../packages/contracts/README.md) — Internal Retrieval、Evidence、错误、版本与固定 Fixture 契约
-- [`services/knowledge/docs/DATABASE.md`](../services/knowledge/docs/DATABASE.md) — Platform 与 Knowledge 数据、索引、生命周期和迁移边界
-- [`services/knowledge/docs/RAG_PIPELINE.md`](../services/knowledge/docs/RAG_PIPELINE.md) — 入库、检索、Chat 与 Internal Retrieval Pipeline
-- [`services/research/docs/DATABASE.md`](../services/research/docs/DATABASE.md) — Research Service 数据库设计
-- [`services/research/docs/RESEARCH_PIPELINE.md`](../services/research/docs/RESEARCH_PIPELINE.md) — Research Pipeline
-- `apps/web/docs/FRONTEND.md` — 页面、交互和状态机（后续编写）
-- `apps/web/docs/UIDESIGN.md` — Design Token 和视觉规范（后续编写）
-- `docs/DATA_MIGRATION_AND_ROLLBACK.md` — 生产数据迁移、校验和回滚方案（后续编写）
-- `docs/TESTING.md` — 测试策略、环境矩阵和发布验收清单（后续编写）
-- `docs/CHANGELOG.md` — 产品与实现变更记录（后续建立）
-- `docs/decisions/` — 架构决策记录（按需建立）
+- `docs/specs/IDENTITY_AND_ACCESS.md` — 统一身份、授权、服务凭证和敏感数据外发规范
+- `docs/specs/API.md` — 外部与内部 API、错误码和 SSE 协议
+- [`packages/contracts/`](../../packages/contracts/README.md) — Internal Retrieval、Evidence、错误、版本与固定 Fixture 契约
+- [`services/knowledge/docs/DATABASE.md`](../../services/knowledge/docs/DATABASE.md) — Platform 与 Knowledge 数据、索引、生命周期和迁移边界
+- [`services/knowledge/docs/RAG_PIPELINE.md`](../../services/knowledge/docs/RAG_PIPELINE.md) — 入库、检索、Chat 与 Internal Retrieval Pipeline
+- [`services/research/docs/DATABASE.md`](../../services/research/docs/DATABASE.md) — Research Service 数据库设计
+- [`services/research/docs/RESEARCH_PIPELINE.md`](../../services/research/docs/RESEARCH_PIPELINE.md) — Research Pipeline
+- [`apps/web/docs/FRONTEND.md`](../../apps/web/docs/FRONTEND.md) — 页面、交互和状态机
+- [`apps/web/docs/UIDESIGN.md`](../../apps/web/docs/UIDESIGN.md) — Design Token 和视觉规范
+- [开发指南](../guides/DEVELOPMENT.md) — 环境、目录结构、命令和 SDD 工作流
+- [生产数据迁移、校验和回滚](../specs/DATA_MIGRATION_AND_ROLLBACK.md)
+- [测试策略、环境矩阵和发布验收](../specs/TESTING.md)
+- [配置规范](../specs/CONFIGURATION.md)
+- [数据保留与清理](../specs/DATA_RETENTION.md)
+- [部署与运维](../specs/OPERATIONS.md)
+- [产品与实现变更记录](../CHANGELOG.md)
+- [架构决策记录](../decisions/README.md)

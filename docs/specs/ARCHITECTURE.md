@@ -50,7 +50,7 @@
 ```mermaid
 flowchart LR
     User["企业用户 / 管理员"] -->|"HTTPS + SSE"| Gateway["Nginx 统一入口"]
-    Gateway --> Web["Vue 3 Web"]
+    Gateway --> Web["React Web"]
     Gateway --> Knowledge["Knowledge Service"]
     Gateway --> Research["Research Service"]
     Research -->|"Internal Retrieval API"| Knowledge
@@ -136,7 +136,7 @@ flowchart TB
     Internet["Browser"] -->|"80 / 443"| Nginx
 
     subgraph Host["Linux Host · 2 vCPU / 2 GB RAM"]
-      Nginx["Nginx + Vue SPA"]
+      Nginx["Nginx + React SPA"]
 
       subgraph EdgeNet["evidsight-edge network"]
         KApi["Knowledge API\n1 worker"]
@@ -266,11 +266,13 @@ flowchart LR
     Authz --> KSearch["Knowledge RAG Retrieval"]
     Web --> PublicQuery["只基于公开问题生成搜索词"]
     PublicQuery --> Providers["Search / Fetch"]
-    KSearch --> Normalize["Evidence Normalization"]
-    Providers --> Normalize
+    KSearch --> Rank["Candidate Ranking"]
+    Providers --> Rank
+    Rank --> Synthesis["Synthesis"]
+    Synthesis --> Normalize["Evidence Normalization"]
     Normalize --> Graph["Evidence Graph"]
-    Graph --> Synthesis["Synthesis"]
-    Synthesis --> Report["Versioned Report"]
+    Graph --> Evaluate["Completeness Evaluation"]
+    Evaluate --> Report["Versioned Report"]
 ```
 
 内部知识通道与互联网通道在 Evidence Normalization 前保持数据域分离：
@@ -538,19 +540,20 @@ Redis 不作为唯一业务事实，不以 Redis dump 替代 MySQL 和文件/向
 
 演进不得改变外部 API、Internal Retrieval 或 Evidence Contract 的既有语义；Breaking Change 必须通过新版本和兼容迁移发布。
 
-## 17. 后续专项设计边界
+## 17. 专项文档职责边界
 
-本文确认总体边界，以下细节仍由后续文档按顺序定义：
+本文确认总体边界，以下细节由对应专项文档持续维护：
 
-1. `docs/MONOREPO_MIGRATION_PLAN.md`：历史导入、目录迁移、构建和第一阶段迁移验收；
-2. `docs/IDENTITY_AND_ACCESS.md`：JWT Claims、令牌生命周期、服务凭证、授权上下文和敏感数据外发策略；
-3. `docs/API.md` 与 [`packages/contracts/`](../packages/contracts/README.md)：外部/内部协议表面、错误语义、SSE、跨服务字段、版本和契约测试；
-4. [`services/knowledge/docs/DATABASE.md`](../services/knowledge/docs/DATABASE.md) 与 [`RAG_PIPELINE.md`](../services/knowledge/docs/RAG_PIPELINE.md)：Knowledge 数据所有权、迁移链和 Internal Retrieval Provider；
-5. [`services/research/docs/DATABASE.md`](../services/research/docs/DATABASE.md) 与 [`RESEARCH_PIPELINE.md`](../services/research/docs/RESEARCH_PIPELINE.md)：Research 数据、状态解析、Consumer、Evidence Graph 和报告生成；
+1. `docs/plans/MONOREPO_MIGRATION_PLAN.md`：历史导入、目录迁移、构建和第一阶段迁移验收；
+2. `docs/specs/IDENTITY_AND_ACCESS.md`：JWT Claims、令牌生命周期、服务凭证、授权上下文和敏感数据外发策略；
+3. `docs/specs/API.md` 与 [`packages/contracts/`](../../packages/contracts/README.md)：外部/内部协议表面、错误语义、SSE、跨服务字段、版本和契约测试；
+4. [`services/knowledge/docs/DATABASE.md`](../../services/knowledge/docs/DATABASE.md) 与 [`RAG_PIPELINE.md`](../../services/knowledge/docs/RAG_PIPELINE.md)：Knowledge 数据所有权、迁移链和 Internal Retrieval Provider；
+5. [`services/research/docs/DATABASE.md`](../../services/research/docs/DATABASE.md) 与 [`RESEARCH_PIPELINE.md`](../../services/research/docs/RESEARCH_PIPELINE.md)：Research 数据、状态解析、Consumer、Evidence Graph 和报告生成；
 6. `apps/web/docs/FRONTEND.md` 与 `UIDESIGN.md`：统一路由、模块、状态机、引用交互和 Design Token；
-7. `docs/DATA_MIGRATION_AND_ROLLBACK.md`：源数据映射、停机窗口、校验、恢复和回滚；
-8. `docs/TESTING.md`：环境矩阵、契约与端到端用例、性能基线和发布门禁；
-9. `docs/CHANGELOG.md` 与 `docs/decisions/`：随规范和实现持续记录变更及重要架构决策。
+7. [`docs/specs/DATA_MIGRATION_AND_ROLLBACK.md`](DATA_MIGRATION_AND_ROLLBACK.md)：源数据映射、停机窗口、校验、恢复和回滚；
+8. [`docs/specs/TESTING.md`](TESTING.md)：环境矩阵、契约与端到端用例、性能基线和发布门禁；
+9. [`docs/specs/CONFIGURATION.md`](CONFIGURATION.md)、[`DATA_RETENTION.md`](DATA_RETENTION.md) 与 [`OPERATIONS.md`](OPERATIONS.md)：运行配置、保留清理和运维恢复；
+10. [`docs/CHANGELOG.md`](../CHANGELOG.md) 与 [`docs/decisions/`](../decisions/README.md)：随规范和实现持续记录变更及重要架构决策。
 
 上述专项文档不得改变本文的服务所有权、网络边界和数据隔离原则；确需改变时先更新本文并新增 ADR。
 
