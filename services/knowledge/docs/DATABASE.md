@@ -1,550 +1,402 @@
-# DATABASE — 数据库设计文档
+# EvidSight Knowledge Service 数据库设计
 
 | 属性 | 值 |
 |:---|:---|
+| 文档状态 | 已确认设计 |
 | 文档版本 | v1.0 |
-| 最后更新 | 2026-06-16 |
+| 最后更新 | 2026-07-31 |
+| 来源基线 | DocMind `backend/docs/DATABASE.md` 与既有 Alembic 历史 |
 
----
+> 本文是 `platform_db` 与 `knowledge_db` 的表、索引、外键、生命周期和迁移边界的权威规范。身份语义见 [`docs/specs/IDENTITY_AND_ACCESS.md`](../../../docs/specs/IDENTITY_AND_ACCESS.md)，系统数据所有权见 [`docs/specs/ARCHITECTURE.md`](../../../docs/specs/ARCHITECTURE.md)，跨服务字段见 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 HTTP 字段、RAG 算法或 Research 数据表。
 
-## 0. 时区约定
+## 1. 目标与边界
 
-> **所有 DATETIME 列均存储 UTC 时间。** 四层 UTC 统一策略（MySQL → 后端 → API → 前端）详见 [ARCHITECTURE.md §11](../../docs/ARCHITECTURE.md#11-时区策略)。
+Knowledge Service 拥有两个相互隔离的 MySQL 逻辑数据库：
 
-`app/models/_types.py` 中的 `UTCDateTime` TypeDecorator 在 ORM 层完成 aware ↔ naive 双向转换——写入时剥离 tzinfo 存 naive UTC，读取时附加 UTC tzinfo 返回 aware datetime。Pydantic 收到 aware datetime 后自动序列化为 `2026-06-09T12:00:02+00:00`。底层列依然是 `DATETIME`，不需要数据迁移。
-
----
-
-## 1. ER 关系
-
-```
-users (用户表)
-  │
-  ├── knowledge_bases (知识库表)
-  │     └── documents (文档表)
-  │           └── sections (章节表)
-  │                 └── chunks (分块表)
-  │
-  ├── conversations (会话表)
-  │     └── messages (消息表)
-  │
-  ├── refresh_tokens (刷新令牌表)
-  │
-  └── traces (链路追踪表)
-```
-
-**关系说明**：
-- 一个用户可创建多个知识库，每个知识库属于一个用户（1:N）
-- 一个知识库包含多个文档，每个文档属于一个知识库（1:N）
-- 一个文档包含多个章节，每个章节属于一个文档（1:N）
-- 一个文档被切分为多个分块，每个分块属于一个文档（1:N）
-- 一个章节包含多个分块，每个分块可关联一个章节（1:N，可空兼容老数据）
-- 一个用户可发起多个会话，每个会话属于一个用户（1:N）
-- 一个会话包含多条消息，每条消息属于一个会话（1:N）
-- 会话可关联一个知识库（可选），表示当前对话的知识库上下文
-- 一个用户可有多个刷新令牌，每个令牌属于一个用户（1:N）
-- 一个用户可有多条 Trace 记录，每条 Trace 属于一个用户（1:N）
-- 一条 Trace 可关联一个会话（可选），用于关联完整对话内容
-
----
-
-## 2. 表结构
-
-### 2.1 用户表 `users`
-
-```sql
-CREATE TABLE users (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    username VARCHAR(64) NOT NULL UNIQUE,
-    password_hash VARCHAR(256) NOT NULL,
-    role ENUM('user', 'admin') DEFAULT 'user',
-    status ENUM('active', 'disabled') DEFAULT 'active',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-```
-
-| 字段 | 类型 | 说明 |
+| 数据库 | 所有者模块 | 权威数据 |
 |:---|:---|:---|
-| id | BIGINT | 主键 |
-| username | VARCHAR(64) | 用户名，唯一索引 |
-| password_hash | VARCHAR(256) | bcrypt 哈希后的密码 |
-| role | ENUM | 角色：user（普通用户）/ admin（管理员） |
-| status | ENUM | 状态：active（正常）/ disabled（禁用），禁用后拒绝登录和 Token 刷新 |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间，自动更新 |
+| `platform_db` | Knowledge 身份模块 | 用户、Refresh Token 会话族、身份审计 |
+| `knowledge_db` | Knowledge 业务模块 | KB、文档、章节、分块、会话、消息、引用、生成、Trace 与业务审计 |
 
-### 2.2 知识库表 `knowledge_bases`
+两库使用独立账号、最小权限、独立 Alembic version table 和迁移链。不得建立跨数据库外键。Research Service 不得直读任一数据库，只能通过 JWT、公开 API 与 Internal Retrieval Contract 交互。
 
-```sql
-CREATE TABLE knowledge_bases (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    uuid CHAR(36) NOT NULL COMMENT '外部暴露的知识库标识符（UUID），API/URL 使用',
-    name VARCHAR(128) NOT NULL,
-    description TEXT,
-    user_id BIGINT NOT NULL,
-    visibility ENUM('private', 'public') DEFAULT 'private' COMMENT 'private（仅owner可见）/ public（所有用户可检索）',
-    status ENUM('active', 'deleting') DEFAULT 'active',
-    chunk_count INT DEFAULT 0,
-    doc_count INT DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE INDEX idx_uuid (uuid),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
-    UNIQUE INDEX idx_user_name (user_id, name)
-);
-```
+本设计以 DocMind 现有 Schema 为演进基线：保留成熟的内部 BIGINT 主键、知识层级、会话模型和迁移历史；新增统一 Platform User UUID、稳定 Segment UUID、结构化引用与生成生命周期。两个旧项目没有需迁移的生产用户，因此不设计账号自动合并、旧用户映射或身份双写。
 
-| 字段 | 类型 | 说明 |
-|:---|:---|:---|
-| id | BIGINT | 主键（内部使用，不暴露给 API） |
-| uuid | CHAR(36) | 外部暴露的知识库标识符（UUID），唯一索引，API/URL 使用 |
-| name | VARCHAR(128) | 知识库名称，与 user_id 联合唯一（同一用户下名称不重复） |
-| description | TEXT | 知识库描述 |
-| user_id | BIGINT | 创建者用户 ID |
-| visibility | ENUM | private（仅 owner 可见可检索）/ public（所有用户可检索），默认 private |
-| status | ENUM | active（正常）/ deleting（异步清理中，随后物理删除行） |
-| chunk_count | INT | 分块总数（冗余缓存列，Celery 任务内部维护）。**API 响应使用 Chunk 表实时 COUNT，不读此列**，避免 Celery 任务异常导致僵尸计数值 |
-| doc_count | INT | 文档总数（冗余缓存列，Celery 任务内部维护）。**API 响应使用 Document 表实时 COUNT，不读此列**，避免上传失败等场景导致僵尸计数值 |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
+## 2. 通用约定
 
-### 2.3 文档表 `documents`
+- 数据库字符集使用 `utf8mb4`；表使用 InnoDB。
+- 所有业务时间以 UTC 写入；应用边界序列化为 RFC 3339 UTC。
+- `platform_db.users.id` 使用 UUID；Knowledge 业务实体保留 BIGINT 内部主键，并使用唯一 UUID 对外及跨服务引用。
+- UUID 由应用生成，视为不透明标识；客户端不得依赖其排序。
+- 金额和评分使用定点数，不使用二进制浮点保存权威值。
+- JSON 列必须由应用 Schema 校验；不得用任意 JSON 取代稳定、可索引的核心字段。
+- 跨库用户引用统一命名为 `platform_user_id` 或 `owner_platform_user_id`，类型与 Platform User UUID 一致，但不建外键。
+- 业务错误只保存安全摘要；凭证、完整 Prompt、模型隐藏推理和无关私有正文不得写入日志、Trace 或审计详情。
+- 计数缓存和执行进度不是独立事实源；必须能由权威关系或状态记录重新计算。
 
-```sql
-CREATE TABLE documents (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    uuid CHAR(36) NOT NULL COMMENT '外部暴露的文档标识符（UUID），API/URL 使用',
-    kb_id BIGINT NOT NULL,
-    filename VARCHAR(256) NOT NULL,
-    file_type VARCHAR(32) NOT NULL COMMENT 'pdf/docx/md/txt',
-    file_path VARCHAR(512) COMMENT '文件存储路径：uploads/{kb_id}/{doc_id}/{uuid}_{sanitized_filename}',
-    file_size BIGINT COMMENT 'bytes',
-    status ENUM('uploaded','parsing','chunking','embedding','vector_storing','completed','success_with_warnings','partial_failed','failed','deleting') DEFAULT 'uploaded',
-    chunk_count INT DEFAULT 0,
-    error_msg TEXT,
-    current_stage VARCHAR(32) COMMENT '当前处理阶段，用于断点恢复',
-    last_success_batch INT DEFAULT 0 COMMENT '最后成功的批次号，用于批次级 checkpoint',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE INDEX idx_uuid (uuid),
-    INDEX idx_kb_id (kb_id),
-    INDEX idx_kb_filename (kb_id, filename) COMMENT '文档唯一性检查',
-    FOREIGN KEY (kb_id) REFERENCES knowledge_bases(id) ON DELETE CASCADE
-);
-```
+## 3. 主键与跨服务标识策略
 
-| 字段 | 类型 | 说明 |
-|:---|:---|:---|
-| id | BIGINT | 主键（内部使用，不暴露给 API） |
-| uuid | CHAR(36) | 外部暴露的文档标识符（UUID），唯一索引，API/URL 使用 |
-| kb_id | BIGINT | 所属知识库 ID，有索引 |
-| filename | VARCHAR(256) | 原始文件名 |
-| file_type | VARCHAR(32) | 文件类型：pdf / docx / md / txt |
-| file_path | VARCHAR(512) | 文件存储路径 |
-| file_size | BIGINT | 文件大小（字节） |
-| status | ENUM | 入库状态，使用 `DocumentStatus(str, Enum)` 统一管理（见 API.md §4.0） |
-| chunk_count | INT | 分块数量 |
-| error_msg | TEXT | 入库失败时的错误信息 |
-| current_stage | VARCHAR(32) | 当前处理阶段（parsing/chunking/embedding/vector_storing），断点恢复用 |
-| last_success_batch | INT | 最后成功批次号（Embedding 批次级 checkpoint） |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
+Knowledge 业务表继续使用 BIGINT 聚簇主键，以保留 DocMind 的内部外键、索引和迁移稳定性。以下标识必须使用 UUID：
 
-**文档状态流转**：
-
-```
-uploaded → parsing → chunking → embedding → vector_storing → completed
-              ↓         ↓          ↓            ↓
-          ───────────→ failed ←───────────────
-              ↓         ↓          ↓            ↓
-          success_with_warnings / partial_failed
-
-**仅 `partial_failed` / `failed` → reprocess → parsing（重新入库）**
-`completed` / `success_with_warnings` / `partial_failed` / `failed` = 终态（`TERMINAL_STATUSES`）
-`deleting` = 异步清理中，清理完成后物理删除行（非终态，行删除后不存在）
-```
-
-**新增索引**：`idx_kb_filename (kb_id, filename)` 用于文档唯一性检查（同名文档快速查找）。
-
-**状态枚举定义**：详见 [API.md §4.0](./API.md#40-文档状态枚举)。
-
-### 2.4 章节表 `sections`
-
-```sql
-CREATE TABLE sections (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    doc_id BIGINT NOT NULL,
-    kb_id BIGINT NOT NULL,
-    title VARCHAR(512) NOT NULL COMMENT '章节标题',
-    path VARCHAR(1024) NOT NULL COMMENT '章节路径（如 一级 > 二级 > 当前章节）',
-    level INT NOT NULL COMMENT '章节层级（1-6）',
-    start_chunk_index INT NOT NULL COMMENT '章节首个 chunk 的全局索引',
-    end_chunk_index INT NOT NULL COMMENT '章节最后一个 chunk 的全局索引',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_sections_doc_id (doc_id),
-    INDEX idx_sections_kb_id (kb_id),
-    INDEX idx_sections_doc_level (doc_id, level),
-    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
-    FOREIGN KEY (kb_id) REFERENCES knowledge_bases(id) ON DELETE CASCADE
-);
-```
-
-| 字段 | 类型 | 说明 |
-|:---|:---|:---|
-| id | BIGINT | 主键 |
-| doc_id | BIGINT | 所属文档 ID，有索引 |
-| kb_id | BIGINT | 所属知识库 ID，有索引 |
-| title | VARCHAR(512) | 当前章节标题 |
-| path | VARCHAR(1024) | 从顶层到当前章节的完整路径 |
-| level | INT | 标题层级（1-6） |
-| start_chunk_index | INT | 章节首个 chunk 的全局索引 |
-| end_chunk_index | INT | 章节最后一个 chunk 的全局索引 |
-| created_at | DATETIME | 创建时间 |
-
-### 2.5 分块表 `chunks`
-
-```sql
-CREATE TABLE chunks (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    doc_id BIGINT NOT NULL,
-    kb_id BIGINT NOT NULL,
-    section_id BIGINT NULL COMMENT '所属章节 ID',
-    chroma_id VARCHAR(256) NOT NULL COMMENT 'ChromaDB中的chunk id',
-    content TEXT NOT NULL,
-    chunk_index INT NOT NULL COMMENT '在原文档中的顺序',
-    token_count INT DEFAULT 0,
-    metadata JSON COMMENT '页码、段落标题等',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_doc_id (doc_id),
-    INDEX idx_kb_id (kb_id),
-    INDEX ix_chunks_section_id (section_id),
-    INDEX idx_chunks_doc_id_chunk_index (doc_id, chunk_index),
-    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
-    FOREIGN KEY (kb_id) REFERENCES knowledge_bases(id) ON DELETE CASCADE,
-    FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE SET NULL
-);
-```
-
-| 字段 | 类型 | 说明 |
-|:---|:---|:---|
-| id | BIGINT | 主键 |
-| doc_id | BIGINT | 所属文档 ID，有索引 |
-| kb_id | BIGINT | 所属知识库 ID，有索引（冗余，便于按知识库统计分块） |
-| section_id | BIGINT | 所属章节 ID，可空，兼容历史未回填 chunk |
-| chroma_id | VARCHAR(256) | ChromaDB 中对应的 chunk id，用于回溯和删除 |
-| content | TEXT | 分块文本内容 |
-| chunk_index | INT | 在原文档中的顺序（从 0 开始） |
-| token_count | INT | 估算的 token 数量 |
-| metadata | JSON | 额外元数据（页码、段落标题等） |
-| created_at | DATETIME | 创建时间 |
-
-### 2.6 会话表 `conversations`
-
-```sql
-CREATE TABLE conversations (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    uuid CHAR(36) NOT NULL COMMENT '外部暴露的会话标识符（UUID），API/URL 使用',
-    user_id BIGINT NOT NULL,
-    kb_id BIGINT COMMENT '关联的知识库',
-    original_kb_id BIGINT NULL COMMENT 'KB 删除前的原始 kb_id，用于孤儿会话检测',
-    original_kb_uuid CHAR(36) NULL COMMENT 'KB 删除前的原始 UUID，用于孤儿会话审计追踪',
-    original_kb_name VARCHAR(128) NULL COMMENT 'KB 删除前的原始名称，用于孤儿会话 Banner 展示',
-    title VARCHAR(256) DEFAULT '新对话',
-    message_count INT DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    last_message_at DATETIME NULL DEFAULT NULL COMMENT '最后一次产生消息的时间，用于列表排序。仅 send_message/assistant_reply 更新（不受 FK SET NULL 等非消息 UPDATE 污染）',
-    UNIQUE INDEX idx_uuid (uuid),
-    INDEX idx_user_id (user_id),
-    INDEX idx_conversations_user_last_msg (user_id, last_message_at) COMMENT '会话列表按 last_message_at DESC 排序查询',
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (kb_id) REFERENCES knowledge_bases(id) ON DELETE SET NULL
-);
-```
-
-| 字段 | 类型 | 说明 |
-|:---|:---|:---|
-| id | BIGINT | 主键（内部使用，不暴露给 API） |
-| uuid | CHAR(36) | 外部暴露的会话标识符（UUID），唯一索引，API/URL 使用 |
-| user_id | BIGINT | 所属用户 ID，有索引 |
-| kb_id | BIGINT | 关联的知识库 ID（可选，表示对话的知识域） |
-| original_kb_id | BIGINT | KB 删除前的原始 ID，用于孤儿会话检测。KB 物理删除前由 Celery 批量备份 |
-| original_kb_uuid | CHAR(36) | KB 删除前的原始 UUID，用于孤儿会话审计追踪。与 `original_kb_id` 同步备份 |
-| original_kb_name | VARCHAR(128) | KB 删除前的原始名称，用于孤儿会话 Banner 展示 |
-| title | VARCHAR(256) | 对话标题（可由首条消息自动生成） |
-| message_count | INT | 消息总数（冗余缓存） |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
-| last_message_at | DATETIME | 最后一次产生消息的时间，用于列表排序。仅 send_message/assistant_reply 更新（不受 FK SET NULL 等非消息 UPDATE 污染） |
-
-**设计决策：为什么新增 `last_message_at` 而不复用 `updated_at` 排序？**
-
-> `updated_at` 列由 `ON UPDATE CURRENT_TIMESTAMP` 自动维护，任何 `UPDATE` 操作都会刷新该值——包括：
-> - `conversations.kb_id` 外键 `ON DELETE SET NULL` 级联（知识库删除时 kb_id 置空，触发 updated_at 更新）
-> - 管理员后台修改会话标题、元数据等非消息操作
-> - 未来可能新增的任何 `UPDATE conversations SET ...` 语句
->
-> 会话列表的默认排序（"最近有消息的会话排在前面"）应当只反映**真实消息活动**，而非上述元数据变更。因此引入 `last_message_at` 列：
-> - **仅**在 `send_message`（用户发送）和 `assistant_reply`（助手回复）时由业务代码显式更新
-> - 不受 FK 级联、管理员操作、标题修改等"非消息 UPDATE"影响
-> - 配合 `idx_conversations_user_last_msg (user_id, last_message_at)` 复合索引，实现高效的会话列表排序查询
-
-**设计决策：为什么新增 `original_kb_id` / `original_kb_uuid` / `original_kb_name`？**
-
-> FK `ON DELETE SET NULL` 在 MySQL 层自动将 `conversations.kb_id` 置空，导致信息不可逆丢失——无法区分「从未关联 KB」和「KB 已删除」。
->
-> 解决方案：在 Celery 物理删除 KB **之前**，批量备份 `kb_id` → `original_kb_id`、`kb.uuid` → `original_kb_uuid` 和 `kb.name` → `original_kb_name`。MySQL FK SET NULL 随后清空 `kb_id`，但 `original_kb_id` 保留原值。
->
-> `_enrich_kb_status` 据此判断：
-> - `kb_id=NULL` + `original_kb_id` 非空 → `kb_status="deleted"`（孤儿会话）
-> - `kb_id=NULL` + `original_kb_id` 为空 → `kb_status=None`（从未关联 KB）
->
-> 使用批量 UPDATE（`UPDATE conversations SET original_kb_id=?, original_kb_uuid=?, original_kb_name=? WHERE kb_id=?`）而非 ORM 逐行循环，避免 N 对象实例化 + N 次脏检查。
-
-**设计决策：为什么使用双字段方案（id + uuid）？**
-
-> **架构决策详见**：[ARCHITECTURE.md §8.11](../../docs/ARCHITECTURE.md#811-外部资源-uuid-化)（资源分级改造决策表和各资源 UUID 化范围）。
-
-> 外部暴露的资源（knowledge_bases、documents、conversations）采用双字段方案：
-> - `id BIGINT AUTO_INCREMENT`：内部主键，用于外键关联、JOIN 查询、内部逻辑
-> - `uuid CHAR(36) UNIQUE`：外部暴露标识符，用于 API 路由、响应、URL。应用层使用 `uuid.uuid4()` 显式生成（v4，随机），`server_default=text("(UUID())")` 为安全网兜底（MySQL `UUID()` 生成 v1）
->
-> **优势**：
-> - 零影响现有外键关系（`messages.conversation_id`、`traces.conversation_id` 等）——无需迁移子表
-> - 内部查询（JOIN、聚合）保持 BIGINT 性能，索引更小、缓存命中率更高
-> - UUID 仅在 API 边界解析，影响面最小
-> - 防止 ID 枚举攻击，提升安全性
->
-> **存储**：CHAR(36) 存储标准 UUID 格式（含连字符），如 `550e8400-e29b-41d4-a716-446655440000`。未来如需优化存储，可迁移至 BINARY(16)（节省约 55% 空间）。
->
-> **不改造的资源**：users（Admin 内部使用）、messages（仅 SSE 返回）、chunks（内部结构）保持 BIGINT 主键。
-
-### 2.7 消息表 `messages`
-
-```sql
-CREATE TABLE messages (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    conversation_id BIGINT NOT NULL,
-    role ENUM('user', 'assistant', 'system') NOT NULL,
-    content TEXT NOT NULL,
-    thinking_content TEXT COMMENT '深度思考内容',
-    token_count INT DEFAULT 0,
-    feedback ENUM('like', 'dislike') NULL,
-    metadata JSON NULL DEFAULT NULL COMMENT '扩展元数据：未来 Tool Call / Web Search / Agent 等场景的非结构化数据',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_conversation_id (conversation_id),
-    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-);
-```
-
-| 字段 | 类型 | 说明 |
-|:---|:---|:---|
-| id | BIGINT | 主键 |
-| conversation_id | BIGINT | 所属会话 ID，有索引 |
-| role | ENUM | 消息角色：user / assistant / system |
-| content | TEXT | 消息正文 |
-| thinking_content | TEXT | DeepSeek 深度思考内容（可空） |
-| token_count | INT | 消息消耗的 token 估算 |
-| feedback | ENUM | 用户反馈：like / dislike（可空） |
-| metadata | JSON | 扩展元数据（可空）。Phase 4 不使用，为 future Tool Call / Web Search / Agent 预留 |
-| created_at | DATETIME | 创建时间 |
-
-### 2.8 刷新令牌表 `refresh_tokens`
-
-> **Phase 4 新增**。配合 Refresh Token 机制（见 [ARCHITECTURE.md §9.2](../../docs/ARCHITECTURE.md#92-refresh-token-机制)），持久化存储刷新令牌哈希。
-
-```sql
-CREATE TABLE refresh_tokens (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    user_id BIGINT NOT NULL,
-    token_hash VARCHAR(256) NOT NULL COMMENT 'refresh_token 的 SHA-256 哈希，不存明文',
-    expires_at DATETIME NOT NULL COMMENT '过期时间（创建后 7 天）',
-    revoked_at DATETIME NULL COMMENT '吊销时间（NULL=有效，非NULL=已吊销及吊销时间）',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_user_id (user_id),
-    INDEX idx_token_hash (token_hash),
-    INDEX idx_user_active (user_id, revoked_at, expires_at) COMMENT '查询某用户有效 token',
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-```
-
-| 字段 | 类型 | 说明 |
-|:---|:---|:---|
-| id | BIGINT | 主键 |
-| user_id | BIGINT | 所属用户 ID |
-| token_hash | VARCHAR(256) | refresh_token 的 SHA-256 哈希值（不存明文，防数据库泄露后伪造） |
-| expires_at | DATETIME | Token 过期时间（创建后 +7 天） |
-| revoked_at | DATETIME | 吊销时间（NULL=有效；非 NULL=已吊销，值为吊销时间） |
-| created_at | DATETIME | 创建时间 |
-
-**安全设计**：
-- **不存明文**：数据库仅存 SHA-256 哈希。攻击者获取数据库后无法伪造 refresh_token
-- **Rotation 实现**：调用 `POST /api/auth/refresh` 时，旧 token 行 `UPDATE revoked_at = NOW()`，新 token 行 `INSERT`
-- **泄露检测**：若用已吊销的旧 token 请求刷新 → 该用户全部 token `UPDATE revoked_at = NOW()`（E5009）
-- **改密吊销**：`PUT /api/auth/password` → 该用户全部 token `UPDATE revoked_at = NOW()`
-- **过期清理**：`expires_at < NOW()` 的 token 即使 `revoked_at IS NULL` 也视为无效
-
-### 2.9 链路追踪表 `traces`
-
-> **Phase 5 已实现**。记录问答全链路各阶段耗时和详情，用于性能观测和统计分析。
-
-```sql
-CREATE TABLE traces (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    trace_id VARCHAR(64) NOT NULL COMMENT 'UUID 追踪 ID',
-    user_id BIGINT NOT NULL COMMENT '用户 ID',
-    conversation_id BIGINT COMMENT '会话 ID（可为空）',
-    kb_id BIGINT COMMENT '知识库 ID',
-    question TEXT COMMENT '用户问题',
-    status VARCHAR(32) NOT NULL COMMENT '状态：success / error / partial',
-    intent_type VARCHAR(32) COMMENT '顶层字段：KNOWLEDGE / CASUAL / META',
-    intent_method VARCHAR(32) COMMENT '顶层字段：regex / llm_flash / llm_pro',
-    response_mode VARCHAR(32) COMMENT '顶层字段：RAG / DIRECT_LLM / META / CASUAL / FALLBACK / REJECT',
-    total_duration_ms INT COMMENT '总耗时（毫秒）',
-    intent JSON COMMENT '意图识别阶段详情',
-    rewrite JSON COMMENT '问题重写阶段详情',
-    retrieve JSON COMMENT '检索阶段详情（细粒度拆分：vector/bm25/fusion/match_sentence）',
-    rerank JSON COMMENT 'Rerank 阶段详情',
-    generate JSON COMMENT 'LLM 生成阶段详情（不存 output）',
-    evidence_review JSON COMMENT '证据审查阶段详情（chunk 分类 + REJECT 决策 + post-LLM 审计结果）',
-    error_message TEXT COMMENT '错误信息（status=error 时）',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间（UTC）',
-    UNIQUE INDEX idx_trace_id (trace_id),
-    INDEX idx_created_at (created_at),
-    INDEX idx_created_status (created_at, status),
-    INDEX idx_created_intent (created_at, intent_type),
-    INDEX idx_created_response (created_at, response_mode),
-    INDEX idx_user_created (user_id, created_at),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
-    FOREIGN KEY (kb_id) REFERENCES knowledge_bases(id) ON DELETE SET NULL
-);
-```
-
-| 字段 | 类型 | 说明 |
-|:---|:---|:---|
-| id | BIGINT | 主键 |
-| trace_id | VARCHAR(64) | UUID 追踪 ID，唯一索引 |
-| user_id | BIGINT | 用户 ID，有索引 |
-| conversation_id | BIGINT | 会话 ID（可为空），用于关联完整对话内容 |
-| kb_id | BIGINT | 知识库 ID |
-| question | TEXT | 用户问题 |
-| status | VARCHAR(32) | 状态：success / error / partial |
-| intent_type | VARCHAR(32) | 意图类型（顶层字段，用于聚合统计） |
-| intent_method | VARCHAR(32) | 意图分类方法（顶层字段） |
-| response_mode | VARCHAR(32) | 响应模式（顶层字段，用于聚合统计）。枚举值：RAG / DIRECT_LLM / META / CASUAL / FALLBACK / REJECT |
-| total_duration_ms | INT | 总耗时（毫秒） |
-| intent | JSON | 意图识别阶段详情（span_name/start_time/duration_ms/status/intent_type/method/metadata） |
-| rewrite | JSON | 问题重写阶段详情（span_name/start_time/duration_ms/status/original_question/rewritten_question/metadata） |
-| retrieve | JSON | 检索阶段详情，**细粒度拆分**：vector/bm25/fusion/match_sentence 各自独立计时 |
-| rerank | JSON | Rerank 阶段详情（input_count/output_count/metadata.reranker） |
-| generate | JSON | LLM 生成阶段详情（model/ttft_ms/input_tokens/output_tokens/finish_reason），**不存 output** |
-| evidence_review | JSON | 证据审查阶段详情（summary/chunk_decisions/sentence_review/post_audit），chunk_decisions 上限 5 条 |
-| error_message | TEXT | 错误信息（status=error 时） |
-| created_at | DATETIME | 创建时间（UTC） |
-
-**设计要点**：
-- **顶层字段**：`intent_type`、`intent_method`、`response_mode` 作为独立列，避免聚合统计时 `JSON_EXTRACT` 性能问题
-- **不存 generate.output**：完整对话内容通过 `conversation_id` JOIN 查询，避免重复存储
-- **retrieve 细粒度**：拆分 vector/bm25/fusion/match_sentence，便于定位性能瓶颈（如 `bm25.tokenize_ms` 异常）
-- **索引设计**：`(created_at, status)` 用于 Dashboard 按时间+状态筛选；`(created_at, intent_type)` 用于意图分类统计；`(user_id, created_at)` 用于按用户筛选
-
----
-
-## 3. 索引策略
-
-| 表 | 索引 | 类型 | 用途 |
+| 对象 | 内部主键 | 稳定 UUID | 跨服务可见性 |
 |:---|:---|:---|:---|
-| users | username (UNIQUE) | 唯一索引 | 登录查询 |
-| knowledge_bases | idx_uuid (uuid) | 唯一索引 | 外部暴露标识符，API/URL 查询 |
-| knowledge_bases | idx_user_name (user_id, name) | 唯一索引 | 用户级知识库名称唯一性约束 |
-| documents | idx_uuid (uuid) | 唯一索引 | 外部暴露标识符，API/URL 查询 |
-| documents | idx_kb_id | 普通索引 | 按知识库列出文档 |
-| documents | idx_kb_filename (kb_id, filename) | 复合索引 | 文档唯一性检查 + 同名查找 |
-| chunks | idx_doc_id | 普通索引 | 按文档列出分块 |
-| chunks | idx_kb_id | 普通索引 | 按知识库统计分块 |
-| chunks | idx_chunks_doc_id_chunk_index (doc_id, chunk_index) | 复合索引 | BM25 评分后按 (doc_id, chunk_index) 批量取 chunk 原文（tuple_.in_() 定位，避免回表） |
-| conversations | idx_uuid (uuid) | 唯一索引 | 外部暴露标识符，API/URL 查询 |
-| conversations | idx_user_id | 普通索引 | 按用户列出会话 |
-| conversations | idx_conversations_user_updated (user_id, updated_at) | 复合索引 | Phase 4：按用户列出会话并按更新时间倒序排列 |
-| conversations | idx_conversations_user_last_msg (user_id, last_message_at) | 复合索引 | 会话列表按 last_message_at DESC 排序查询（替代 updated_at 排序，避免 FK 级联污染） |
-| messages | idx_conversation_id | 普通索引 | 按会话列出消息 |
-| refresh_tokens | idx_user_id | 普通索引 | 按用户查询刷新令牌 |
-| refresh_tokens | idx_token_hash | 普通索引 | 按 token 哈希查找（刷新校验入口） |
-| refresh_tokens | idx_user_active (user_id, revoked_at, expires_at) | 复合索引 | 查询用户有效 token + 改密批量吊销 + Rotation 检测 |
-| traces | idx_trace_id (trace_id) | 唯一索引 | 按 trace_id 查询详情 |
-| traces | idx_created_at (created_at) | 普通索引 | 按时间范围筛选 |
-| traces | idx_created_status (created_at, status) | 复合索引 | Dashboard 按时间+状态筛选 |
-| traces | idx_created_intent (created_at, intent_type) | 复合索引 | 意图分类统计 |
-| traces | idx_created_response (created_at, response_mode) | 复合索引 | 响应模式统计 |
-| traces | idx_user_created (user_id, created_at) | 复合索引 | 按用户筛选 |
+| Platform User | UUID | 同主键 | JWT `sub` 和用户上下文 |
+| Knowledge Base | BIGINT | `uuid` | API、Internal Retrieval |
+| Document | BIGINT | `uuid` | API、Evidence 来源 |
+| Segment/Chunk | BIGINT | `segment_uuid` | Evidence 定位 |
+| Conversation | BIGINT | `uuid` | API |
+| Message | BIGINT | `uuid` | API、引用关联 |
+| Chat Generation | BIGINT | `uuid` | 取消、幂等、Trace |
 
-> **注意**：MySQL 会自动为外键列创建索引（若该列尚未建立索引）。上表中 `chunks.doc_id`、`chunks.kb_id` 等因已有显式索引，不再重复；`conversations.kb_id` 无外键索引，如需频繁按知识库查询会话，可后续补充。
+`chroma_id`、数据库主键、文件存储键和缓存键只在 Knowledge 内部使用，禁止进入 Contract 或外部 API。
 
-> **Phase 6 优化项**：如后续文档量和用户量增大，考虑：
-> - `documents` 表增加 `(kb_id, status)` 复合索引用于状态过滤
-> - `messages` 表增加 `(conversation_id, created_at)` 复合索引用于按时间排序
-> - `refresh_tokens` 表定期清理过期 token 的定时任务
+## 4. `platform_db`
 
-#### 3.1 Admin 统计接口查询优化
+### 4.1 `users`
 
-> Phase 5 `GET /api/admin/stats` 对 6 张表执行 `SELECT COUNT(*)` + `SUM()` 聚合。数据量小时（< 10 万条）直接查询即可；数据增长后需考虑以下优化：
-
-| 优化级别 | 方案 | 适用规模 | 说明 |
-|:---|:---|:---|:---|
-| 当前（Phase 5） | 直接 SQL 聚合 | < 10 万行 | `SELECT COUNT(*)` 在 InnoDB 小表上毫秒级完成，无需额外优化 |
-| 中等规模 | Redis 缓存统计数（TTL 60s） | 10-100 万行 | 避免每次 Admin 页面刷新都触发 6 次 `COUNT(*)`。缓存 60s 延迟可接受 |
-| 大规模 | 汇总表 `admin_stats` + Celery 定时刷新 | > 100 万行 | 独立汇总表存储预计算统计值，Celery beat 每 5 分钟刷新一次 |
-
-**需关注的表**：
-
-| 表 | `COUNT(*)` 代价 | 说明 |
+| 字段 | 类型 | 约束与语义 |
 |:---|:---|:---|
-| `messages` | 🟡 中 | 每次问答产生 2 条消息（user + assistant），增长最快。10 万条以下无压力 |
-| `chunks` | 🟡 中 | 每个文档产生 10-100+ 条 chunk，与文档量成正比 |
-| `conversations` | 🟢 低 | 增长较慢，每个会话可能含多轮消息 |
-| `users` / `knowledge_bases` / `documents` | 🟢 低 | 数量级远小于 messages/chunks |
+| `id` | CHAR(36) | PK，Platform User UUID |
+| `username` | VARCHAR(64) | UNIQUE，规范化后非空 |
+| `password_hash` | VARCHAR(255) | 只存密码哈希，不存算法外的秘密 |
+| `role` | ENUM | `user`、`admin` |
+| `status` | ENUM | `active`、`disabled` |
+| `status_version` | BIGINT | 非负，状态变化递增，用于缓存失效 |
+| `disabled_at` | DATETIME | 可空 |
+| `created_at` | DATETIME | UTC |
+| `updated_at` | DATETIME | UTC |
 
-> **实现建议**：Phase 5 先用直接 SQL 方案（简单可靠），Redis 缓存作为 `admin_service.get_stats()` 的可选增强（通过 `RATE_LIMIT_ENABLED` 类似的 `STATS_CACHE_ENABLED` 开关控制）。汇总表方案推迟 Phase 6。
+用户名用于 v1.0 登录；Platform User UUID 才是跨服务稳定身份。禁用不删除用户，也不级联删除业务数据。
 
----
+### 4.2 `refresh_token_families`
 
-## 4. 外键策略
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | CHAR(36) | PK，Token Family UUID |
+| `user_id` | CHAR(36) | FK → `users.id`，CASCADE |
+| `created_at` | DATETIME | 初次登录时间 |
+| `last_rotated_at` | DATETIME | 最近成功轮换时间 |
+| `expires_at` | DATETIME | Family 绝对过期时间 |
+| `revoked_at` | DATETIME | 可空；退出、禁用或重放检测时写入 |
+| `revoke_reason` | VARCHAR(64) | 受控枚举字符串，可空 |
 
-| 字段 | 引用表 | 级联行为 | 设计理由 |
-|:---|:---|:---|:---|
-| `knowledge_bases.user_id` | `users(id)` | `ON DELETE RESTRICT` | 知识库是组织资产，删除用户前必须先转移或手动删除其知识库，防止误删导致数据丢失 |
-| `documents.kb_id` | `knowledge_bases(id)` | `ON DELETE CASCADE` | 删除知识库时自动清空旗下所有文档，与业务「删除知识库及其下所有文档」对齐 |
-| `chunks.doc_id` | `documents(id)` | `ON DELETE CASCADE` | 删除文档时自动清空其分块，保证 MySQL 与 ChromaDB 数据一致性 |
-| `chunks.kb_id` | `knowledge_bases(id)` | `ON DELETE CASCADE` | 冗余字段，知识库删除时级联清理分块记录，便于按知识库统计 |
-| `conversations.user_id` | `users(id)` | `ON DELETE CASCADE` | 用户删除时自动清理其会话历史，避免悬空数据 |
-| `conversations.kb_id` | `knowledge_bases(id)` | `ON DELETE SET NULL` | 知识库删除后会话保留，仅解除关联（kb_id 置空），防止历史对话丢失 |
-| `messages.conversation_id` | `conversations(id)` | `ON DELETE CASCADE` | 删除会话时自动清理全部消息，与业务「删除会话及其全部消息」对齐 |
-| `refresh_tokens.user_id` | `users(id)` | `ON DELETE CASCADE` | 用户删除时自动清理其刷新令牌，避免悬空数据 |
-| `traces.user_id` | `users(id)` | `ON DELETE CASCADE` | 用户删除时自动清理其 Trace 记录 |
-| `traces.conversation_id` | `conversations(id)` | `ON DELETE SET NULL` | 会话删除后 Trace 保留，仅解除关联（conversation_id 置空），Trace 作为性能观测数据独立于会话生命周期 |
-| `traces.kb_id` | `knowledge_bases(id)` | `ON DELETE SET NULL` | 知识库删除后 Trace 保留，仅解除关联（kb_id 置空），Trace 作为性能观测数据独立于知识库生命周期 |
+Family 是退出和重放响应的最小撤销单元。用户禁用时撤销该用户所有未撤销 Family。
 
-> **重要**：知识库/文档的实际删除采用 **Celery 异步物理删除**（先标记 `deleting` → Worker 清理 ChromaDB 向量 + 磁盘文件 → 物理 `DELETE FROM` MySQL 记录）。`ON DELETE CASCADE` 作为数据库层兜底保障——即使 Celery 仅执行 `DELETE FROM knowledge_bases WHERE id=?`，子记录（documents → chunks）也会由 FK CASCADE 自动级联清理，无需显式逐表删除。
+### 4.3 `refresh_tokens`
 
-**一致性保障**：
-- 外键约束在数据库层保证引用完整性，避免程序 Bug 产生脏数据（如指向不存在的 `kb_id`）
-- SQLAlchemy 模型中必须同步声明 `sa.ForeignKey(...)`，与 Alembic 迁移脚本保持一致
-- 模型中应补充 `relationship` 定义，支持 ORM 级联操作和跨表查询
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK |
+| `family_id` | CHAR(36) | FK → `refresh_token_families.id`，CASCADE |
+| `token_hash` | VARCHAR(255) | UNIQUE，只保存密码学哈希 |
+| `issued_at` | DATETIME | UTC |
+| `expires_at` | DATETIME | UTC |
+| `rotated_at` | DATETIME | 可空；成功换出新 Token 时写入 |
+| `replaced_by_id` | BIGINT | 自引用，可空 |
+| `revoked_at` | DATETIME | 可空 |
 
-**SQLAlchemy ORM 行为注意事项**：
-- `ON DELETE CASCADE` 是**数据库层**的级联行为，SQLAlchemy ORM 默认**不会**自动感知
-- SQLAlchemy `relationship()` 默认 `passive_deletes=False`：删除父对象前，ORM 会先加载所有子对象并尝试 `SET FK=NULL`，再由数据库执行 CASCADE 删除
-- **当子表 FK 列为 NOT NULL 时**（如 `chunks.doc_id`、`chunks.kb_id`），`SET NULL` 操作会触发 `IntegrityError (1048, "Column 'doc_id' cannot be null")`
-- **解决方案**：所有 NOT NULL 外键列对应的 `relationship()` 必须添加 `passive_deletes=True`，告知 ORM 跳过 SET NULL 步骤，直接由数据库 FK CASCADE 处理级联删除
-- 当前已配置 `passive_deletes=True` 的关系：`Document.chunks`、`KnowledgeBase.documents`、`KnowledgeBase.chunks`
+刷新在单事务中锁定当前 Token、验证 Family 与用户状态、写入替代 Token，并标记旧 Token 已轮换。已轮换 Token 再次出现时撤销整个 Family。
 
----
+### 4.4 `identity_audit_events`
 
-## 5. 相关文档
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK |
+| `event_uuid` | CHAR(36) | UNIQUE |
+| `user_id` | CHAR(36) | 可空，不跨删除级联 |
+| `actor_user_id` | CHAR(36) | 可空，管理员操作主体 |
+| `event_type` | VARCHAR(64) | 登录、刷新、重放、退出、禁用、启用等受控类型 |
+| `request_id` | VARCHAR(64) | 请求关联 ID，可空 |
+| `outcome` | ENUM | `success`、`denied`、`error` |
+| `details` | JSON | 仅允许安全摘要 |
+| `created_at` | DATETIME | UTC |
 
-- [架构设计文档](../docs/ARCHITECTURE.md)
-- [接口文档](API.md)
-- [开发指南](../docs/DEVELOPMENT.md)
-- [UI 设计规范](../../frontend/docs/UIDESIGN.md)
+## 5. `knowledge_db` 核心内容表
+
+### 5.1 `knowledge_bases`
+
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK，内部使用 |
+| `uuid` | CHAR(36) | UNIQUE，对外标识 |
+| `owner_platform_user_id` | CHAR(36) | 创建者 Platform User UUID，无跨库 FK |
+| `name` | VARCHAR(128) | 同一 owner 下唯一 |
+| `description` | TEXT | 可空 |
+| `visibility` | ENUM | `private`、`public` |
+| `status` | ENUM | `active`、`deleting` |
+| `index_status` | ENUM | `ready`、`updating`、`recovering` |
+| `index_generation` | BIGINT | 非负，向量发布世代 |
+| `document_count_cache` | INT | 非负缓存，不作为 API 权威计数 |
+| `segment_count_cache` | INT | 非负缓存，不作为 API 权威计数 |
+| `version` | BIGINT | 乐观并发版本 |
+| `created_at` | DATETIME | UTC |
+| `updated_at` | DATETIME | UTC |
+
+`deleting` 状态立即拒绝新上传、Chat 和 Internal Retrieval。公开可读不等于公开可写；写权限仍由 owner 或管理员治理规则决定。
+
+### 5.2 `documents`
+
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK |
+| `uuid` | CHAR(36) | UNIQUE，对外与 Evidence 标识 |
+| `kb_id` | BIGINT | FK → `knowledge_bases.id`，CASCADE |
+| `filename` | VARCHAR(256) | 同一 KB 下唯一 |
+| `display_name` | VARCHAR(256) | 用户可见名称 |
+| `file_type` | VARCHAR(32) | 允许列表 |
+| `storage_key` | VARCHAR(512) | Knowledge 内部存储键，不对外暴露 |
+| `file_size` | BIGINT | 非负字节数 |
+| `content_hash` | CHAR(64) | 文件内容 SHA-256，用于校验和幂等 |
+| `status` | ENUM | `pending`、`processing`、`ready`、`ready_with_warnings`、`failed`、`deleting` |
+| `active_version` | INT | 当前可检索版本号，可空 |
+| `error_code` | VARCHAR(64) | 安全错误码，可空 |
+| `error_summary` | VARCHAR(500) | 安全摘要，可空 |
+| `segment_count_cache` | INT | 非负缓存 |
+| `created_at` | DATETIME | UTC |
+| `updated_at` | DATETIME | UTC |
+
+只有 `ready` 与 `ready_with_warnings` 文档的 Active Version 可检索；后者只允许非核心位置/结构增强缺失，不允许 Chunk 或向量不完整。原始文件路径从 DocMind 的 `file_path` 迁移为存储后端无关的 `storage_key`。
+
+### 5.3 `document_versions`
+
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK |
+| `uuid` | CHAR(36) | UNIQUE，Worker 幂等键 |
+| `document_id` | BIGINT | FK → `documents.id`，CASCADE |
+| `version` | INT | 同一 Document 内递增且唯一 |
+| `status` | ENUM | `queued`、`parsing`、`chunking`、`embedding`、`indexing`、`verifying`、`ready`、`ready_with_warnings`、`failed` |
+| `last_success_batch` | INT | 非负 Checkpoint，可空 |
+| `expected_segment_count` | INT | 非负，可空 |
+| `embedded_segment_count` | INT | 非负，可空 |
+| `indexed_segment_count` | INT | 非负，可空 |
+| `staging_artifact_key` | VARCHAR(512) | Embedding staging 内部存储键，可空且不对外暴露 |
+| `warning_summary` | JSON | 受控非核心警告，可空 |
+| `error_code` | VARCHAR(64) | 安全错误码，可空 |
+| `error_summary` | VARCHAR(500) | 安全摘要，可空 |
+| `created_at` | DATETIME | UTC |
+| `updated_at` | DATETIME | UTC |
+| `published_at` | DATETIME | 可空 |
+
+`(document_id, version)` 唯一。非 Active Version 不参与检索；Worker 丢失后以 Version 与 KB Index 状态恢复。Staging 产物在发布或回滚完成后必须清理。
+
+### 5.4 `sections`
+
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK |
+| `document_id` | BIGINT | FK → `documents.id`，CASCADE |
+| `document_version_id` | BIGINT | FK → `document_versions.id`，CASCADE |
+| `kb_id` | BIGINT | FK → `knowledge_bases.id`，CASCADE，冗余用于受控查询 |
+| `title` | VARCHAR(512) | 章节标题 |
+| `path` | VARCHAR(1024) | 层级路径 |
+| `level` | INT | 1—6 |
+| `start_chunk_index` | INT | 非负 |
+| `end_chunk_index` | INT | 不小于起始值 |
+| `created_at` | DATETIME | UTC |
+
+### 5.5 `chunks`
+
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK |
+| `segment_uuid` | CHAR(36) | UNIQUE，Evidence 稳定 Segment ID |
+| `document_id` | BIGINT | FK → `documents.id`，CASCADE |
+| `document_version_id` | BIGINT | FK → `document_versions.id`，CASCADE |
+| `kb_id` | BIGINT | FK → `knowledge_bases.id`，CASCADE |
+| `section_id` | BIGINT | FK → `sections.id`，SET NULL，可空 |
+| `chroma_id` | VARCHAR(256) | Knowledge 内部向量 ID |
+| `content` | TEXT | 权威分块正文，仅 Knowledge 内部读取 |
+| `chunk_index` | INT | 文档内从 0 开始的稳定顺序 |
+| `token_count` | INT | 非负估算值 |
+| `location` | JSON | 页码、段落、字符区间等受控定位 |
+| `created_at` | DATETIME | UTC |
+
+`(document_version_id, chunk_index)` 唯一。Internal Retrieval 只读取 Document Active Version，并以 `segment_uuid` 返回位置，绝不返回 `id`、`chroma_id` 或存储信息。
+
+## 6. 会话、消息与引用
+
+### 6.1 `conversations`
+
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK |
+| `uuid` | CHAR(36) | UNIQUE，对外标识 |
+| `owner_platform_user_id` | CHAR(36) | 无跨库 FK |
+| `kb_id` | BIGINT | FK → `knowledge_bases.id`，SET NULL；v1.0 单 KB 会话 |
+| `original_kb_uuid` | CHAR(36) | KB 删除前快照，可空 |
+| `original_kb_name` | VARCHAR(128) | KB 删除前快照，可空 |
+| `title` | VARCHAR(256) | 会话标题 |
+| `message_count_cache` | INT | 非负缓存 |
+| `created_at` | DATETIME | UTC |
+| `updated_at` | DATETIME | UTC |
+| `last_message_at` | DATETIME | 最近一次成功持久化消息时间 |
+
+Chat v1.0 不建立 Conversation—KB 多对多。多 KB Research 通过 Internal Retrieval 实现，其选择范围归 `research_db` 所有。
+
+### 6.2 `messages`
+
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK |
+| `uuid` | CHAR(36) | UNIQUE |
+| `conversation_id` | BIGINT | FK → `conversations.id`，CASCADE |
+| `generation_id` | BIGINT | FK → `chat_generations.id`，SET NULL，可空 |
+| `role` | ENUM | `user`、`assistant`、`system` |
+| `content` | MEDIUMTEXT | 用户可见消息正文 |
+| `token_count` | INT | 非负估算值，可空 |
+| `feedback` | ENUM | `like`、`dislike`，可空 |
+| `created_at` | DATETIME | UTC |
+
+目标 Schema 不保留 `thinking_content`。模型隐藏推理不得进入消息、Trace 或审计记录。
+
+### 6.3 `chat_generations`
+
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK |
+| `uuid` | CHAR(36) | UNIQUE，取消端点标识 |
+| `conversation_id` | BIGINT | FK → `conversations.id`，CASCADE |
+| `platform_user_id` | CHAR(36) | 发起用户快照 |
+| `kb_uuid` | CHAR(36) | 本次实际使用的单 KB 快照 |
+| `idempotency_key_hash` | CHAR(64) | 同用户同端点唯一，可空 |
+| `status` | ENUM | `pending`、`running`、`completed`、`failed`、`canceled` |
+| `error_code` | VARCHAR(64) | 可空 |
+| `error_summary` | VARCHAR(500) | 可空 |
+| `input_tokens` | INT | 非负，可空 |
+| `output_tokens` | INT | 非负，可空 |
+| `started_at` | DATETIME | 可空 |
+| `completed_at` | DATETIME | 可空 |
+| `created_at` | DATETIME | UTC |
+| `updated_at` | DATETIME | UTC |
+
+该表是生成生命周期的事实源。关联消息通过 `messages.generation_id` 查询，避免 Generation 与 Message 形成循环外键。SSE 断开或显式取消只能产生一个终态；失败或取消不得伪造成功 Assistant Message。
+
+### 6.4 `message_sources`
+
+| 字段 | 类型 | 约束与语义 |
+|:---|:---|:---|
+| `id` | BIGINT | PK |
+| `message_id` | BIGINT | FK → `messages.id`，CASCADE |
+| `citation_index` | INT | 同一消息内从 1 开始，唯一 |
+| `kb_uuid` | CHAR(36) | 来源 KB 稳定 ID |
+| `document_uuid` | CHAR(36) | 来源 Document 稳定 ID |
+| `segment_uuid` | CHAR(36) | 来源 Segment 稳定 ID |
+| `document_display_name` | VARCHAR(256) | 生成时快照 |
+| `location` | JSON | 生成时位置快照 |
+| `score_summary` | JSON | 受控评分摘要 |
+| `validity_at_generation` | ENUM | `available`、`restricted`、`missing`、`stale` |
+| `created_at` | DATETIME | UTC |
+
+该表不对 KB、Document 或 Chunk 建强外键，避免来源删除时抹除历史引用；也不得保存 Chunk 正文。用户展开来源时必须以稳定 UUID 向 Knowledge 实时查询和鉴权。
+
+## 7. Trace 与审计
+
+### 7.1 `knowledge_traces`
+
+继承 DocMind Trace 的阶段计时、意图、重写、检索、Rerank、生成和 Evidence Review 摘要，但使用以下稳定顶层字段：`trace_uuid`、`request_id`、`platform_user_id`、Conversation/Generation/KB UUID、状态、响应模式、耗时、Token/成本和 UTC 时间。
+
+阶段详情可使用受 Schema 约束的 JSON。不得保存完整 Prompt、模型隐藏推理、凭证、未命中的 Chunk 正文或完整私有文档；用户问题和命中摘要按部署保留策略最小化、脱敏和清理。
+
+### 7.2 `knowledge_audit_events`
+
+记录 KB 创建/治理/删除、文档上传/重处理/删除、Internal Retrieval 拒绝、内部来源二次鉴权和管理员治理。字段包含事件 UUID、Actor Platform User UUID、目标类型与稳定 UUID、请求 ID、结果、安全详情和 UTC 时间。
+
+Trace 用于性能与质量诊断，Audit 用于安全和治理；两者不得互相替代。
+
+## 8. Per-KB Collection 与关系库一致性
+
+每个 KB 映射到独立 Chroma Collection。Collection 名称由 Knowledge 内部根据 KB 内部 ID 生成，不属于外部契约。
+
+- `vector_store.search/add/delete` 必须显式接收单个 KB 内部 ID。
+- `index_status != ready` 时该 KB 不接受新检索；调用方有界等待后使用可重试不可用错误。
+- KB 删除可 drop 整个 Collection；Document 删除只在所属 Collection 内按内部文档标识删除。
+- MySQL 的 Document/Chunk 状态是生命周期权威；Chroma 不作为文档存在性、权限或计数的权威来源。
+- BM25 索引和缓存按 KB 隔离，缓存不保存 Chunk 原文，命中后从 MySQL 批量读取最小正文。
+- 多 KB Internal Retrieval 必须逐 KB 鉴权和检索，再执行跨 KB 归一化、去重与全局排序；不得构造共享 Collection 绕过隔离。
+- 2C2G 基线下，多 KB BM25 必须有并发和内存上限；精确调度与融合算法由 RAG Pipeline 规范定义。
+
+## 9. 生命周期与一致性
+
+### 9.1 KB 删除
+
+1. 事务内将 KB 标记为 `deleting`，写入审计并提交。
+2. API、Chat 和 Internal Retrieval 立即拒绝该 KB 的新操作。
+3. Worker 幂等清理上传对象与 per-KB Collection。
+4. 删除 MySQL Document/Section/Chunk；Conversation 在删除前保存 KB UUID/名称并解除 `kb_id`。
+5. 最后物理删除 KB 行。
+
+任一步失败都保持可恢复状态。Redis/Celery 不是任务唯一事实源；启动与周期扫描必须重新投递长期停留在非终态的 KB 和 Document。
+
+### 9.2 Document 入库、重处理与删除
+
+Document Version 状态与 `last_success_batch` 共同表示恢复点。数据库写入、文件存储和向量写入无法组成单事务，因此每一步必须幂等，并在下一步前验证上一阶段产物。Embedding 先进入 staging；发布使用 KB `index_status` 短时阻断检索，切换 Active Version 并清理旧向量后才恢复 `ready`，不得返回新旧混杂结果。
+
+### 9.3 用户禁用与来源访问
+
+禁用用户不触发业务数据级联删除。关键写入、Chat、Internal Retrieval 和来源展开查询当前 Platform 状态；状态缓存依据 `status_version` 失效。历史引用的生成时状态只用于解释，不能替代当前授权。
+
+## 10. 索引与约束
+
+除主键和外键索引外，最低索引如下：
+
+| 表 | 索引 | 用途 |
+|:---|:---|:---|
+| `users` | UNIQUE `username` | 登录 |
+| `refresh_tokens` | UNIQUE `token_hash` | 刷新与重放检测 |
+| `refresh_token_families` | `(user_id, revoked_at, expires_at)` | 用户会话撤销 |
+| `identity_audit_events` | `(user_id, created_at)`、`request_id` | 身份审计 |
+| `knowledge_bases` | UNIQUE `uuid`、UNIQUE `(owner_platform_user_id, name)`、`(owner_platform_user_id, status, updated_at)`、`(index_status, updated_at)` | 资源定位、列表与索引恢复扫描 |
+| `documents` | UNIQUE `uuid`、UNIQUE `(kb_id, filename)`、`(kb_id, status)` | 文档列表与检索资格 |
+| `document_versions` | UNIQUE `uuid`、UNIQUE `(document_id, version)`、`(status, updated_at)` | 原子发布与恢复扫描 |
+| `sections` | `(document_version_id, start_chunk_index)` | 来源定位 |
+| `chunks` | UNIQUE `segment_uuid`、UNIQUE `(document_version_id, chunk_index)`、`kb_id` | Evidence 与批量原文读取 |
+| `conversations` | UNIQUE `uuid`、`(owner_platform_user_id, last_message_at)` | 会话列表 |
+| `messages` | UNIQUE `uuid`、`(conversation_id, created_at)`、`generation_id` | 消息历史与生成关联 |
+| `chat_generations` | UNIQUE `uuid`、`(status, updated_at)`、`(conversation_id, created_at)` | 取消、历史和恢复扫描 |
+| `message_sources` | UNIQUE `(message_id, citation_index)`、`segment_uuid` | 引用联动 |
+| Trace/Audit | `request_id`、时间与受控分类复合索引 | 诊断、清理和治理 |
+
+所有 Check 约束同时由应用 Schema 验证。删除、恢复和权限查询必须使用索引支持的条件，禁止先读取全量再在应用层过滤。
+
+## 11. 迁移策略
+
+目标迁移遵循 expand/contract，且不修改 DocMind 已发布 Alembic revision：
+
+1. 原样导入 DocMind Alembic 历史并确认唯一 head。
+2. 为 `platform_db` 建立独立 Alembic 配置、version table 和首个统一身份 revision。
+3. 在 Knowledge 表扩展 Platform User UUID、Document Version、Segment UUID、Message UUID、Generation、结构化引用和审计结构。
+4. 初始化统一用户；需保留的非用户演示数据明确重新归属到该用户 UUID。
+5. 分批回填 UUID 与存储键，校验非空、唯一性和引用数量。
+6. 应用切换到 Platform UUID 和新引用结构，完成新旧字段双读对比。
+7. 在 Consumer 全部切换后删除 Knowledge 旧 `users`、`refresh_tokens`、BIGINT 用户外键、`thinking_content` 和失效 JSON 引用。
+8. 建立或验证新索引、约束和外键，执行 MySQL/文件/Chroma 抽样一致性检查。
+
+具体停机窗口、批次大小、校验 SQL、备份、前滚修复和回滚点由 `docs/specs/DATA_MIGRATION_AND_ROLLBACK.md` 定义。不可逆内容删除在可验证备份前不得执行。
+
+## 12. 备份、恢复与保留
+
+- `platform_db`、`knowledge_db`、uploads 和 Chroma 使用同一备份批次标识。
+- 备份记录数据库 revision、对象数量、Collection 清单、校验和和镜像版本。
+- Redis 不作为业务恢复源。
+- 恢复后校验用户状态、KB/Document/Chunk 数量、文件存在性、向量抽样、会话消息、引用定位和审计连续性。
+- Trace、Audit、失败摘要和上传文件分别配置保留策略；清理任务必须可审计且不得破坏法定或业务保留要求。
+
+## 13. 验收场景
+
+1. 两个逻辑数据库使用独立账号和 Alembic revision，Research 账号无法直读。
+2. KB、Document、Segment、Conversation、Message 和 Generation 的稳定 UUID 唯一且不暴露内部主键。
+3. 私有 KB 越权、禁用用户和 `deleting` KB 在读取正文或检索前被拒绝。
+4. per-KB Collection 不发生跨 KB 命中；删除单个 KB 不扫描或删除其他 Collection。
+5. Worker 消息丢失后，非终态 KB、Document 和 Generation 可由持久状态恢复。
+6. Internal Retrieval 返回 Segment UUID 和最小片段，但 Research 可持久化引用不含正文。
+7. KB 删除后 Conversation、Message 和引用仍可解释，原文访问返回明确不可用状态。
+8. Chat v1.0 始终绑定单个 KB；多 KB Research 不创建 Conversation—KB 关联。
+9. 用户禁用后历史数据保留，但不能新建 Chat、执行 Internal Retrieval 或展开内部来源。
+10. 备份恢复后 MySQL、uploads 与 Chroma 的批次、数量和抽样内容一致。
+11. 迁移后不存在旧用户身份双写、`thinking_content` 或跨数据库外键。
+12. 所有目标查询命中预期索引，删除、权限和列表查询不依赖应用层全量过滤。
+
+## 14. 后续依赖
+
+Knowledge RAG Pipeline 已据此定义单 KB Chat、受限多 KB Internal Retrieval、入库/重处理 Checkpoint、跨 KB 融合、Evidence 定位、Generation 持久化时点和失败恢复。[`Research Database`](../../research/docs/DATABASE.md) 只保存 Contract 允许的 Knowledge 稳定引用，不得复制 Chunk 正文或 Knowledge 内部存储标识。
