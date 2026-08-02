@@ -372,7 +372,7 @@ Internal Retrieval、Rerank 和 Synthesis 可以记录 Step 完成及结构化�
 
 ### 13.5 Recovery Scanner
 
-Scanner 查找 running 且租约过期的 Task，锁定后再次确认状态和 generation，将遗留 running Step 置为 retrying 或 failed，清除旧 owner，并投递 `research.recovery`。新 Worker 跳过可复用 completed Step；旧 Worker 的迟到提交被 generation 条件拒绝。
+Scanner 查找 running 且租约过期的 Task，锁定后再次确认状态和 generation，将遗留 running Step 置为 retrying 或 failed，清除旧 owner，并重新投递到 `research.execute`（与 API 创建任务共用执行队列，不再使用独立 recovery 队列）。新 Worker 跳过可复用 completed Step；旧 Worker 的迟到提交被 generation 条件拒绝。
 
 Redis 消息丢失或重复不改变 MySQL 完成事实。启动扫描、周期扫描和手动恢复必须调用同一恢复服务，避免三套逻辑分叉。
 

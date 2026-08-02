@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
+    CELERY_INGEST_QUEUE: str = "knowledge.ingest"
+    CELERY_DELETE_QUEUE: str = "knowledge.delete"
 
     # 文件存储
     UPLOAD_DIR: str = "./uploads"

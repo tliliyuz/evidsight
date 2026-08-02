@@ -54,10 +54,10 @@
 | `EVIDSIGHT_RESEARCH_REDIS_URL` | Research | URL | 必填 | secret |
 | `EVIDSIGHT_KNOWLEDGE_REDIS_PREFIX` | Knowledge | string | `evidsight:knowledge` | public |
 | `EVIDSIGHT_RESEARCH_REDIS_PREFIX` | Research | string | `evidsight:research` | public |
-| `EVIDSIGHT_KNOWLEDGE_INGEST_QUEUE` | Knowledge | string | `knowledge.ingest` | public |
-| `EVIDSIGHT_KNOWLEDGE_DELETE_QUEUE` | Knowledge | string | `knowledge.delete` | public |
-| `EVIDSIGHT_RESEARCH_EXECUTE_QUEUE` | Research | string | `research.execute` | public |
-| `EVIDSIGHT_RESEARCH_RECOVERY_QUEUE` | Research | string | `research.recovery` | public |
+| `CELERY_INGEST_QUEUE` | Knowledge | string | `knowledge.ingest` | public |
+| `CELERY_DELETE_QUEUE` | Knowledge | string | `knowledge.delete` | public |
+| `CELERY_EXECUTE_QUEUE` | Research | string | `research.execute` | public |
+| `CELERY_PERIODIC_QUEUE` | Research | string | `research.periodic` | public |
 | `EVIDSIGHT_KNOWLEDGE_UPLOAD_DIR` | Knowledge | path | 必填 | sensitive |
 | `EVIDSIGHT_KNOWLEDGE_CHROMA_DIR` | Knowledge | path | 必填 | sensitive |
 | `EVIDSIGHT_KNOWLEDGE_UPLOAD_MAX_BYTES` | Knowledge | int | `52428800` | public |

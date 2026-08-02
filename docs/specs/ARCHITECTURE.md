@@ -221,7 +221,7 @@ Knowledge API 与 Knowledge Worker 仅共享 Knowledge-owned 文件和向量卷�
 | Knowledge cache/lock | `evidsight:knowledge:*` |
 | Research cache/lease | `evidsight:research:*` |
 | Knowledge queues | `knowledge.ingest`、`knowledge.delete` |
-| Research queues | `research.execute`、`research.recovery`、`research.periodic` |
+| Research queues | `research.execute`、`research.periodic` |
 | Celery result | 两个服务使用不同 Redis DB 或独立实例 |
 
 禁止使用默认 `celery` 队列，禁止无命名空间全局 Key。Redis 数据可帮助恢复和协调，但任务、证据、权限和报告的唯一事实来源必须是 MySQL 或受管持久卷。

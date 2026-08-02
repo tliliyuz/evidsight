@@ -38,7 +38,6 @@ x-research-environment: &research-environment
   CELERY_BROKER_URL: redis://redis:6379/4
   CELERY_RESULT_BACKEND: redis://redis:6379/5
   CELERY_EXECUTE_QUEUE: research.execute
-  CELERY_RECOVERY_QUEUE: research.recovery
   CELERY_PERIODIC_QUEUE: research.periodic
   JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-development-only}
   REFRESH_TOKEN_SECRET_KEY: ${REFRESH_TOKEN_SECRET_KEY:-local-development-only}
@@ -125,7 +124,7 @@ services:
   research-worker:
     <<: *research-service
     entrypoint: []
-    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=1", "-Q", "research.execute,research.recovery,research.periodic"]
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=1", "-Q", "research.execute,research.periodic"]
 
   research-beat:
     <<: *research-service

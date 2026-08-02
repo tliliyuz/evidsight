@@ -49,7 +49,7 @@ def test_workers_use_explicit_queues():
     knowledge = " ".join(services["knowledge-worker"]["command"])
     research = " ".join(services["research-worker"]["command"])
     assert "knowledge.ingest,knowledge.delete" in knowledge
-    assert "research.execute,research.recovery,research.periodic" in research
+    assert "research.execute,research.periodic" in research
 
 
 def test_development_compose_has_no_hard_memory_limits():

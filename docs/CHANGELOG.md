@@ -11,7 +11,7 @@
 - 建立重要架构决策记录目录。（2026-08-01）
 - 完成 DocMind 后端与前端、ResearchMind 后端的 M0 Monorepo 结构迁移，并保留可审查的来源提交与 Git 历史；验收证据见 [`migration/MIGRATION_ACCEPTANCE.md`](migration/MIGRATION_ACCEPTANCE.md)。（2026-08-02）
 
-### Changed
+### Updated
 
 - 建立 ADR 二元触发检查、负责人明确裁决、豁免留痕和既有决策替代门禁，并将其接入 SDD 入口。（2026-08-02）
 - 将项目级文档分为 `specs/`、`guides/`、`plans/`、`decisions/` 与迁移证据层，并新增文档中心和权威规范索引；模块专项文档继续跟随模块维护。（2026-08-01）
@@ -27,6 +27,11 @@
 - 修复 Research API 将任务投递到旧默认队列 `research_task`、而 Worker 仅监听 `research.execute` 导致任务未被拾取的问题；同时将定时任务显式路由到 `research.periodic`。（2026-08-02）
 - 修复 Nginx 将旧 Research 任务路由 `/api/research` 错误转发到 Knowledge 或改写为 `/api/` 的问题；任务路径现原样代理，并保留命名空间下的 Research 健康检查与迁移期认证入口。（2026-08-02）
 - 修复 Knowledge Celery 任务误投默认队列的问题，显式路由入库与删除任务；文档状态轮询增加请求防重叠及 429 限流退避。（2026-08-02）
+- 移除无生产者的死队列 `research.recovery`（恢复任务继续投递到 `research.execute`），并统一队列配置键为 `CELERY_*` 惯例：补齐 `CELERY_PERIODIC_QUEUE`，Knowledge 队列改为 `CELERY_INGEST_QUEUE`/`CELERY_DELETE_QUEUE`，配置文档同步对齐。（2026-08-02）
+
+### Refactored
+
+（仅记录外部行为不变、内部结构/设计整理的重构；当前无此类条目。）
 
 ### Not Yet Implemented
 
@@ -36,6 +41,7 @@
 ## 维护规则
 
 - 行为、权限、状态机、公共契约和数据生命周期变化必须在同一变更中更新本文件。
+- 变更分类与提交 subject 前缀对齐：`add`→`### Added`、`update`→`### Updated`、`fixed`→`### Fixed`、`refactor`→`### Refactored`；纯重构（外部行为不变、仅内部结构整理）必须记录在 `### Refactored` 下。
 - `[Unreleased]` 下每个一级变更条目必须标注实际改动日期，格式为 `（YYYY-MM-DD）`；不得只依赖版本发布日期。
 - 只记录实际合并的事实；测试结果和迁移证据分别进入 `docs/specs/TESTING.md` 与 `docs/migration/MIGRATION_ACCEPTANCE.md`。
 - 发布版本使用 `MAJOR.MINOR.PATCH`，并标注日期、迁移要求、兼容窗口和已知限制。
