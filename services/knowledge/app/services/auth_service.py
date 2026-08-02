@@ -18,9 +18,11 @@ from app.core.exceptions import (
     PasswordSameAsCurrentException,
     RefreshTokenExpiredException,
     RefreshTokenRevokedException,
+    TokenLeakDetectedException,
     UserDisabledException,
     UsernameExistsException,
 )
+from app.core.logging_config import get_request_id
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -29,6 +31,7 @@ from app.core.security import (
     hash_token,
     verify_password,
 )
+from app.models.identity_audit_event import IdentityAuditEvent
 from app.models.refresh_token import RefreshToken
 from app.models.refresh_token_family import RefreshTokenFamily
 from app.models.user import User
@@ -136,8 +139,37 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
         # token 不在数据库中（可能从未存储或已被清理）
         raise InvalidRefreshTokenException("refresh_token 不存在")
 
-    # 已轮换 Token 不能产生第二个后继；重放审计由 IA-004 切片实现。
-    if rt.rotated_at is not None or rt.revoked_at is not None:
+    # 已轮换 Token 再次出现属于重放，安全状态必须在返回 401 前持久化。
+    if rt.rotated_at is not None:
+        family_result = await db.execute(
+            select(RefreshTokenFamily)
+            .where(RefreshTokenFamily.id == family_id)
+            .with_for_update()
+        )
+        replayed_family = family_result.scalar_one_or_none()
+        if replayed_family is not None:
+            now = datetime.now(timezone.utc)
+            if replayed_family.revoked_at is None:
+                replayed_family.revoked_at = now
+                replayed_family.revoke_reason = "refresh_token_replay"
+            db.add(
+                IdentityAuditEvent(
+                    user_id=replayed_family.user_id,
+                    actor_user_id=None,
+                    event_type="refresh_replay",
+                    request_id=get_request_id() or None,
+                    outcome="denied",
+                    details={
+                        "family_id": replayed_family.id,
+                        "action": "family_revoked",
+                    },
+                )
+            )
+            await db.flush()
+            await db.commit()
+        raise TokenLeakDetectedException()
+
+    if rt.revoked_at is not None:
         raise RefreshTokenRevokedException()
 
     # 检查过期（DB 已存储 UTC，ORM DateTime(timezone=True) 返回 aware datetime）

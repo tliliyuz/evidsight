@@ -208,9 +208,9 @@ class TokenLeakDetectedException(AppException):
     def __init__(self):
         super().__init__(
             "E5009",
-            "Token 可能泄露，已吊销全部会话",
+            "Token 可能泄露，已吊销当前会话",
             401,
-            "检测到已吊销的旧 Token 被重用，已吊销该用户全部 Refresh Token",
+            "检测到已轮换的旧 Token 被重用，已吊销当前 Refresh Token Family",
         )
 
 

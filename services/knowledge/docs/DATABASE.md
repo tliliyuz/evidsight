@@ -111,6 +111,8 @@ Family 是退出和重放响应的最小撤销单元。用户禁用时撤销该�
 | `details` | JSON | 仅允许安全摘要 |
 | `created_at` | DATETIME | UTC |
 
+IA-004 重放事件使用 `event_type=refresh_replay`、`outcome=denied`，安全摘要只记录 Family 标识和处置动作。Family 撤销与审计事件在返回 `E5009` 前同事务提交，不保存 Token 明文或哈希。
+
 ## 5. `knowledge_db` 核心内容表
 
 ### 5.1 `knowledge_bases`

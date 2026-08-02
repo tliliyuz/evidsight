@@ -1,4 +1,4 @@
-"""M1 IA-003/IA-011：Refresh Token Family 与原子轮换验收测试。"""
+"""M1 IA-003/IA-004/IA-011：Refresh Token Family 与原子轮换验收测试。"""
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
@@ -99,12 +99,19 @@ async def test_ia003_刷新锁定旧token并只建立一个已记录的后继():
 
 
 @pytest.mark.asyncio
-async def test_ia011_已轮换token不能再创建第二个后继():
-    """已轮换分支若继续签发 Token，此测试必须失败。"""
-    from app.core.exceptions import RefreshTokenRevokedException
+async def test_ia004_重放已轮换token撤销family并记录安全事件():
+    """移除 Family 撤销、审计、请求关联或安全状态提交时必须失败。"""
+    from app.core.exceptions import TokenLeakDetectedException
+    from app.core.logging_config import request_id_var
+    from app.models.refresh_token_family import RefreshTokenFamily
     from app.services.auth_service import refresh
 
     token_text = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
+    family = RefreshTokenFamily(
+        id=FAMILY_ID,
+        user_id=PLATFORM_USER_ID,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
     old_token = RefreshToken(
         id=41,
         family_id=FAMILY_ID,
@@ -115,9 +122,58 @@ async def test_ia011_已轮换token不能再创建第二个后继():
         replaced_by_id=42,
     )
     db = AsyncMock()
-    db.execute = AsyncMock(return_value=_scalar_result(old_token))
+    db.add = MagicMock()
+    db.execute = AsyncMock(
+        side_effect=[_scalar_result(old_token), _scalar_result(family)]
+    )
+
+    request_id_token = request_id_var.set("ia004-request-id")
+    try:
+        with pytest.raises(TokenLeakDetectedException):
+            await refresh(db, token_text)
+    finally:
+        request_id_var.reset(request_id_token)
+
+    assert family.revoked_at is not None
+    assert family.revoke_reason == "refresh_token_replay"
+    added = [call.args[0] for call in db.add.call_args_list]
+    audit_events = [
+        item for item in added if type(item).__name__ == "IdentityAuditEvent"
+    ]
+    assert len(audit_events) == 1
+    event = audit_events[0]
+    assert event.user_id == PLATFORM_USER_ID
+    assert event.event_type == "refresh_replay"
+    assert event.request_id == "ia004-request-id"
+    assert event.outcome == "denied"
+    assert event.details == {"family_id": FAMILY_ID, "action": "family_revoked"}
+    assert token_text not in str(event.details)
+    assert hash_token(token_text) not in str(event.details)
+    assert not any(isinstance(item, RefreshToken) for item in added)
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_ia004_普通撤销token不误判为重放():
+    """将普通撤销误报为重放或写入审计时必须失败。"""
+    from app.core.exceptions import RefreshTokenRevokedException
+    from app.services.auth_service import refresh
+
+    token_text = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
+    revoked_token = RefreshToken(
+        id=41,
+        family_id=FAMILY_ID,
+        token_hash=hash_token(token_text),
+        issued_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        revoked_at=datetime.now(timezone.utc),
+    )
+    db = AsyncMock()
+    db.add = MagicMock()
+    db.execute = AsyncMock(return_value=_scalar_result(revoked_token))
 
     with pytest.raises(RefreshTokenRevokedException):
         await refresh(db, token_text)
 
     assert not db.add.called
+    db.commit.assert_not_awaited()

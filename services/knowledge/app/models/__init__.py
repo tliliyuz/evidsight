@@ -10,6 +10,7 @@ from .section import Section
 from .chunk import Chunk
 from .conversation import Conversation
 from .message import Message
+from .identity_audit_event import IdentityAuditEvent
 from .refresh_token_family import RefreshTokenFamily
 from .refresh_token import RefreshToken
 from .trace import Trace
@@ -26,6 +27,7 @@ __all__ = [
     "Chunk",
     "Conversation",
     "Message",
+    "IdentityAuditEvent",
     "RefreshTokenFamily",
     "RefreshToken",
     "Trace",

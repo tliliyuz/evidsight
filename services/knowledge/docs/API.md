@@ -120,7 +120,7 @@
 | E5006 | 401 | Refresh Token 已过期 |
 | E5007 | 401 | Refresh Token 已吊销 |
 | E5008 | 401 | Refresh Token 无效或格式错误 |
-| E5009 | 401 | Token 可能泄露（Rotation 检测到旧 token 被重用，已吊销全部会话） |
+| E5009 | 401 | Token 可能泄露（Rotation 检测到旧 Token 被重用，已吊销所属 Refresh Token Family） |
 | E5010 | 401 | 用户已被禁用（登录/刷新/API 请求时用户 status=disabled） |
 
 #### 用户管理错误（E7xxx）
@@ -244,11 +244,11 @@
 | 场景 | 错误码 | HTTP 码 |
 |:---|:---|:---|
 | refresh_token 已过期（> 7 天） | E5006 | 401 |
-| refresh_token 已被吊销（Rotation 或主动吊销） | E5007 | 401 |
+| refresh_token 已被主动吊销 | E5007 | 401 |
 | refresh_token 格式无效 | E5008 | 401 |
 | 使用已吊销的旧 token 请求刷新（可能泄露） | E5009 | 401 |
 
-> **泄露检测（E5009）**：当用户正常刷新后攻击者仍使用旧 refresh_token 请求刷新，说明 token 可能已泄露。此时系统吊销该用户所有 refresh_token，强制全部设备重新登录。
+> **泄露检测（E5009）**：当用户正常刷新后攻击者仍使用旧 Refresh Token 请求刷新，说明 Token 可能已泄露。此时系统吊销该 Token 所属 Refresh Token Family 并记录安全审计事件，要求当前会话重新登录；同一用户的其他登录 Family 不受影响。
 
 ### POST `/api/auth/logout`
 
