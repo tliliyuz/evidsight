@@ -1,5 +1,7 @@
 # EvidSight Monorepo 迁移实施计划
 
+> **历史状态（2026-08-02）：** M0 结构迁移已经完成。本文件保留原始实施步骤供追溯，复选框不再承担当前阶段状态；原 `docs/migration/` 下的三份过程记录已由负责人主动删除，不再作为 M0/M1 门禁或后续开发前置条件。当前状态与验证入口分别以 [`ROADMAP.md`](ROADMAP.md) 和 [`../specs/TESTING.md`](../specs/TESTING.md) 为准。
+
 > **面向 Agent 执行者：** 必须使用 `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans` 子技能，逐个任务执行本计划。步骤使用复选框（`- [ ]`）跟踪状态。
 
 **目标：** 将 DocMind 与 ResearchMind 按已确认的双服务边界迁入 EvidSight Monorepo，在不改变业务行为的前提下形成可独立测试、统一构建和可验证单机编排的代码布局基线。本计划是第一阶段结构迁移，不代表 EvidSight v1.0 整体交付完成。
@@ -79,12 +81,11 @@ evidsight/
 
 **文件：**
 - 新建：`scripts/verify_source_baselines.sh`
-- 新建：`docs/migration/BASELINE_RESULTS.md`
 - 修改：`.gitignore`
 
 **输入与产物：**
 - 输入：位于固定提交的同级仓库 `../docmind` 和 `../ResearchMind`。
-- 产物：可执行的 `scripts/verify_source_baselines.sh`；不可变更的源版本与测试命令记录。
+- 产物：可执行的 `scripts/verify_source_baselines.sh`；源版本与测试结果保留在实施期评审记录和 Git 历史中。
 
 - [ ] **步骤 1：保护仅存在于本地的文件**
 
@@ -161,29 +162,14 @@ npm --prefix ../ResearchMind/frontend run build
 
 预期结果：四条命令的退出码均为 `0`。
 
-- [ ] **步骤 6：记录验证证据**
+- [ ] **步骤 6：记录验证结果**
 
-使用以下精确结构创建 `docs/migration/BASELINE_RESULTS.md`，仅将命令结果字段替换为实际观察值：
-
-```markdown
-# 源仓库基线结果
-
-| 来源 | 提交 | 命令 | 结果 |
-|:---|:---|:---|:---|
-| DocMind 后端 | `a390a2a` | `.venv/bin/python -m pytest -m "not integration and not performance" --tb=short` | PASS，附实际测试数量 |
-| DocMind 前端 | `a390a2a` | `npm test && npm run build` | PASS，附实际测试数量 |
-| ResearchMind 后端 | `40f7faa` | `.venv/bin/python -m pytest -m "not integration and not slow" --tb=short` | PASS，附实际测试数量 |
-| ResearchMind 前端 | `40f7faa` | `npm test && npm run build` | PASS，附实际测试数量 |
-
-记录时间：ISO 8601 UTC 时间戳
-```
-
-除非已在本任务中实际运行命令，否则不得记录 `PASS`。已存在的失败必须记录具体失败测试，并在导入前获得批准。
+在实施期评审记录中保存固定提交、精确命令、实际测试数量、失败明细和 ISO 8601 UTC 时间。除非已实际运行命令，否则不得记录 `PASS`；已存在失败必须在导入前获得批准。
 
 - [ ] **步骤 7：提交基线门禁**
 
 ```bash
-git add .gitignore scripts/verify_source_baselines.sh docs/migration/BASELINE_RESULTS.md
+git add .gitignore scripts/verify_source_baselines.sh
 git commit -m "chore: record source migration baselines"
 ```
 
@@ -373,7 +359,7 @@ services/knowledge/.venv/bin/pip install -r services/knowledge/requirements.txt
 services/knowledge/.venv/bin/python -m pytest -c services/knowledge/pytest.ini services/knowledge/tests -m "not integration and not performance" --tb=short
 ```
 
-预期结果：选定测试的数量和结果与 `docs/migration/BASELINE_RESULTS.md` 一致。
+预期结果：选定测试的数量和结果与实施期记录的来源基线一致。
 
 - [ ] **步骤 7：验证 Alembic 仍保持独立**
 
@@ -459,7 +445,6 @@ git commit -m "chore(web): establish unified frontend baseline"
 **文件：**
 - 临时导入：`.migration/researchmind/**`
 - 通过移动新建：`services/research/**`
-- 新建：`docs/migration/RESEARCH_FRONTEND_SOURCE.md`
 - 完成移动记录后删除：`.migration/researchmind/`
 
 **输入与产物：**
@@ -504,21 +489,9 @@ git mv .migration/researchmind/grafana/provisioning deploy/grafana/provisioning
 git mv .migration/researchmind/grafana/dashboards deploy/grafana/dashboards
 ```
 
-- [ ] **步骤 4：在裁剪前记录 Research 前端来源**
+- [ ] **步骤 4：在裁剪前确认 Research 前端来源**
 
-创建 `docs/migration/RESEARCH_FRONTEND_SOURCE.md`：
-
-```markdown
-# Research 前端迁移来源
-
-- 源仓库：`../ResearchMind`
-- 固定提交：`40f7faa`
-- 已导入历史路径：`.migration/researchmind/frontend/`
-- 目标集成路径：`apps/web/src/modules/research/`
-- 迁移所属专项：统一前端信息架构计划
-
-源前端有意不在 EvidSight 根目录中保持可运行状态。其页面、Store、API 客户端行为、SSE 解析器、测试和原型必须先通过前端专项设计建立映射，再进行选择性迁移。
-```
+在实施期评审记录中确认 ResearchMind 固定提交为 `40f7faa`。源前端有意不在 EvidSight 根目录中保持可运行状态；其历史通过 Git 保留，M4 必须先建立页面、Store、API 客户端、SSE 解析器、测试和原型映射，再进行选择性迁移。
 
 - [ ] **步骤 5：审查已跟踪路径后移除非运行时导入副本**
 
@@ -528,7 +501,7 @@ git mv .migration/researchmind/grafana/dashboards deploy/grafana/dashboards
 find .migration/researchmind -maxdepth 2 -mindepth 1 -print | sort
 ```
 
-目标目录树中不得保留可运行的第二个前端。仅在确认所有后端、测试、迁移、服务文档和必需部署资产已在步骤 2–3 中移动，且已创建前端来源记录后，才能使用 `git rm -r .migration/researchmind` 移除剩余目录。
+目标目录树中不得保留可运行的第二个前端。仅在确认所有后端、测试、迁移、服务文档和必需部署资产已在步骤 2–3 中移动，且来源提交已经记录后，才能使用 `git rm -r .migration/researchmind` 移除剩余目录。
 
 - [ ] **步骤 6：仅规范化 Research Service 标识**
 
@@ -569,7 +542,7 @@ cd services/research
 - [ ] **步骤 9：提交整形变更**
 
 ```bash
-git add services/research deploy/prometheus deploy/grafana docs/migration/RESEARCH_FRONTEND_SOURCE.md
+git add services/research deploy/prometheus deploy/grafana
 git commit -m "chore(research): import service with preserved history"
 ```
 
@@ -847,7 +820,6 @@ git commit -m "build: add single-node EvidSight deployment"
 **文件：**
 - 修改：`scripts/test_all.sh`
 - 新建：`tests/architecture/test_repository_layout.py`
-- 新建：`docs/migration/MIGRATION_ACCEPTANCE.md`
 - 修改：`docs/CHANGELOG.md`
 
 **输入与产物：**
@@ -930,9 +902,9 @@ git log --follow --oneline -- services/research/app/main.py | tail -5
 
 预期结果：每条命令均显示早于 EvidSight 导入提交的源项目提交。
 
-- [ ] **步骤 6：编写迁移验收证据**
+- [ ] **步骤 6：记录迁移验收结果**
 
-创建 `docs/migration/MIGRATION_ACCEPTANCE.md`，包含：
+在实施期评审记录中包含：
 
 - 固定的源提交；
 - 步骤 2、4 和 5 中的精确命令；
@@ -946,12 +918,12 @@ git log --follow --oneline -- services/research/app/main.py | tail -5
 
 - [ ] **步骤 7：更新变更日志**
 
-向 `docs/CHANGELOG.md` 添加迁移条目，链接到 `MIGRATION_ACCEPTANCE.md`，且仅陈述结构性成果。不得声称本计划已实现统一身份、Internal Retrieval 或研究前端集成。
+向 `docs/CHANGELOG.md` 添加迁移条目，且仅陈述结构性成果。不得声称本计划已实现统一身份、Internal Retrieval 或研究前端集成。
 
 - [ ] **步骤 8：提交验收证据**
 
 ```bash
-git add scripts/test_all.sh tests/architecture docs/migration/MIGRATION_ACCEPTANCE.md docs/CHANGELOG.md
+git add scripts/test_all.sh tests/architecture docs/CHANGELOG.md
 git commit -m "test: verify monorepo migration parity"
 ```
 

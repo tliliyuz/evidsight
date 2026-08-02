@@ -9,11 +9,13 @@
 - 建立 EvidSight PRD、总体架构、身份与访问、API、Database、Knowledge/Research Pipeline、Frontend 和 UI 规范基线。（2026-08-01）
 - 建立 Monorepo 迁移计划、开发指南、测试策略、配置、数据保留、运维及数据迁移回滚规范。（2026-08-01）
 - 建立重要架构决策记录目录。（2026-08-01）
-- 完成 DocMind 后端与前端、ResearchMind 后端的 M0 Monorepo 结构迁移，并保留可审查的来源提交与 Git 历史；验收证据见 [`migration/MIGRATION_ACCEPTANCE.md`](migration/MIGRATION_ACCEPTANCE.md)。（2026-08-02）
+- 完成 DocMind 后端与前端、ResearchMind 后端的 M0 Monorepo 结构迁移，并保留可审查的来源提交与 Git 历史。（2026-08-02）
+- 建立 M1 统一身份、服务认证与敏感数据外发策略 ADR 候选，进入 M1 规范与验收准备。（2026-08-02）
 
 ### Updated
 
 - 建立 ADR 二元触发检查、负责人明确裁决、豁免留痕和既有决策替代门禁，并将其接入 SDD 入口。（2026-08-02）
+- 统一 M0 已完成、M1 准备中的阶段状态；根据负责人裁决移除已删除 `docs/migration/` 过程记录的门禁和失效引用。（2026-08-02）
 - 将项目级文档分为 `specs/`、`guides/`、`plans/`、`decisions/` 与迁移证据层，并新增文档中心和权威规范索引；模块专项文档继续跟随模块维护。（2026-08-01）
 - 明确 v1.0 Chat 只绑定单个知识库；前端保留可演进选择器，但多选不可执行并提示“多知识库问答规划中”。（2026-08-01）
 - 多 KB 能力仅用于 Research 通过权限感知的 Internal Retrieval 检索；多 KB Chat 延后至 v1.x。（2026-08-01）
@@ -43,5 +45,5 @@
 - 行为、权限、状态机、公共契约和数据生命周期变化必须在同一变更中更新本文件。
 - 变更分类与提交 subject 前缀对齐：`add`→`### Added`、`update`→`### Updated`、`fixed`→`### Fixed`、`refactor`→`### Refactored`；纯重构（外部行为不变、仅内部结构整理）必须记录在 `### Refactored` 下。
 - `[Unreleased]` 下每个一级变更条目必须标注实际改动日期，格式为 `（YYYY-MM-DD）`；不得只依赖版本发布日期。
-- 只记录实际合并的事实；测试结果和迁移证据分别进入 `docs/specs/TESTING.md` 与 `docs/migration/MIGRATION_ACCEPTANCE.md`。
+- 只记录实际合并的事实；测试结果必须保留实际命令、环境、日期和结果，不以计划目标代替执行记录。
 - 发布版本使用 `MAJOR.MINOR.PATCH`，并标注日期、迁移要求、兼容窗口和已知限制。

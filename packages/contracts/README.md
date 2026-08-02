@@ -5,9 +5,11 @@
 | 文档状态 | 已确认设计 |
 | 文档版本 | v1.0 |
 | Contract 设计基线 | `1.0.0-draft`（Schema/Fixture 落地并通过双方测试后发布 `1.0.0`） |
-| 最后更新 | 2026-07-31 |
+| 最后更新 | 2026-08-02 |
 
 > 本文是 `packages/contracts/` 的权威设计入口。HTTP 路由、认证载体和状态码由 [`docs/specs/API.md`](../../docs/specs/API.md) 定义，身份与实时授权由 [`docs/specs/IDENTITY_AND_ACCESS.md`](../../docs/specs/IDENTITY_AND_ACCESS.md) 定义，服务边界由 [`docs/specs/ARCHITECTURE.md`](../../docs/specs/ARCHITECTURE.md) 定义。本文只定义跨服务纯数据 Schema、版本规则与契约测试。
+
+M1 的服务身份、用户授权上下文和失败关闭策略由 [`ADR-005`](../../docs/decisions/ADR-005-unified-identity-service-auth-egress.md) 评审。ADR 状态为 `accepted` 前，只允许整理 Contract Schema/Fixture 的验收映射，不得发布 `1.0.0`、编写 Provider/Consumer 验收测试或生产实现。
 
 ## 1. 目标与边界
 

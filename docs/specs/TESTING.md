@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 规范基线 |
-| 最后更新 | 2026-08-01 |
+| 最后更新 | 2026-08-02 |
 
 ## 1. 原则
 
@@ -89,7 +89,7 @@ Internal Contract 每个版本必须通过 Meta-Schema、唯一 `$id`、可解�
 
 实际结果必须记录评估集版本、提交、镜像、日期、资源、命令、样本数和失败明细。
 
-## 6. M0 目标命令
+## 6. Monorepo 基线验证命令
 
 ```bash
 python3.12 -m pytest tests/architecture -v
@@ -100,7 +100,7 @@ npm --prefix apps/web run build
 docker compose config --quiet
 ```
 
-目录尚未迁入时标记为“未执行”，不计为通过。
+命令必须在当前候选提交上实际执行；失败、跳过或环境缺失均不得记为通过。
 
 ## 7. 发布记录模板
 
@@ -114,4 +114,4 @@ docker compose config --quiet
 证据链接：
 ```
 
-M0 迁移证据进入 `docs/migration/MIGRATION_ACCEPTANCE.md`；M6 发布验收应单独建立带日期的候选版本记录。
+原 `docs/migration/` 过程记录已由负责人于 2026-08-02 主动删除，不再作为 M0 或 M1 门禁。后续候选版本的实际验证结果应使用本节模板记录在对应评审或发布记录中；M6 发布验收必须单独建立带日期的候选版本记录。

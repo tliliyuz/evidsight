@@ -3,10 +3,10 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 开发基线 |
-| 最后更新 | 2026-08-01 |
-| 当前阶段 | M0：规范基线与 Monorepo 迁移 |
+| 最后更新 | 2026-08-02 |
+| 当前阶段 | M1：统一身份、权限和基础契约（准备中） |
 
-> 本文定义开发入口、Monorepo 目录职责、环境准备、常用命令和交付门禁。产品行为以 [PRD.md](../specs/PRD.md) 为准，服务边界以 [ARCHITECTURE.md](../specs/ARCHITECTURE.md) 为准。当前仓库尚未完成源项目迁移，命令分为“当前可用”和“M0 完成后目标”两类，禁止把目标命令误称为已经可运行。
+> 本文定义开发入口、Monorepo 目录职责、环境准备、常用命令和交付门禁。产品行为以 [PRD.md](../specs/PRD.md) 为准，服务边界以 [ARCHITECTURE.md](../specs/ARCHITECTURE.md) 为准。M0 结构迁移已经完成，当前进入 M1 规范、ADR 与验收准备；M1 的生产实现必须等待相关 ADR 接受和验收测试完成 RED。
 
 ## 1. 环境要求
 
@@ -40,20 +40,23 @@ evidsight/
 │   ├── guides/                    # 开发与操作指南
 │   ├── plans/                     # 路线图与实施计划
 │   ├── CHANGELOG.md
-│   └── decisions/                  # 已接受的重要架构决策
+│   └── decisions/                  # 已接受及评审中的重要架构决策
 ├── packages/
 │   └── contracts/
 │       └── README.md              # Contract 设计；Schema/Fixture 尚待落地
 ├── services/
-│   ├── knowledge/docs/            # Knowledge Database 与 RAG Pipeline
-│   └── research/docs/             # Research Database 与 Pipeline
+│   ├── knowledge/                 # Knowledge Service 实现、测试、迁移与专项文档
+│   └── research/                  # Research Service 实现、测试、迁移与专项文档
 ├── apps/
-│   └── web/docs/                  # 前端与 UI 设计；实现尚待迁入
+│   └── web/                       # M0 迁入的 Vue Web 基线与专项文档
 ├── resource/prototype/            # 20 张界面原型基线
-└── src/evidsight/                 # 根 CLI 占位，不代表产品运行入口
+├── deploy/                        # Nginx、Prometheus 与 Grafana 编排资产
+├── scripts/                       # 全仓测试、配置与 smoke 入口
+├── tests/architecture/            # 服务边界与 Compose 契约测试
+└── docker-compose.yml             # 单机编排骨架
 ```
 
-### 2.2 M0 完成后的目标结构
+### 2.2 后续里程碑目标结构
 
 ```text
 evidsight/
@@ -89,7 +92,6 @@ evidsight/
 │   ├── guides/
 │   ├── plans/
 │   ├── decisions/
-│   ├── migration/
 │   └── CHANGELOG.md
 ├── scripts/                       # 全仓测试、配置检查、smoke、备份恢复
 ├── tests/architecture/            # 服务边界、Compose 和目录契约测试
@@ -111,21 +113,19 @@ evidsight/
 # 安装根工具环境
 uv sync --locked
 
-# 运行当前根占位 CLI（仅用于确认 Python 包可加载）
-uv run evidsight
+# 运行全仓测试
+bash scripts/test_all.sh
 
-# 查看迁移计划未完成项
-rg -- '- \[ \]' docs/plans/MONOREPO_MIGRATION_PLAN.md
+# 验证 Compose 配置
+docker compose config --quiet
 
 # 检查工作区状态（只读）
 git status --short
 ```
 
-`uv run evidsight` 当前只输出占位信息，不是 Knowledge API、Research API 或 Web 的启动方式。
+## 4. 本地启动
 
-## 4. M0 完成后的本地启动目标
-
-以下命令只有对应目录和依赖迁入后才允许使用：
+以下命令使用各服务独立环境；首次运行前先按各自锁文件安装依赖：
 
 ```bash
 # Knowledge Service
@@ -183,7 +183,7 @@ docker compose config --quiet
 
 ## 8. 规范驱动开发流程
 
-所有行为变更遵循 [AGENT.md](../../AGENTS)：
+所有行为变更遵循 [AGENTS.md](../../AGENTS.md)：
 
 ```text
 权威规格确认
