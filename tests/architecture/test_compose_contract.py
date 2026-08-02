@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import yaml
 
@@ -16,6 +17,13 @@ def _example_env_keys() -> set[str]:
         for line in (ROOT / ".env.example").read_text().splitlines()
         if line and not line.startswith("#")
     }
+
+
+def _nginx_location(marker: str) -> str:
+    config = (ROOT / "deploy/nginx/default.conf").read_text()
+    match = re.search(rf"    location {re.escape(marker)} \{{\n(.*?)\n    \}}", config, re.DOTALL)
+    assert match is not None, f"missing nginx location: {marker}"
+    return match.group(1)
 
 
 def test_required_services_and_external_port_boundary():
@@ -115,3 +123,23 @@ def test_example_env_matches_the_provider_compose_contract():
 
     assert required <= keys
     assert keys.isdisjoint(unused)
+
+
+def test_legacy_research_task_routes_preserve_their_original_path():
+    exact = _nginx_location("= /api/research")
+    nested = _nginx_location("^~ /api/research/")
+
+    assert "proxy_pass http://research-api:8000;" in exact
+    assert "proxy_pass http://research-api:8000;" in nested
+    assert "rewrite " not in exact
+    assert "rewrite " not in nested
+
+
+def test_namespaced_research_support_routes_map_to_legacy_service_paths():
+    health = _nginx_location("= /api/research/health")
+    workers = _nginx_location("= /api/research/health/workers")
+    auth = _nginx_location("^~ /api/research/auth/")
+
+    assert "proxy_pass http://research-api:8000/api/health;" in health
+    assert "proxy_pass http://research-api:8000/api/health/workers;" in workers
+    assert "rewrite ^/api/research/auth/(.*)$ /api/auth/$1 break;" in auth
