@@ -183,7 +183,7 @@ docker compose config --quiet
 
 ## 8. 规范驱动开发流程
 
-所有行为变更遵循 [AGENT.md](../../AGENT.md)：
+所有行为变更遵循 [AGENT.md](../../AGENTS)：
 
 ```text
 权威规格确认

@@ -30,20 +30,20 @@
 所有审查必须读取：
 
 - `CLAUDE.md`
-- `docs/PRD.md`
+- `docs/specs/PRD.md`
 
 按变更范围增加：
 
 | 变更 | 必读文档 |
 |---|---|
-| 架构、服务边界、部署 | `docs/ARCHITECTURE.md`、相关 ADR |
-| API、错误码、SSE | `docs/API.md`、`packages/contracts/` |
+| 架构、服务边界、部署 | `docs/specs/ARCHITECTURE.md`、相关 ADR |
+| API、错误码、SSE | `docs/specs/API.md`、`packages/contracts/` |
 | 数据库和迁移 | 对应服务 `docs/DATABASE.md` |
 | Knowledge Pipeline | `services/knowledge/docs/RAG_PIPELINE.md` |
 | Research Pipeline | `services/research/docs/RESEARCH_PIPELINE.md` |
 | 前端页面和交互 | `apps/web/docs/FRONTEND.md` |
 | 前端样式 | `apps/web/docs/UIDESIGN.md` |
-| 需求和排期 | `docs/PRD.md`、`docs/ROADMAP.md` |
+| 需求和排期 | `docs/specs/PRD.md`、`docs/plans/ROADMAP.md` |
 
 文件尚未建立时，应说明缺失；涉及相应设计的代码不得在无权威文档情况下被判定为完全通过。
 

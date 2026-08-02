@@ -35,7 +35,7 @@
 
 当前应先执行 [Monorepo 迁移计划](docs/plans/MONOREPO_MIGRATION_PLAN.md)。在 M0 验收完成前，不应把根目录 `uv run evidsight`、空的服务目录或原型页面描述为可发布能力。
 
-开发行为遵循 [AGENT.md](AGENT.md) 的规范驱动开发门禁：先确认权威规范和验收条件，再写测试与实现，最后同步文档和变更记录。
+开发行为遵循 [AGENT.md](AGENTS) 的规范驱动开发门禁：先确认权威规范和验收条件，再写测试与实现，最后同步文档和变更记录。
 
 ## M0 Monorepo 开发入口
 
