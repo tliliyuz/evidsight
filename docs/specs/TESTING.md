@@ -38,7 +38,9 @@
 - IA-001：Knowledge 签发的 Access Token 使用 Platform User UUID 作为 `sub`，包含完整必需 Claims；Knowledge 与 Research 分别验证自身 Audience 后识别出相同 UUID 与角色；
 - IA-002：两个服务拒绝错误算法、Issuer、Audience、`token_type`、非法 UUID、缺失必需 Claim、尚未生效和已过期的 Access Token，且只返回统一安全认证错误；
 - IA-001-B：Research 不注册任何 `/api/auth/*` 身份写接口，其 ORM Metadata 不包含 `users` 或 `refresh_tokens`；Research 只验证 Knowledge 签发的 Access Token；
-- 登录、Refresh Rotation、重放撤销和退出；
+- IA-003/IA-011：登录创建以 Platform User UUID 归属的 Refresh Token Family；刷新使用行锁原子标记旧 Token、记录唯一后继并签发新 Token，同一旧 Token 至多产生一个有效后继；
+- IA-004：重放已轮换 Refresh Token 时撤销整个 Family 并记录安全事件；
+- 退出撤销当前 Refresh Token Family；
 - 禁用用户不能登录、刷新、创建任务、Chat 或 Internal Retrieval；
 - private/public、owner/admin 操作矩阵；
 - Internal Retrieval 任一 KB 无权时整批失败且检索未执行；

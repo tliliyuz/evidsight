@@ -71,18 +71,21 @@ def decode_access_token(token: str) -> dict:
         return {}
 
 
-def create_refresh_token(user_id: int) -> str:
-    """签发 refresh_token（JWT，payload 含 sub + type='refresh' + jti + exp 7天）。
+def create_refresh_token(platform_user_id: str, family_id: str) -> str:
+    """签发携带 Platform User 与 Token Family 身份的 Refresh Token。
 
     对齐 ARCHITECTURE.md §9.2.2：refresh_token 使用独立 JWT 签发，
     payload 中 type='refresh' 与 access_token 区分，防止混用。
     jti（JWT ID）确保每次生成的 token 唯一，避免同一秒内 token 碰撞。
     """
+    subject = str(uuid.UUID(str(platform_user_id)))
+    token_family_id = str(uuid.UUID(str(family_id)))
     secret = settings.REFRESH_TOKEN_SECRET_KEY or settings.JWT_SECRET_KEY
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
-        "sub": str(user_id),
+        "sub": subject,
         "type": "refresh",
+        "family_id": token_family_id,
         "jti": uuid.uuid4().hex,
         "exp": expire,
     }
@@ -102,6 +105,11 @@ def decode_refresh_token(token: str) -> dict:
     )
     if payload.get("type") != "refresh":
         raise JWTError("token type is not refresh")
+    try:
+        payload["sub"] = str(uuid.UUID(payload["sub"]))
+        payload["family_id"] = str(uuid.UUID(payload["family_id"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise JWTError("invalid refresh token identity") from exc
     return payload
 
 

@@ -1,10 +1,6 @@
-"""认证业务逻辑 — 注册 / 登录 / Token 刷新 / 退出 / 改密
+"""认证业务逻辑 — 注册 / 登录 / Token 刷新 / 退出 / 改密。
 
-对齐 ARCHITECTURE.md §9.2：
-- login()：签发 access_token + refresh_token，refresh_token 哈希存 MySQL
-- refresh()：Rotation — 验证旧 token → 吊销 → 签发新 token 对
-- logout()：吊销指定 refresh_token
-- change_password()：改密 + 吊销该用户全部 refresh_token（强制下线）
+身份与轮换语义以 IDENTITY_AND_ACCESS.md 为准。
 """
 
 import logging
@@ -22,7 +18,6 @@ from app.core.exceptions import (
     PasswordSameAsCurrentException,
     RefreshTokenExpiredException,
     RefreshTokenRevokedException,
-    TokenLeakDetectedException,
     UserDisabledException,
     UsernameExistsException,
 )
@@ -35,6 +30,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models.refresh_token import RefreshToken
+from app.models.refresh_token_family import RefreshTokenFamily
 from app.models.user import User
 from app.schemas.auth import TokenResponse, UserResponse
 
@@ -83,13 +79,22 @@ async def login(db: AsyncSession, username: str, password: str) -> TokenResponse
 
     # 签发 token 对
     access_token = create_access_token(_platform_user_id(user), user.username, user.role)
-    refresh_token_str = create_refresh_token(user.id)
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    family = RefreshTokenFamily(
+        id=str(uuid.uuid4()),
+        user_id=_platform_user_id(user),
+        expires_at=expires_at,
+    )
+    db.add(family)
+    refresh_token_str = create_refresh_token(user.platform_user_id, family.id)
 
     # refresh_token 哈希存 MySQL
     rt = RefreshToken(
-        user_id=user.id,
+        family_id=family.id,
         token_hash=hash_token(refresh_token_str),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        issued_at=now,
+        expires_at=expires_at,
     )
     db.add(rt)
     await db.flush()
@@ -104,19 +109,12 @@ async def login(db: AsyncSession, username: str, password: str) -> TokenResponse
 
 
 async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
-    """Rotation：用旧 refresh_token 换取新 token 对。
-
-    对齐 ARCHITECTURE.md §9.2.4：
-    1. 解码 refresh_token JWT
-    2. SHA-256 哈希 → 查 refresh_tokens 表
-    3. 检查 revoked_at / expires_at
-    4. 泄露检测：已吊销 token 被重用 → 吊销该用户全部 token（E5009）
-    5. 旧 token 标记失效 + 签发新 token 对
-    """
+    """锁定旧 Refresh Token，并在当前请求事务中建立唯一后继。"""
     # 1. 解码 JWT
     try:
         payload = decode_refresh_token(refresh_token_str)
-        user_id = int(payload["sub"])
+        platform_user_id = str(uuid.UUID(payload["sub"]))
+        family_id = str(uuid.UUID(payload["family_id"]))
     except JWTError:
         raise InvalidRefreshTokenException("refresh_token 解码失败或已过期")
     except (KeyError, ValueError, TypeError):
@@ -125,7 +123,12 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
     # 2. SHA-256 哈希 → 查表
     token_hash = hash_token(refresh_token_str)
     result = await db.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        select(RefreshToken)
+        .where(
+            RefreshToken.token_hash == token_hash,
+            RefreshToken.family_id == family_id,
+        )
+        .with_for_update()
     )
     rt = result.scalar_one_or_none()
 
@@ -133,26 +136,23 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
         # token 不在数据库中（可能从未存储或已被清理）
         raise InvalidRefreshTokenException("refresh_token 不存在")
 
-    # 3. 泄露检测：已吊销 token 被重用
-    if rt.revoked_at is not None:
-        # 该 token 已被吊销但仍被使用 → 可能泄露，吊销该用户全部 token
-        logger.warning(
-            "检测到已吊销的 refresh_token 被重用: user_id=%d, 可能泄露",
-            user_id,
-        )
-        await revoke_all_user_tokens(db, user_id)
-        raise TokenLeakDetectedException()
+    # 已轮换 Token 不能产生第二个后继；重放审计由 IA-004 切片实现。
+    if rt.rotated_at is not None or rt.revoked_at is not None:
+        raise RefreshTokenRevokedException()
 
     # 检查过期（DB 已存储 UTC，ORM DateTime(timezone=True) 返回 aware datetime）
     if rt.expires_at < datetime.now(timezone.utc):
         raise RefreshTokenExpiredException()
 
-    # 4. 旧 token 标记失效（Rotation）
-    rt.revoked_at = datetime.now(timezone.utc)
-    await db.flush()
+    family = await db.get(RefreshTokenFamily, family_id)
+    now = datetime.now(timezone.utc)
+    if family is None or family.revoked_at is not None or family.expires_at < now:
+        raise RefreshTokenRevokedException()
 
-    # 5. 签发新 token 对
-    user = await db.get(User, user_id)
+    result = await db.execute(
+        select(User).where(User.platform_user_id == platform_user_id)
+    )
+    user = result.scalar_one_or_none()
     if user is None:
         raise InvalidRefreshTokenException("用户不存在")
 
@@ -160,18 +160,22 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
     if user.status == "disabled":
         raise UserDisabledException()
 
-    new_access_token = create_access_token(_platform_user_id(user), user.username, user.role)
-    new_refresh_token_str = create_refresh_token(user.id)
+    new_access_token = create_access_token(platform_user_id, user.username, user.role)
+    new_refresh_token_str = create_refresh_token(platform_user_id, family_id)
 
     new_rt = RefreshToken(
-        user_id=user.id,
+        family_id=family_id,
         token_hash=hash_token(new_refresh_token_str),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        issued_at=now,
+        expires_at=min(family.expires_at, now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)),
     )
     db.add(new_rt)
+    rt.rotated_at = now
+    rt.replaced_by = new_rt
+    family.last_rotated_at = now
     await db.flush()
 
-    logger.info("Token 刷新成功: user_id=%d", user_id)
+    logger.info("Token 刷新成功: platform_user_id=%s", platform_user_id)
 
     return TokenResponse(
         access_token=new_access_token,
@@ -180,30 +184,33 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
     )
 
 
-async def logout(db: AsyncSession, refresh_token_str: str, user_id: int) -> None:
-    """吊销指定 refresh_token。
-
-    对齐 API.md §2 POST /api/auth/logout。
-    增加 user_id 校验：仅允许吊销属于当前用户的 refresh_token。
-    """
+async def logout(db: AsyncSession, refresh_token_str: str, platform_user_id: str) -> None:
+    """吊销属于当前 Platform User 的 Refresh Token Family。"""
     try:
         payload = decode_refresh_token(refresh_token_str)
     except JWTError:
         raise InvalidRefreshTokenException("refresh_token 解码失败")
 
+    if payload["sub"] != platform_user_id:
+        return
+
     token_hash = hash_token(refresh_token_str)
     result = await db.execute(
         select(RefreshToken).where(
             RefreshToken.token_hash == token_hash,
-            RefreshToken.user_id == user_id,
+            RefreshToken.family_id == payload["family_id"],
         )
     )
     rt = result.scalar_one_or_none()
 
-    if rt is not None and rt.revoked_at is None:
-        rt.revoked_at = datetime.now(timezone.utc)
+    family = await db.get(RefreshTokenFamily, payload["family_id"])
+    if rt is not None and family is not None and family.revoked_at is None:
+        now = datetime.now(timezone.utc)
+        family.revoked_at = now
+        family.revoke_reason = "logout"
+        rt.revoked_at = now
         await db.flush()
-        logger.info("refresh_token 已吊销: user_id=%d", rt.user_id)
+        logger.info("refresh_token family 已吊销: platform_user_id=%s", platform_user_id)
 
 
 async def change_password(
@@ -229,20 +236,20 @@ async def change_password(
     await db.flush()
 
     # 吊销该用户全部 refresh_token
-    await revoke_all_user_tokens(db, user_id)
+    await revoke_all_user_tokens(db, _platform_user_id(user))
 
     logger.info("密码修改成功，全部 refresh_token 已吊销: user_id=%d", user_id)
 
 
-async def revoke_all_user_tokens(db: AsyncSession, user_id: int) -> None:
-    """吊销指定用户的全部有效 refresh_token。"""
+async def revoke_all_user_tokens(db: AsyncSession, platform_user_id: str) -> None:
+    """吊销指定 Platform User 的全部有效 Refresh Token Family。"""
     now = datetime.now(timezone.utc)
     await db.execute(
-        update(RefreshToken)
+        update(RefreshTokenFamily)
         .where(
-            RefreshToken.user_id == user_id,
-            RefreshToken.revoked_at.is_(None),
+            RefreshTokenFamily.user_id == platform_user_id,
+            RefreshTokenFamily.revoked_at.is_(None),
         )
-        .values(revoked_at=now)
+        .values(revoked_at=now, revoke_reason="user_security_change")
     )
     await db.flush()

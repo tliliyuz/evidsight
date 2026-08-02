@@ -25,6 +25,7 @@ from app.core.security import (
     hash_token,
 )
 from app.models.refresh_token import RefreshToken
+from app.models.refresh_token_family import RefreshTokenFamily
 from app.models.user import User
 from app.schemas.auth import TokenResponse
 
@@ -41,15 +42,31 @@ def _make_user(user_id=1, username="testuser", role="user"):
     return user
 
 
-def _make_refresh_token(user_id=1, revoked_at=None, expires_delta=timedelta(days=7)):
+PLATFORM_USER_ID = "550e8400-e29b-41d4-a716-446655440000"
+FAMILY_ID = "6ba7b810-9dad-41d1-80b4-00c04fd430c8"
+
+
+def _make_refresh_token(revoked_at=None, expires_delta=timedelta(days=7)):
     rt = MagicMock(spec=RefreshToken)
     rt.id = 1
-    rt.user_id = user_id
+    rt.family_id = FAMILY_ID
     rt.token_hash = "test_hash"
     rt.revoked_at = revoked_at
+    rt.rotated_at = None
+    rt.replaced_by_id = None
     rt.expires_at = datetime.now(timezone.utc) + expires_delta
     rt.created_at = datetime.now(timezone.utc)
     return rt
+
+
+def _make_family(revoked_at=None):
+    family = MagicMock(spec=RefreshTokenFamily)
+    family.id = FAMILY_ID
+    family.user_id = PLATFORM_USER_ID
+    family.expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    family.revoked_at = revoked_at
+    family.last_rotated_at = None
+    return family
 
 
 def _make_mock_execute(scalar_result=None):
@@ -65,17 +82,18 @@ class TestRefreshTokenSecurity:
     """create_refresh_token / decode_refresh_token / hash_token 测试"""
 
     def test_create_refresh_token_jwt格式(self):
-        token = create_refresh_token(1)
+        token = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
         assert "." in token  # JWT 三段式格式
         # 验证可解码且 sub 正确
         payload = decode_refresh_token(token)
-        assert payload["sub"] == "1"
+        assert payload["sub"] == PLATFORM_USER_ID
+        assert payload["family_id"] == FAMILY_ID
         assert payload["type"] == "refresh"
 
     def test_decode_refresh_token成功(self):
-        token = create_refresh_token(42)
+        token = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
         payload = decode_refresh_token(token)
-        assert payload["sub"] == "42"
+        assert payload["sub"] == PLATFORM_USER_ID
         assert payload["type"] == "refresh"
 
     def test_decode_access_token被拒绝(self):
@@ -101,7 +119,12 @@ class TestRefreshTokenSecurity:
         """过期的 refresh_token 应被拒绝"""
         secret = settings.REFRESH_TOKEN_SECRET_KEY or settings.JWT_SECRET_KEY
         expire = datetime.now(timezone.utc) - timedelta(days=1)
-        payload = {"sub": "1", "type": "refresh", "exp": expire}
+        payload = {
+            "sub": PLATFORM_USER_ID,
+            "family_id": FAMILY_ID,
+            "type": "refresh",
+            "exp": expire,
+        }
         token = jwt.encode(payload, secret, algorithm=settings.JWT_ALGORITHM)
         with pytest.raises(Exception):
             decode_refresh_token(token)
@@ -121,6 +144,7 @@ class TestLoginRefreshToken:
         user.password_hash = hash_password("correct")
 
         mock_db = AsyncMock()
+        mock_db.add = MagicMock()
         mock_db.execute = AsyncMock(return_value=_make_mock_execute(user))
 
         result = await login(mock_db, "testuser", "correct")
@@ -128,7 +152,7 @@ class TestLoginRefreshToken:
         assert isinstance(result, TokenResponse)
         # 验证 token 为可解码 JWT（非仅 truthy 断言）
         access_payload = decode_refresh_token(result.refresh_token)
-        assert access_payload["sub"] == "1"
+        assert access_payload["sub"] == PLATFORM_USER_ID
         assert result.expires_in == 15 * 60
 
     @pytest.mark.asyncio
@@ -140,15 +164,20 @@ class TestLoginRefreshToken:
         user.password_hash = hash_password("correct")
 
         mock_db = AsyncMock()
+        mock_db.add = MagicMock()
         mock_db.execute = AsyncMock(return_value=_make_mock_execute(user))
 
         await login(mock_db, "testuser", "correct")
 
         # 验证 db.add 被调用（存入 RefreshToken 记录）
         assert mock_db.add.called
-        added = mock_db.add.call_args[0][0]
+        added = next(
+            call.args[0]
+            for call in mock_db.add.call_args_list
+            if isinstance(call.args[0], RefreshToken)
+        )
         assert isinstance(added, RefreshToken)
-        assert added.user_id == 1
+        assert added.family_id
         # token_hash 应该是 SHA-256 哈希（64 字符十六进制）
         assert len(added.token_hash) == 64
 
@@ -161,55 +190,57 @@ class TestRefreshRotation:
         from app.services.auth_service import refresh
 
         # 先签发一个 token
-        token_str = create_refresh_token(1)
+        token_str = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
         token_hash_val = hash_token(token_str)
-        rt = _make_refresh_token(user_id=1)
+        rt = _make_refresh_token()
         rt.token_hash = token_hash_val
 
         user = _make_user()
 
         mock_db = AsyncMock()
+        mock_db.add = MagicMock()
         mock_db.execute = AsyncMock(side_effect=[
             _make_mock_execute(rt),  # 查 refresh_tokens
-            MagicMock(),              # revoke_all_user_tokens 的 update
+            _make_mock_execute(user),
         ])
-        mock_db.get = AsyncMock(return_value=user)
+        mock_db.get = AsyncMock(return_value=_make_family())
 
         result = await refresh(mock_db, token_str)
 
         assert isinstance(result, TokenResponse)
         assert result.access_token
         assert result.refresh_token
-        # 旧 token 应被吊销
-        assert rt.revoked_at is not None
+        # 旧 token 应被标记为已轮换并指向唯一后继
+        assert rt.rotated_at is not None
+        assert rt.replaced_by is not None
         # 新 token 应是有效 JWT（可解码）
         payload = decode_refresh_token(result.refresh_token)
-        assert payload["sub"] == "1"
+        assert payload["sub"] == PLATFORM_USER_ID
         assert payload["type"] == "refresh"
 
     @pytest.mark.asyncio
-    async def test_已吊销token触发泄露检测(self):
+    async def test_已吊销token被拒绝(self):
         from app.services.auth_service import refresh
 
-        token_str = create_refresh_token(1)
+        token_str = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
         token_hash_val = hash_token(token_str)
-        rt = _make_refresh_token(user_id=1, revoked_at=datetime.now(timezone.utc))
+        rt = _make_refresh_token(revoked_at=datetime.now(timezone.utc))
         rt.token_hash = token_hash_val
 
         mock_db = AsyncMock()
         mock_db.execute = AsyncMock(return_value=_make_mock_execute(rt))
 
-        with pytest.raises(TokenLeakDetectedException) as exc:
+        with pytest.raises(RefreshTokenRevokedException) as exc:
             await refresh(mock_db, token_str)
-        assert exc.value.error_code == "E5009"
+        assert exc.value.error_code == "E5007"
 
     @pytest.mark.asyncio
     async def test_已过期token被拒绝(self):
         from app.services.auth_service import refresh
 
-        token_str = create_refresh_token(1)
+        token_str = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
         token_hash_val = hash_token(token_str)
-        rt = _make_refresh_token(user_id=1, expires_delta=timedelta(days=-1))
+        rt = _make_refresh_token(expires_delta=timedelta(days=-1))
         rt.token_hash = token_hash_val
 
         mock_db = AsyncMock()
@@ -232,7 +263,7 @@ class TestRefreshRotation:
     async def test_不存在的token被拒绝(self):
         from app.services.auth_service import refresh
 
-        token_str = create_refresh_token(1)
+        token_str = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
 
         mock_db = AsyncMock()
         mock_db.execute = AsyncMock(return_value=_make_mock_execute(None))
@@ -248,32 +279,36 @@ class TestLogout:
     async def test_吊销指定token(self):
         from app.services.auth_service import logout
 
-        token_str = create_refresh_token(1)
+        token_str = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
         token_hash_val = hash_token(token_str)
-        rt = _make_refresh_token(user_id=1)
+        rt = _make_refresh_token()
         rt.token_hash = token_hash_val
 
         mock_db = AsyncMock()
         mock_db.execute = AsyncMock(return_value=_make_mock_execute(rt))
+        family = _make_family()
+        mock_db.get = AsyncMock(return_value=family)
 
-        await logout(mock_db, token_str, user_id=1)
+        await logout(mock_db, token_str, platform_user_id=PLATFORM_USER_ID)
 
         assert rt.revoked_at is not None
+        assert family.revoked_at is not None
 
     @pytest.mark.asyncio
     async def test_已吊销token不报错(self):
         from app.services.auth_service import logout
 
-        token_str = create_refresh_token(1)
+        token_str = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
         token_hash_val = hash_token(token_str)
-        rt = _make_refresh_token(user_id=1, revoked_at=datetime.now(timezone.utc))
+        rt = _make_refresh_token(revoked_at=datetime.now(timezone.utc))
         rt.token_hash = token_hash_val
 
         mock_db = AsyncMock()
         mock_db.execute = AsyncMock(return_value=_make_mock_execute(rt))
+        mock_db.get = AsyncMock(return_value=_make_family(revoked_at=datetime.now(timezone.utc)))
 
         # 已吊销的 token 再次 logout 不应报错
-        await logout(mock_db, token_str, user_id=1)
+        await logout(mock_db, token_str, platform_user_id=PLATFORM_USER_ID)
 
 
 class TestChangePassword:

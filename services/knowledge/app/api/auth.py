@@ -54,7 +54,7 @@ async def logout_user(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    await logout(db, req.refresh_token, user["user_id"])
+    await logout(db, req.refresh_token, user["platform_user_id"])
     return {"code": "0", "message": "已退出登录", "data": None}
 
 
