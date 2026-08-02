@@ -126,6 +126,8 @@ class Settings(BaseSettings):
     # ── JWT ──
     JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
+    EVIDSIGHT_PLATFORM_JWT_ISSUER: str = "evidsight"
+    EVIDSIGHT_RESEARCH_JWT_AUDIENCE: str = "evidsight-research"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     REFRESH_TOKEN_SECRET_KEY: str = ""

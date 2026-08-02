@@ -23,11 +23,7 @@ class ResearchTask(Base):
     id: Mapped[str] = mapped_column(
         sa.String(36), primary_key=True, default=new_uuid
     )
-    user_id: Mapped[int] = mapped_column(
-        sa.BigInteger,
-        sa.ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
-    )
+    user_id: Mapped[str] = mapped_column(sa.String(36), nullable=False)
 
     # ── 输入 ──
     topic: Mapped[str] = mapped_column(

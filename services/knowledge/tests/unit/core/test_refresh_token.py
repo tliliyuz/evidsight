@@ -36,6 +36,7 @@ def _make_user(user_id=1, username="testuser", role="user"):
     user.id = user_id
     user.username = username
     user.role = role
+    user.platform_user_id = "550e8400-e29b-41d4-a716-446655440000"
     user.password_hash = "$2b$12$test_hash"
     return user
 
@@ -80,7 +81,9 @@ class TestRefreshTokenSecurity:
     def test_decode_access_token被拒绝(self):
         """access_token 不应被接受为 refresh_token"""
         from app.core.security import create_access_token
-        access = create_access_token(1, "user", "user")
+        access = create_access_token(
+            "550e8400-e29b-41d4-a716-446655440000", "user", "user"
+        )
         with pytest.raises(Exception):
             decode_refresh_token(access)
 

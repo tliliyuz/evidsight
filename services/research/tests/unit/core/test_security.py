@@ -56,15 +56,17 @@ class TestVerifyPassword:
 class TestCreateAccessToken:
     """create_access_token — JWT 签发"""
 
+    PLATFORM_USER_ID = "550e8400-e29b-41d4-a716-446655440000"
+
     def test_payload包含sub_username_role三个字段(self):
-        token = create_access_token(user_id=42, username="bob", role="user")
+        token = create_access_token(user_id=self.PLATFORM_USER_ID, username="bob", role="user")
         payload = decode_access_token(token)
-        assert payload["sub"] == "42"
+        assert payload["sub"] == self.PLATFORM_USER_ID
         assert payload["username"] == "bob"
         assert payload["role"] == "user"
 
     def test_exp字段在合理范围内_约15分钟(self):
-        token = create_access_token(user_id=1, username="u", role="user")
+        token = create_access_token(user_id=self.PLATFORM_USER_ID, username="u", role="user")
         payload = decode_access_token(token)
         exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
         now = datetime.now(timezone.utc)
@@ -72,10 +74,10 @@ class TestCreateAccessToken:
         assert timedelta(minutes=14) < delta < timedelta(minutes=16)
 
     def test_role为user时正确编码(self):
-        token = create_access_token(user_id=99, username="user1", role="user")
+        token = create_access_token(user_id=self.PLATFORM_USER_ID, username="user1", role="user")
         payload = decode_access_token(token)
         assert payload["role"] == "user"
-        assert payload["sub"] == "99"
+        assert payload["sub"] == self.PLATFORM_USER_ID
 
 
 class TestDecodeAccessToken:
@@ -156,9 +158,9 @@ class TestDecodeAccessToken:
         assert decode_access_token(token) == {}
 
     def test_有效token返回完整payload(self):
-        token = create_access_token(user_id=1, username="test", role="user")
+        token = create_access_token(user_id=self.PLATFORM_USER_ID, username="test", role="user")
         payload = decode_access_token(token)
-        assert payload["sub"] == "1"
+        assert payload["sub"] == self.PLATFORM_USER_ID
         assert payload["username"] == "test"
         assert payload["role"] == "user"
 
@@ -235,7 +237,11 @@ class TestDecodeRefreshToken:
         refresh 用 REFRESH_TOKEN_SECRET_KEY 验证，密钥不同时先触发
         签名验证失败；密钥相同时触发 type 校验失败。两种均为 JWTError。
         """
-        at = create_access_token(user_id=1, username="u", role="user")
+        at = create_access_token(
+            user_id="550e8400-e29b-41d4-a716-446655440000",
+            username="u",
+            role="user",
+        )
         from jose import JWTError
         with pytest.raises(JWTError):
             decode_refresh_token(at)

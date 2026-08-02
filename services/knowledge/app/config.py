@@ -52,9 +52,21 @@ class Settings(BaseSettings):
     # JWT
     JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
+    EVIDSIGHT_PLATFORM_JWT_ISSUER: str = "evidsight"
+    EVIDSIGHT_PLATFORM_JWT_AUDIENCES: str = "evidsight-knowledge,evidsight-research"
+    EVIDSIGHT_KNOWLEDGE_JWT_AUDIENCE: str = "evidsight-knowledge"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # access_token 短有效期（对齐 API.md §2）
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # refresh_token 长有效期
     REFRESH_TOKEN_SECRET_KEY: str = ""  # 空则回退到 JWT_SECRET_KEY
+
+    @property
+    def platform_jwt_audiences(self) -> list[str]:
+        """返回统一 Access Token 的目标服务集合。"""
+        return [
+            audience.strip()
+            for audience in self.EVIDSIGHT_PLATFORM_JWT_AUDIENCES.split(",")
+            if audience.strip()
+        ]
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

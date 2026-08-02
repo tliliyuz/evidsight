@@ -25,12 +25,21 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     )
 
 
-def create_access_token(user_id: int, username: str, role: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+def create_access_token(user_id: str, username: str, role: str) -> str:
+    """签发供 Knowledge 与 Research 使用的统一 Access Token。"""
+    platform_user_id = str(uuid.UUID(str(user_id)))
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
-        "sub": str(user_id),
+        "iss": settings.EVIDSIGHT_PLATFORM_JWT_ISSUER,
+        "aud": settings.platform_jwt_audiences,
+        "sub": platform_user_id,
         "username": username,
         "role": role,
+        "token_type": "access",
+        "jti": uuid.uuid4().hex,
+        "iat": now,
+        "nbf": now,
         "exp": expire,
     }
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
@@ -43,9 +52,22 @@ def decode_access_token(token: str) -> dict:
             token,
             settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM],
+            audience=settings.EVIDSIGHT_KNOWLEDGE_JWT_AUDIENCE,
+            issuer=settings.EVIDSIGHT_PLATFORM_JWT_ISSUER,
+            options={
+                "require_iss": True,
+                "require_aud": True,
+                "require_sub": True,
+                "require_exp": True,
+                "require_iat": True,
+                "require_nbf": True,
+            },
         )
+        uuid.UUID(payload["sub"])
+        if payload.get("token_type") != "access" or not payload.get("jti"):
+            return {}
         return payload
-    except JWTError:
+    except (JWTError, KeyError, TypeError, ValueError):
         return {}
 
 

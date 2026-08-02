@@ -74,7 +74,12 @@ class TestLogin:
     @pytest.mark.asyncio
     async def test_login_success(self, mock_db):
         from app.core.security import hash_password
-        user = User(id=1, username="test", password_hash=hash_password("correct"))
+        user = User(
+            id=1,
+            platform_user_id="550e8400-e29b-41d4-a716-446655440000",
+            username="test",
+            password_hash=hash_password("correct"),
+        )
         mock_db.execute.return_value = _make_mock_result(user)
 
         result = await login(mock_db, "test", "correct")
@@ -110,7 +115,12 @@ class TestLogin:
     async def test_login_token_jwt_format(self, mock_db):
         """验证 access_token 和 refresh_token 为合法 JWT 格式"""
         from app.core.security import hash_password, decode_access_token
-        user = User(id=1, username="u", password_hash=hash_password("p"))
+        user = User(
+            id=1,
+            platform_user_id="550e8400-e29b-41d4-a716-446655440000",
+            username="u",
+            password_hash=hash_password("p"),
+        )
         mock_db.execute.return_value = _make_mock_result(user)
 
         result = await login(mock_db, "u", "p")
@@ -125,5 +135,6 @@ class TestLogin:
         # refresh_token JWT 格式 + 可解码
         assert "." in result.refresh_token
         assert len(result.refresh_token) > 20
-        refresh_payload = decode_access_token(result.refresh_token)
+        from app.core.security import decode_refresh_token
+        refresh_payload = decode_refresh_token(result.refresh_token)
         assert "sub" in refresh_payload

@@ -3,6 +3,7 @@
 from typing import AsyncGenerator
 
 from fastapi import Depends, Request
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session
@@ -30,13 +31,16 @@ async def get_current_user(
     复用 get_db() 的 DB session，避免每个认证请求额外开启一个 session。
     路由中通过 Depends(get_current_user) 使用。
     """
-    user_id = request.state.user_id
-    # 校验用户是否被禁用（主键查询，毫秒级）
-    user = await db.get(User, user_id)
+    platform_user_id = request.state.platform_user_id
+    result = await db.execute(
+        select(User).where(User.platform_user_id == platform_user_id)
+    )
+    user = result.scalar_one_or_none()
     if user is None or user.status == "disabled":
         raise UserDisabledException()
     return {
-        "user_id": user_id,
+        "user_id": user.id,
+        "platform_user_id": platform_user_id,
         "username": request.state.username,
         "role": request.state.role,
     }

@@ -96,15 +96,15 @@ class TestJWT:
         assert decode_access_token(token) == {}
 
     def test_create_token_contains_claims(self):
-        token = create_access_token(1, "user1", "user")
+        token = create_access_token(self.PLATFORM_USER_ID, "user1", "user")
         payload = decode_access_token(token)
-        assert payload["sub"] == "1"
+        assert payload["sub"] == self.PLATFORM_USER_ID
         assert payload["username"] == "user1"
         assert payload["role"] == "user"
         assert "exp" in payload
 
     def test_decode_valid_token(self):
-        token = create_access_token(1, "test", "admin")
+        token = create_access_token(self.PLATFORM_USER_ID, "test", "admin")
         payload = decode_access_token(token)
         assert payload["role"] == "admin"
 
@@ -124,7 +124,7 @@ class TestJWT:
         """验证 token 过期时间在 now + TTL 附近（UTC）"""
         import time
         from app.config import settings
-        token = create_access_token(1, "u", "user")
+        token = create_access_token(self.PLATFORM_USER_ID, "u", "user")
         payload = decode_access_token(token)
         expected_exp = int(time.time()) + settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         # 允许 5 秒误差（测试执行耗时）

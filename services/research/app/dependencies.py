@@ -20,9 +20,7 @@ from app.core.exceptions import (
     InvalidTokenException,
     TaskAccessDeniedException,
     TaskNotFoundException,
-    UserDisabledException,
 )
-from app.models.user import User
 from app.models.research_task import ResearchTask
 
 
@@ -56,33 +54,26 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """从 request.state 获取已认证用户信息（由 AuthMiddleware 注入），
-    并校验用户 status 是否被禁用。
-
-    复用路由处理器的 get_db() session，避免每次请求开启额外数据库连接。
+    Research 不读取本地用户表；身份状态由 Platform Token 与后续权威状态检查负责。
 
     路由中通过 Depends(get_current_user) 使用。
 
     Returns:
-        dict: {"user_id": int, "username": str, "role": str}
+        dict: {"user_id": str, "username": str, "role": str}
 
     Raises:
         InvalidTokenException (E1004): 请求中缺少认证信息
-        UserDisabledException (E1010): 用户已被禁用
     """
     user_id = getattr(request.state, "user_id", None)
     if user_id is None:
         raise InvalidTokenException("请求中缺少用户认证信息")
-
-    # 校验用户是否被禁用（主键查询，毫秒级）
-    user = await db.get(User, user_id)
-    if user is None or user.status == "disabled":
-        raise UserDisabledException()
 
     username = getattr(request.state, "username", None)
     role = getattr(request.state, "role", None)
 
     return {
         "user_id": user_id,
+        "platform_user_id": user_id,
         "username": username,
         "role": role,
     }

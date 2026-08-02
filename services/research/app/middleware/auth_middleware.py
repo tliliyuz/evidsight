@@ -95,7 +95,8 @@ class AuthMiddleware:
 
         # 将用户信息写入 request.state（异常防护）
         try:
-            request.state.user_id = int(payload["sub"])
+            request.state.platform_user_id = payload["sub"]
+            request.state.user_id = payload["sub"]
         except (KeyError, ValueError, TypeError):
             response = JSONResponse(
                 status_code=401,

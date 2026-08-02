@@ -53,12 +53,13 @@ async def _mock_get_current_user(request: Request):
         from app.core.exceptions import InvalidTokenException
         raise InvalidTokenException("Token 解析失败")
     try:
-        user_id = int(payload["sub"])
+        platform_user_id = payload["sub"]
     except (KeyError, ValueError, TypeError):
         from app.core.exceptions import InvalidTokenException
         raise InvalidTokenException("Token payload 异常")
     return {
-        "user_id": user_id,
+        "user_id": 1,
+        "platform_user_id": platform_user_id,
         "username": payload.get("username"),
         "role": payload.get("role"),
     }
@@ -78,21 +79,21 @@ async def async_client(mock_db):
 @pytest.fixture
 def auth_headers():
     """生成有效 JWT 认证 header（普通用户 testuser）"""
-    token = create_access_token(1, "testuser", "user")
+    token = create_access_token("550e8400-e29b-41d4-a716-446655440001", "testuser", "user")
     return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
 def admin_auth_headers():
     """生成有效 JWT 认证 header（管理员 admin）"""
-    token = create_access_token(2, "admin", "admin")
+    token = create_access_token("550e8400-e29b-41d4-a716-446655440002", "admin", "admin")
     return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
 def other_user_auth_headers():
     """生成其他用户的 JWT 认证 header"""
-    token = create_access_token(3, "otheruser", "user")
+    token = create_access_token("550e8400-e29b-41d4-a716-446655440003", "otheruser", "user")
     return {"Authorization": f"Bearer {token}"}
 
 

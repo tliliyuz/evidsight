@@ -11,9 +11,11 @@
 - 建立重要架构决策记录目录。（2026-08-01）
 - 完成 DocMind 后端与前端、ResearchMind 后端的 M0 Monorepo 结构迁移，并保留可审查的来源提交与 Git 历史。（2026-08-02）
 - 建立 M1 统一身份、服务认证与敏感数据外发策略 ADR 候选，进入 M1 规范与验收准备。（2026-08-02）
+- 为 Knowledge 既有用户增加稳定 Platform User UUID，并将 Research Task 用户归属改为无跨库外键的 UUID。（2026-08-02）
 
 ### Updated
 
+- 实现 IA-001/IA-002 首个纵向切片：Access Token 补齐 issuer、双 Audience、UUID subject、类型、JWT ID 和时间 Claim，Knowledge 与 Research 分别校验自身 Audience。（2026-08-02）
 - 明确统一 Access Token 使用双 Audience 数组，Knowledge 与 Research 分别配置并验证自身 Audience；补充 IA-001/IA-002 可执行验收映射。（2026-08-02）
 - 接受 ADR-005，解除 M1 验收测试设计门禁并进入首个纵向切片确认阶段。（2026-08-02）
 - 建立 ADR 二元触发检查、负责人明确裁决、豁免留痕和既有决策替代门禁，并将其接入 SDD 入口。（2026-08-02）

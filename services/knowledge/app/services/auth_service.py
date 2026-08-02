@@ -8,6 +8,7 @@
 """
 
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError
@@ -38,6 +39,13 @@ from app.models.user import User
 from app.schemas.auth import TokenResponse, UserResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _platform_user_id(user: User) -> str:
+    """读取或生成过渡期 Platform User UUID。"""
+    if not user.platform_user_id:
+        user.platform_user_id = str(uuid.uuid4())
+    return user.platform_user_id
 
 
 async def register(db: AsyncSession, username: str, password: str) -> UserResponse:
@@ -74,7 +82,7 @@ async def login(db: AsyncSession, username: str, password: str) -> TokenResponse
         raise UserDisabledException()
 
     # 签发 token 对
-    access_token = create_access_token(user.id, user.username, user.role)
+    access_token = create_access_token(_platform_user_id(user), user.username, user.role)
     refresh_token_str = create_refresh_token(user.id)
 
     # refresh_token 哈希存 MySQL
@@ -152,7 +160,7 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
     if user.status == "disabled":
         raise UserDisabledException()
 
-    new_access_token = create_access_token(user.id, user.username, user.role)
+    new_access_token = create_access_token(_platform_user_id(user), user.username, user.role)
     new_refresh_token_str = create_refresh_token(user.id)
 
     new_rt = RefreshToken(

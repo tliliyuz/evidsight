@@ -7,8 +7,6 @@ from fastapi import Request
 from app.core.exceptions import InvalidTokenException
 from app.dependencies import get_current_user, require_task_accessible
 from app.models.research_task import ResearchTask
-from app.models.user import User
-from app.core.security import hash_password
 
 
 class TestGetCurrentUser:
@@ -41,20 +39,17 @@ class TestGetCurrentUser:
     async def test_正常返回用户字典(self):
         request = MagicMock(spec=Request)
         request.state = MagicMock()
-        request.state.user_id = 1
+        request.state.user_id = "550e8400-e29b-41d4-a716-446655440000"
         request.state.username = "testuser"
         request.state.role = "user"
 
         db = AsyncMock()
-        user = User(
-            id=1,
-            username="testuser",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db.get.return_value = user
-
         result = await get_current_user(request, db)
 
-        assert result == {"user_id": 1, "username": "testuser", "role": "user"}
+        assert result == {
+            "user_id": "550e8400-e29b-41d4-a716-446655440000",
+            "platform_user_id": "550e8400-e29b-41d4-a716-446655440000",
+            "username": "testuser",
+            "role": "user",
+        }
+        db.get.assert_not_called()
