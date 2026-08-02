@@ -26,7 +26,7 @@ Knowledge Service 拥有两个相互隔离的 MySQL 逻辑数据库：
 
 - 数据库字符集使用 `utf8mb4`；表使用 InnoDB。
 - 所有业务时间以 UTC 写入；应用边界序列化为 RFC 3339 UTC。
-- `platform_db.users.id` 使用 UUID；Knowledge 业务实体保留 BIGINT 内部主键，并使用唯一 UUID 对外及跨服务引用。
+- 迁移期 `platform_db.users.id` 仍是旧内部 BIGINT 主键；`users.platform_user_id` 是唯一、非空的 Platform User UUID，用于 JWT `sub`、跨服务身份和新增的身份域关联。待 Consumer 全部切换后，才按迁移计划收敛用户主键。
 - UUID 由应用生成，视为不透明标识；客户端不得依赖其排序。
 - 金额和评分使用定点数，不使用二进制浮点保存权威值。
 - JSON 列必须由应用 Schema 校验；不得用任意 JSON 取代稳定、可索引的核心字段。
@@ -40,7 +40,7 @@ Knowledge 业务表继续使用 BIGINT 聚簇主键，以保留 DocMind 的内�
 
 | 对象 | 内部主键 | 稳定 UUID | 跨服务可见性 |
 |:---|:---|:---|:---|
-| Platform User | UUID | 同主键 | JWT `sub` 和用户上下文 |
+| Platform User（迁移期） | BIGINT `id` | `platform_user_id` | JWT `sub` 和用户上下文 |
 | Knowledge Base | BIGINT | `uuid` | API、Internal Retrieval |
 | Document | BIGINT | `uuid` | API、Evidence 来源 |
 | Segment/Chunk | BIGINT | `segment_uuid` | Evidence 定位 |
@@ -56,7 +56,8 @@ Knowledge 业务表继续使用 BIGINT 聚簇主键，以保留 DocMind 的内�
 
 | 字段 | 类型 | 约束与语义 |
 |:---|:---|:---|
-| `id` | CHAR(36) | PK，Platform User UUID |
+| `id` | BIGINT | PK，旧内部自增标识；迁移期保留，不得用于跨服务身份 |
+| `platform_user_id` | CHAR(36) | UNIQUE、非空，Platform User UUID；JWT `sub` 与跨服务身份键 |
 | `username` | VARCHAR(64) | UNIQUE，规范化后非空 |
 | `password_hash` | VARCHAR(255) | 只存密码哈希，不存算法外的秘密 |
 | `role` | ENUM | `user`、`admin` |
@@ -66,14 +67,14 @@ Knowledge 业务表继续使用 BIGINT 聚簇主键，以保留 DocMind 的内�
 | `created_at` | DATETIME | UTC |
 | `updated_at` | DATETIME | UTC |
 
-用户名用于 v1.0 登录；Platform User UUID 才是跨服务稳定身份。禁用不删除用户，也不级联删除业务数据。
+用户名用于 v1.0 登录；迁移期 `id` 仅供仍未切换的 Knowledge 内部关系使用，`platform_user_id` 才是跨服务稳定身份。禁用不删除用户，也不级联删除业务数据。
 
 ### 4.2 `refresh_token_families`
 
 | 字段 | 类型 | 约束与语义 |
 |:---|:---|:---|
 | `id` | CHAR(36) | PK，Token Family UUID |
-| `user_id` | CHAR(36) | FK → `users.id`，CASCADE |
+| `user_id` | CHAR(36) | FK → `users.platform_user_id`，CASCADE；字段名沿用 Token Family 领域命名，值为 Platform User UUID |
 | `created_at` | DATETIME | 初次登录时间 |
 | `last_rotated_at` | DATETIME | 最近成功轮换时间 |
 | `expires_at` | DATETIME | Family 绝对过期时间 |
