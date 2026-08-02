@@ -446,7 +446,6 @@ async def metrics_endpoint():
 
 
 # ── 路由注册 ──────────────────────────────────────────────
-from app.api import auth, research
+from app.api import research
 
-app.include_router(auth.router, prefix="/api/auth")
 app.include_router(research.router, prefix="/api/research")

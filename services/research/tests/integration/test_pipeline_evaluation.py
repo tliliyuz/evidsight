@@ -18,7 +18,6 @@ from app.models.evidence_item import EvidenceItem
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
-from app.models.user import User
 from app.pipeline.reranker import Evidence
 from app.pipeline.sse_bridge import SSEBridge
 from app.pipeline.synthesizer import ConflictPosition, SynthesisCluster, SynthesisConflict, SynthesisNotes
@@ -55,18 +54,6 @@ def _valid_planning_json() -> str:
 
 async def _seed_task(db_session) -> ResearchTask:
     """在测试数据库中预置一个待执行全链路的任务。"""
-    existing = await db_session.execute(select(User).where(User.id == 1))
-    if existing.scalar_one_or_none() is None:
-        user = User(
-            id=1,
-            username="testuser",
-            password_hash="$2b$12$dummy",
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
-
     task = ResearchTask(
         id="task-eval-001",
         user_id=1,

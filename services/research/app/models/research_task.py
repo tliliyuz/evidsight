@@ -121,7 +121,6 @@ class ResearchTask(Base):
     )
 
     # ── 关联 ──
-    user = relationship("User", back_populates="research_tasks")
     steps = relationship("ResearchStep", back_populates="task", lazy="selectin",
                          order_by="ResearchStep.started_at",
                          passive_deletes=True)

@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 async def create_task(
     db: AsyncSession,
-    user_id: int,
+    user_id: str,
     request: ResearchCreateRequest,
 ) -> ResearchCreateResponse:
     """创建研究任务 + 首个 Planning Step（或直接回答）。
@@ -84,7 +84,7 @@ async def create_task(
 
 async def _create_research_task(
     db: AsyncSession,
-    user_id: int,
+    user_id: str,
     request: ResearchCreateRequest,
 ) -> ResearchCreateResponse:
     """研究意图：创建 pending 任务 + planning step。"""
@@ -122,7 +122,7 @@ async def _create_research_task(
     await db.flush()
 
     logger.info(
-        "研究任务已创建: task_id=%s, user_id=%d, topic=%s, task_type=%s",
+        "研究任务已创建: task_id=%s, user_id=%s, topic=%s, task_type=%s",
         task.id, user_id, request.topic[:50], request.requirements.task_type,
     )
 
@@ -138,7 +138,7 @@ async def _create_research_task(
 
 async def _create_direct_answer_task(
     db: AsyncSession,
-    user_id: int,
+    user_id: str,
     request: ResearchCreateRequest,
     answer_text: str,
 ) -> ResearchCreateResponse:
@@ -198,7 +198,7 @@ async def _create_direct_answer_task(
     await db.flush()
 
     logger.info(
-        "直接回答任务已创建: task_id=%s, user_id=%d, topic=%s",
+        "直接回答任务已创建: task_id=%s, user_id=%s, topic=%s",
         task.id, user_id, request.topic[:50],
     )
 
@@ -249,7 +249,7 @@ def _validate_create_request(request: ResearchCreateRequest) -> None:
 
 async def get_task_list(
     db: AsyncSession,
-    user_id: int,
+    user_id: str,
     page: int = 1,
     page_size: int = 20,
     status: str | None = None,

@@ -11,23 +11,9 @@ from app.models.research_step import ResearchStep
 
 async def _seed_task_for_sse(db_session) -> ResearchTask:
     """创建测试用 ResearchTask + 已完成的 Planning step。"""
-    from app.models.user import User
-    from app.core.security import hash_password
-
-    # 确保用户存在
-    existing_user = await db_session.get(User, 1)
-    if existing_user is None:
-        user = User(
-            id=1, username="testuser",
-            password_hash=hash_password("testpass123"),
-            role="user", status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
-
     task = ResearchTask(
         id="sse-task-uuid-001",
-        user_id=1,
+        user_id="550e8400-e29b-41d4-a716-446655440000",
         topic="SSE测试主题",
         requirements={"task_type": "analysis", "max_sources": 10, "language": "zh"},
         status="running",
@@ -97,23 +83,9 @@ class TestSSEStateEndpoint:
 
     @pytest.mark.asyncio
     async def test_无权访问_返回403(self, async_client: AsyncClient, auth_headers: dict, db_session):
-        # 创建属于 user_id=2 的任务
-        from app.models.user import User
-        from app.core.security import hash_password
-
-        existing = await db_session.get(User, 2)
-        if existing is None:
-            user2 = User(
-                id=2, username="otheruser",
-                password_hash=hash_password("testpass123"),
-                role="user", status="active",
-            )
-            db_session.add(user2)
-            await db_session.flush()
-
         task = ResearchTask(
             id="sse-task-uuid-other",
-            user_id=2,  # 不属于当前用户
+            user_id="550e8400-e29b-41d4-a716-446655440002",
             topic="其他用户的任务",
             requirements={"task_type": "explainer", "max_sources": 5, "language": "zh"},
             status="running",

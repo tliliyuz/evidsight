@@ -1,6 +1,6 @@
 """Celery Beat 定时清理任务单元测试。
 
-覆盖 cleanup_old_research_tasks / cleanup_stale_refresh_tokens / _check_tasks_exist
+覆盖 cleanup_old_research_tasks / _check_tasks_exist
 的核心分支，并验证定时任务代码不再使用 asyncio.run()。
 """
 
@@ -13,7 +13,6 @@ import pytest
 from app.tasks import periodic as periodic_module
 from app.tasks.periodic import (
     cleanup_old_research_tasks,
-    cleanup_stale_refresh_tokens,
     _check_tasks_exist,
 )
 
@@ -96,34 +95,6 @@ class TestCleanupOldResearchTasks:
                         cleanup_old_research_tasks(max_age_days=30)
 
         assert exc_info.value is retry_exc
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# cleanup_stale_refresh_tokens
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestCleanupStaleRefreshTokens:
-    def test_清理成功_返回删除计数(self, fresh_loop):
-        mock_session = MagicMock()
-        mock_result = MagicMock()
-        mock_result.rowcount = 5
-        mock_session.execute = AsyncMock(return_value=mock_result)
-        mock_session.commit = AsyncMock(return_value=None)
-
-        with patch("app.tasks.periodic.get_worker_loop", return_value=fresh_loop):
-            with patch(
-                "app.tasks.periodic.async_session_factory",
-                new=_MockSessionFactory(mock_session),
-            ):
-                with patch.object(
-                    cleanup_stale_refresh_tokens, "retry", side_effect=Exception("should not retry")
-                ):
-                    result = cleanup_stale_refresh_tokens(max_age_days=90)
-
-        assert result == {"deleted_tokens": 5}
-        mock_session.execute.assert_awaited_once()
-        mock_session.commit.assert_awaited_once()
 
 
 # ═══════════════════════════════════════════════════════════════════════

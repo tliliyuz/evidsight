@@ -16,37 +16,12 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import hash_password
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
 from app.models.section_evidence import SectionEvidence
-from app.models.user import User
-
-
-# ═══════════════════════════════════════════════════════════════
-# Fixtures — 预置用户（满足 FK 约束）
-# ═══════════════════════════════════════════════════════════════
-
-
-@pytest.fixture(autouse=True)
-async def seed_test_users(db_session: AsyncSession):
-    """预置测试用户：user_id=1 (testuser), user_id=2 (other2), user_id=999 (other)。
-
-    满足 research_tasks 的 FK 约束。
-    """
-    users = [
-        User(id=1, username="testuser", password_hash=hash_password("pass"), role="user", status="active"),
-        User(id=2, username="other2", password_hash=hash_password("pass"), role="user", status="active"),
-        User(id=999, username="other", password_hash=hash_password("pass"), role="user", status="active"),
-    ]
-    for u in users:
-        existing = await db_session.get(User, u.id)
-        if existing is None:
-            db_session.add(u)
-    await db_session.flush()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -337,7 +312,7 @@ class TestGetResearchDetailAPI:
         """创建者 user_id=1（auth_headers），但任务属于 user_id=999"""
         task = ResearchTask(
             id="550e8400-e29b-41d4-a716-446655440000",
-            user_id=999,
+            user_id="550e8400-e29b-41d4-a716-446655440999",
             topic="别人的任务",
             requirements={"task_type": "analysis"},
             status="pending",
@@ -357,7 +332,7 @@ class TestGetResearchDetailAPI:
     ):
         """存量任务 error_message 含 SQL/异常文本时，接口返回应被清洗为兜底文案。"""
         task = ResearchTask(
-            user_id=1,
+            user_id="550e8400-e29b-41d4-a716-446655440000",
             topic="脏数据测试",
             requirements={"task_type": "analysis"},
             status="failed",
@@ -442,7 +417,7 @@ class TestDeleteResearchAPI:
     ):
         task = ResearchTask(
             id="550e8400-e29b-41d4-a716-446655440002",
-            user_id=999,
+            user_id="550e8400-e29b-41d4-a716-446655440999",
             topic="别人的任务",
             requirements={"task_type": "analysis"},
             status="pending",
@@ -468,7 +443,7 @@ class TestDeleteResearchAPI:
 class TestCancelResearchAPI:
     """POST /api/research/{task_id}/cancel"""
 
-    async def _seed_task(self, db_session: AsyncSession, status: str, user_id: int = 1, task_id: str | None = None) -> ResearchTask:
+    async def _seed_task(self, db_session: AsyncSession, status: str, user_id: str = "550e8400-e29b-41d4-a716-446655440000", task_id: str | None = None) -> ResearchTask:
         task = ResearchTask(
             id=task_id or "task-cancel-001",
             user_id=user_id,
@@ -514,7 +489,7 @@ class TestCancelResearchAPI:
         assert response.json()["code"] == "E2001"
 
     async def test_无权取消他人任务返回403_E2002(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
-        task = await self._seed_task(db_session, status="pending", user_id=999, task_id="task-cancel-other")
+        task = await self._seed_task(db_session, status="pending", user_id="550e8400-e29b-41d4-a716-446655440999", task_id="task-cancel-other")
 
         response = await async_client.post(f"/api/research/{task.id}/cancel", headers=auth_headers)
         assert response.status_code == 403
@@ -548,7 +523,7 @@ class TestGetResearchReportAPI:
     async def _seed_completed_task_with_report(
         self,
         db_session: AsyncSession,
-        user_id: int = 1,
+        user_id: str = "550e8400-e29b-41d4-a716-446655440000",
         task_id: str = "task-report-001",
     ) -> ResearchTask:
         """预置一个 completed 任务，含 Evidence Graph Step 与 ReportSection。"""
@@ -694,7 +669,7 @@ class TestGetResearchReportAPI:
     async def test_无权访问他人任务_返回403_E2002(
         self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
     ):
-        task = await self._seed_completed_task_with_report(db_session, user_id=999, task_id="task-report-002")
+        task = await self._seed_completed_task_with_report(db_session, user_id="550e8400-e29b-41d4-a716-446655440999", task_id="task-report-002")
 
         response = await async_client.get(f"/api/research/{task.id}/report", headers=auth_headers)
         assert response.status_code == 403
@@ -705,7 +680,7 @@ class TestGetResearchReportAPI:
     ):
         task = ResearchTask(
             id="task-report-003",
-            user_id=1,
+            user_id="550e8400-e29b-41d4-a716-446655440000",
             topic="进行中的任务",
             requirements={"task_type": "analysis"},
             status="running",
@@ -732,7 +707,7 @@ class TestRetryResearchAPI:
         *,
         status: str = "failed",
         recoverable: bool = True,
-        user_id: int = 1,
+        user_id: str = "550e8400-e29b-41d4-a716-446655440000",
         task_id: str,
     ) -> ResearchTask:
         """工厂：预置一条可 retry 的任务。"""
@@ -834,7 +809,7 @@ class TestRetryResearchAPI:
         assert response.json()["code"] == "E2001"
 
     async def test_无权访问他人任务_返回403_E2002(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
-        task = await self._seed_retry_task(db_session, status="failed", user_id=999, task_id="task-retry-other")
+        task = await self._seed_retry_task(db_session, status="failed", user_id="550e8400-e29b-41d4-a716-446655440999", task_id="task-retry-other")
 
         response = await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
         assert response.status_code == 403

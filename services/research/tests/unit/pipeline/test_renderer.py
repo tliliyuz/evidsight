@@ -15,7 +15,6 @@ from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
-from app.models.user import User
 from app.pipeline.renderer import run_render, normalize_citation_markup
 from app.pipeline.sse_bridge import EVENT_STEP_COMPLETED, EVENT_STEP_PROGRESS
 
@@ -122,20 +121,6 @@ async def _seed_render_task(
     Returns:
         (task, render_step, evidence_items)
     """
-    existing = (await db_session.execute(
-        select(User).where(User.id == 1)
-    )).scalar_one_or_none()
-    if existing is None:
-        user = User(
-            id=1,
-            username="testuser",
-            password_hash="$2b$12$dummy",
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
-
     task = ResearchTask(
         id=f"task-render-{task_suffix}",
         user_id=1,

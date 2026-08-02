@@ -11,6 +11,7 @@
 import asyncio
 import os
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -124,8 +125,6 @@ async def test_engine():
 
     async with engine.begin() as conn:
         # 确保所有模型在导入链中已注册到 Base.metadata
-        from app.models.user import User  # noqa: F401
-        from app.models.refresh_token import RefreshToken  # noqa: F401
         from app.models.research_task import ResearchTask  # noqa: F401
         from app.models.research_step import ResearchStep  # noqa: F401
         from app.models.agent_memory_entry import AgentMemoryEntry  # noqa: F401
@@ -236,15 +235,26 @@ async def async_client(db_session: AsyncSession):
 @pytest.fixture
 def valid_access_token() -> str:
     """生成有效 access_token（测试专用密钥，15min 有效期）。"""
-    from app.core.security import create_access_token
-    return create_access_token(user_id=1, username="testuser", role="user")
+    from jose import jwt
+    from app.config import settings
 
-
-@pytest.fixture
-def valid_refresh_token_str() -> str:
-    """生成有效 refresh_token 字符串（测试专用密钥，7 天有效期）。"""
-    from app.core.security import create_refresh_token
-    return create_refresh_token(user_id=1)
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {
+            "iss": settings.EVIDSIGHT_PLATFORM_JWT_ISSUER,
+            "aud": ["evidsight-knowledge", settings.EVIDSIGHT_RESEARCH_JWT_AUDIENCE],
+            "sub": "550e8400-e29b-41d4-a716-446655440000",
+            "username": "testuser",
+            "role": "user",
+            "token_type": "access",
+            "jti": "research-test-user",
+            "iat": now,
+            "nbf": now,
+            "exp": now + timedelta(minutes=15),
+        },
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+    )
 
 
 @pytest.fixture
@@ -260,32 +270,10 @@ def auth_headers(valid_access_token: str) -> dict:
 
 @pytest.fixture
 async def seeded_user(db_session: AsyncSession) -> tuple:
-    """预置：1 个活跃普通用户 + 1 个有效 refresh_token。
-
-    Returns:
-        (User, refresh_token_str): 预置的用户 ORM 对象和 refresh_token 明文
-    """
-    from app.models.user import User
-    from app.models.refresh_token import RefreshToken
-    from app.core.security import hash_password, hash_token, create_refresh_token
-
-    user = User(
-        id=1,
+    """提供不落库的 Platform User 测试身份。"""
+    user = SimpleNamespace(
+        id="550e8400-e29b-41d4-a716-446655440000",
         username="testuser",
-        password_hash=hash_password("testpass123"),
         role="user",
-        status="active",
     )
-    db_session.add(user)
-    await db_session.flush()
-
-    token_str = create_refresh_token(user_id=1)
-    rt = RefreshToken(
-        user_id=1,
-        token_hash=hash_token(token_str),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
-    )
-    db_session.add(rt)
-    await db_session.flush()
-
-    return user, token_str
+    return user, None

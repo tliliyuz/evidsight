@@ -5,20 +5,20 @@ Mock 注入 phase_handlers + AsyncMock session + MagicMock sse_bridge，
 """
 
 import asyncio
+import uuid
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select as sa_select
 
 from app.core.exceptions import PlanningFailedException, SynthesisFailedException
-from app.core.security import hash_password
 from app.core.task_state_resolver import FATAL_STEP_ERROR_CODES
 from app.core.trace_recorder import TraceRecorder
 from app.models.enums import TASK_PHASE_ENUM, STEP_TYPE_ENUM
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
-from app.models.user import User
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.pipeline.sse_bridge import (
@@ -941,14 +941,7 @@ class TestPipelineWithRealSession:
     @pytest.mark.asyncio
     async def test_全部phase完成后_task状态变为completed(self, db_session):
         """全部 7 个 phase handler 成功执行后，task status 应从 running 变为 completed。"""
-        user = User(
-            username="pipeline-real-session",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1190,14 +1183,7 @@ class TestStepLockRecovery:
     @pytest.mark.asyncio
     async def test_复用research_service创建的pending_planning_step(self, db_session):
         """research_service 预先创建的 pending planning step 应被复用并完成。"""
-        user = User(
-            username="pipeline-reuse-planning",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1261,14 +1247,7 @@ class TestStepLockRecovery:
     @pytest.mark.asyncio
     async def test_fatal_error后_step和task均标记为failed(self, db_session):
         """Phase handler 抛致命错误，Step 应持久化为 failed，Task 也应为 failed。"""
-        user = User(
-            username="pipeline-fatal",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1333,14 +1312,7 @@ class TestCreateStepRetryReuse:
     @pytest.mark.asyncio
     async def test_completed_step_被复用_不新建(self, db_session: AsyncSession):
         """已存在 completed step → _create_step 应直接返回该 step，不新建。"""
-        user = User(
-            username="retry-reuse-completed",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1391,14 +1363,7 @@ class TestCreateStepRetryReuse:
     @pytest.mark.asyncio
     async def test_skipped_step_被复用_不新建(self, db_session: AsyncSession):
         """已存在 skipped step → _create_step 应复用。"""
-        user = User(
-            username="retry-reuse-skipped",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1435,14 +1400,7 @@ class TestCreateStepRetryReuse:
     @pytest.mark.asyncio
     async def test_failed_step_不被复用_新建新step(self, db_session: AsyncSession):
         """failed step 不被 _create_step 复用（不在 completed/skipped/pending/running 中），应新建。"""
-        user = User(
-            username="retry-not-reuse-failed",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1496,14 +1454,7 @@ class TestCreateStepRetryReuse:
     @pytest.mark.asyncio
     async def test_无已存在step_新建pending_step(self, db_session: AsyncSession):
         """无任何已存在 step → _create_step 新建 pending step。"""
-        user = User(
-            username="retry-new-step",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1532,14 +1483,7 @@ class TestCreateStepRetryReuse:
     @pytest.mark.asyncio
     async def test_pending_step_被复用_不新建(self, db_session: AsyncSession):
         """已存在 pending step → _create_step 崩溃恢复路径应复用。"""
-        user = User(
-            username="retry-reuse-pending",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1587,14 +1531,7 @@ class TestExecutionContextAtomicity:
         """_complete_step 调用后，step.status 与 task.execution_context 同时可见。"""
         import json
 
-        user = User(
-            username="ec-atomic-user",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1668,14 +1605,7 @@ class TestExecutionContextAtomicity:
     @pytest.mark.asyncio
     async def test__complete_step_连续两个phase后execution_context正确递进(self, db_session: AsyncSession):
         """连续执行 planning → search 后，execution_context 指向最后完成的 phase。"""
-        user = User(
-            username="ec-progress-user",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1755,14 +1685,7 @@ class TestExecutionContextAtomicity:
     @pytest.mark.asyncio
     async def test__complete_step后execution_context可供retry_task构造resume_from(self, db_session: AsyncSession):
         """模拟 Worker 崩溃场景：search 完成后崩溃 → execution_context 中有完整 checkpoint。"""
-        user = User(
-            username="ec-crash-user",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         task = ResearchTask(
             user_id=user.id,
@@ -1839,14 +1762,7 @@ class TestExecutionContextAtomicity:
     @pytest.mark.asyncio
     async def test__complete_step_失败时execution_context不更新(self, db_session: AsyncSession):
         """_update_execution_context 失败时，execution_context 保持旧值不更新。"""
-        user = User(
-            username="ec-fail-user",
-            password_hash=hash_password("pass"),
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
+        user = SimpleNamespace(id=str(uuid.uuid4()))
 
         old_ec = {
             "current_phase": "planning",
@@ -2125,4 +2041,3 @@ class TestCrashRecoveryAndTaskLock:
             await asyncio.wait_for(refresh_task, timeout=0.5)
         except (asyncio.CancelledError, asyncio.TimeoutError):
             pass
-

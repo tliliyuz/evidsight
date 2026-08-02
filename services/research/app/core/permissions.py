@@ -9,7 +9,7 @@
 from app.core.exceptions import PermissionDeniedException
 
 
-def require_task_accessible(task_owner_id: int, current_user_id: int) -> None:
+def require_task_accessible(task_owner_id: str, current_user_id: str) -> None:
     """Task 访问权限检查。
 
     仅 owner 可访问任务（查看详情/报告/trace）。
@@ -26,7 +26,7 @@ def require_task_accessible(task_owner_id: int, current_user_id: int) -> None:
         raise PermissionDeniedException()
 
 
-def require_task_owner(task_owner_id: int, current_user_id: int) -> None:
+def require_task_owner(task_owner_id: str, current_user_id: str) -> None:
     """Task owner-only 权限检查。
 
     仅任务所有者可操作（取消任务、retry 等写操作）。

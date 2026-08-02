@@ -13,14 +13,12 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.llm import LLMResult
-from app.core.security import hash_password
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
-from app.models.user import User
 from app.pipeline.reranker import Evidence
 from app.pipeline.synthesizer import ConflictPosition, SynthesisCluster, SynthesisConflict, SynthesisNotes
 
@@ -216,22 +214,8 @@ def _build_render_side_effect():
 # ═══════════════════════════════════════════════════════════════
 
 
-async def _seed_user(db_session: AsyncSession) -> User:
-    """预置测试用户（id=1），如已存在则返回已有用户。"""
-    existing = await db_session.execute(select(User).where(User.id == 1))
-    user = existing.scalar_one_or_none()
-    if user is not None:
-        return user
-    user = User(
-        id=1,
-        username="testuser",
-        password_hash=hash_password("testpass123"),
-        role="user",
-        status="active",
-    )
-    db_session.add(user)
-    await db_session.flush()
-    return user
+async def _seed_user(db_session: AsyncSession) -> None:
+    """兼容旧数据工厂调用；Research 不再持久化用户。"""
 
 
 async def _seed_task(

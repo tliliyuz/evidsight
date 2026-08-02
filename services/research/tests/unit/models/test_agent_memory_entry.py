@@ -8,7 +8,6 @@ from app.models.agent_memory_entry import AgentMemoryEntry
 from app.models.enums import MEMORY_ENTRY_TYPE_ENUM
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
-from app.models.user import User
 
 
 class TestAgentMemoryEntryModel:

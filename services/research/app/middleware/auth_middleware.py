@@ -15,9 +15,6 @@ from app.core.security import decode_access_token
 
 # 不需要认证的公开路由
 _PUBLIC_PATHS = {
-    "/api/auth/register",
-    "/api/auth/login",
-    "/api/auth/refresh",
     "/api/health",
     "/api/health/workers",
 }

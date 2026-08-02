@@ -53,7 +53,7 @@ class TraceRecorder:
     def __init__(
         self,
         task_id: str,
-        user_id: int,
+        user_id: str,
         topic: str,
         previous_trace: dict | None = None,
     ):

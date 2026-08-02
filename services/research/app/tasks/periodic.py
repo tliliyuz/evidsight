@@ -3,7 +3,6 @@ Celery Beat 定时任务 —— 数据 TTL 清理。
 
 任务：
 - cleanup_old_research_tasks: 删除已完成超过 N 天的研究任务（DB 级联删除子表 + Redis 孤儿锁清理）
-- cleanup_stale_refresh_tokens: 删除已过期或已吊销的刷新令牌
 
 调度入口：app/tasks/celery_app.py 的 beat_schedule。
 """
@@ -11,14 +10,12 @@ Celery Beat 定时任务 —— 数据 TTL 清理。
 import logging
 from datetime import datetime, timedelta, timezone
 
-import sqlalchemy as sa
 from sqlalchemy import select as sa_select, delete as sa_delete
 
 from app.config import settings
 from app.core.database import async_session_factory
 from app.core.redis_client import get_redis
 from app.models.research_task import ResearchTask
-from app.models.refresh_token import RefreshToken
 from app.tasks.celery_app import celery_app
 from app.tasks.event_loop import get_worker_loop
 from app.tasks.lock import TASK_LOCK_PREFIX, KEY_PREFIX
@@ -70,50 +67,6 @@ async def _delete_old_tasks(cutoff: datetime) -> int:
             sa_delete(ResearchTask).where(
                 ResearchTask.completed_at.isnot(None),
                 ResearchTask.completed_at < cutoff,
-            )
-        )
-        await session.commit()
-        return result.rowcount
-
-
-@celery_app.task(name="app.tasks.periodic.cleanup_stale_refresh_tokens", bind=True, max_retries=3)
-def cleanup_stale_refresh_tokens(self, max_age_days: int | None = None) -> dict:
-    """清理已过期或已吊销超过 max_age_days 天的刷新令牌。
-
-    Args:
-        max_age_days: 令牌保留天数，默认读取 CLEANUP_REFRESH_TOKEN_MAX_AGE_DAYS 或 90
-
-    Returns:
-        {"deleted_tokens": int}
-    """
-    if max_age_days is None:
-        max_age_days = getattr(settings, "CLEANUP_REFRESH_TOKEN_MAX_AGE_DAYS", 90)
-
-    cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
-    logger.info("[cleanup] 开始清理 %s 前的过期/吊销刷新令牌", cutoff.isoformat())
-
-    try:
-        deleted_count = get_worker_loop().run_until_complete(_delete_stale_tokens(cutoff))
-    except Exception as exc:
-        logger.exception("[cleanup] 清理过期刷新令牌失败")
-        raise self.retry(exc=exc, countdown=60) from exc
-
-    logger.info("[cleanup] 完成：删除刷新令牌 %d 条", deleted_count)
-    return {"deleted_tokens": deleted_count}
-
-
-async def _delete_stale_tokens(cutoff: datetime) -> int:
-    """异步删除过期或吊销时间超过阈值的刷新令牌。"""
-    async with async_session_factory() as session:
-        result = await session.execute(
-            sa_delete(RefreshToken).where(
-                sa.or_(
-                    RefreshToken.expires_at < datetime.now(timezone.utc),
-                    sa.and_(
-                        RefreshToken.revoked_at.isnot(None),
-                        RefreshToken.revoked_at < cutoff,
-                    ),
-                )
             )
         )
         await session.commit()

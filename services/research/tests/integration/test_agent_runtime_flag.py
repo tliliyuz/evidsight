@@ -13,7 +13,6 @@ from app.core.llm import LLMResult, ToolCall
 from app.core.trace_recorder import TraceRecorder
 from app.models.agent_memory_entry import AgentMemoryEntry
 from app.models.research_task import ResearchTask
-from app.models.user import User
 from app.pipeline.sse_bridge import (
     EVENT_AGENT_ACTION,
     EVENT_AGENT_OBSERVATION,

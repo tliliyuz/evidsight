@@ -21,8 +21,6 @@ from app.core.exceptions import (
     TaskAccessDeniedException,
     TaskStatusConflictException,
 )
-from app.core.security import hash_password
-from app.models.user import User
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
@@ -41,28 +39,6 @@ from app.services.research_service import (
     retry_task,
     RETRY_ALLOWED_STATUSES,
 )
-
-
-# ═══════════════════════════════════════════════════════════════
-# Autouse fixture — 确保 FK 引用的用户存在
-# ═══════════════════════════════════════════════════════════════
-
-
-@pytest.fixture(autouse=True)
-async def seed_test_users(db_session: AsyncSession):
-    """预置测试用户：user_id=1, user_id=2。
-
-    所有 Service 测试都需要用户存在（research_tasks 的 FK 约束）。
-    """
-    users = [
-        User(id=1, username="testuser", password_hash=hash_password("pass"), role="user", status="active"),
-        User(id=2, username="other", password_hash=hash_password("pass"), role="user", status="active"),
-    ]
-    for u in users:
-        existing = await db_session.get(User, u.id)
-        if existing is None:
-            db_session.add(u)
-    await db_session.flush()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -154,18 +130,7 @@ def _make_request(
 
 
 async def _seed_user(db: AsyncSession, user_id: int = 1, username: str = "testuser") -> None:
-    """工厂函数：确保 users 表中存在指定 user_id。"""
-    existing = await db.get(User, user_id)
-    if existing is None:
-        user = User(
-            id=user_id,
-            username=username,
-            password_hash=hash_password("testpass123"),
-            role="user",
-            status="active",
-        )
-        db.add(user)
-        await db.flush()
+    """兼容旧用例调用；Research 不再持久化用户。"""
 
 
 async def _seed_task(db: AsyncSession, user_id: int = 1, **overrides) -> ResearchTask:
@@ -217,7 +182,7 @@ class TestCreateTask:
         task = await db_session.get(ResearchTask, result.task_id)
         assert task is not None
         assert task.topic == "量子计算对密码学的影响"
-        assert task.user_id == 1
+        assert task.user_id == "1"
         assert task.status == "pending"
         # 创建时初始化为七阶段总数（与 PHASE_ORDER 一致），分母固定不再动态扩展
         assert task.total_steps == 7
@@ -260,8 +225,8 @@ class TestCreateTask:
 
         t1 = await db_session.get(ResearchTask, r1.task_id)
         t2 = await db_session.get(ResearchTask, r2.task_id)
-        assert t1.user_id == 1
-        assert t2.user_id == 2
+        assert t1.user_id == "1"
+        assert t2.user_id == "2"
         assert t1.id != t2.id
 
     # ── 错误分支 ──────────────────────────────────────────────

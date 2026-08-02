@@ -8,24 +8,13 @@ from sqlalchemy import select as sa_select
 from app.core.exceptions import SearchFailedException
 from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
-from app.models.user import User
-from app.core.security import hash_password
 from app.tasks.research_task import _build_trace_from_steps, _emergency_fail, _run_pipeline
 
 
 async def _seed_user_and_task(db_session, task_status: str = "pending") -> ResearchTask:
-    """创建测试用户与任务。"""
-    user = User(
-        username="emergency-test-user",
-        password_hash=hash_password("pass"),
-        role="user",
-        status="active",
-    )
-    db_session.add(user)
-    await db_session.flush()
-
+    """创建使用外部身份 UUID 的任务。"""
     task = ResearchTask(
-        user_id=user.id,
+        user_id="00000000-0000-4000-8000-000000000001",
         topic="emergency fail 测试",
         requirements={"task_type": "analysis", "max_sources": 10, "language": "zh"},
         status=task_status,

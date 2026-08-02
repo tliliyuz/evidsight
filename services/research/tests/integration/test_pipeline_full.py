@@ -21,7 +21,6 @@ from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
-from app.models.user import User
 from app.pipeline.reranker import Evidence
 from app.pipeline.sse_bridge import SSEBridge
 from app.pipeline.synthesizer import ConflictPosition, SynthesisCluster, SynthesisConflict, SynthesisNotes
@@ -62,18 +61,6 @@ async def _seed_task(db_session) -> ResearchTask:
     Returns:
         已 flush 到测试事务的 ResearchTask 实例。
     """
-    existing = await db_session.execute(select(User).where(User.id == 1))
-    if existing.scalar_one_or_none() is None:
-        user = User(
-            id=1,
-            username="testuser",
-            password_hash="$2b$12$dummy",
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
-
     task = ResearchTask(
         id="task-full-001",
         user_id=1,
@@ -391,4 +378,3 @@ class TestPipelineFullFlow:
         first_section = report_sections[0]
         assert "量子计算对 RSA 构成威胁" in first_section.content
         assert "[来源0]" in first_section.content
-

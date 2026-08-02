@@ -11,7 +11,6 @@ from app.models.evidence_item import EvidenceItem
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
-from app.models.user import User
 from app.pipeline.evidence_graph import run_evidence_graph
 from app.pipeline.sse_bridge import EVENT_STEP_PROGRESS
 
@@ -63,20 +62,6 @@ async def _seed_evidence_graph_task(
     Returns:
         (task, evidence_graph_step)
     """
-    existing = (await db_session.execute(
-        select(User).where(User.id == 1)
-    )).scalar_one_or_none()
-    if existing is None:
-        user = User(
-            id=1,
-            username="testuser",
-            password_hash="$2b$12$dummy",
-            role="user",
-            status="active",
-        )
-        db_session.add(user)
-        await db_session.flush()
-
     task = ResearchTask(
         id=f"task-eg-{task_suffix}",
         user_id=1,

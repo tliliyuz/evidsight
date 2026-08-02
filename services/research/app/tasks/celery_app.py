@@ -44,13 +44,6 @@ celery_app.conf.update(
                 "max_age_days": getattr(settings, "CLEANUP_TASK_MAX_AGE_DAYS", 30),
             },
         },
-        "cleanup_stale_refresh_tokens": {
-            "task": "app.tasks.periodic.cleanup_stale_refresh_tokens",
-            "schedule": 86400.0,  # 每天执行一次
-            "kwargs": {
-                "max_age_days": getattr(settings, "CLEANUP_REFRESH_TOKEN_MAX_AGE_DAYS", 90),
-            },
-        },
     },
     beat_max_loop_interval=300,
 )

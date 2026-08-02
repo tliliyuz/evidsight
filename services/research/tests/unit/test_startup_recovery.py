@@ -12,14 +12,13 @@
 """
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
-from app.core.security import hash_password
 from app.main import _recover_stale_tasks
 from app.models.research_task import ResearchTask
-from app.models.user import User
 from app.tasks.recovery import recover_stale_tasks
 
 
@@ -44,16 +43,8 @@ def _session_factory(db_session):
 
 
 async def _seed_user(db_session):
-    """预置测试用户。"""
-    user = User(
-        username="startup-recovery-user",
-        password_hash=hash_password("pass"),
-        role="user",
-        status="active",
-    )
-    db_session.add(user)
-    await db_session.flush()
-    return user
+    """返回 Knowledge 用户 UUID，不在 Research 持久化。"""
+    return SimpleNamespace(id="00000000-0000-4000-8000-000000000001")
 
 
 class TestRecoverStaleTasks:
