@@ -189,43 +189,11 @@ class TestUsernameExistsException:
 
 ### 4.3 安全模块测试（`core/security.py`）
 
-覆盖全部 7 个公开函数：`hash_password` / `verify_password` / `create_access_token` / `decode_access_token` / `create_refresh_token` / `decode_refresh_token` / `hash_token`。
-
-每个函数覆盖成功路径 + 失败路径（过期 token、伪造 token、类型错误）。
-
-```python
-# 模式示例：成功/失败成对
-class TestCreateAccessToken:
-    def test_payload包含sub_username_role三个字段(self):
-        token = create_access_token(user_id=42, username="bob", role="user")
-        payload = decode_access_token(token)
-        assert payload["sub"] == "42"
-        assert payload["username"] == "bob"
-        assert payload["role"] == "user"
-
-    def test_过期token_decode返回空dict(self):
-        # 构造已过期的 JWT
-        ...
-        assert decode_access_token(expired) == {}
-
-    def test_伪造token_decode返回空dict(self):
-        assert decode_access_token("not.a.jwt") == {}
-```
+Research 安全模块只公开 `decode_access_token()`。测试覆盖 Knowledge 签发 Token 的成功路径，以及签名、issuer、audience、UUID subject、token type、JWT ID 和时间 Claim 的失败路径。
 
 ### 4.4 认证服务测试（`services/auth_service.py`）
 
-覆盖 6 个公开函数的所有分支：
-
-| 函数 | 关键分支 |
-|:---|:---|
-| `register()` | 正常注册 / 用户名重复 → E1001 |
-| `login()` | 正常登录 / 密码错误 → E1002 / 用户不存在 → E1002 / 用户禁用 → E1010 |
-| `refresh()` | 正常刷新 Rotation / JWT 解码失败 → E1008 / token 不在 DB → E1008 / **已吊销重用 → E1009 泄露检测** / token 过期 → E1006 / 用户禁用 → E1010 |
-| `logout()` | 正常吊销 / JWT 解码失败静默成功 / 已吊销幂等 |
-| `change_password()` | 正常改密 / 旧密码错误 → E1002 / 新密码=旧密码 → E1011 |
-| `revoke_all_user_tokens()` | 有活跃 token → 全部吊销 / 0 活跃 token → 无操作 |
-
-**泄露检测**是最高优先级测试场景：已吊销 token 被重用时必须触发 `TokenLeakDetectedException`(E1009)，并验证该用户**全部** refresh_token 均被吊销。
+Research 不拥有认证服务。验收测试确保不存在 `/api/auth/*` 身份写接口、ORM Metadata 不含 `users` 或 `refresh_tokens`，且安全模块不提供密码哈希、Token 签发或 Refresh Token 能力。
 
 ### 4.5 LLM 客户端测试（`core/llm.py`）
 

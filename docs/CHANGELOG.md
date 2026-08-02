@@ -15,6 +15,7 @@
 
 ### Updated
 
+- 移除 Research 本地注册、登录、刷新与密码管理能力及 `users`、`refresh_tokens` 表；Research 仅验证 Knowledge 签发的 Access Token，并以外部 Platform User UUID 保存任务归属。（2026-08-02）
 - 实现 IA-001/IA-002 首个纵向切片：Access Token 补齐 issuer、双 Audience、UUID subject、类型、JWT ID 和时间 Claim，Knowledge 与 Research 分别校验自身 Audience。（2026-08-02）
 - 明确统一 Access Token 使用双 Audience 数组，Knowledge 与 Research 分别配置并验证自身 Audience；补充 IA-001/IA-002 可执行验收映射。（2026-08-02）
 - 接受 ADR-005，解除 M1 验收测试设计门禁并进入首个纵向切片确认阶段。（2026-08-02）
