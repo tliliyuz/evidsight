@@ -10,6 +10,14 @@ def _compose(name: str = "docker-compose.yml"):
     return yaml.safe_load((ROOT / name).read_text())
 
 
+def _example_env_keys() -> set[str]:
+    return {
+        line.split("=", 1)[0]
+        for line in (ROOT / ".env.example").read_text().splitlines()
+        if line and not line.startswith("#")
+    }
+
+
 def test_required_services_and_external_port_boundary():
     services = _compose()["services"]
     expected = {
@@ -53,3 +61,57 @@ def test_production_overlay_defines_2c2g_memory_budget():
         "redis": "96m",
     }
     assert {name: services[name]["mem_limit"] for name in expected} == expected
+
+
+def test_provider_settings_are_passed_to_the_correct_services():
+    compose = _compose()
+    knowledge = compose["x-knowledge-environment"]
+    research = compose["x-research-environment"]
+
+    assert {
+        "LLM_BASE_URL",
+        "LLM_API_KEY",
+        "LLM_MODEL",
+        "LLM_FLASH_MODEL",
+        "EMBEDDING_BASE_URL",
+        "EMBEDDING_API_KEY",
+        "EMBEDDING_MODEL",
+        "RERANK_BASE_URL",
+        "RERANK_API_KEY",
+        "RERANK_MODEL",
+    } <= knowledge.keys()
+    assert {
+        "LLM_BASE_URL",
+        "LLM_API_KEY",
+        "LLM_MODEL",
+        "LLM_FLASH_MODEL",
+        "TAVILY_BASE_URL",
+        "TAVILY_API_KEY",
+    } <= research.keys()
+
+
+def test_example_env_matches_the_provider_compose_contract():
+    keys = _example_env_keys()
+    required = {
+        "LLM_BASE_URL",
+        "LLM_API_KEY",
+        "LLM_MODEL",
+        "LLM_FLASH_MODEL",
+        "EMBEDDING_BASE_URL",
+        "EMBEDDING_API_KEY",
+        "EMBEDDING_MODEL",
+        "RERANK_BASE_URL",
+        "RERANK_API_KEY",
+        "RERANK_MODEL",
+        "TAVILY_BASE_URL",
+        "TAVILY_API_KEY",
+    }
+    unused = {
+        "KNOWLEDGE_DATABASE_URL",
+        "RESEARCH_DATABASE_URL",
+        "EVIDSIGHT_IMAGE_VERSION",
+        "BACKUP_PATH",
+    }
+
+    assert required <= keys
+    assert keys.isdisjoint(unused)

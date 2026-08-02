@@ -20,7 +20,8 @@ def test_target_layout_exists():
 
 def test_no_second_runnable_frontend_exists():
     package_files = sorted(ROOT.glob("**/package.json"))
-    tracked = [path for path in package_files if "node_modules" not in path.parts]
+    ignored_parts = {"node_modules", ".worktrees"}
+    tracked = [path for path in package_files if ignored_parts.isdisjoint(path.parts)]
     assert tracked == [ROOT / "apps/web/package.json"]
 
 
