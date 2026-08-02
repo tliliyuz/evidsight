@@ -37,6 +37,9 @@ x-research-environment: &research-environment
   REDIS_URL: redis://redis:6379/3
   CELERY_BROKER_URL: redis://redis:6379/4
   CELERY_RESULT_BACKEND: redis://redis:6379/5
+  CELERY_EXECUTE_QUEUE: research.execute
+  CELERY_RECOVERY_QUEUE: research.recovery
+  CELERY_PERIODIC_QUEUE: research.periodic
   JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-development-only}
   REFRESH_TOKEN_SECRET_KEY: ${REFRESH_TOKEN_SECRET_KEY:-local-development-only}
   LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}

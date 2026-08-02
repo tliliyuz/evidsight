@@ -20,6 +20,11 @@
 - Internal Evidence 身份增加稳定 `document_version_id`，用于重处理后的历史来源追溯。（2026-08-01）
 - 明确 M0 保留 Vue 来源迁移基线，M4 按前端专项规范交付唯一 React + TypeScript Web。（2026-08-01）
 - 将 LLM、Embedding、Rerank 与 Tavily 的 Base URL 和模型配置从根目录 `.env` 透传到对应服务容器，并清理未接线的示例变量。（2026-08-02）
+
+### Fixed
+
+- 修复 Research API 将任务投递到旧默认队列 `research_task`、而 Worker 仅监听 `research.execute` 导致任务未被拾取的问题；同时将定时任务显式路由到 `research.periodic`。（2026-08-02）
+- 修复 Nginx 将旧 Research 任务路由 `/api/research` 错误转发到 Knowledge 或改写为 `/api/` 的问题；任务路径现原样代理，并保留命名空间下的 Research 健康检查与迁移期认证入口。（2026-08-02）
 - 修复 Knowledge Celery 任务误投默认队列的问题，显式路由入库与删除任务；文档状态轮询增加请求防重叠及 429 限流退避。（2026-08-02）
 
 ### Not Yet Implemented

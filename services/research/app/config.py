@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
+    CELERY_EXECUTE_QUEUE: str = "research.execute"
+    CELERY_RECOVERY_QUEUE: str = "research.recovery"
+    CELERY_PERIODIC_QUEUE: str = "research.periodic"
     CELERY_IDEMPOTENCY_LOCK_TTL: int = 600  # Step 幂等锁 TTL（秒），防重复入队
 
     # ── Worker 崩溃恢复 ──
