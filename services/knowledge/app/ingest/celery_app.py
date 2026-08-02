@@ -26,6 +26,12 @@ celery_app.conf.update(
     timezone="Asia/Shanghai",
     enable_utc=True,
     task_track_started=True,
+    task_routes={
+        "app.ingest.tasks.ingest_document": {"queue": "knowledge.ingest"},
+        "app.ingest.delete_tasks.delete_document": {"queue": "knowledge.delete"},
+        "app.ingest.delete_tasks.delete_kb": {"queue": "knowledge.delete"},
+    },
+    task_create_missing_queues=True,
     # 入库任务耗时较长，放宽超时
     task_soft_time_limit=600,
     task_time_limit=900,

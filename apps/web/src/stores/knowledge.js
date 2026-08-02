@@ -84,6 +84,8 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
   // ==================== 轮询管理 ====================
   /** @type {Map<string, number>} docUuid → interval timer */
   const pollingTimers = new Map()
+  /** @type {Map<string, { inFlight: boolean, retryAt: number }>} */
+  const pollingStates = new Map()
 
   // ==================== 知识库操作 ====================
 
@@ -249,6 +251,8 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     const POLL_INTERVAL = 2000
     const POLL_TIMEOUT = 5 * 60 * 1000
     const startTime = Date.now()
+    const state = { inFlight: false, retryAt: 0 }
+    pollingStates.set(docId, state)
 
     const timer = setInterval(async () => {
       // 超时保护
@@ -257,6 +261,9 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
         return
       }
 
+      if (state.inFlight || Date.now() < state.retryAt) return
+
+      state.inFlight = true
       try {
         const { data } = await getDocument(kbId, docId)
         const doc = data.data
@@ -267,8 +274,20 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
         if (isTerminal(doc.status)) {
           stopPolling(docId)
         }
-      } catch {
-        // 网络错误不中断轮询
+      } catch (error) {
+        if (error?.response?.status === 429) {
+          const headers = error.response.headers
+          const resetHeader = typeof headers?.get === 'function'
+            ? headers.get('x-ratelimit-reset')
+            : headers?.['x-ratelimit-reset']
+          const resetAt = Number(resetHeader) * 1000
+          state.retryAt = Number.isFinite(resetAt) && resetAt > Date.now()
+            ? resetAt
+            : Date.now() + 60_000
+        }
+        // 其他网络错误不中断轮询，下一周期继续
+      } finally {
+        state.inFlight = false
       }
     }, POLL_INTERVAL)
 
@@ -282,12 +301,14 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       clearInterval(timer)
       pollingTimers.delete(docId)
     }
+    pollingStates.delete(docId)
   }
 
   /** 清理所有轮询 */
   function clearAllPolling() {
     pollingTimers.forEach(timer => clearInterval(timer))
     pollingTimers.clear()
+    pollingStates.clear()
   }
 
   // ==================== 重置 ====================

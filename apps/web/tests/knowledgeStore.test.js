@@ -271,6 +271,53 @@ describe('startPolling() / stopPolling()', () => {
     expect(mockGetDoc).toHaveBeenCalledTimes(2)
     vi.useRealTimers()
   })
+
+  it('上一次状态请求未完成时不发起重叠请求', async () => {
+    vi.useFakeTimers()
+    const store = useKnowledgeStore()
+    let resolveRequest
+    mockGetDoc.mockReturnValue(new Promise(resolve => {
+      resolveRequest = resolve
+    }))
+
+    store.startPolling('kb1', 'd1')
+    await vi.advanceTimersByTimeAsync(2000)
+    await vi.advanceTimersByTimeAsync(4000)
+
+    expect(mockGetDoc).toHaveBeenCalledTimes(1)
+
+    resolveRequest({ data: { data: { uuid: 'd1', status: 'completed' } } })
+    await Promise.resolve()
+    store.stopPolling('d1')
+    vi.useRealTimers()
+  })
+
+  it('收到429后按X-RateLimit-Reset暂停该文档轮询', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-02T08:00:00Z'))
+    const store = useKnowledgeStore()
+    mockGetDoc
+      .mockRejectedValueOnce({
+        response: {
+          status: 429,
+          headers: {
+            'x-ratelimit-reset': String((Date.now() + 12_000) / 1000),
+          },
+        },
+      })
+      .mockResolvedValue({
+        data: { data: { uuid: 'd1', status: 'completed' } },
+      })
+
+    store.startPolling('kb1', 'd1')
+    await vi.advanceTimersByTimeAsync(2000)
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(mockGetDoc).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(mockGetDoc).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
+  })
 })
 
 // =====================================================
