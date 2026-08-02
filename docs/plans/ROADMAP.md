@@ -56,7 +56,7 @@
 | M5 | 未开始 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的 2C2G 试点部署 | M1—M4 |
 | M6 | 未开始 | v1.0 发布门禁与后续演进 | 全部 P0、成功指标和端到端场景完成发布验收 | M0—M5 |
 
-M0 的“进行中”仅表示规范和迁移准备已投入；当前迁移计划仍有未完成步骤，且尚无 `docs/migration/MIGRATION_ACCEPTANCE.md`，因此不得标记已完成。
+M0 的结构迁移与单机运行基线已完成，验收证据见 `docs/migration/MIGRATION_ACCEPTANCE.md`；统一身份、Internal Retrieval、Research 前端整合及生产数据迁移仍属于后续里程碑，不因本次验收而视为完成。
 
 总体主线为：`M0 → M1 → M2 → M3 → M4 → M5 → M6`。
 

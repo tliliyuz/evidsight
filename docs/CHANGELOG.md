@@ -9,6 +9,7 @@
 - 建立 EvidSight PRD、总体架构、身份与访问、API、Database、Knowledge/Research Pipeline、Frontend 和 UI 规范基线。
 - 建立 Monorepo 迁移计划、开发指南、测试策略、配置、数据保留、运维及数据迁移回滚规范。
 - 建立重要架构决策记录目录。
+- 完成 DocMind 后端与前端、ResearchMind 后端的 M0 Monorepo 结构迁移，并保留可审查的来源提交与 Git 历史；验收证据见 [`migration/MIGRATION_ACCEPTANCE.md`](migration/MIGRATION_ACCEPTANCE.md)。
 
 ### Changed
 
@@ -21,9 +22,8 @@
 
 ### Not Yet Implemented
 
-- DocMind 与 ResearchMind 生产代码和历史尚未完成 M0 迁入。
 - External OpenAPI、Internal Contract JSON Schema、Fixture 和生成物尚未落地。
-- 本条目不声明统一身份、Internal Retrieval、统一 Web 或 v1.0 已经可运行。
+- 本条目不声明统一身份、Internal Retrieval、Research 前端并入统一 Web、生产数据迁移或 v1.0 发布验收已经完成。
 
 ## 维护规则
 
