@@ -35,6 +35,8 @@
 
 ### 3.2 身份与权限
 
+- IA-001：Knowledge 签发的 Access Token 使用 Platform User UUID 作为 `sub`，包含完整必需 Claims；Knowledge 与 Research 分别验证自身 Audience 后识别出相同 UUID 与角色；
+- IA-002：两个服务拒绝错误算法、Issuer、Audience、`token_type`、非法 UUID、缺失必需 Claim、尚未生效和已过期的 Access Token，且只返回统一安全认证错误；
 - 登录、Refresh Rotation、重放撤销和退出；
 - 禁用用户不能登录、刷新、创建任务、Chat 或 Internal Retrieval；
 - private/public、owner/admin 操作矩阵；

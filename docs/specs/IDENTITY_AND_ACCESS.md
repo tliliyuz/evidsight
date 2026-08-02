@@ -14,8 +14,8 @@
 - 检查日期：2026-08-02
 - 检查结果：第 1、6、8 项为否；第 2、3、4、5、7 项为是。
 - 命中原因：统一身份改变跨服务信任边界和身份契约；服务认证与敏感数据外发属于长期安全机制；决策共同影响身份、API、配置、数据库和 Contract 规范。
-- 裁决：负责人于 2026-08-02 批准创建 [ADR-005](../decisions/ADR-005-unified-identity-service-auth-egress.md)；当前状态为 `proposed`。
-- 门禁：ADR-005 被负责人明确接受为 `accepted` 前，不得从 M1 准备进入验收测试设计、RED 或生产实现。
+- 裁决：负责人于 2026-08-02 明确接受 [ADR-005](../decisions/ADR-005-unified-identity-service-auth-egress.md)，当前状态为 `accepted`。
+- 门禁：现在可以从本规范导出验收测试；生产实现仍须先观察对应验收测试因目标行为缺失而正确 RED。
 
 ## 1. 目标与边界
 
@@ -70,6 +70,7 @@ Claims 只能携带稳定身份语义，不嵌入知识库列表、资源权限�
 - JWT Algorithm、Issuer、Audience、允许的时钟偏差和有效期来自配置 Schema；不得在业务代码硬编码。
 - 验证器使用算法允许列表，禁止根据 Token Header 自动接受任意算法，禁止 `none`。
 - 两个服务使用相同 Claim 语义和时间规则；密钥通过部署 Secret 注入，不写入仓库、日志或错误响应。
+- Access Token 的 `aud` 是包含 `evidsight-knowledge` 与 `evidsight-research` 的数组；Knowledge 与 Research 分别从自己的配置读取期望 Audience，并只接受数组中包含自身 Audience 的 Token。
 - 每个受保护请求验证签名、算法、Issuer、Audience、`token_type`、必需 Claims 和时间窗口。
 - Claim 缺失、类型错误、签名失败和过期统一映射为安全认证错误，不向客户端区分密码、密钥或验证器内部细节。
 

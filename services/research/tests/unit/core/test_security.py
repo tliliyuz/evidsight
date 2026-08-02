@@ -81,6 +81,80 @@ class TestCreateAccessToken:
 class TestDecodeAccessToken:
     """decode_access_token — JWT 验证"""
 
+    PLATFORM_USER_ID = "550e8400-e29b-41d4-a716-446655440000"
+
+    def test_ia001_识别knowledge签发的platform_user_uuid(self, monkeypatch):
+        """防止 Research 将 Platform User UUID 转换成自己的内部用户 ID。"""
+        from app.config import settings
+
+        monkeypatch.setattr(settings, "JWT_SECRET_KEY", "test-platform-secret")
+        now = datetime.now(timezone.utc)
+        token = jwt.encode(
+            {
+                "iss": "evidsight",
+                "aud": ["evidsight-knowledge", "evidsight-research"],
+                "sub": self.PLATFORM_USER_ID,
+                "role": "user",
+                "token_type": "access",
+                "jti": "research-valid-platform-user",
+                "iat": now,
+                "nbf": now,
+                "exp": now + timedelta(minutes=15),
+            },
+            settings.JWT_SECRET_KEY,
+            algorithm=settings.JWT_ALGORITHM,
+        )
+
+        assert decode_access_token(token)["sub"] == self.PLATFORM_USER_ID
+
+    def test_ia002_拒绝错误audience(self, monkeypatch):
+        """防止 Research 接受只签发给 Knowledge 的 Access Token。"""
+        from app.config import settings
+
+        monkeypatch.setattr(settings, "JWT_SECRET_KEY", "test-platform-secret")
+        now = datetime.now(timezone.utc)
+        token = jwt.encode(
+            {
+                "iss": "evidsight",
+                "aud": ["evidsight-knowledge"],
+                "sub": self.PLATFORM_USER_ID,
+                "role": "user",
+                "token_type": "access",
+                "jti": "research-wrong-audience",
+                "iat": now,
+                "nbf": now,
+                "exp": now + timedelta(minutes=15),
+            },
+            settings.JWT_SECRET_KEY,
+            algorithm=settings.JWT_ALGORITHM,
+        )
+
+        assert decode_access_token(token) == {}
+
+    def test_ia002_拒绝refresh类型和非法uuid(self, monkeypatch):
+        """防止 Refresh Token 或内部整数用户 ID 被业务接口接受。"""
+        from app.config import settings
+
+        monkeypatch.setattr(settings, "JWT_SECRET_KEY", "test-platform-secret")
+        now = datetime.now(timezone.utc)
+        token = jwt.encode(
+            {
+                "iss": "evidsight",
+                "aud": ["evidsight-knowledge", "evidsight-research"],
+                "sub": "1",
+                "role": "user",
+                "token_type": "refresh",
+                "jti": "research-refresh-integer-sub",
+                "iat": now,
+                "nbf": now,
+                "exp": now + timedelta(minutes=15),
+            },
+            settings.JWT_SECRET_KEY,
+            algorithm=settings.JWT_ALGORITHM,
+        )
+
+        assert decode_access_token(token) == {}
+
     def test_有效token返回完整payload(self):
         token = create_access_token(user_id=1, username="test", role="user")
         payload = decode_access_token(token)

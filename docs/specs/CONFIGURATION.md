@@ -40,7 +40,9 @@
 | 键 | 所有者 | 类型 | 必填/默认值 | 安全级别 |
 |:---|:---|:---|:---|:---|
 | `EVIDSIGHT_PLATFORM_JWT_ISSUER` | Platform | string | 必填 | public |
-| `EVIDSIGHT_PLATFORM_JWT_AUDIENCE` | Platform | string | 必填 | public |
+| `EVIDSIGHT_PLATFORM_JWT_AUDIENCES` | Platform | csv string | `evidsight-knowledge,evidsight-research` | public |
+| `EVIDSIGHT_KNOWLEDGE_JWT_AUDIENCE` | Knowledge | string | `evidsight-knowledge` | public |
+| `EVIDSIGHT_RESEARCH_JWT_AUDIENCE` | Research | string | `evidsight-research` | public |
 | `EVIDSIGHT_PLATFORM_JWT_ALGORITHM` | Platform | enum | `RS256` | public |
 | `EVIDSIGHT_PLATFORM_JWT_ACTIVE_KID` | Platform | string | 必填 | public |
 | `EVIDSIGHT_PLATFORM_JWT_PRIVATE_KEY_FILE` | Platform | path | 签发端必填 | secret |

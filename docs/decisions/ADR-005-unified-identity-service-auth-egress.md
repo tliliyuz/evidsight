@@ -1,6 +1,6 @@
 # ADR-005：统一身份、服务认证与敏感数据外发策略
 
-- 状态：proposed
+- 状态：accepted
 - 日期：2026-08-02
 - 里程碑：M1
 - 命中的 ADR 检查项：2、3、4、5、7
@@ -11,7 +11,7 @@ M1 需要让 Knowledge Service 与 Research Service 对同一 Platform User ID�
 
 这些选择共同影响服务信任边界、公共身份语义、密钥轮换、审计、跨服务 Contract，以及 Knowledge、Research 和 Web 的失败行为。仅在各模块中分别实现会产生不一致且难以审查的长期约束。
 
-## 待接受的决策
+## 决策
 
 ### 统一用户身份
 

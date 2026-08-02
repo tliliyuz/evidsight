@@ -71,4 +71,4 @@ ADR 候选
 - [ADR-002：双服务数据所有权与 Internal Retrieval 边界](ADR-002-service-boundary.md)
 - [ADR-003：内部 Evidence 不持久化正文](ADR-003-internal-evidence-no-content.md)
 - [ADR-004：M0 Vue 迁移基线与 M4 React 目标](ADR-004-web-framework-transition.md)
-- [ADR-005：统一身份、服务认证与敏感数据外发策略](ADR-005-unified-identity-service-auth-egress.md)（proposed）
+- [ADR-005：统一身份、服务认证与敏感数据外发策略](ADR-005-unified-identity-service-auth-egress.md)（accepted）

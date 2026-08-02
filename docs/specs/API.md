@@ -8,7 +8,7 @@
 
 > 本文是外部/内部 HTTP、错误语义和 SSE 的权威规范。产品行为见 [PRD.md](PRD.md)，身份与授权见 [IDENTITY_AND_ACCESS.md](IDENTITY_AND_ACCESS.md)，服务边界见 [ARCHITECTURE.md](ARCHITECTURE.md)。跨服务字段 Schema 由 [`packages/contracts/`](../../packages/contracts/README.md) 定义；本文不复制 ORM、数据库或 Pipeline 内部结构。
 
-M1 的统一身份、服务认证和敏感数据外发决策由 [ADR-005](../decisions/ADR-005-unified-identity-service-auth-egress.md) 评审；其状态为 `accepted` 前，本文相关接口只作为已确认设计输入，不授权验收测试或生产实现。
+M1 的统一身份、服务认证和敏感数据外发决策由已接受的 [ADR-005](../decisions/ADR-005-unified-identity-service-auth-egress.md) 裁决。现在可以从本文导出验收测试；生产实现仍须先观察对应验收测试因目标行为缺失而正确 RED。
 
 ## 1. 目标与边界
 
