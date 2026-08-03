@@ -1,10 +1,11 @@
 """认证 API 接口测试 — 使用 TestClient 走完整 HTTP 链路"""
+import uuid
 from unittest.mock import AsyncMock, patch
 from datetime import datetime, timezone
 
 import pytest
 
-from app.schemas.auth import UserResponse, TokenResponse
+from app.schemas.auth import UserResponse, TokenResponse, UserSummary
 from app.core.exceptions import UsernameExistsException, InvalidCredentialsException
 
 
@@ -139,6 +140,56 @@ class TestLoginAPI:
             json={"username": "test"}
         )
         assert response.status_code == 422
+
+
+class TestMeAPI:
+    PLATFORM_UUID = "550e8400-e29b-41d4-a716-446655440001"
+
+    @pytest.mark.asyncio
+    async def test_me_returns_user_summary(self, async_client, auth_headers):
+        """IA-014：/api/v1/auth/me 直接返回 UserSummary，id 为合法 UUID 字符串。"""
+        with patch("app.api.auth.get_current_user_profile", new_callable=AsyncMock) as mock_profile:
+            mock_profile.return_value = UserSummary(
+                id=self.PLATFORM_UUID,
+                username="testuser",
+                role="user",
+                status="active",
+            )
+            response = await async_client.get("/api/v1/auth/me", headers=auth_headers)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert uuid.UUID(body["id"])
+        assert body["id"] == self.PLATFORM_UUID
+        assert body["username"] == "testuser"
+        assert body["role"] == "user"
+        assert body["status"] == "active"
+
+    @pytest.mark.asyncio
+    async def test_me_without_auth_returns_401(self, async_client):
+        """未携带 Token 访问 /me 返回 401 E5004。"""
+        response = await async_client.get("/api/v1/auth/me")
+        assert response.status_code == 401
+        assert response.json()["code"] == "E5004"
+
+    @pytest.mark.asyncio
+    async def test_me_disabled_user_returns_401(self, async_client, auth_headers):
+        """IA-014：用户被禁用时 /me 返回 401 E5010。"""
+        from app.main import app
+        from app.dependencies import get_current_user
+        from app.core.exceptions import UserDisabledException
+
+        async def _disabled_user():
+            raise UserDisabledException()
+
+        app.dependency_overrides[get_current_user] = _disabled_user
+        try:
+            response = await async_client.get("/api/v1/auth/me", headers=auth_headers)
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+        assert response.status_code == 401
+        assert response.json()["code"] == "E5010"
 
 
 class TestAuthMiddleware:

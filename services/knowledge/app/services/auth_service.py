@@ -35,7 +35,7 @@ from app.models.identity_audit_event import IdentityAuditEvent
 from app.models.refresh_token import RefreshToken
 from app.models.refresh_token_family import RefreshTokenFamily
 from app.models.user import User
-from app.schemas.auth import TokenResponse, UserResponse
+from app.schemas.auth import TokenResponse, UserResponse, UserSummary
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,28 @@ async def register(db: AsyncSession, username: str, password: str) -> UserRespon
     return UserResponse.model_validate(user)
 
 
+async def get_current_user_profile(
+    db: AsyncSession, platform_user_id: str
+) -> UserSummary:
+    """返回当前用户的外部身份摘要，字段取自数据库当前状态。
+
+    对齐 API.md §5 GET /api/v1/auth/me：
+    - id 为 Platform User UUID（users.platform_user_id）；
+    - username / role / status 均从数据库当前状态读取，不拼装 Token Claim。
+    用户不存在或已禁用统一返回 401 E5010（与身份规范「不区分」原则一致）。
+    """
+    result = await db.execute(select(User).where(User.platform_user_id == platform_user_id))
+    user = result.scalar_one_or_none()
+    if user is None or user.status == "disabled":
+        raise UserDisabledException()
+    return UserSummary(
+        id=uuid.UUID(user.platform_user_id),
+        username=user.username,
+        role=user.role,
+        status=user.status,
+    )
+
+
 async def login(db: AsyncSession, username: str, password: str) -> TokenResponse:
     """验证用户名密码，返回 access_token + refresh_token。
 
@@ -81,7 +103,7 @@ async def login(db: AsyncSession, username: str, password: str) -> TokenResponse
         raise UserDisabledException()
 
     # 签发 token 对
-    access_token = create_access_token(_platform_user_id(user), user.username, user.role)
+    access_token = create_access_token(_platform_user_id(user), user.role)
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     family = RefreshTokenFamily(
@@ -192,7 +214,7 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
     if user.status == "disabled":
         raise UserDisabledException()
 
-    new_access_token = create_access_token(platform_user_id, user.username, user.role)
+    new_access_token = create_access_token(platform_user_id, user.role)
     new_refresh_token_str = create_refresh_token(platform_user_id, family_id)
 
     new_rt = RefreshToken(

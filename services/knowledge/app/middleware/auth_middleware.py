@@ -84,7 +84,6 @@ class AuthMiddleware:
             await response(scope, receive, send)
             return
 
-        request.state.username = payload.get("username")
         request.state.role = payload.get("role")
 
         await self.app(scope, receive, send)

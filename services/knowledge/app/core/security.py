@@ -25,8 +25,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     )
 
 
-def create_access_token(user_id: str, username: str, role: str) -> str:
-    """签发供 Knowledge 与 Research 使用的统一 Access Token。"""
+def create_access_token(user_id: str, role: str) -> str:
+    """签发供 Knowledge 与 Research 使用的统一 Access Token。
+
+    对齐 IDENTITY_AND_ACCESS.md §3.1：Claims 只携带稳定身份语义，
+    不携带 username 等可派生展示字段。
+    """
     platform_user_id = str(uuid.UUID(str(user_id)))
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -34,7 +38,6 @@ def create_access_token(user_id: str, username: str, role: str) -> str:
         "iss": settings.EVIDSIGHT_PLATFORM_JWT_ISSUER,
         "aud": settings.platform_jwt_audiences,
         "sub": platform_user_id,
-        "username": username,
         "role": role,
         "token_type": "access",
         "jti": uuid.uuid4().hex,

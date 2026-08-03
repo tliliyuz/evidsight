@@ -5,9 +5,13 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.auth_service import register, login
-from app.schemas.auth import UserResponse, TokenResponse
-from app.core.exceptions import UsernameExistsException, InvalidCredentialsException
+from app.services.auth_service import register, login, get_current_user_profile
+from app.schemas.auth import UserResponse, TokenResponse, UserSummary
+from app.core.exceptions import (
+    UsernameExistsException,
+    InvalidCredentialsException,
+    UserDisabledException,
+)
 from app.models.user import User
 
 
@@ -138,3 +142,55 @@ class TestLogin:
         from app.core.security import decode_refresh_token
         refresh_payload = decode_refresh_token(result.refresh_token)
         assert "sub" in refresh_payload
+
+
+class TestGetCurrentUserProfile:
+    """IA-014：/me 数据来源与用户不存在/禁用分支。"""
+
+    PLATFORM_UUID = "550e8400-e29b-41d4-a716-446655440001"
+
+    @pytest.mark.asyncio
+    async def test_active_user_returns_db_fields(self, mock_db):
+        """UserSummary 的 id/username/role/status 均来自数据库当前状态，不拼装 Token Claim。"""
+        import uuid
+        user = User(
+            platform_user_id=self.PLATFORM_UUID,
+            username="db-user",
+            role="admin",
+            status="active",
+            password_hash="x",
+        )
+        mock_db.execute.return_value = _make_mock_result(user)
+
+        result = await get_current_user_profile(mock_db, self.PLATFORM_UUID)
+
+        assert isinstance(result, UserSummary)
+        assert result.id == uuid.UUID(self.PLATFORM_UUID)
+        assert result.username == "db-user"
+        assert result.role == "admin"
+        assert result.status == "active"
+
+    @pytest.mark.asyncio
+    async def test_user_not_found_raises_5010(self, mock_db):
+        """用户不存在统一返回 401 E5010。"""
+        mock_db.execute.return_value = _make_mock_result(None)
+
+        with pytest.raises(UserDisabledException) as exc:
+            await get_current_user_profile(mock_db, self.PLATFORM_UUID)
+        assert exc.value.error_code == "E5010"
+
+    @pytest.mark.asyncio
+    async def test_disabled_user_raises_5010(self, mock_db):
+        """用户已禁用统一返回 401 E5010。"""
+        user = User(
+            platform_user_id=self.PLATFORM_UUID,
+            username="disabled-user",
+            role="user",
+            status="disabled",
+            password_hash="x",
+        )
+        mock_db.execute.return_value = _make_mock_result(user)
+
+        with pytest.raises(UserDisabledException) as exc:
+            await get_current_user_profile(mock_db, self.PLATFORM_UUID)
+        assert exc.value.error_code == "E5010"

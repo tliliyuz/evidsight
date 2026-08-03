@@ -1,18 +1,20 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login as loginApi, register as registerApi, refreshToken as refreshApi, logout as logoutApi } from '@/api/auth'
+import { login as loginApi, register as registerApi, refreshToken as refreshApi, logout as logoutApi, getMe as getMeApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+  const user = ref(null)
   const token = ref(localStorage.getItem('access_token') || '')
   const refreshTokenValue = ref(localStorage.getItem('refresh_token') || '')
+  /** 身份是否已从 /me 就绪（未就绪时 isLoggedIn 为 false，受保护路由不得提前进入） */
+  const _meReady = ref(false)
 
   /** access_token 过期前自动刷新的定时器 ID */
   let refreshTimerId = null
   /** 防止并发刷新（避免定时器与时拦截器同时触发） */
   let _refreshing = false
 
-  const isLoggedIn = computed(() => !!token.value)
+  const isLoggedIn = computed(() => !!token.value && _meReady.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
 
   /** 统一存储 token 对到 state + localStorage */
@@ -23,16 +25,37 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('refresh_token', refreshTokenStr)
   }
 
-  /** 解析 JWT payload 中的用户信息 */
-  function parseJwtUser(accessToken) {
+  /**
+   * 从 /me 拉取当前用户（UserSummary，id 为 UUID 字符串，username/role/status 来自数据库当前状态）。
+   * 成功才建立 user 并置 _meReady。客户端不得从 Access Token Claim 解析用户名/角色/状态。
+   */
+  async function fetchMe() {
+    const res = await getMeApi()
+    const me = res.data
+    user.value = {
+      id: me.id,          // UUID 字符串，不做数值解析
+      username: me.username,
+      role: me.role,
+      status: me.status,
+    }
+    localStorage.setItem('user', JSON.stringify(user.value))
+    _meReady.value = true
+    return user.value
+  }
+
+  /**
+   * 用 Access Token 恢复身份（页面重载时调用）。失败则清态并返回 null。
+   * 不恢复持久化的 user（其身份可能已过期/变更）。
+   */
+  async function restoreSession() {
+    if (!token.value) {
+      _meReady.value = false
+      return null
+    }
     try {
-      const payload = JSON.parse(atob(accessToken.split('.')[1]))
-      return {
-        id: parseInt(payload.sub),
-        username: payload.username,
-        role: payload.role
-      }
+      return await fetchMe()
     } catch {
+      clearState()
       return null
     }
   }
@@ -61,21 +84,26 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** 登录 — 调用 API 并持久化 token 对到 localStorage */
+  /** 登录 — 调用 API 并持久化 token 对，随后用 /me 建立用户身份 */
   async function loginAction(username, password) {
     const res = await loginApi(username, password)
     const { access_token, refresh_token } = res.data.data
     setTokens(access_token, refresh_token)
 
-    user.value = parseJwtUser(access_token)
-    localStorage.setItem('user', JSON.stringify(user.value))
+    try {
+      await fetchMe()
+    } catch (e) {
+      // 身份建立失败 → 清除刚保存的 token 对，按未登录处理（FRONTEND.md §5.1.1）
+      clearState()
+      throw e
+    }
 
     // 启动自动刷新
     scheduleRefresh()
     return user.value
   }
 
-  /** 刷新 Token — 调用 refresh API 换取新 token 对。
+  /** 刷新 Token — 调用 refresh API 换取新 token 对，随后重新调用 /me 获取最新状态。
    *  带并发防护：避免定时器与拦截器同时触发刷新时，第二个请求
    *  使用已被 Rotation 吊销的旧 refresh_token 导致踢下线。 */
   async function refresh() {
@@ -92,12 +120,8 @@ export const useAuthStore = defineStore('auth', () => {
       const { access_token, refresh_token } = res.data.data
       setTokens(access_token, refresh_token)
 
-      // 更新用户信息（可能变化）
-      const newUser = parseJwtUser(access_token)
-      if (newUser) {
-        user.value = newUser
-        localStorage.setItem('user', JSON.stringify(newUser))
-      }
+      // 更新用户信息（角色/状态可能变化）
+      await fetchMe()
 
       // 重新启动定时器
       scheduleRefresh()
@@ -123,6 +147,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     token.value = ''
     refreshTokenValue.value = ''
+    _meReady.value = false
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
@@ -141,20 +166,6 @@ export const useAuthStore = defineStore('auth', () => {
     clearState()
   }
 
-  // ── Store 初始化：恢复用户信息 + 启动自动刷新 ──
-  // 从 token 解析用户信息（localStorage 中 user 可能因旧版本丢失）
-  if (token.value && !user.value) {
-    const parsed = parseJwtUser(token.value)
-    if (parsed) {
-      user.value = parsed
-      localStorage.setItem('user', JSON.stringify(parsed))
-    }
-  }
-  // 启动 proactive refresh（页面刷新后重新注册定时器）
-  if (token.value) {
-    scheduleRefresh()
-  }
-
   return {
     // 状态
     user,
@@ -169,6 +180,8 @@ export const useAuthStore = defineStore('auth', () => {
     register: registerAction,
     refresh,
     logout,
+    restoreSession,
+    fetchMe,
     scheduleRefresh,
     clearRefreshTimer,
   }

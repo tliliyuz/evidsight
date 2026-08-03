@@ -57,8 +57,11 @@ async def _mock_get_current_user(request: Request):
     except (KeyError, ValueError, TypeError):
         from app.core.exceptions import InvalidTokenException
         raise InvalidTokenException("Token payload 异常")
+    # 内部 user_id 由 Platform UUID 尾号推导，使各 fixture（...0001/0002/0003）
+    # 映射到 user_id 1/2/3，从而 test_不能禁用自己 的自禁检查（user_id == 当前用户）能命中。
+    user_id = int(platform_user_id[-1])
     return {
-        "user_id": 1,
+        "user_id": user_id,
         "platform_user_id": platform_user_id,
         "username": payload.get("username"),
         "role": payload.get("role"),
@@ -79,21 +82,21 @@ async def async_client(mock_db):
 @pytest.fixture
 def auth_headers():
     """生成有效 JWT 认证 header（普通用户 testuser）"""
-    token = create_access_token("550e8400-e29b-41d4-a716-446655440001", "testuser", "user")
+    token = create_access_token("550e8400-e29b-41d4-a716-446655440001", "user")
     return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
 def admin_auth_headers():
     """生成有效 JWT 认证 header（管理员 admin）"""
-    token = create_access_token("550e8400-e29b-41d4-a716-446655440002", "admin", "admin")
+    token = create_access_token("550e8400-e29b-41d4-a716-446655440002", "admin")
     return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
 def other_user_auth_headers():
     """生成其他用户的 JWT 认证 header"""
-    token = create_access_token("550e8400-e29b-41d4-a716-446655440003", "otheruser", "user")
+    token = create_access_token("550e8400-e29b-41d4-a716-446655440003", "user")
     return {"Authorization": f"Bearer {token}"}
 
 

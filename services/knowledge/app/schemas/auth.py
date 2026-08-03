@@ -1,6 +1,7 @@
 """认证相关请求/响应模型"""
 
 import re
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
@@ -34,6 +35,15 @@ class UserResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class UserSummary(BaseModel):
+    """外部身份摘要 — id 为 Platform User UUID（对齐 API.md §3.1）。"""
+
+    id: uuid.UUID
+    username: str
+    role: str
+    status: str
 
 
 class TokenResponse(BaseModel):

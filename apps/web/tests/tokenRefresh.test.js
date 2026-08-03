@@ -170,7 +170,7 @@ describe('authStore Token 管理', () => {
     global.fetch = originalFetch
   })
 
-  it('从 localStorage 恢复 token 状态', async () => {
+  it('从 localStorage 恢复 token 状态（身份经 /me 重建）', async () => {
     localStorage.setItem('access_token', 'stored-access')
     localStorage.setItem('refresh_token', 'stored-refresh')
     localStorage.setItem('user', JSON.stringify({ id: 1, username: 'test', role: 'user' }))
@@ -183,8 +183,8 @@ describe('authStore Token 管理', () => {
 
     expect(store.token).toBe('stored-access')
     expect(store.refreshToken).toBe('stored-refresh')
-    expect(store.isLoggedIn).toBe(true)
-    expect(store.user.username).toBe('test')
+    // 未调用 /me 前 isLoggedIn 未就绪
+    expect(store.isLoggedIn).toBe(false)
   })
 
   it('isLoggedIn 在无 token 时为 false', async () => {
@@ -208,7 +208,8 @@ describe('authStore Token 管理', () => {
     const { useAuthStore } = await import('@/stores/auth')
     const store = useAuthStore()
 
-    expect(store.isAdmin).toBe(true)
+    // 角色来自 /me（DB 当前状态），而非 localStorage 持久化 user
+    expect(store.isAdmin).toBe(false)
   })
 })
 

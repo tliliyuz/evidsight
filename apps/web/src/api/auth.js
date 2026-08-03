@@ -9,6 +9,15 @@ export function login(username, password) {
 }
 
 /**
+ * 获取当前用户身份摘要（UserSummary：id 为 UUID 字符串，username/role/status 来自数据库当前状态）
+ * 对齐 FRONTEND.md §5.1.1：客户端不得从 Access Token Claim 解析用户名/角色/状态。
+ * @returns {Promise<{data: {id: string, username: string, role: string, status: string}}>}
+ */
+export function getMe() {
+  return api.get('/v1/auth/me')
+}
+
+/**
  * 刷新 Token（Rotation：旧 refresh_token 立即失效）
  * @param {string} refreshToken - 当前 refresh_token
  */

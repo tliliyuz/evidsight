@@ -41,7 +41,7 @@ async def get_current_user(
     return {
         "user_id": user.id,
         "platform_user_id": platform_user_id,
-        "username": request.state.username,
+        "username": user.username,
         "role": request.state.role,
     }
 

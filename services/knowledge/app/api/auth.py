@@ -18,9 +18,11 @@ from app.schemas.auth import (
     LogoutRequest,
     RefreshRequest,
     RegisterRequest,
+    UserSummary,
 )
 from app.services.auth_service import (
     change_password,
+    get_current_user_profile,
     login,
     logout,
     refresh,
@@ -28,6 +30,16 @@ from app.services.auth_service import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+v1_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+
+@v1_router.get("/me", response_model=UserSummary)
+async def me(
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """返回当前用户外部身份摘要（对齐 API.md §5 GET /api/v1/auth/me）。"""
+    return await get_current_user_profile(db, user["platform_user_id"])
 
 
 @router.post("/register", status_code=201, response_model=dict)

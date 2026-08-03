@@ -95,8 +95,14 @@ const router = createRouter({
 })
 
 // 路由守卫 — 认证与权限检查
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
+
+  // 身份恢复：持有 token 但身份未就绪时，先以 /me 重建身份。
+  // restoreSession 失败会清态并置 isLoggedIn=false，交由下方守卫跳转登录页。
+  if (authStore.token && !authStore.isLoggedIn) {
+    await authStore.restoreSession()
+  }
 
   // 已登录用户访问公开页面（如登录页）→ 重定向到聊天页
   if (to.meta.public && authStore.isLoggedIn) {

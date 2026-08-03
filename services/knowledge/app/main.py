@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.admin import router as admin_router
-from app.api.auth import router as auth_router
+from app.api.auth import router as auth_router, v1_router
 from app.api.chat import router as chat_router
 from app.api.conversation import router as conversation_router
 from app.api.knowledge_base import router as kb_router
@@ -105,6 +105,7 @@ app.add_middleware(RateLimitMiddleware)
 
 # 路由注册
 app.include_router(auth_router)
+app.include_router(v1_router)
 app.include_router(chat_router)
 app.include_router(conversation_router)
 app.include_router(kb_router)

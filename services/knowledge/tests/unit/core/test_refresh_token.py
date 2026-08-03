@@ -100,7 +100,7 @@ class TestRefreshTokenSecurity:
         """access_token 不应被接受为 refresh_token"""
         from app.core.security import create_access_token
         access = create_access_token(
-            "550e8400-e29b-41d4-a716-446655440000", "user", "user"
+            "550e8400-e29b-41d4-a716-446655440000", "user"
         )
         with pytest.raises(Exception):
             decode_refresh_token(access)

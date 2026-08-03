@@ -7,12 +7,14 @@ const mockLoginApi = vi.fn()
 const mockRegisterApi = vi.fn()
 const mockRefreshApi = vi.fn()
 const mockLogoutApi = vi.fn()
+const mockGetMeApi = vi.fn()
 
 vi.mock('@/api/auth', () => ({
   login: (...args) => mockLoginApi(...args),
   register: (...args) => mockRegisterApi(...args),
   refreshToken: (...args) => mockRefreshApi(...args),
   logout: (...args) => mockLogoutApi(...args),
+  getMe: (...args) => mockGetMeApi(...args),
 }))
 
 // 生成 JWT token 辅助函数
@@ -30,6 +32,8 @@ beforeEach(async () => {
   vi.resetModules()
   // 默认 safe mock：防止未配置时 refresh() 访问 undefined.data
   mockRefreshApi.mockResolvedValue({ data: { data: { access_token: '', refresh_token: '' } } })
+  // 默认 safe mock：防止未配置时 fetchMe() 访问 undefined.data
+  mockGetMeApi.mockResolvedValue({ data: { id: 'u', username: 'u', role: 'user', status: 'active' } })
   setActivePinia(createPinia())
   const mod = await import('@/stores/auth')
   useAuthStore = mod.useAuthStore
@@ -41,58 +45,65 @@ afterEach(() => {
 })
 
 // =====================================================
-// parseJwtUser()
+// 身份获取（经 /me，而非 JWT Claim）
 // =====================================================
-describe('parseJwtUser()', () => {
-  it('正常解析 JWT payload 返回 {id, username, role}', async () => {
+describe('身份获取（/me）', () => {
+  it('登录成功后从 /me 获取 user（id 为 UUID 字符串，不做数值解析）', async () => {
     const store = useAuthStore()
-    const jwt = makeJwt({ sub: '42', username: 'testuser', role: 'user' })
-    // 通过 loginAction 完整链路验证 parseJwtUser
+    const jwt = makeJwt({ sub: '42', username: 'ignored', role: 'user' })
+    // 通过 loginAction 完整链路验证：user 来自 /me，而非 JWT Claim
     mockLoginApi.mockResolvedValue({
       data: { data: { access_token: jwt, refresh_token: 'refresh-xxx' } },
+    })
+    mockGetMeApi.mockResolvedValue({
+      data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'testuser', role: 'admin', status: 'active' },
     })
     await store.login('testuser', 'password')
-    expect(store.user.id).toBe(42)
+    expect(store.user.id).toBe('550e8400-e29b-41d4-a716-446655440001')
     expect(store.user.username).toBe('testuser')
-    expect(store.user.role).toBe('user')
+    expect(store.user.role).toBe('admin')
   })
 
-  it('无效 JWT（无分隔符）不更新 user', async () => {
+  it('user 不来自 JWT Claim（token 中 username 被忽略，高度以 /me 为准）', async () => {
     const store = useAuthStore()
-    mockLoginApi.mockResolvedValue({
-      data: { data: { access_token: 'not-a-jwt', refresh_token: 'refresh-xxx' } },
-    })
-    // loginAction 调用 parseJwtUser 失败时不更新 user
-    // 但 setTokens 仍会执行，token 会被设置
-    await store.login('test', 'pass')
-    // token 已设置但 user 保持 null（parseJwtUser 返回 null）
-    expect(store.token).toBe('not-a-jwt')
-    expect(store.user).toBeNull()
-  })
-
-  it('非 JSON payload（atob 解码成功但 JSON.parse 失败）返回 null', async () => {
-    const store = useAuthStore()
-    const header = btoa(JSON.stringify({ alg: 'HS256' }))
-    const body = btoa('not-json')
-    const jwt = `${header}.${body}.sig`
+    const jwt = makeJwt({ sub: '42', username: 'claim-user', role: 'user' })
     mockLoginApi.mockResolvedValue({
       data: { data: { access_token: jwt, refresh_token: 'refresh-xxx' } },
     })
-    await store.login('test', 'pass')
-    // parseJwtUser 静默返回 null，user 不更新
-    expect(store.user).toBeNull()
+    mockGetMeApi.mockResolvedValue({
+      data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'db-user', role: 'user', status: 'active' },
+    })
+    await store.login('x', 'pass')
+    expect(store.user.username).toBe('db-user')
   })
 
-  it('payload 缺少 role 字段时 role 为 undefined', async () => {
+  it('/me 失败时登录流程抛错（身份无法建立）', async () => {
     const store = useAuthStore()
-    const jwt = makeJwt({ sub: '1', username: 'norole' })
+    const jwt = makeJwt({ sub: '1', username: 'u', role: 'user' })
     mockLoginApi.mockResolvedValue({
       data: { data: { access_token: jwt, refresh_token: 'refresh-xxx' } },
     })
-    await store.login('norole', 'password')
-    expect(store.user.id).toBe(1)
-    expect(store.user.username).toBe('norole')
-    expect(store.user.role).toBeUndefined()
+    mockGetMeApi.mockRejectedValue(new Error('Unauthorized'))
+    await expect(store.login('u', 'pass')).rejects.toThrow('Unauthorized')
+  })
+
+  it('登录后 /me 失败时清除刚保存的 Token（不留半登录态）', async () => {
+    const store = useAuthStore()
+    const jwt = makeJwt({ sub: '42', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
+    mockLoginApi.mockResolvedValue({
+      data: { data: { access_token: jwt, refresh_token: 'refresh-abc' } },
+    })
+    mockGetMeApi.mockRejectedValue(new Error('Unauthorized'))
+
+    await expect(store.login('u', 'pass')).rejects.toThrow('Unauthorized')
+
+    // 身份建立失败 → 清除 token 对与 user，按未登录处理（FRONTEND.md §5.1.1）
+    expect(store.token).toBe('')
+    expect(store.refreshToken).toBe('')
+    expect(store.user).toBeNull()
+    expect(store.isLoggedIn).toBe(false)
+    expect(localStorage.getItem('access_token')).toBeNull()
+    expect(localStorage.getItem('refresh_token')).toBeNull()
   })
 })
 
@@ -167,20 +178,23 @@ describe('scheduleRefresh() / clearRefreshTimer()', () => {
 // _refreshing 并发守卫
 // =====================================================
 describe('refresh() 并发守卫', () => {
-  it('单次刷新成功更新 token 和 user', async () => {
+  it('单次刷新成功更新 token 并重取 /me', async () => {
     const store = useAuthStore()
     const oldJwt = makeJwt({ sub: '1', username: 'old', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
     store.setTokens(oldJwt, 'old-refresh')
-    store.user = { id: 1, username: 'old', role: 'user' }
 
     const newJwt = makeJwt({ sub: '1', username: 'new', role: 'admin', exp: Math.floor(Date.now() / 1000) + 7200 })
     mockRefreshApi.mockResolvedValue({
       data: { data: { access_token: newJwt, refresh_token: 'new-refresh' } },
     })
+    mockGetMeApi.mockResolvedValue({
+      data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'new', role: 'admin', status: 'active' },
+    })
 
     const result = await store.refresh()
     expect(result).toBe(true)
     expect(mockRefreshApi).toHaveBeenCalledTimes(1)
+    expect(mockGetMeApi).toHaveBeenCalledTimes(1)
     expect(store.user.username).toBe('new')
     expect(store.user.role).toBe('admin')
     expect(store.token).toBe(newJwt)
@@ -228,17 +242,21 @@ describe('refresh() 并发守卫', () => {
 // loginAction() / registerAction()
 // =====================================================
 describe('loginAction() / registerAction()', () => {
-  it('登录成功：设置 token、解析 user、持久化、启动定时器', async () => {
+  it('登录成功：设置 token、经 /me 建立 user、持久化', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: '42', username: 'loginuser', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
     mockLoginApi.mockResolvedValue({
       data: { data: { access_token: jwt, refresh_token: 'refresh-abc' } },
     })
+    mockGetMeApi.mockResolvedValue({
+      data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'loginuser', role: 'admin', status: 'active' },
+    })
 
     const user = await store.login('loginuser', 'password123')
 
-    expect(user.id).toBe(42)
+    expect(user.id).toBe('550e8400-e29b-41d4-a716-446655440001')
     expect(user.username).toBe('loginuser')
+    expect(user.role).toBe('admin')
     expect(store.token).toBe(jwt)
     expect(store.refreshToken).toBe('refresh-abc')
     expect(store.isLoggedIn).toBe(true)
@@ -249,10 +267,13 @@ describe('loginAction() / registerAction()', () => {
 
   it('登录 API 失败时抛异常，不破坏已有状态', async () => {
     const store = useAuthStore()
-    // 预置状态
-    const oldJwt = makeJwt({ sub: '1', username: 'existing', role: 'user' })
+    // 预置登录态（经 /me 建立，isLoggedIn 需 _meReady）
+    const oldJwt = makeJwt({ sub: '1', username: 'existing', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
     store.setTokens(oldJwt, 'existing-refresh')
-    store.user = { id: 1, username: 'existing', role: 'user' }
+    mockGetMeApi.mockResolvedValue({
+      data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'existing', role: 'user', status: 'active' },
+    })
+    await store.restoreSession()
 
     mockLoginApi.mockRejectedValue(new Error('密码错误'))
 
@@ -331,22 +352,28 @@ describe('logout()', () => {
 // Store 初始化恢复
 // =====================================================
 describe('Store 初始化恢复', () => {
-  it('localStorage 有 token 和 user 时恢复登录态', async () => {
+  it('localStorage 有 token 时经 /me 恢复身份（不恢复持久化 user）', async () => {
     const jwt = makeJwt({ sub: '5', username: 'cached', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
-    const userData = { id: 5, username: 'cached', role: 'user' }
+    // 持久化的 user 应立即被 /me 覆盖/忽略
     localStorage.setItem('access_token', jwt)
     localStorage.setItem('refresh_token', 'cached-refresh')
-    localStorage.setItem('user', JSON.stringify(userData))
+    localStorage.setItem('user', JSON.stringify({ id: 99, username: 'stale', role: 'user' }))
+    mockGetMeApi.mockResolvedValue({
+      data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'fresh', role: 'user', status: 'active' },
+    })
 
     vi.resetModules()
     setActivePinia(createPinia())
     const mod = await import('@/stores/auth')
-    const StoreClass = mod.useAuthStore
-    const store = StoreClass()
+    const store = mod.useAuthStore()
 
+    // 身份未就绪前 isLoggedIn=false
+    expect(store.isLoggedIn).toBe(false)
+    await store.restoreSession()
     expect(store.isLoggedIn).toBe(true)
     expect(store.token).toBe(jwt)
-    expect(store.user.id).toBe(5)
+    expect(store.user.id).toBe('550e8400-e29b-41d4-a716-446655440001')
+    expect(store.user.username).toBe('fresh')
   })
 
   it('空 localStorage 时未登录', async () => {
@@ -360,16 +387,20 @@ describe('Store 初始化恢复', () => {
     expect(store.user).toBeNull()
   })
 
-  it('isAdmin 根据 role 正确计算', async () => {
+  it('isAdmin 根据 /me 返回的 role 正确计算', async () => {
     const jwt = makeJwt({ sub: '1', username: 'admin', role: 'admin', exp: Math.floor(Date.now() / 1000) + 3600 })
     localStorage.setItem('access_token', jwt)
     localStorage.setItem('refresh_token', 'r')
+    mockGetMeApi.mockResolvedValue({
+      data: { id: '550e8400-e29b-41d4-a716-446655440002', username: 'admin', role: 'admin', status: 'active' },
+    })
 
     vi.resetModules()
     setActivePinia(createPinia())
     const mod = await import('@/stores/auth')
     const store = mod.useAuthStore()
 
+    await store.restoreSession()
     expect(store.isAdmin).toBe(true)
   })
 })

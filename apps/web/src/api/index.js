@@ -62,9 +62,11 @@ export async function refreshToken() {
     const { useAuthStore } = await import('@/stores/auth')
     const authStore = useAuthStore()
     authStore.setTokens(access_token, newRefreshToken)
+    // FRONTEND.md §5.1.1：Refresh 成功后重新调用 /me，获取可能变化的角色与状态
+    await authStore.fetchMe()
     authStore.scheduleRefresh()
   } catch {
-    // store 尚未初始化时忽略（如未挂载 Pinia 的独立 axios 调用场景）
+    // store 尚未初始化时忽略；/me 重取失败不阻断刷新（用户仍持有新 token）
   }
 
   return access_token
