@@ -10,6 +10,7 @@
 - 规范缺失、冲突或无法导出明确验收条件时，暂停实现并先澄清。
 - 同一事实只在一个权威文档中定义；其他位置只交叉引用。
 - 不得根据既有实现反向编写规范或测试。
+- 发现实现、测试和规范不一致时，先按 [文档治理指南](docs/guides/DOCUMENT_GOVERNANCE.md) 完成事实取证、冲突分类和负责人裁决；不得用普通实施授权替代文档裁决。
 
 ### 开发门禁
 
@@ -56,6 +57,7 @@ ADR 检查与裁决
 | Design Token 与组件样式 | `apps/web/docs/UIDESIGN.md` |
 | Monorepo 迁移约束 | `docs/plans/MONOREPO_MIGRATION_PLAN.md` |
 | 开发环境、目录、命令与工作流 | `docs/guides/DEVELOPMENT.md` |
+| 文档归属、冲突裁决与状态治理 | `docs/guides/DOCUMENT_GOVERNANCE.md` |
 | 测试矩阵与发布验证 | `docs/specs/TESTING.md` |
 | 配置键与运行边界 | `docs/specs/CONFIGURATION.md` |
 | 数据迁移、校验与回滚 | `docs/specs/DATA_MIGRATION_AND_ROLLBACK.md` |
@@ -66,7 +68,7 @@ ADR 检查与裁决
 | 重要架构决策 | `docs/decisions/ADR-NNN.md` |
 | 代码审查流程与检查项 | `.claude/commands/review.md` |
 
-当文档冲突时，不自行选择方便实现的一方：先指出冲突，并由负责人确认或修订权威来源。涉及重要设计取舍时，按 [ADR 治理规则](docs/decisions/README.md) 执行 ADR 检查与裁决，不得由实现自行决定是否需要 ADR。
+当文档冲突或实现领先于规范时，不自行选择方便实现的一方：先按 [文档治理指南](docs/guides/DOCUMENT_GOVERNANCE.md) 输出文档裁决候选并取得有效裁决。涉及重要设计取舍时，按 [ADR 治理规则](docs/decisions/README.md) 执行 ADR 检查与裁决，不得由实现自行决定是否需要 ADR。
 
 ## 工作约束
 

@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 配置基线 |
-| 最后更新 | 2026-08-01 |
+| 最后更新 | 2026-08-03 |
 
 ## 1. 规则
 
@@ -49,7 +49,13 @@
 | `EVIDSIGHT_PLATFORM_JWT_PUBLIC_KEYS_FILE` | Knowledge/Research | path | 必填 | sensitive |
 | `EVIDSIGHT_PLATFORM_ACCESS_TOKEN_TTL_SECONDS` | Platform | int | `900` | public |
 | `EVIDSIGHT_PLATFORM_REFRESH_TOKEN_TTL_SECONDS` | Platform | int | `604800` | public |
-| `EVIDSIGHT_PLATFORM_SERVICE_CREDENTIAL_FILE` | Research/Knowledge | path | 必填 | secret |
+| `EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER` | Platform | string | `evidsight-platform` | public |
+| `EVIDSIGHT_PLATFORM_SERVICE_JWT_ALGORITHM` | Platform | enum | `RS256` | public |
+| `EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE` | Platform | string | `knowledge-internal` | public |
+| `EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS` | Platform | int | `60`，范围 10—300 | public |
+| `EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID` | Research | string | 必填 | public |
+| `EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE` | Research | path | 必填 | secret |
+| `EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE` | Knowledge | path | 必填 | sensitive |
 | `EVIDSIGHT_KNOWLEDGE_DATABASE_URL` | Knowledge | URL | 必填 | secret |
 | `EVIDSIGHT_RESEARCH_DATABASE_URL` | Research | URL | 必填 | secret |
 | `EVIDSIGHT_KNOWLEDGE_REDIS_URL` | Knowledge | URL | 必填 | secret |
@@ -65,6 +71,10 @@
 | `EVIDSIGHT_KNOWLEDGE_UPLOAD_MAX_BYTES` | Knowledge | int | `52428800` | public |
 | `EVIDSIGHT_KNOWLEDGE_ALLOWED_EXTENSIONS` | Knowledge | csv enum | `pdf,docx,md,txt` | public |
 | `EVIDSIGHT_KNOWLEDGE_DISK_PROTECTION_PERCENT` | Knowledge | int | `85`，范围 50—95 | public |
+| `EVIDSIGHT_KNOWLEDGE_CLEAN_ENABLED` | Knowledge | bool | `true` | public |
+| `EVIDSIGHT_KNOWLEDGE_CLEAN_STRIP_BOILERPLATE` | Knowledge | bool | `true` | public |
+| `EVIDSIGHT_KNOWLEDGE_CLEAN_NORMALIZE_WHITESPACE` | Knowledge | bool | `true` | public |
+| `EVIDSIGHT_KNOWLEDGE_CLEAN_REPAIR_UNICODE` | Knowledge | bool | `true` | public |
 | `EVIDSIGHT_RESEARCH_LEASE_TTL_SECONDS` | Research | int | `120` | public |
 | `EVIDSIGHT_RESEARCH_LEASE_RENEW_SECONDS` | Research | int | `30` | public |
 | `EVIDSIGHT_RESEARCH_RECOVERY_SCAN_SECONDS` | Research | int | `60` | public |
@@ -84,6 +94,10 @@
 | `EVIDSIGHT_WEB_API_BASE_PATH` | Web | string | `/api/v1` | public |
 
 生产部署可以覆盖默认值，但必须在变更记录中说明容量、安全和保留影响。新增键先进入本表，再进入 `.env.example`、Settings Schema、Compose 和配置测试。
+
+Service JWT 只由 Research 签发、由 Knowledge 验证，使用独立于用户 Access/Refresh Token 的密钥材料。JWT Header 必须包含 `kid`；Payload 必须包含 `iss`、`aud`、`sub=research-service`、`token_type=service`、`jti`、`iat`、`nbf` 和 `exp`。Knowledge 只接受算法允许列表、配置的 Issuer、`knowledge-internal` Audience 和已登记 Key ID。公钥文件必须支持当前 Key 与上一 Key 的受控验证窗口；私钥、公钥内容和 Token 不得进入日志或错误响应。
+
+> 备注：`services/knowledge/app/config.py` 沿用服务内无前缀命名（如 `CLEAN_ENABLED`、`CHUNK_SIZE`），运行时以服务内值为准；上表按 `EVIDSIGHT_KNOWLEDGE_` 命名空间登记同名键，作为部署与跨服务契约的规范名称。M2 数据清洗 4 键即按此约定登记。
 
 ## 4. 约束
 

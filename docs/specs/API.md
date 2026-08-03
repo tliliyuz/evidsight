@@ -4,7 +4,7 @@
 |:---|:---|
 | 文档状态 | 已确认设计 |
 | 文档版本 | v1.0 |
-| 最后更新 | 2026-08-02 |
+| 最后更新 | 2026-08-03 |
 
 > 本文是外部/内部 HTTP、错误语义和 SSE 的权威规范。产品行为见 [PRD.md](PRD.md)，身份与授权见 [IDENTITY_AND_ACCESS.md](IDENTITY_AND_ACCESS.md)，服务边界见 [ARCHITECTURE.md](ARCHITECTURE.md)。跨服务字段 Schema 由 [`packages/contracts/`](../../packages/contracts/README.md) 定义；本文不复制 ORM、数据库或 Pipeline 内部结构。
 
@@ -191,7 +191,23 @@ Evidence 明确 `internal|web` 来源类型。内部原文链接指向 Knowledge
 
 完整成本与计费、可配置角色权限和组织级设置属于 P1，不属于 v1.0 P0 Admin API；前端可以保留原型入口，但不得调用未定义接口或展示伪造数据。
 
-## 11. Internal Retrieval API
+## 11. Internal API
+
+ADR 检查 1–8：否。本节新增端点是在未发布的 `1.0.0-draft` Contract 中落实 accepted ADR-005 已确定的 Knowledge 身份事实源和 Service JWT 边界，不改变服务职责、信任方向或既有已发布契约。
+
+### 11.1 内部身份状态 API
+
+`GET /internal/v1/identity/users/{platform_user_id}/status` 是 Research 在创建长期任务前复核 Platform User 当前状态的唯一入口。该端点只允许内部网络中的 Research Service 调用，不得由 Nginx 对外代理，也不得被浏览器或其他终端用户直接调用。
+
+请求必须同时携带 `Authorization: Bearer <service-token>`、`X-EvidSight-Contract-Version`、`X-Request-ID` 和 W3C `traceparent`。路径参数必须是合法 Platform User UUID。Knowledge 固定按“Research 服务身份 → Contract 版本和请求元数据 → 用户状态”顺序校验；任一步失败都不得返回用户资料。Service Token 的 Claim、签发和验证规则引用身份规范与配置规范。
+
+Service Token 缺失或无效返回 `401 INTERNAL_SERVICE_UNAUTHENTICATED`；Contract 版本缺失或不受支持返回 `400 INTERNAL_CONTRACT_UNSUPPORTED`；请求关联字段、Trace Context 或 Platform User UUID 缺失/非法返回 `400 INTERNAL_CONTRACT_INVALID`。认证或请求校验失败不得查询用户状态。
+
+成功返回 `200` 和 Contract `IdentityStatusResponse`，只包含 `contract_version`、`platform_user_id`、`status` 与 `status_version`。不得返回用户名、角色、Knowledge 内部 `users.id` 或其他资料。用户不存在与用户已禁用统一返回 `403 AUTH_USER_DISABLED`，不得让外部调用方区分；身份数据库暂时不可用返回 `503 INTERNAL_IDENTITY_UNAVAILABLE`，`retryable=true`，Research 不得使用旧的 `active` 结果放行新任务。
+
+Research v1.0 在创建任务前实时调用该端点，不缓存用户状态。未来引入状态缓存前，必须先定义短 TTL、`status_version` 比较和禁用事件主动失效机制；不得仅依赖 Access Token 剩余有效期。
+
+### 11.2 检索与原文重取
 
 `POST /internal/v1/retrieval/search` 是 Research 使用 Knowledge 发现候选的唯一搜索入口。请求/响应完整字段、Evidence Contract、固定样例和版本由 `packages/contracts/` 拥有。
 

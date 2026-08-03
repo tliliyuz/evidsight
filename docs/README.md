@@ -7,7 +7,7 @@
 | 目录或文件 | 职责 | 内容规则 |
 |:---|:---|:---|
 | [`specs/`](specs/README.md) | 权威规范 | 定义产品、架构、接口、权限、配置、测试、数据与运行约束；实现不得与其冲突 |
-| [`guides/`](guides/DEVELOPMENT.md) | 操作指南 | 说明开发者如何搭建环境、执行命令和遵守交付流程，不重复定义产品行为 |
+| [`guides/`](guides/DEVELOPMENT.md) | 操作指南 | 说明开发者如何搭建环境、执行命令和遵守交付流程，不重复定义产品行为；文档冲突按 [`DOCUMENT_GOVERNANCE.md`](guides/DOCUMENT_GOVERNANCE.md) 裁决 |
 | [`plans/`](plans/ROADMAP.md) | 路线与实施计划 | 记录阶段顺序、依赖、退出门禁和迁移步骤，不代表功能已实现 |
 | [`decisions/`](decisions/README.md) | 架构决策记录 | 记录重要选择、替代方案和后果；不能代替当前规范 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 变更记录 | 记录已经发生的可审查变化及尚未实现项 |
@@ -28,3 +28,4 @@
 3. 计划中的目标、迁移步骤和占位命令不得表述为已实现能力。
 4. 新增长期或权威文档必须先获负责人明确批准并确认归属；临时规格、计划和验收记录只能放入 Git 忽略目录，不得提交且任务结束后删除。
 5. 模块专属数据库、Pipeline、前端规范跟随模块维护；跨模块规则才进入 `docs/specs/`。
+6. 发现实现领先、实现偏离、迁移态或权威文档冲突时，先按 [`DOCUMENT_GOVERNANCE.md`](guides/DOCUMENT_GOVERNANCE.md) 完成取证与裁决，再更新测试或实现。
