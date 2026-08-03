@@ -49,7 +49,7 @@ class KnowledgeBaseResponse(BaseModel):
     uuid: str
     name: str
     description: str | None
-    user_id: int
+    owner: str = Field(description="owner 用户 Platform User UUID")
     visibility: str
     status: str
     doc_count: int
@@ -79,7 +79,7 @@ class PublicKnowledgeBaseResponse(BaseModel):
     uuid: str
     name: str
     description: str | None
-    user_id: int
+    owner: str = Field(description="owner 用户 Platform User UUID")
     username: str
     visibility: str
     status: str

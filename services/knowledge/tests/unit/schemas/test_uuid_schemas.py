@@ -44,21 +44,25 @@ class TestKnowledgeBaseResponseSchema:
         """序列化输出含 uuid 字段"""
         resp = KnowledgeBaseResponse(
             uuid=VALID_UUID, name="测试KB", description="desc",
-            user_id=1, visibility="private", status="active",
+            owner="550e8400-e29b-41d4-a716-446655440001",
+            visibility="private", status="active",
             doc_count=5, chunk_count=100, created_at=NOW,
         )
         data = resp.model_dump()
         assert data["uuid"] == VALID_UUID
+        assert data["owner"] == "550e8400-e29b-41d4-a716-446655440001"
 
     def test_does_not_contain_id_field(self):
         """序列化输出不含 id 字段"""
         resp = KnowledgeBaseResponse(
             uuid=VALID_UUID, name="测试KB", description=None,
-            user_id=1, visibility="private", status="active",
+            owner="550e8400-e29b-41d4-a716-446655440001",
+            visibility="private", status="active",
             doc_count=0, chunk_count=0, created_at=NOW,
         )
         data = resp.model_dump()
         assert "id" not in data
+        assert "user_id" not in data
 
 
 # ==================== DocumentResponse ====================
@@ -127,7 +131,7 @@ class TestConversationResponseSchema:
     def test_contains_uuid_field(self):
         """序列化输出含 uuid"""
         resp = ConversationResponse(
-            uuid=VALID_UUID, user_id=1, title="新对话",
+            uuid=VALID_UUID, owner_user_id="550e8400-e29b-41d4-a716-446655440001", title="新对话",
             message_count=0, created_at=NOW, updated_at=NOW,
         )
         data = resp.model_dump()
@@ -136,7 +140,7 @@ class TestConversationResponseSchema:
     def test_does_not_contain_id_field(self):
         """序列化输出不含 id"""
         resp = ConversationResponse(
-            uuid=VALID_UUID, user_id=1, title="新对话",
+            uuid=VALID_UUID, owner_user_id="550e8400-e29b-41d4-a716-446655440001", title="新对话",
             message_count=0, created_at=NOW, updated_at=NOW,
         )
         data = resp.model_dump()
@@ -145,7 +149,7 @@ class TestConversationResponseSchema:
     def test_contains_kb_uuid(self):
         """含 kb_uuid 字段"""
         resp = ConversationResponse(
-            uuid=VALID_UUID, user_id=1, kb_uuid=VALID_UUID_2,
+            uuid=VALID_UUID, owner_user_id="550e8400-e29b-41d4-a716-446655440001", kb_uuid=VALID_UUID_2,
             title="新对话", message_count=0, created_at=NOW, updated_at=NOW,
         )
         data = resp.model_dump()
@@ -154,7 +158,7 @@ class TestConversationResponseSchema:
     def test_contains_original_kb_uuid(self):
         """含 original_kb_uuid 字段（孤儿会话审计）"""
         resp = ConversationResponse(
-            uuid=VALID_UUID, user_id=1,
+            uuid=VALID_UUID, owner_user_id="550e8400-e29b-41d4-a716-446655440001",
             kb_uuid=None, kb_status="deleted", kb_name="已删除知识库",
             original_kb_uuid=VALID_UUID_2, original_kb_name="旧KB",
             title="孤儿会话", message_count=2, created_at=NOW, updated_at=NOW,
@@ -226,7 +230,7 @@ class TestTraceResponseSchema:
     def test_trace_list_item_no_id_field(self):
         """TraceListItem 不含自增 id 字段"""
         item = TraceListItem(
-            trace_id="abc-123", user_id=1, username="testuser",
+            trace_id="abc-123", owner_user_id="550e8400-e29b-41d4-a716-446655440001", username="testuser",
             question="测试", status="success", created_at=NOW,
         )
         data = item.model_dump()
@@ -236,7 +240,7 @@ class TestTraceResponseSchema:
     def test_trace_detail_no_id_field(self):
         """TraceDetailResponse 不含自增 id 字段"""
         detail = TraceDetailResponse(
-            trace_id="abc-123", user_id=1, username="testuser",
+            trace_id="abc-123", owner_user_id="550e8400-e29b-41d4-a716-446655440001", username="testuser",
             question="测试", status="success", created_at=NOW,
         )
         data = detail.model_dump()
@@ -246,7 +250,7 @@ class TestTraceResponseSchema:
     def test_trace_detail_has_conversation_uuid(self):
         """TraceDetailResponse 含 conversation_uuid"""
         detail = TraceDetailResponse(
-            trace_id="abc-123", user_id=1, username="testuser",
+            trace_id="abc-123", owner_user_id="550e8400-e29b-41d4-a716-446655440001", username="testuser",
             conversation_uuid=VALID_UUID,
             question="测试", status="success", created_at=NOW,
         )

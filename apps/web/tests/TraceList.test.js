@@ -1,6 +1,7 @@
 /** TraceList 组件测试（C9.1-C9.7） */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { computed, provide, inject } from 'vue'
 
 const { mockGetTraceList, mockRouterPush, mockMessageSuccess, mockMessageError } = vi.hoisted(() => ({
   mockGetTraceList: vi.fn(),
@@ -30,7 +31,7 @@ import TraceList from '@/views/admin/TraceList.vue'
 const MOCK_TRACES = [
   {
     trace_id: 'abc12345-6789-abcd-ef01-234567890abc',
-    user_id: 10, username: 'alice',
+    owner_user_id: '550e8400-e29b-41d4-a716-446655440001', username: 'alice',
     kb_id: 'kb111111-1111-1111-1111-111111111111', kb_name: 'HR知识库',
     question: '报销流程是什么样的？需要提交哪些材料？',
     status: 'success', intent_type: 'KNOWLEDGE', response_mode: 'RAG',
@@ -38,7 +39,7 @@ const MOCK_TRACES = [
   },
   {
     trace_id: 'def98765-4321-fedc-ba09-876543210fed',
-    user_id: 20, username: 'bob',
+    owner_user_id: '550e8400-e29b-41d4-a716-446655440002', username: 'bob',
     kb_id: 'kb222222-2222-2222-2222-222222222222', kb_name: 'IT知识库',
     question: '你好',
     status: 'success', intent_type: 'CASUAL', response_mode: 'CASUAL',
@@ -46,7 +47,7 @@ const MOCK_TRACES = [
   },
   {
     trace_id: 'ghi55555-1111-2222-3333-444444444444',
-    user_id: 10, username: 'alice',
+    owner_user_id: '550e8400-e29b-41d4-a716-446655440001', username: 'alice',
     kb_id: 'kb111111-1111-1111-1111-111111111111', kb_name: 'HR知识库',
     question: 'VPN配置方法',
     status: 'error', intent_type: 'KNOWLEDGE', response_mode: 'RAG',
@@ -367,6 +368,53 @@ describe('TraceList', () => {
 
       wrapper.vm.goToDetail(MOCK_TRACES[0])
       expect(mockRouterPush).toHaveBeenCalledWith('/admin/traces/abc12345-6789-abcd-ef01-234567890abc')
+    })
+  })
+
+  // C9.6.1 — 用户列字段对齐 owner_user_id（B 类：不引用内部 users.id）
+  describe('C9.6.1 TraceList 用户跳转字段对齐', () => {
+    it('点击用户链接跳转使用 owner_user_id（Platform User UUID）', async () => {
+      mockSuccessResponse()
+      // 局部 stub：provide/inject 打通 el-table → el-table-column 的行数据（默认 stub 不渲染行内容）
+      const TableRowsKey = Symbol('tableRows')
+      const wrapper = mount(TraceList, {
+        global: {
+          stubs: {
+            'el-input': { template: '<input class="el-input-stub" />', props: ['modelValue', 'placeholder', 'size', 'clearable', 'style'], emits: ['input', 'clear', 'update:modelValue'] },
+            'el-select': { template: '<select class="el-select-stub"><slot /></select>', props: ['modelValue', 'placeholder', 'clearable', 'size', 'style'], emits: ['change', 'update:modelValue'] },
+            'el-option': { template: '<option class="el-option-stub"><slot /></option>', props: ['label', 'value'] },
+            'el-date-picker': { template: '<div class="el-date-picker-stub" />', props: ['modelValue', 'type', 'rangeSeparator', 'startPlaceholder', 'endPlaceholder', 'size', 'style', 'clearable'], emits: ['change', 'update:modelValue'] },
+            'el-table': {
+              template: '<div class="el-table-stub"><slot /></div>',
+              props: ['data'],
+              setup(props) {
+                provide(TableRowsKey, computed(() => props.data || []))
+              },
+            },
+            'el-table-column': {
+              template: '<div class="el-table-col-stub"><slot v-for="row in rows" :row="row" /></div>',
+              props: ['prop', 'label', 'width', 'minWidth', 'align', 'fixed'],
+              setup() {
+                const rows = inject(TableRowsKey)
+                return { rows }
+              },
+            },
+            'el-pagination': { template: '<div class="el-pagination-stub" />', props: ['currentPage', 'pageSize', 'total', 'layout'], emits: ['update:currentPage', 'currentChange'] },
+          },
+          directives: { loading: vi.fn() },
+        },
+      })
+      await flushPromises()
+
+      const link = wrapper.find('.user-link')
+      expect(link.exists()).toBe(true)
+      await link.trigger('click')
+      expect(mockRouterPush).toHaveBeenCalledWith('/admin/users/550e8400-e29b-41d4-a716-446655440001')
+    })
+
+    it('Trace 列表响应不含 user_id（内部 users.id 不进入外部响应）', () => {
+      expect(MOCK_TRACES[0]).not.toHaveProperty('user_id')
+      expect(MOCK_TRACES[0]).toHaveProperty('owner_user_id')
     })
   })
 

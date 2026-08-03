@@ -42,7 +42,7 @@ class AdminKBItem(BaseModel):
     name: str
     description: str | None = None
     visibility: str = Field(description="private / public")
-    user_id: int = Field(description="owner 用户 ID")
+    owner_user_id: str = Field(description="owner 用户 Platform User UUID（非内部 users.id）")
     username: str = Field(description="owner 用户名")
     status: str = Field(description="active / deleting")
     doc_count: int = 0
@@ -71,7 +71,7 @@ class AdminDocItem(BaseModel):
     kb_uuid: str
     kb_name: str = Field(description="所属知识库名称")
     kb_visibility: str = Field(description="所属知识库可见性")
-    owner_id: int = Field(description="知识库 owner 用户 ID")
+    owner_id: str = Field(description="知识库 owner 用户 Platform User UUID（非内部 users.id）")
     owner_username: str = Field(description="知识库 owner 用户名")
     filename: str
     file_type: str
@@ -102,8 +102,9 @@ class AdminUserItem(BaseModel):
     """GET /api/admin/users 响应中的单条用户
 
     对齐 API.md §7.7：用户列表项，含关联统计
+    id 为 Platform User UUID（对齐 IDENTITY_AND_ACCESS.md §2，非内部 users.id）。
     """
-    id: int
+    id: str
     username: str
     role: str = Field(description="user / admin")
     status: str = Field(description="active / disabled")
@@ -129,8 +130,9 @@ class AdminUserDetailResponse(BaseModel):
     """GET /api/admin/users/{user_id} 响应
 
     对齐 API.md §7.7：用户详情（含统计 + Token 聚合）
+    id 为 Platform User UUID（非内部 users.id）。
     """
-    id: int
+    id: str
     username: str
     role: str
     status: str
@@ -150,15 +152,15 @@ class AdminUserStatusRequest(BaseModel):
 
 
 class AdminUserStatusResponse(BaseModel):
-    """PUT /api/admin/users/{user_id}/status 响应"""
-    id: int
+    """PUT /api/admin/users/{user_id}/status 响应（id 为 Platform User UUID）"""
+    id: str
     username: str
     status: str
 
 
 class AdminUserResetPasswordResponse(BaseModel):
-    """POST /api/admin/users/{user_id}/reset-password 响应"""
-    id: int
+    """POST /api/admin/users/{user_id}/reset-password 响应（id 为 Platform User UUID）"""
+    id: str
     username: str
 
 

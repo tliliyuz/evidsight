@@ -112,3 +112,18 @@ async def get_by_uuid(
         exc_cls = _get_not_found_exception(model_class)
         raise exc_cls(uuid_str)
     return instance
+
+
+async def resolve_user_uuid(db: AsyncSession, user_id: int) -> str:
+    """将内部 users.id 解析为 Platform User UUID（B 类外部用户引用的反解）。
+
+    对齐 IDENTITY_AND_ACCESS.md §2：外部 User DTO/引用的 id 一律为 Platform User UUID，
+    内部 users.id 不得进入外部响应。用于响应序列化时把 KB/会话/Trace 的 owner
+    user_id（int）转换为 Platform UUID。
+    """
+    from app.models.user import User
+
+    result = await db.execute(
+        select(User.platform_user_id).where(User.id == user_id)
+    )
+    return result.scalar_one_or_none()

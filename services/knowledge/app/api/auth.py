@@ -27,6 +27,7 @@ from app.services.auth_service import (
     logout,
     refresh,
     register,
+    register_v1,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -40,6 +41,15 @@ async def me(
 ):
     """返回当前用户外部身份摘要（对齐 API.md §5 GET /api/v1/auth/me）。"""
     return await get_current_user_profile(db, user["platform_user_id"])
+
+
+@v1_router.post("/register", status_code=201, response_model=UserSummary)
+async def register_user_v1(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    """注册新用户（对齐 IA-017，返回 UserSummary，id 为 Platform User UUID）。
+
+    旧 POST /api/auth/register 保留为迁移期兼容入口（返回 id=int 的 UserResponse）。
+    """
+    return await register_v1(db, req.username, req.password)
 
 
 @router.post("/register", status_code=201, response_model=dict)

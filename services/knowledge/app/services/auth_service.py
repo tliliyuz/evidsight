@@ -47,8 +47,8 @@ def _platform_user_id(user: User) -> str:
     return user.platform_user_id
 
 
-async def register(db: AsyncSession, username: str, password: str) -> UserResponse:
-    """注册新用户，用户名重复时抛出 UsernameExistsException"""
+async def _create_user(db: AsyncSession, username: str, password: str) -> User:
+    """创建新用户并刷新，返回 ORM 实例。用户名重复时抛出 UsernameExistsException。"""
     result = await db.execute(select(User).where(User.username == username))
     if result.scalar_one_or_none() is not None:
         raise UsernameExistsException(username)
@@ -60,7 +60,27 @@ async def register(db: AsyncSession, username: str, password: str) -> UserRespon
     db.add(user)
     await db.flush()
     await db.refresh(user)
+    return user
+
+
+async def register(db: AsyncSession, username: str, password: str) -> UserResponse:
+    """注册新用户（旧 /api/auth/register 兼容入口），返回旧 UserResponse（id 为内部 users.id）。"""
+    user = await _create_user(db, username, password)
     return UserResponse.model_validate(user)
+
+
+async def register_v1(db: AsyncSession, username: str, password: str) -> UserSummary:
+    """注册新用户（对齐 IA-017），返回 UserSummary，id 为 Platform User UUID。
+
+    不含 Knowledge 内部 users.id；与 /api/v1/auth/me 的 UserSummary 形状一致。
+    """
+    user = await _create_user(db, username, password)
+    return UserSummary(
+        id=uuid.UUID(_platform_user_id(user)),
+        username=user.username,
+        role=user.role,
+        status=user.status,
+    )
 
 
 async def get_current_user_profile(

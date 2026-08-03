@@ -154,9 +154,9 @@
         <template #default="{ row }">
           <span
             class="user-link"
-            @click.stop="goToUser(row.user_id)"
+            @click.stop="goToUser(row.owner_user_id)"
           >
-            {{ row.username || `用户#${row.user_id}` }}
+            {{ row.username || `用户#${row.owner_user_id}` }}
           </span>
         </template>
       </el-table-column>

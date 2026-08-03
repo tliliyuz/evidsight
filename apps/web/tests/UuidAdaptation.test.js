@@ -97,7 +97,7 @@ vi.mock('element-plus', async () => {
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
-    user: { id: 1, username: 'testuser', role: 'user' },
+    user: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'testuser', role: 'user' },
     isAdmin: false,
     isLoggedIn: true,
   }),
@@ -110,7 +110,7 @@ vi.mock('@/stores/knowledge', () => ({
       uuid: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       name: '测试知识库',
       description: '测试描述',
-      user_id: 1,
+      owner: '550e8400-e29b-41d4-a716-446655440001',
       doc_count: 5,
       chunk_count: 100,
       visibility: 'private',
@@ -544,7 +544,7 @@ describe('P5-C10.7: Admin Trace 列表 — 无自增 id', () => {
   const mockTraces = [
     {
       trace_id: 'abc12345-6789-abcd-ef01-234567890abc',
-      user_id: 10, username: 'alice',
+      owner_user_id: '550e8400-e29b-41d4-a716-446655440001', username: 'alice',
       kb_name: 'HR知识库',
       question: '报销流程是什么样的？',
       status: 'success', intent_type: 'KNOWLEDGE', response_mode: 'RAG',
@@ -620,7 +620,7 @@ describe('P5-C10.7: Admin Trace 列表 — 无自增 id', () => {
 describe('P5-C10.8: Admin Trace 详情 — 无自增 id', () => {
   const mockTraceDetail = {
     trace_id: 'abc12345-6789-abcd-ef01-234567890abc',
-    user_id: 10,
+    owner_user_id: '550e8400-e29b-41d4-a716-446655440001',
     username: 'alice',
     conversation_uuid: 'conv-uuid-42',
     conversation_title: '报销流程咨询',

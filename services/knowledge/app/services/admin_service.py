@@ -12,6 +12,7 @@ from app.config import settings
 from app.core.exceptions import AdminSelfModifyException, PasswordSameAsCurrentException, UserNotFoundException
 from app.core.security import hash_password, verify_password
 from app.core.utils import escape_like
+from app.core.uuid_helpers import validate_uuid_format
 from app.models.conversation import Conversation
 from app.models.document import Document
 from app.models.knowledge_base import KnowledgeBase
@@ -156,8 +157,8 @@ async def list_all_kbs(
 
     对齐 API.md §7.2：含 owner 信息和统计，支持筛选。
     """
-    # 构建基础查询：JOIN users 获取 username
-    base_q = select(KnowledgeBase, User.username).join(
+    # 构建基础查询：JOIN users 获取 username + Platform User UUID（B 类 owner 引用）
+    base_q = select(KnowledgeBase, User.username, User.platform_user_id).join(
         User, KnowledgeBase.user_id == User.id
     )
 
@@ -189,13 +190,13 @@ async def list_all_kbs(
     rows = (await db.execute(q)).all()
 
     items = []
-    for kb, username in rows:
+    for kb, username, platform_user_id in rows:
         items.append(AdminKBItem(
             uuid=kb.uuid,
             name=kb.name,
             description=kb.description,
             visibility=kb.visibility,
-            user_id=kb.user_id,
+            owner_user_id=platform_user_id,
             username=username,
             status=kb.status,
             doc_count=kb.doc_count,
@@ -230,7 +231,7 @@ async def list_all_documents(
             KnowledgeBase.name.label("kb_name"),
             KnowledgeBase.uuid.label("kb_uuid"),
             KnowledgeBase.visibility.label("kb_visibility"),
-            KnowledgeBase.user_id.label("owner_id"),
+            User.platform_user_id.label("owner_id"),
             User.username.label("owner_username"),
         )
         .join(KnowledgeBase, Document.kb_id == KnowledgeBase.id)
@@ -301,6 +302,23 @@ async def list_all_documents(
 # ==================== 用户管理 — 对齐 API.md §7.7 ====================
 
 
+async def resolve_user_id(db: AsyncSession, platform_user_id: str) -> int:
+    """将 Platform User UUID 解析为内部 users.id。
+
+    对齐 IDENTITY_AND_ACCESS.md §2：外部 User DTO 的 id 一律为 Platform User UUID，
+    API 边界据此解析为内部 users.id 供 service 聚合使用。无效或不存在抛 UserNotFoundException。
+    """
+    if not validate_uuid_format(platform_user_id):
+        raise UserNotFoundException(platform_user_id)
+    result = await db.execute(
+        select(User.id).where(User.platform_user_id == platform_user_id)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise UserNotFoundException(platform_user_id)
+    return row
+
+
 async def list_users(
     db: AsyncSession,
     page: int = 1,
@@ -357,7 +375,7 @@ async def list_users(
         )).scalar()
 
         items.append(AdminUserItem(
-            id=user.id,
+            id=user.platform_user_id,
             username=user.username,
             role=user.role,
             status=user.status,
@@ -406,7 +424,7 @@ async def get_user_detail(
     last_active_at = token_stats[2]
 
     return AdminUserDetailResponse(
-        id=user.id,
+        id=user.platform_user_id,
         username=user.username,
         role=user.role,
         status=user.status,
@@ -440,7 +458,7 @@ async def change_user_status(
     if user is None:
         raise UserNotFoundException(user_id)
     if user.status == new_status:
-        return AdminUserStatusResponse(id=user.id, username=user.username, status=user.status)
+        return AdminUserStatusResponse(id=user.platform_user_id, username=user.username, status=user.status)
 
     user.status = new_status
     await db.flush()
@@ -451,7 +469,7 @@ async def change_user_status(
         await revoke_all_user_tokens(db, user_id)
 
     logger.info("用户状态变更: user_id=%d, new_status=%s", user_id, new_status)
-    return AdminUserStatusResponse(id=user.id, username=user.username, status=user.status)
+    return AdminUserStatusResponse(id=user.platform_user_id, username=user.username, status=user.status)
 
 
 async def reset_user_password(
@@ -479,4 +497,4 @@ async def reset_user_password(
     await revoke_all_user_tokens(db, user_id)
 
     logger.info("管理员重置用户密码: user_id=%d", user_id)
-    return AdminUserResetPasswordResponse(id=user.id, username=user.username)
+    return AdminUserResetPasswordResponse(id=user.platform_user_id, username=user.username)

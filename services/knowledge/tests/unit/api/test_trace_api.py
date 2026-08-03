@@ -59,7 +59,7 @@ def _make_trace_list_item(
     """构造 TraceListItem"""
     return TraceListItem(
         trace_id=trace_id,
-        user_id=user_id,
+        owner_user_id=f"550e8400-e29b-41d4-a716-4466554400{user_id:02d}",
         username=username,
         conversation_uuid=conversation_uuid,
         kb_uuid=kb_uuid,
@@ -103,7 +103,7 @@ def _make_trace_detail(
     """构造 TraceDetailResponse"""
     return TraceDetailResponse(
         trace_id=trace_id,
-        user_id=1,
+        owner_user_id="550e8400-e29b-41d4-a716-446655440001",
         username="testuser",
         conversation_uuid="100000-0000-0000-0000-000000000100",
         conversation_title="报销流程咨询",

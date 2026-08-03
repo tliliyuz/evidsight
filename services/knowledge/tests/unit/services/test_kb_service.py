@@ -214,6 +214,10 @@ class TestCreateKB:
     async def test_创建成功(self, mock_db):
         """正常创建知识库，返回 KnowledgeBaseResponse（UUID 由 Python 端生成）"""
         mock_db.flush = AsyncMock()
+        # B 类：owner 解析为 Platform User UUID（resolve_user_uuid 的 scalar_one_or_none 查询）
+        mock_db.execute = AsyncMock(
+            return_value=_make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),
+        )
 
         result = await create_kb(
             mock_db,
@@ -224,7 +228,7 @@ class TestCreateKB:
         assert result.name == "新知识库"
         assert result.description == "描述"
         assert result.visibility == "private"
-        assert result.user_id == 1
+        assert result.owner == "550e8400-e29b-41d4-a716-446655440001"
         # UUID 由 Python 端 uuid4() 生成，应为 36 字符标准格式
         assert len(result.uuid) == 36
         assert result.uuid.count("-") == 4
@@ -251,6 +255,9 @@ class TestCreateKB:
     async def test_默认可见性为private(self, mock_db):
         """不传 visibility 时自动使用 private"""
         mock_db.flush = AsyncMock()
+        mock_db.execute = AsyncMock(
+            return_value=_make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),
+        )
 
         result = await create_kb(
             mock_db,
@@ -372,11 +379,13 @@ class TestListKBs:
         # 2: SELECT ... LIMIT OFFSET → rows
         # 3: _get_real_chunk_counts → 实时分块数
         # 4: _get_real_doc_counts → 实时文档数
+        # 5: resolve_user_uuid → owner Platform User UUID
         mock_db.execute.side_effect = [
             _make_scalar_result(2),
             _make_scalars_all_result([kb1, kb2]),
             _make_all_result([_make_chunk_count_row(1, 15), _make_chunk_count_row(2, 30)]),
             _make_all_result([_make_doc_count_row(1, 5), _make_doc_count_row(2, 3)]),
+            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),
         ]
 
         result = await list_kbs(mock_db, user_id=1)
@@ -387,7 +396,8 @@ class TestListKBs:
         assert result.items[0].doc_count == 5     # 实时值，非 999
         assert result.items[1].chunk_count == 30
         assert result.items[1].doc_count == 3
-        assert mock_db.execute.call_count == 4
+        assert result.items[0].owner == "550e8400-e29b-41d4-a716-446655440001"
+        assert mock_db.execute.call_count == 5
 
     @pytest.mark.asyncio
     async def test_空列表(self, mock_db):
@@ -433,11 +443,12 @@ class TestListPublicKBs:
         """list_public_kbs 返回的每个 KB 含 username + 实时 chunk_count + 实时 doc_count"""
         kb = _make_kb(kb_id=2, user_id=3, visibility="public", chunk_count=0, doc_count=0)
         username = "zhangsan"
+        platform_user_id = "550e8400-e29b-41d4-a716-446655440003"
 
         mock_db.execute = AsyncMock()
         mock_db.execute.side_effect = [
             _make_scalar_result(1),
-            _make_all_result([(kb, username)]),
+            _make_all_result([(kb, username, platform_user_id)]),
             _make_all_result([_make_chunk_count_row(2, 25)]),
             _make_all_result([_make_doc_count_row(2, 8)]),
         ]
@@ -448,6 +459,7 @@ class TestListPublicKBs:
         assert len(result.items) == 1
         item = result.items[0]
         assert item.uuid == "kb-uuid-2"
+        assert item.owner == "550e8400-e29b-41d4-a716-446655440003"
         assert item.username == "zhangsan"
         assert item.chunk_count == 25  # 实时值
         assert item.doc_count == 8    # 实时值
@@ -492,11 +504,13 @@ class TestUpdateKB:
         kb = _make_kb(kb_id=1, name="旧名称", chunk_count=0, doc_count=0)
         mock_db.execute = AsyncMock()
         # get_kb: 查 KB + 查实时 chunk_count + 查实时 doc_count
+        # update_kb: resolve_user_uuid → owner Platform User UUID
         # update_kb 末尾: 再查一次实时 chunk_count + 实时 doc_count
         mock_db.execute.side_effect = [
             _make_scalar_one_or_none_result(kb),             # get_kb: 查 KB
             _make_all_result([_make_chunk_count_row(1, 88)]),       # get_kb: 实时分块
             _make_all_result([_make_doc_count_row(1, 5)]),          # get_kb: 实时文档
+            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),  # owner 解析
             _make_all_result([_make_chunk_count_row(1, 88)]),       # update_kb 末尾: chunk 修正
             _make_all_result([_make_doc_count_row(1, 5)]),          # update_kb 末尾: doc 修正
         ]
@@ -508,11 +522,12 @@ class TestUpdateKB:
         )
 
         assert result.name == "新名称"
+        assert result.owner == "550e8400-e29b-41d4-a716-446655440001"
         assert result.chunk_count == 88  # 实时值，非 DB 缓存值
         assert result.doc_count == 5     # 实时值，非 DB 缓存值
         mock_db.flush.assert_called_once()
         mock_db.refresh.assert_called_once()
-        assert mock_db.execute.call_count == 5
+        assert mock_db.execute.call_count == 6
 
     @pytest.mark.asyncio
     async def test_更新描述(self, mock_db):
@@ -523,6 +538,7 @@ class TestUpdateKB:
             _make_scalar_one_or_none_result(kb),
             _make_all_result([]),   # get_kb: 实时分块（fallback）
             _make_all_result([]),   # get_kb: 实时文档（fallback）
+            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),  # owner 解析
             _make_all_result([]),   # update_kb 末尾: chunk
             _make_all_result([]),   # update_kb 末尾: doc
         ]
@@ -544,6 +560,7 @@ class TestUpdateKB:
             _make_scalar_one_or_none_result(kb),
             _make_all_result([]),
             _make_all_result([]),
+            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),  # owner 解析
             _make_all_result([]),
             _make_all_result([]),
         ]
@@ -577,6 +594,7 @@ class TestUpdateKB:
             _make_scalar_one_or_none_result(kb),
             _make_all_result([_make_chunk_count_row(1, 5)]),
             _make_all_result([_make_doc_count_row(1, 3)]),
+            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440099"),  # owner 解析
             _make_all_result([_make_chunk_count_row(1, 5)]),
             _make_all_result([_make_doc_count_row(1, 3)]),
         ]
@@ -626,6 +644,8 @@ class TestUpdateKB:
             _make_all_result([_make_chunk_count_row(1, 120)]),
             # get_kb: _get_real_doc_counts → 实际 5
             _make_all_result([_make_doc_count_row(1, 5)]),
+            # update_kb: resolve_user_uuid → owner Platform User UUID
+            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),
             # update_kb 末尾: chunk 再次查询 → 仍为 120
             _make_all_result([_make_chunk_count_row(1, 120)]),
             # update_kb 末尾: doc 再次查询 → 仍为 5
@@ -658,8 +678,8 @@ class TestUpdateKB:
         )
         # 验证确实调用了 refresh
         mock_db.refresh.assert_called_once()
-        assert mock_db.execute.call_count == 5, (
-            f"预期 5 次 execute 调用，实际 {mock_db.execute.call_count} 次"
+        assert mock_db.execute.call_count == 6, (
+            f"预期 6 次 execute 调用，实际 {mock_db.execute.call_count} 次"
         )
 
     @pytest.mark.asyncio
@@ -671,6 +691,7 @@ class TestUpdateKB:
             _make_scalar_one_or_none_result(kb),
             _make_all_result([]),
             _make_all_result([]),
+            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),  # owner 解析
             _make_all_result([]),
             _make_all_result([]),
         ]

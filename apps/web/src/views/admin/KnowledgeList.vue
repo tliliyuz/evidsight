@@ -78,7 +78,7 @@
       </el-table-column>
       <el-table-column prop="username" label="所有者" width="120" align="center">
         <template #default="{ row }">
-          <span class="owner-name">{{ row.username || `用户 #${row.user_id}` }}</span>
+          <span class="owner-name">{{ row.username || `用户 #${row.owner_user_id}` }}</span>
         </template>
       </el-table-column>
       <el-table-column prop="visibility" label="可见性" width="100" align="center">

@@ -25,6 +25,7 @@ from app.services.admin_service import (
     list_all_kbs,
     list_users,
     reset_user_password,
+    resolve_user_id,
 )
 from app.services.trace_service import (
     get_trace_detail,
@@ -200,32 +201,35 @@ async def list_admin_users(
 
 @router.get("/users/{user_id}")
 async def get_admin_user_detail(
-    user_id: int,
+    user_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_admin),
 ):
     """获取用户详情（含统计）
 
-    对齐 API.md §7.7 GET /api/admin/users/{user_id}。
+    对齐 API.md §7.7 GET /api/admin/users/{user_id}：路径参数为 Platform User UUID。
+    无效或不存在由 resolve_user_id 统一抛 UserNotFoundException（E7002）。
     """
-    data = await get_user_detail(db, user_id=user_id)
+    resolved = await resolve_user_id(db, user_id)
+    data = await get_user_detail(db, user_id=resolved)
     return {"code": "0", "message": "ok", "data": data.model_dump()}
 
 
 @router.put("/users/{user_id}/status")
 async def update_admin_user_status(
-    user_id: int,
+    user_id: str,
     body: AdminUserStatusRequest,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_admin),
 ):
     """禁用/启用用户
 
-    对齐 API.md §7.7 PUT /api/admin/users/{user_id}/status。
+    对齐 API.md §7.7 PUT /api/admin/users/{user_id}/status：路径参数为 Platform User UUID。
     """
+    resolved = await resolve_user_id(db, user_id)
     data = await change_user_status(
         db,
-        user_id=user_id,
+        user_id=resolved,
         new_status=body.status,
         current_user_id=current_user.get("user_id"),
     )
@@ -235,16 +239,17 @@ async def update_admin_user_status(
 
 @router.post("/users/{user_id}/reset-password")
 async def reset_admin_user_password(
-    user_id: int,
+    user_id: str,
     body: AdminUserResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_admin),
 ):
     """重置用户密码
 
-    对齐 API.md §7.7 POST /api/admin/users/{user_id}/reset-password。
+    对齐 API.md §7.7 POST /api/admin/users/{user_id}/reset-password：路径参数为 Platform User UUID。
     """
+    resolved = await resolve_user_id(db, user_id)
     data = await reset_user_password(
-        db, user_id=user_id, new_password=body.new_password
+        db, user_id=resolved, new_password=body.new_password
     )
     return {"code": "0", "message": "密码重置成功", "data": data.model_dump()}

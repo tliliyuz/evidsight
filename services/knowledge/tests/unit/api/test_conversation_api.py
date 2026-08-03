@@ -31,12 +31,17 @@ VALID_KB_UUID = "550e8400-e29b-41d4-a716-446655440000"
 NOW = datetime.now(timezone.utc)
 
 
+def _platform_uuid(i: int) -> str:
+    """内部 users.id i → Platform User UUID 字符串（对齐 conftest 尾号推导约定）。"""
+    return f"550e8400-e29b-41d4-a716-4466554400{i:02d}"
+
+
 def _make_conv_response(conv_uuid=VALID_CONV_UUID, user_id=1, kb_uuid=VALID_KB_UUID,
                         title="新对话", message_count=0, kb_status="active",
                         kb_name="测试知识库", last_message_at=None,
                         original_kb_uuid=None, original_kb_name=None):
     return ConversationResponse(
-        uuid=conv_uuid, user_id=user_id, kb_uuid=kb_uuid, title=title,
+        uuid=conv_uuid, owner_user_id=_platform_uuid(user_id), kb_uuid=kb_uuid, title=title,
         message_count=message_count,
         created_at=NOW, updated_at=NOW,
         kb_status=kb_status, kb_name=kb_name,
@@ -56,7 +61,7 @@ def _make_conv_detail(conv_uuid=VALID_CONV_UUID, user_id=1, kb_uuid=VALID_KB_UUI
                             thinking_content=None, created_at=NOW),
         ]
     return ConversationDetailResponse(
-        uuid=conv_uuid, user_id=user_id, kb_uuid=kb_uuid, title=title,
+        uuid=conv_uuid, owner_user_id=_platform_uuid(user_id), kb_uuid=kb_uuid, title=title,
         message_count=message_count,
         created_at=NOW, updated_at=NOW,
         kb_status=kb_status, kb_name=kb_name,

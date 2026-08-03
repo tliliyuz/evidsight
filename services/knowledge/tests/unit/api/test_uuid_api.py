@@ -45,10 +45,22 @@ NOW = datetime.now(timezone.utc)
 # ==================== 辅助函数 ====================
 
 
-def _make_kb_response(uuid=VALID_KB_UUID, name="测试KB", user_id=1,
+def _make_kb_response(uuid=VALID_KB_UUID, name="测试KB", owner="550e8400-e29b-41d4-a716-446655440001",
                       visibility="private", status="active"):
     return KnowledgeBaseResponse(
-        uuid=uuid, name=name, description=None, user_id=user_id,
+        uuid=uuid, name=name, description=None, owner=owner,
+        visibility=visibility, status=status, doc_count=0, chunk_count=0,
+        created_at=NOW, updated_at=NOW,
+    )
+
+
+def _make_kb_orm(uuid=VALID_KB_UUID, name="测试KB", user_id=1,
+                 visibility="private", status="active"):
+    """构造真实 KnowledgeBase ORM 实例（详情路由读 kb.user_id，需 ORM 对象而非 DTO）"""
+    from app.models.knowledge_base import KnowledgeBase
+
+    return KnowledgeBase(
+        id=1, uuid=uuid, name=name, description=None, user_id=user_id,
         visibility=visibility, status=status, doc_count=0, chunk_count=0,
         created_at=NOW, updated_at=NOW,
     )
@@ -63,7 +75,8 @@ def _make_doc_response(uuid=VALID_DOC_UUID, kb_uuid=VALID_KB_UUID, filename="tes
 
 def _make_conv_response(uuid=VALID_CONV_UUID, user_id=1, kb_uuid=VALID_KB_UUID, title="新对话"):
     return ConversationResponse(
-        uuid=uuid, user_id=user_id, kb_uuid=kb_uuid,
+        uuid=uuid, owner_user_id=f"550e8400-e29b-41d4-a716-4466554400{user_id:02d}",
+        kb_uuid=kb_uuid,
         title=title, message_count=0,
         created_at=NOW, updated_at=NOW, last_message_at=NOW,
     )
@@ -85,9 +98,11 @@ class TestKBUuidAPI:
     async def test_get_kb_by_uuid(self, async_client, auth_headers):
         """A10.1: GET /{uuid} 有效 uuid → 200 + 响应含 uuid 不含 id"""
         with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get:
+             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get, \
+             patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner:
             mock_resolve.return_value = 1
-            mock_get.return_value = _make_kb_response()
+            mock_get.return_value = _make_kb_orm()
+            mock_owner.return_value = "550e8400-e29b-41d4-a716-446655440001"
 
             response = await async_client.get(
                 f"/api/knowledge-bases/{VALID_KB_UUID}",
@@ -181,9 +196,11 @@ class TestKBUuidAPI:
     async def test_admin_can_access_any_kb(self, async_client, admin_auth_headers):
         """A10.21: GET /{uuid} admin 访问他人 KB → 200"""
         with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get:
+             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get, \
+             patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner:
             mock_resolve.return_value = 1
-            mock_get.return_value = _make_kb_response(user_id=999, visibility="private")
+            mock_get.return_value = _make_kb_orm(user_id=999, visibility="private")
+            mock_owner.return_value = "550e8400-e29b-41d4-a716-446655440099"
 
             response = await async_client.get(
                 f"/api/knowledge-bases/{VALID_KB_UUID}",
@@ -506,8 +523,8 @@ class TestTraceUUIDClean:
     async def test_trace_list_no_auto_id(self, async_client, admin_auth_headers):
         """A10.18: GET /admin/traces → 响应不含自增 id"""
         mock_trace = TraceListItem(
-            trace_id="trace-abc-123", user_id=1, username="testuser",
-            question="测试问题", status="success", created_at=NOW,
+            trace_id="trace-abc-123", owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            username="testuser", question="测试问题", status="success", created_at=NOW,
         )
         mock_data = TraceListResponse(total=1, page=1, page_size=20, items=[mock_trace])
 
@@ -529,8 +546,8 @@ class TestTraceUUIDClean:
     async def test_trace_detail_no_auto_id(self, async_client, admin_auth_headers):
         """A10.19: GET /admin/traces/{trace_id} → 响应不含自增 id"""
         mock_detail = TraceDetailResponse(
-            trace_id="trace-abc-123", user_id=1, username="testuser",
-            question="测试问题", status="success", created_at=NOW,
+            trace_id="trace-abc-123", owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            username="testuser", question="测试问题", status="success", created_at=NOW,
         )
 
         with patch("app.api.admin.get_trace_detail", new_callable=AsyncMock) as mock:

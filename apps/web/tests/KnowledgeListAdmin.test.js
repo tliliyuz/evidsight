@@ -1,6 +1,7 @@
 /** KnowledgeListAdmin 组件测试（管理后台知识库管理页） */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { computed, provide, inject } from 'vue'
 
 const {
   mockGetAdminKBs, mockUpdateKB, mockDeleteKB,
@@ -37,19 +38,19 @@ import KnowledgeListAdmin from '@/views/admin/KnowledgeList.vue'
 const MOCK_ITEMS = [
   {
     uuid: 'kb-admin-1', name: '测试知识库A', description: '描述A',
-    user_id: 10, username: 'alice', visibility: 'public',
+    owner_user_id: '550e8400-e29b-41d4-a716-446655440001', username: 'alice', visibility: 'public',
     doc_count: 5, chunk_count: 200, status: 'active',
     created_at: '2026-06-01T08:00:00+00:00',
   },
   {
     uuid: 'kb-admin-2', name: '测试知识库B', description: '',
-    user_id: 20, username: null, visibility: 'private',
+    owner_user_id: '550e8400-e29b-41d4-a716-446655440002', username: null, visibility: 'private',
     doc_count: 0, chunk_count: 0, status: 'active',
     created_at: '2026-06-02T12:30:00+00:00',
   },
   {
     uuid: 'kb-admin-3', name: '删除中的知识库', description: null,
-    user_id: 30, username: 'bob', visibility: 'private',
+    owner_user_id: '550e8400-e29b-41d4-a716-446655440003', username: 'bob', visibility: 'private',
     doc_count: 10, chunk_count: 500, status: 'deleting',
     created_at: '2026-06-03T16:45:00+00:00',
   },
@@ -106,6 +107,56 @@ describe('KnowledgeListAdmin', () => {
         page: 1,
         page_size: 20,
       })
+    })
+
+    it('owner 列渲染使用 owner_user_id 回退（B 类：AdminKBItem 用 owner_user_id 表达 UUID）', async () => {
+      mockSuccessResponse()
+      const TableRowsKey = Symbol('tableRows')
+      const wrapper = mount(KnowledgeListAdmin, {
+        global: {
+          stubs: {
+            'router-link': { template: '<a class="router-link-stub"><slot /></a>', props: ['to'] },
+            'el-input': { template: '<input class="el-input-stub" />', props: ['modelValue', 'placeholder', 'size', 'clearable', 'style', 'maxlength', 'showWordLimit', 'type', 'rows'], emits: ['input', 'clear', 'update:modelValue'] },
+            'el-select': { template: '<select class="el-select-stub"><slot /></select>', props: ['modelValue', 'placeholder', 'clearable', 'size', 'style'], emits: ['change', 'update:modelValue'] },
+            'el-option': { template: '<option class="el-option-stub"><slot /></option>', props: ['label', 'value'] },
+            'el-table': {
+              template: '<div class="el-table-stub"><slot /></div>',
+              props: ['data'],
+              setup(props) {
+                provide(TableRowsKey, computed(() => props.data || []))
+              },
+            },
+            'el-table-column': {
+              template: '<div class="el-table-col-stub"><slot v-for="row in rows" :row="row" /></div>',
+              props: ['prop', 'label', 'width', 'minWidth', 'align', 'fixed'],
+              setup() {
+                const rows = inject(TableRowsKey)
+                return { rows }
+              },
+            },
+            'el-pagination': { template: '<div class="el-pagination-stub" />', props: ['currentPage', 'pageSize', 'total', 'layout'], emits: ['update:currentPage', 'currentChange'] },
+            'el-dialog': { template: '<div v-if="modelValue" class="el-dialog-stub"><slot /><slot name="footer" /></div>', props: ['modelValue', 'title', 'width', 'closeOnClickModal', 'destroyOnClose'], emits: ['update:modelValue'] },
+            'el-form': { template: '<div class="el-form-stub"><slot /></div>', props: ['ref', 'model', 'rules', 'labelPosition'] },
+            'el-form-item': { template: '<div class="el-form-item-stub"><slot /></div>', props: ['label', 'prop'] },
+            'el-radio-group': { template: '<div class="el-radio-group-stub"><slot /></div>', props: ['modelValue'], emits: ['update:modelValue'] },
+            'el-radio': { template: '<div class="el-radio-stub"><slot /></div>', props: ['value'] },
+            'el-button': { template: '<button class="el-button-stub" :disabled="loading"><slot /></button>', props: ['type', 'loading'] },
+          },
+          directives: { loading: vi.fn() },
+        },
+      })
+      await flushPromises()
+
+      // username 为空的行回退显示 owner_user_id（UUID），而非内部 users.id
+      const ownerCells = wrapper.findAll('.owner-name')
+      expect(ownerCells.length).toBeGreaterThanOrEqual(2)
+      expect(ownerCells[1].text()).toContain('550e8400-e29b-41d4-a716-446655440002')
+    })
+
+    it('AdminKBItem 响应契约：含 owner_user_id（Platform User UUID）且不含 user_id', () => {
+      expect(MOCK_ITEMS[0]).not.toHaveProperty('user_id')
+      expect(MOCK_ITEMS[0]).toHaveProperty('owner_user_id')
+      expect(MOCK_ITEMS[0].owner_user_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
     })
 
     it('列表为空时显示空状态', async () => {

@@ -36,7 +36,7 @@ class MessageResponse(BaseModel):
 class ConversationResponse(BaseModel):
     """会话响应（列表项 + 详情共用）"""
     uuid: str
-    user_id: int
+    owner_user_id: str = Field(description="owner 用户 Platform User UUID（非内部 users.id）")
     kb_uuid: str | None = Field(
         None,
         description="关联知识库 UUID（kb 删除后为 null）",

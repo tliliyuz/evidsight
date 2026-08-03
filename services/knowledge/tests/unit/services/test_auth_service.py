@@ -18,10 +18,11 @@ from app.models.user import User
 @pytest.fixture
 def mock_db():
     session = AsyncMock(spec=AsyncSession)
-    # Mock refresh 模拟 DB 回填 id/role/created_at
+    # Mock refresh 模拟 DB 回填 id/role/status/created_at（status 由 DB server_default 置为 active）
     async def _refresh(instance):
         instance.id = instance.id or 1
         instance.role = instance.role or "user"
+        instance.status = instance.status or "active"
         instance.created_at = instance.created_at or datetime.now(timezone.utc)
     session.refresh.side_effect = _refresh
     return session
@@ -142,6 +143,39 @@ class TestLogin:
         from app.core.security import decode_refresh_token
         refresh_payload = decode_refresh_token(result.refresh_token)
         assert "sub" in refresh_payload
+
+
+class TestRegisterV1:
+    """IA-017：register_v1 返回 UserSummary，id 为 Platform User UUID，不含内部 users.id。"""
+
+    @pytest.mark.asyncio
+    async def test_register_v1_returns_uuid_summary(self, mock_db):
+        import uuid
+        from app.services.auth_service import register_v1
+
+        mock_db.execute.return_value = _make_mock_result(None)
+
+        result = await register_v1(mock_db, "newuser", "123456")
+
+        assert isinstance(result, UserSummary)
+        assert result.username == "newuser"
+        assert result.role == "user"
+        assert result.status == "active"
+        # id 为合法 Platform User UUID（非内部 users.id 整数）
+        uuid.UUID(str(result.id))
+        mock_db.add.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_register_v1_duplicate_raises(self, mock_db):
+        from app.services.auth_service import register_v1
+
+        existing = User(username="existing", password_hash="xxx")
+        mock_db.execute.return_value = _make_mock_result(existing)
+
+        with pytest.raises(UsernameExistsException) as exc:
+            await register_v1(mock_db, "existing", "123456")
+        assert exc.value.error_code == "E5001"
+        mock_db.add.assert_not_called()
 
 
 class TestGetCurrentUserProfile:

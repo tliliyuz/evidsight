@@ -14,6 +14,7 @@ from app.core.exceptions import (
     KnowledgeBaseNotFoundException,
 )
 from app.core.permissions import require_kb_readable, require_kb_writable
+from app.core.uuid_helpers import resolve_user_uuid
 from app.ingest.delete_tasks import delete_kb as delete_kb_task
 from app.models.chunk import Chunk
 from app.models.document import Document
@@ -117,7 +118,20 @@ async def create_kb(
     except IntegrityError:
         raise KnowledgeBaseNameExistsException(data.name)
     await db.refresh(kb)
-    return KnowledgeBaseResponse.model_validate(kb)
+    # B 类：响应 owner 字段输出 Platform User UUID，不暴露内部 users.id
+    owner_uuid = await resolve_user_uuid(db, user_id)
+    return KnowledgeBaseResponse(
+        uuid=kb.uuid,
+        name=kb.name,
+        description=kb.description,
+        owner=owner_uuid,
+        visibility=kb.visibility,
+        status=kb.status,
+        doc_count=kb.doc_count,
+        chunk_count=kb.chunk_count,
+        created_at=kb.created_at,
+        updated_at=kb.updated_at,
+    )
 
 
 async def get_kb(
@@ -192,9 +206,23 @@ async def list_kbs(
     real_chunk_counts = await _get_real_chunk_counts(db, kb_ids)
     real_doc_counts = await _get_real_doc_counts(db, kb_ids)
 
+    # B 类：owner 输出 Platform User UUID（列表内所有 KB 属于同一 user，解析一次）
+    owner_uuid = await resolve_user_uuid(db, user_id)
+
     items = []
     for r in rows:
-        resp = KnowledgeBaseResponse.model_validate(r)
+        resp = KnowledgeBaseResponse(
+            uuid=r.uuid,
+            name=r.name,
+            description=r.description,
+            owner=owner_uuid,
+            visibility=r.visibility,
+            status=r.status,
+            doc_count=r.doc_count,
+            chunk_count=r.chunk_count,
+            created_at=r.created_at,
+            updated_at=r.updated_at,
+        )
         resp.chunk_count = real_chunk_counts.get(r.id, 0)
         resp.doc_count = real_doc_counts.get(r.id, 0)
         items.append(resp)
@@ -207,7 +235,7 @@ async def list_public_kbs(
 ) -> PublicKnowledgeBaseListResponse:
     """获取所有公开知识库列表（分页），仅返回 status=active 且 visibility=public 的 KB"""
     base_q = (
-        select(KnowledgeBase, User.username)
+        select(KnowledgeBase, User.username, User.platform_user_id)
         .join(User, KnowledgeBase.user_id == User.id)
         .where(
             KnowledgeBase.visibility == "public",
@@ -228,16 +256,17 @@ async def list_public_kbs(
     rows = (await db.execute(q)).all()
 
     # 实时查询分块数与文档数（替代 KB 表缓存列，消除僵尸计数）
-    kb_ids = [kb.id for kb, _ in rows]
+    kb_ids = [kb.id for kb, _, _ in rows]
     real_chunk_counts = await _get_real_chunk_counts(db, kb_ids)
     real_doc_counts = await _get_real_doc_counts(db, kb_ids)
 
+    # B 类：owner 输出 Platform User UUID（JOIN 已带出），不暴露内部 users.id
     items = [
         PublicKnowledgeBaseResponse(
             uuid=kb.uuid,
             name=kb.name,
             description=kb.description,
-            user_id=kb.user_id,
+            owner=platform_user_id,
             username=username,
             visibility=kb.visibility,
             status=kb.status,
@@ -246,7 +275,7 @@ async def list_public_kbs(
             created_at=kb.created_at,
             updated_at=kb.updated_at,
         )
-        for kb, username in rows
+        for kb, username, platform_user_id in rows
     ]
 
     return PublicKnowledgeBaseListResponse(total=total, page=page, page_size=page_size, items=items)
@@ -275,7 +304,20 @@ async def update_kb(
         raise KnowledgeBaseNameExistsException(data.name)
 
     await db.refresh(kb)
-    resp = KnowledgeBaseResponse.model_validate(kb)
+    # B 类：owner 输出 Platform User UUID（admin 修改他人 KB 时以 kb.user_id 为准）
+    owner_uuid = await resolve_user_uuid(db, kb.user_id)
+    resp = KnowledgeBaseResponse(
+        uuid=kb.uuid,
+        name=kb.name,
+        description=kb.description,
+        owner=owner_uuid,
+        visibility=kb.visibility,
+        status=kb.status,
+        doc_count=kb.doc_count,
+        chunk_count=kb.chunk_count,
+        created_at=kb.created_at,
+        updated_at=kb.updated_at,
+    )
     # db.refresh() 会用 DB 缓存列的僵尸值覆盖 get_kb() 已填充的实时计数，需重新修正
     real_chunk_counts = await _get_real_chunk_counts(db, [kb_id])
     real_doc_counts = await _get_real_doc_counts(db, [kb_id])

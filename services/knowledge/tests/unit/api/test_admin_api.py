@@ -58,7 +58,7 @@ def _make_kb_list(total=3, page=1, page_size=20, items=None) -> AdminKBListRespo
                 uuid=f"kb-uuid-{i:04d}-0000-0000-000000000000",
                 name=f"KB_{i}", description=f"描述{i}",
                 visibility="private" if i % 2 == 0 else "public",
-                user_id=i * 10, username=f"user_{i}",
+                owner_user_id=_platform_uuid(i), username=f"user_{i}",
                 status="active", doc_count=5, chunk_count=100,
                 created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
                 updated_at=datetime(2026, 6, 10, tzinfo=timezone.utc),
@@ -76,7 +76,7 @@ def _make_doc_list(total=2, page=1, page_size=20, items=None) -> AdminDocListRes
                 uuid="doc-uuid-0001-0000-0000-000000000000",
                 kb_uuid="kb-uuid-0001-0000-0000-000000000000",
                 kb_name="KB_1", kb_visibility="private",
-                owner_id=10, owner_username="owner1",
+                owner_id=_platform_uuid(1), owner_username="owner1",
                 filename="文档A.pdf", file_type="pdf", file_size=102400,
                 status="completed", current_stage=None, chunk_count=10,
                 error_message=None,
@@ -87,7 +87,7 @@ def _make_doc_list(total=2, page=1, page_size=20, items=None) -> AdminDocListRes
                 uuid="doc-uuid-0002-0000-0000-000000000000",
                 kb_uuid="kb-uuid-0002-0000-0000-000000000000",
                 kb_name="KB_2", kb_visibility="public",
-                owner_id=20, owner_username="owner2",
+                owner_id=_platform_uuid(2), owner_username="owner2",
                 filename="文档B.md", file_type="md", file_size=51200,
                 status="uploaded", current_stage=None, chunk_count=0,
                 error_message=None,
@@ -214,7 +214,7 @@ class TestAdminKBListAPI:
                 AdminKBItem(
                     uuid="kb-uuid-0001-0000-0000-000000000000",
                     name="私有KB", visibility="private",
-                    user_id=10, username="user1", status="active",
+                    owner_user_id=_platform_uuid(10), username="user1", status="active",
                     doc_count=0, chunk_count=0,
                     created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
                     updated_at=datetime(2026, 6, 10, tzinfo=timezone.utc),
@@ -330,7 +330,7 @@ class TestAdminDocListAPI:
         assert item["kb_uuid"] == "kb-uuid-0001-0000-0000-000000000000"
         assert item["kb_name"] == "KB_1"
         assert item["kb_visibility"] == "private"
-        assert item["owner_id"] == 10
+        assert item["owner_id"] == _platform_uuid(1)
         assert item["owner_username"] == "owner1"
         assert item["filename"] == "文档A.pdf"
         assert item["file_type"] == "pdf"
@@ -346,7 +346,7 @@ class TestAdminDocListAPI:
                     uuid="doc-uuid-0003-0000-0000-000000000000",
                     kb_uuid="kb-uuid-0001-0000-0000-000000000000",
                     kb_name="KB_1", kb_visibility="private",
-                    owner_id=10, owner_username="owner1",
+                    owner_id=_platform_uuid(1), owner_username="owner1",
                     filename="失败文档.pdf", file_type="pdf", file_size=100,
                     status="partial_failed", chunk_count=0,
                     created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
@@ -604,11 +604,16 @@ from app.schemas.admin import (
 )
 
 
+def _platform_uuid(i: int) -> str:
+    """内部 users.id i → Platform User UUID 字符串（对齐 conftest 尾号推导约定）。"""
+    return f"550e8400-e29b-41d4-a716-4466554400{i:02d}"
+
+
 def _make_user_list(total=2, page=1, page_size=20) -> AdminUserListResponse:
-    """构造用户列表响应"""
+    """构造用户列表响应（id 为 Platform User UUID）"""
     items = [
         AdminUserItem(
-            id=i, username=f"user_{i}", role="user", status="active",
+            id=_platform_uuid(i), username=f"user_{i}", role="user", status="active",
             kb_count=2, doc_count=10, conversation_count=5,
             last_active_at=datetime(2026, 6, 12, tzinfo=timezone.utc),
             created_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
@@ -619,9 +624,9 @@ def _make_user_list(total=2, page=1, page_size=20) -> AdminUserListResponse:
 
 
 def _make_user_detail(user_id=3) -> AdminUserDetailResponse:
-    """构造用户详情响应"""
+    """构造用户详情响应（id 为 Platform User UUID）"""
     return AdminUserDetailResponse(
-        id=user_id, username="zhangsan", role="user", status="active",
+        id=_platform_uuid(user_id), username="zhangsan", role="user", status="active",
         kb_count=2, doc_count=15, conversation_count=28, message_count=156,
         total_input_tokens=524000, total_output_tokens=128000,
         last_active_at=datetime(2026, 6, 12, tzinfo=timezone.utc),
@@ -684,15 +689,15 @@ class TestAdminUserDetailAPI:
 
     @pytest.mark.asyncio
     async def test_admin获取用户详情成功(self, async_client, admin_auth_headers):
-        """admin 可获取用户详情，含 token 统计"""
+        """admin 可获取用户详情，含 token 统计；id 为 Platform User UUID"""
         with patch("app.api.admin.get_user_detail", new_callable=AsyncMock) as mock_svc:
             mock_svc.return_value = _make_user_detail(user_id=3)
             response = await async_client.get(
-                "/api/admin/users/3", headers=admin_auth_headers,
+                f"/api/admin/users/{_platform_uuid(3)}", headers=admin_auth_headers,
             )
         assert response.status_code == 200
         data = response.json()["data"]
-        assert data["id"] == 3
+        assert data["id"] == _platform_uuid(3)
         assert data["username"] == "zhangsan"
         assert data["message_count"] == 156
         assert data["total_input_tokens"] == 524000
@@ -705,16 +710,16 @@ class TestAdminUserDetailAPI:
         with patch("app.api.admin.get_user_detail", new_callable=AsyncMock) as mock_svc:
             mock_svc.side_effect = UserNotFoundException(999)
             response = await async_client.get(
-                "/api/admin/users/999", headers=admin_auth_headers,
+                f"/api/admin/users/{_platform_uuid(999)}", headers=admin_auth_headers,
             )
         assert response.status_code == 404
         assert response.json()["code"] == "E7002"
 
     @pytest.mark.asyncio
     async def test_普通用户获取详情被拒绝(self, async_client, auth_headers):
-        """普通用户访问 /api/admin/users/3 返回 403"""
+        """普通用户访问 /api/admin/users/{uuid} 返回 403"""
         response = await async_client.get(
-            "/api/admin/users/3", headers=auth_headers,
+            f"/api/admin/users/{_platform_uuid(3)}", headers=auth_headers,
         )
         assert response.status_code == 403
 
@@ -724,11 +729,11 @@ class TestAdminUserStatusAPI:
 
     @pytest.mark.asyncio
     async def test_禁用用户成功(self, async_client, admin_auth_headers):
-        """admin 禁用用户成功"""
+        """admin 禁用用户成功；响应 id 为 Platform User UUID"""
         with patch("app.api.admin.change_user_status", new_callable=AsyncMock) as mock_svc:
-            mock_svc.return_value = AdminUserStatusResponse(id=3, username="zhangsan", status="disabled")
+            mock_svc.return_value = AdminUserStatusResponse(id=_platform_uuid(3), username="zhangsan", status="disabled")
             response = await async_client.put(
-                "/api/admin/users/3/status",
+                f"/api/admin/users/{_platform_uuid(3)}/status",
                 json={"status": "disabled"},
                 headers=admin_auth_headers,
             )
@@ -740,9 +745,9 @@ class TestAdminUserStatusAPI:
     async def test_启用用户成功(self, async_client, admin_auth_headers):
         """admin 启用用户成功"""
         with patch("app.api.admin.change_user_status", new_callable=AsyncMock) as mock_svc:
-            mock_svc.return_value = AdminUserStatusResponse(id=3, username="zhangsan", status="active")
+            mock_svc.return_value = AdminUserStatusResponse(id=_platform_uuid(3), username="zhangsan", status="active")
             response = await async_client.put(
-                "/api/admin/users/3/status",
+                f"/api/admin/users/{_platform_uuid(3)}/status",
                 json={"status": "active"},
                 headers=admin_auth_headers,
             )
@@ -752,14 +757,19 @@ class TestAdminUserStatusAPI:
 
     @pytest.mark.asyncio
     async def test_不能禁用自己(self, async_client, admin_auth_headers):
-        """admin 不能修改自己的状态，返回 E7003"""
-        response = await async_client.put(
-            "/api/admin/users/2/status",
-            json={"status": "disabled"},
-            headers=admin_auth_headers,
-        )
+        """admin 不能修改自己的状态，返回 E7003。
+
+        resolve_user_id 由 mock_db 返回 MagicMock，需 patch 回内部 id 以命中自禁检查。
+        """
+        with patch("app.api.admin.resolve_user_id", new_callable=AsyncMock, return_value=2) as mock_resolve:
+            response = await async_client.put(
+                f"/api/admin/users/{_platform_uuid(2)}/status",
+                json={"status": "disabled"},
+                headers=admin_auth_headers,
+            )
         assert response.status_code == 400
         assert response.json()["code"] == "E7003"
+        mock_resolve.assert_called_once()
 
 
 class TestAdminUserResetPasswordAPI:
@@ -767,23 +777,23 @@ class TestAdminUserResetPasswordAPI:
 
     @pytest.mark.asyncio
     async def test_重置密码成功(self, async_client, admin_auth_headers):
-        """admin 重置用户密码成功"""
+        """admin 重置用户密码成功；响应 id 为 Platform User UUID"""
         with patch("app.api.admin.reset_user_password", new_callable=AsyncMock) as mock_svc:
-            mock_svc.return_value = AdminUserResetPasswordResponse(id=3, username="zhangsan")
+            mock_svc.return_value = AdminUserResetPasswordResponse(id=_platform_uuid(3), username="zhangsan")
             response = await async_client.post(
-                "/api/admin/users/3/reset-password",
+                f"/api/admin/users/{_platform_uuid(3)}/reset-password",
                 json={"new_password": "NewPass123!"},
                 headers=admin_auth_headers,
             )
         assert response.status_code == 200
         assert response.json()["message"] == "密码重置成功"
-        assert response.json()["data"]["id"] == 3
+        assert response.json()["data"]["id"] == _platform_uuid(3)
 
     @pytest.mark.asyncio
     async def test_密码过短被拒绝(self, async_client, admin_auth_headers):
         """密码长度 < 6 被 Pydantic 校验拒绝"""
         response = await async_client.post(
-            "/api/admin/users/3/reset-password",
+            f"/api/admin/users/{_platform_uuid(3)}/reset-password",
             json={"new_password": "12345"},
             headers=admin_auth_headers,
         )
@@ -796,7 +806,7 @@ class TestAdminUserResetPasswordAPI:
         with patch("app.api.admin.reset_user_password", new_callable=AsyncMock) as mock_svc:
             mock_svc.side_effect = UserNotFoundException(999)
             response = await async_client.post(
-                "/api/admin/users/999/reset-password",
+                f"/api/admin/users/{_platform_uuid(999)}/reset-password",
                 json={"new_password": "NewPass123!"},
                 headers=admin_auth_headers,
             )
@@ -810,7 +820,7 @@ class TestAdminUserResetPasswordAPI:
         with patch("app.api.admin.reset_user_password", new_callable=AsyncMock) as mock_svc:
             mock_svc.side_effect = PasswordSameAsCurrentException()
             response = await async_client.post(
-                "/api/admin/users/3/reset-password",
+                f"/api/admin/users/{_platform_uuid(3)}/reset-password",
                 json={"new_password": "OldPass123!"},
                 headers=admin_auth_headers,
             )
@@ -827,9 +837,9 @@ class TestAdminUserPermissionMatrix:
 
     USER_ENDPOINTS = [
         ("GET", "/api/admin/users"),
-        ("GET", "/api/admin/users/3"),
-        ("PUT", "/api/admin/users/3/status"),
-        ("POST", "/api/admin/users/3/reset-password"),
+        ("GET", f"/api/admin/users/{_platform_uuid(3)}"),
+        ("PUT", f"/api/admin/users/{_platform_uuid(3)}/status"),
+        ("POST", f"/api/admin/users/{_platform_uuid(3)}/reset-password"),
     ]
 
     @pytest.mark.asyncio

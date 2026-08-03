@@ -32,9 +32,9 @@
             <span class="info-label">用户</span>
             <span
               class="info-value link"
-              @click="goToUser(trace.user_id)"
+              @click="goToUser(trace.owner_user_id)"
             >
-              {{ trace.username || `用户#${trace.user_id}` }}
+              {{ trace.username || `用户#${trace.owner_user_id}` }}
             </span>
           </div>
           <div class="info-item">

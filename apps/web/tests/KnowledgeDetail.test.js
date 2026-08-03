@@ -41,7 +41,7 @@ vi.mock('element-plus', async () => {
 // Mock Auth Store
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
-    user: { id: 1, username: 'testuser', role: 'user' },
+    user: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'testuser', role: 'user' },
     isAdmin: false,
     isLoggedIn: true,
   }),
@@ -105,7 +105,7 @@ const elStubs = {
 
 const mockKb = {
   uuid: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-  user_id: 1,
+  owner: '550e8400-e29b-41d4-a716-446655440001',
   name: 'HR制度库',
   description: '人事相关文档',
   doc_count: 15,
@@ -128,6 +128,26 @@ describe('KnowledgeDetail', () => {
   })
 
   // ==================== 渲染测试 ====================
+
+  it('isOwner 使用 KB 响应的 owner（Platform User UUID）与 /me id 对齐', () => {
+    const wrapper = getComponent()
+    // currentKb.owner 与 authStore.user.id 同为 550e8400-...-446655440001 → owner 判定为 true
+    expect(wrapper.vm.isOwner).toBe(true)
+  })
+
+  it('KB owner 与当前用户不一致时 isOwner 为 false', () => {
+    mockKbData.value = { ...mockKb, owner: '550e8400-e29b-41d4-a716-446655440002' }
+    // 直接 mount：getComponent 会重置 mockKbData.value 为默认 mockKb
+    const wrapper = mount(KnowledgeDetail, { global: { stubs: elStubs } })
+    expect(wrapper.vm.isOwner).toBe(false)
+  })
+
+  it('KB 响应契约：含 owner（Platform User UUID）且不含 user_id（内部 users.id）', () => {
+    const kb = mockKbData.value
+    expect(kb).toHaveProperty('owner')
+    expect(kb.owner).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+    expect(kb).not.toHaveProperty('user_id')
+  })
 
   it('渲染页面完整结构元素', () => {
     const wrapper = getComponent()

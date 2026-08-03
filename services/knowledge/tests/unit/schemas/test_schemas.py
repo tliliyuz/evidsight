@@ -233,7 +233,8 @@ class TestKnowledgeBaseResponseVisibility:
         """U9.8: model_validate 含 visibility 成功"""
         from datetime import datetime, timezone
         resp = self.KnowledgeBaseResponse(
-            uuid="kb-001", name="知识库", description="描述", user_id=1,
+            uuid="kb-001", name="知识库", description="描述",
+            owner="550e8400-e29b-41d4-a716-446655440001",
             visibility="public", status="active", doc_count=0, chunk_count=0,
             created_at=datetime.now(timezone.utc),
         )

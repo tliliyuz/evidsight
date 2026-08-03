@@ -105,11 +105,13 @@ def _make_trace_record(
     return trace
 
 
-def _make_list_row(trace=None, username="testuser", kb_name="测试KB", kb_uuid="kb-uuid-10", conversation_uuid="conv-uuid-100"):
-    """构造 list_traces 查询结果行（5-tuple: trace, username, kb_name, kb_uuid, conversation_uuid）"""
+def _make_list_row(trace=None, username="testuser", kb_name="测试KB", kb_uuid="kb-uuid-10",
+                   conversation_uuid="conv-uuid-100",
+                   platform_user_id="550e8400-e29b-41d4-a716-446655440001"):
+    """构造 list_traces 查询结果行（6-tuple: trace, username, kb_name, kb_uuid, conversation_uuid, platform_user_id）"""
     if trace is None:
         trace = _make_trace_record()
-    return (trace, username, kb_name, kb_uuid, conversation_uuid)
+    return (trace, username, kb_name, kb_uuid, conversation_uuid, platform_user_id)
 
 
 # ==================== record_trace 测试 ====================
@@ -545,6 +547,7 @@ class TestListTraces:
         assert len(result.items) == 2
         assert result.items[0].trace_id == "trace-001"
         assert result.items[0].username == "user1"
+        assert result.items[0].owner_user_id == "550e8400-e29b-41d4-a716-446655440001"
         assert result.items[1].trace_id == "trace-002"
 
     @pytest.mark.asyncio
@@ -633,13 +636,17 @@ class TestGetTraceDetail:
         )
 
         result_mock = MagicMock()
-        result_mock.first.return_value = (trace, "testuser", "测试KB", "kb-uuid-10", "报销流程咨询", "conv-uuid-100")
+        result_mock.first.return_value = (
+            trace, "testuser", "测试KB", "kb-uuid-10", "报销流程咨询", "conv-uuid-100",
+            "550e8400-e29b-41d4-a716-446655440001",
+        )
         db.execute = AsyncMock(return_value=result_mock)
 
         result = await get_trace_detail(db, trace_id="trace-detail-001")
 
         assert result.trace_id == "trace-detail-001"
         assert result.username == "testuser"
+        assert result.owner_user_id == "550e8400-e29b-41d4-a716-446655440001"
         assert result.kb_name == "测试KB"
         assert result.conversation_title == "报销流程咨询"
         assert result.intent is not None

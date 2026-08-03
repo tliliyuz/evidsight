@@ -13,6 +13,7 @@ from app.core.exceptions import (
     ConversationAccessDeniedException,
     ConversationNotFoundException,
 )
+from app.core.uuid_helpers import resolve_user_uuid
 from app.models.conversation import Conversation
 from app.models.knowledge_base import KnowledgeBase
 from app.models.message import Message
@@ -50,6 +51,25 @@ async def _get_owned_conversation(
     if conv.user_id != user_id:
         raise ConversationAccessDeniedException()
     return conv
+
+
+def _build_conversation_response(conv: Conversation, owner_uuid: str) -> ConversationResponse:
+    """显式构造 ConversationResponse（B 类：owner_user_id 输出 Platform User UUID）。
+
+    conv 为 ORM 实例；kb_status / kb_name / kb_uuid 由 _enrich_kb_status 就地填充。
+    """
+    return ConversationResponse(
+        uuid=conv.uuid,
+        owner_user_id=owner_uuid,
+        kb_uuid=conv.kb_uuid,
+        original_kb_uuid=conv.original_kb_uuid,
+        original_kb_name=conv.original_kb_name,
+        title=conv.title,
+        message_count=conv.message_count,
+        created_at=conv.created_at,
+        updated_at=conv.updated_at,
+        last_message_at=conv.last_message_at,
+    )
 
 
 def _enrich_kb_status(resp: ConversationResponse, conv: Conversation, user_id: int) -> None:
@@ -108,7 +128,8 @@ async def create_conversation(
     await db.refresh(conv)
     # 预加载 KB 关系（kb_uuid 属性需要）
     await db.refresh(conv, ["knowledge_base"])
-    resp = ConversationResponse.model_validate(conv)
+    owner_uuid = await resolve_user_uuid(db, user_id)
+    resp = _build_conversation_response(conv, owner_uuid)
     _enrich_kb_status(resp, conv, user_id)
     return resp
 
@@ -144,9 +165,11 @@ async def list_conversations(
     t_select = time.time() - t0
 
     t0 = time.time()
+    # B 类：owner_user_id 输出 Platform User UUID；所有会话同属当前用户，只解析一次
+    owner_uuid = await resolve_user_uuid(db, user_id) if rows else None
     items = []
     for c in rows:
-        resp = ConversationResponse.model_validate(c)
+        resp = _build_conversation_response(c, owner_uuid)
         _enrich_kb_status(resp, c, user_id)
         items.append(resp)
     t_serialize = time.time() - t0
@@ -190,7 +213,8 @@ async def get_conversation_detail(
     )
     messages = (await db.execute(msg_q)).scalars().all()
 
-    base = ConversationResponse.model_validate(conv)
+    owner_uuid = await resolve_user_uuid(db, user_id)
+    base = _build_conversation_response(conv, owner_uuid)
     _enrich_kb_status(base, conv, user_id)
     return ConversationDetailResponse(
         **base.model_dump(),
@@ -208,7 +232,8 @@ async def rename_conversation(
     await db.refresh(conv)
     # 预加载 KB 关系（kb_uuid 属性需要）
     await db.refresh(conv, ["knowledge_base"])
-    resp = ConversationResponse.model_validate(conv)
+    owner_uuid = await resolve_user_uuid(db, user_id)
+    resp = _build_conversation_response(conv, owner_uuid)
     _enrich_kb_status(resp, conv, user_id)
     return resp
 

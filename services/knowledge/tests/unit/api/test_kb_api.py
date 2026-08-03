@@ -9,6 +9,7 @@ from app.core.exceptions import (
     KnowledgeBaseNotFoundException,
     PermissionDeniedException,
 )
+from app.models.knowledge_base import KnowledgeBase
 from app.schemas.knowledge_base import (
     KnowledgeBaseDeleteResponse,
     KnowledgeBaseListResponse,
@@ -20,10 +21,25 @@ VALID_KB_UUID_2 = "6ba7b811-9dad-41d4-80b4-00c04fd430c8"
 NOW = datetime.now(timezone.utc)
 
 
-def _make_kb_response(kb_uuid=VALID_KB_UUID, name="测试知识库", description=None, user_id=1,
+def _platform_uuid(i: int) -> str:
+    """内部 users.id i → Platform User UUID 字符串（对齐 conftest 尾号推导约定）。"""
+    return f"550e8400-e29b-41d4-a716-4466554400{i:02d}"
+
+
+def _make_kb_response(kb_uuid=VALID_KB_UUID, name="测试知识库", description=None, owner=_platform_uuid(1),
                       status="active", visibility="private", doc_count=0, chunk_count=0):
     return KnowledgeBaseResponse(
-        uuid=kb_uuid, name=name, description=description, user_id=user_id,
+        uuid=kb_uuid, name=name, description=description, owner=owner,
+        visibility=visibility, status=status, doc_count=doc_count, chunk_count=chunk_count,
+        created_at=NOW, updated_at=NOW,
+    )
+
+
+def _make_kb_orm(kb_uuid=VALID_KB_UUID, name="测试知识库", description=None, user_id=1,
+                 status="active", visibility="private", doc_count=0, chunk_count=0):
+    """构造真实 KnowledgeBase ORM 实例（详情路由读 kb.user_id，需 ORM 对象而非 DTO）"""
+    return KnowledgeBase(
+        id=1, uuid=kb_uuid, name=name, description=description, user_id=user_id,
         visibility=visibility, status=status, doc_count=doc_count, chunk_count=chunk_count,
         created_at=NOW, updated_at=NOW,
     )
@@ -199,15 +215,17 @@ class TestListKBs:
         assert body["data"]["page_size"] == 10
 
     @pytest.mark.asyncio
-    async def test_list_returns_user_id_in_items(self, async_client, auth_headers):
-        """列表 items 中应包含 user_id 字段"""
+    async def test_list_returns_owner_in_items(self, async_client, auth_headers):
+        """列表 items 中应包含 owner（Platform User UUID）字段，不含内部 user_id"""
         with patch("app.api.knowledge_base.list_kbs", new_callable=AsyncMock) as mock:
-            mock.return_value = _make_list_data(total=1, items=[_make_kb_response(user_id=1)])
+            mock.return_value = _make_list_data(total=1, items=[_make_kb_response(owner=_platform_uuid(1))])
 
             response = await async_client.get("/api/knowledge-bases", headers=auth_headers)
 
         assert response.status_code == 200
-        assert "user_id" in response.json()["data"]["items"][0]
+        item = response.json()["data"]["items"][0]
+        assert "owner" in item
+        assert "user_id" not in item
 
     @pytest.mark.asyncio
     async def test_list_page_size_zero_rejected(self, async_client, auth_headers):
@@ -241,9 +259,11 @@ class TestGetKB:
     @pytest.mark.asyncio
     async def test_get_success(self, async_client, auth_headers):
         with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock:
+             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock, \
+             patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner:
             mock_resolve.return_value = 1
-            mock.return_value = _make_kb_response(name="公司知识库", description="详细描述")
+            mock.return_value = _make_kb_orm(name="公司知识库", description="详细描述")
+            mock_owner.return_value = _platform_uuid(1)
 
             response = await async_client.get(
                 f"/api/knowledge-bases/{VALID_KB_UUID}",
@@ -256,7 +276,7 @@ class TestGetKB:
         assert body["data"]["uuid"] == VALID_KB_UUID
         assert "id" not in body["data"]
         assert body["data"]["name"] == "公司知识库"
-        assert body["data"]["user_id"] == 1
+        assert body["data"]["owner"] == _platform_uuid(1)
         assert body["data"]["status"] == "active"
         assert body["data"]["doc_count"] == 0
         assert body["data"]["chunk_count"] == 0
@@ -480,9 +500,11 @@ class TestVisibilityPermissionMatrix:
     async def test_public_kb_readable_by_other_user(self, async_client, other_user_auth_headers):
         """A6.1: public KB 允许非 owner 读取"""
         with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock:
+             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock, \
+             patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner:
             mock_resolve.return_value = 2
-            mock.return_value = _make_kb_response(kb_uuid=VALID_KB_UUID_2, user_id=99, visibility="public")
+            mock.return_value = _make_kb_orm(kb_uuid=VALID_KB_UUID_2, user_id=99, visibility="public")
+            mock_owner.return_value = _platform_uuid(99)
 
             response = await async_client.get(
                 f"/api/knowledge-bases/{VALID_KB_UUID_2}",
@@ -493,7 +515,7 @@ class TestVisibilityPermissionMatrix:
         body = response.json()
         assert body["code"] == "0"
         assert body["data"]["visibility"] == "public"
-        assert body["data"]["user_id"] == 99
+        assert body["data"]["owner"] == _platform_uuid(99)
 
     @pytest.mark.asyncio
     async def test_private_kb_denied_to_other_user(self, async_client, other_user_auth_headers):
@@ -532,9 +554,11 @@ class TestVisibilityPermissionMatrix:
     async def test_admin_can_read_private_kb(self, async_client, admin_auth_headers):
         """A6.4: admin 可查看他人 private KB（审计）"""
         with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock:
+             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock, \
+             patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner:
             mock_resolve.return_value = 2
-            mock.return_value = _make_kb_response(kb_uuid=VALID_KB_UUID_2, user_id=99, visibility="private")
+            mock.return_value = _make_kb_orm(kb_uuid=VALID_KB_UUID_2, user_id=99, visibility="private")
+            mock_owner.return_value = _platform_uuid(99)
 
             response = await async_client.get(
                 f"/api/knowledge-bases/{VALID_KB_UUID_2}",
@@ -550,7 +574,7 @@ class TestVisibilityPermissionMatrix:
         with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
              patch("app.api.knowledge_base.update_kb", new_callable=AsyncMock) as mock:
             mock_resolve.return_value = 2
-            mock.return_value = _make_kb_response(kb_uuid=VALID_KB_UUID_2, user_id=99, visibility="public")
+            mock.return_value = _make_kb_response(kb_uuid=VALID_KB_UUID_2, owner=_platform_uuid(99), visibility="public")
 
             response = await async_client.put(
                 f"/api/knowledge-bases/{VALID_KB_UUID_2}",
@@ -569,7 +593,7 @@ class TestVisibilityPermissionMatrix:
         with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
              patch("app.api.knowledge_base.update_kb", new_callable=AsyncMock) as mock:
             mock_resolve.return_value = 1
-            mock.return_value = _make_kb_response(kb_uuid=VALID_KB_UUID, user_id=1, visibility="public")
+            mock.return_value = _make_kb_response(kb_uuid=VALID_KB_UUID, owner=_platform_uuid(1), visibility="public")
 
             response = await async_client.put(
                 f"/api/knowledge-bases/{VALID_KB_UUID}",
@@ -589,7 +613,7 @@ class TestPublicKbList:
         """A7.1: 公共列表返回 public+active KB"""
         with patch("app.api.knowledge_base.list_public_kbs", new_callable=AsyncMock) as mock:
             mock.return_value = _make_list_data(total=1, items=[
-                _make_kb_response(kb_uuid=VALID_KB_UUID_2, user_id=99, visibility="public"),
+                _make_kb_response(kb_uuid=VALID_KB_UUID_2, owner=_platform_uuid(99), visibility="public"),
             ])
 
             response = await async_client.get(
@@ -627,7 +651,7 @@ class TestPublicKbList:
                 total=1, page=1, page_size=20,
                 items=[PublicKnowledgeBaseResponse(
                     uuid=VALID_KB_UUID_2, name="公共KB", description=None,
-                    user_id=99, username="otheruser", visibility="public",
+                    owner=_platform_uuid(99), username="otheruser", visibility="public",
                     status="active", doc_count=5, chunk_count=100,
                     created_at=NOW, updated_at=NOW,
                 )],

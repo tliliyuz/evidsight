@@ -360,9 +360,9 @@ const backRoute = computed(() => {
   return route.query.from === 'public' ? '/knowledge-bases/public' : '/knowledge-bases'
 })
 
-/** 当前用户是否为 KB 所有者 */
+/** 当前用户是否为 KB 所有者（owner 为 Platform User UUID，对齐 /me 的 id） */
 const isOwner = computed(() => {
-  return store.currentKb?.user_id === authStore.user?.id
+  return store.currentKb?.owner === authStore.user?.id
 })
 
 /** 当前用户是否可管理此 KB（owner 或 admin）

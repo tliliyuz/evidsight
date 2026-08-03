@@ -100,6 +100,12 @@ class Settings(BaseSettings):
     TOKEN_ENGLISH_RATIO: float = 4.0       # 英文场景 token/字符 比率
     TOKEN_CHINESE_THRESHOLD: float = 0.3   # 中文占比阈值（超过则使用中文比率）
 
+    # ── Cleaning（M2 RAG 数据清洗）──
+    CLEAN_ENABLED: bool = True               # 总开关：False 则跳过 Clean 阶段（行为与现状一致）
+    CLEAN_STRIP_BOILERPLATE: bool = True     # 页码/页眉页脚去除
+    CLEAN_NORMALIZE_WHITESPACE: bool = True  # 空白规整 + 安全折行拼接
+    CLEAN_REPAIR_UNICODE: bool = True        # U+FFFD / mojibake 修复
+
     # ── Retrieval ──
     VECTOR_TOP_K: int = 10
     BM25_TOP_K: int = 10

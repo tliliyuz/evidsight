@@ -142,6 +142,59 @@ class TestLoginAPI:
         assert response.status_code == 422
 
 
+class TestV1RegisterAPI:
+    """IA-017：POST /api/v1/auth/register 返回 UserSummary，id 为 Platform User UUID。
+
+    目标态：响应体直接返回 UserSummary（id=UUID 字符串、含 status），
+    不含旧 UserResponse 的 created_at 或内部 users.id。
+    旧 POST /api/auth/register 保留为迁移期兼容入口。
+    """
+
+    V1_UUID = "550e8400-e29b-41d4-a716-446655440010"
+
+    @pytest.mark.asyncio
+    async def test_v1_register_returns_uuid_user_summary(self, async_client):
+        with patch("app.api.auth.register_v1", new_callable=AsyncMock, create=True) as mock_reg:
+            mock_reg.return_value = UserSummary(
+                id=self.V1_UUID, username="newuser", role="user", status="active",
+            )
+            response = await async_client.post(
+                "/api/v1/auth/register",
+                json={"username": "newuser", "password": "123456"},
+            )
+
+        assert response.status_code == 201
+        data = response.json()
+        # id 为合法 UUID 字符串，非内部 users.id 整数
+        uuid.UUID(data["id"])
+        assert data["id"] == self.V1_UUID
+        assert data["username"] == "newuser"
+        assert data["role"] == "user"
+        assert data["status"] == "active"
+        # 不含旧 UserResponse 的 created_at 字段
+        assert "created_at" not in data
+
+    @pytest.mark.asyncio
+    async def test_v1_register_duplicate_username(self, async_client):
+        with patch("app.api.auth.register_v1", new_callable=AsyncMock, create=True) as mock_reg:
+            mock_reg.side_effect = UsernameExistsException("existing")
+            response = await async_client.post(
+                "/api/v1/auth/register",
+                json={"username": "existing", "password": "123456"},
+            )
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "E5001"
+
+    @pytest.mark.asyncio
+    async def test_v1_register_username_too_short(self, async_client):
+        response = await async_client.post(
+            "/api/v1/auth/register",
+            json={"username": "a", "password": "123456"}
+        )
+        assert response.status_code == 422
+
+
 class TestMeAPI:
     PLATFORM_UUID = "550e8400-e29b-41d4-a716-446655440001"
 

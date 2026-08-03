@@ -24,10 +24,11 @@ import pytest
 # ==================== 辅助函数 ====================
 
 
-def _make_user(user_id=1, username="testuser", role="user", status="active"):
+def _make_user(user_id=1, username="testuser", role="user", status="active", platform_user_id=None):
     """构造 User ORM 对象 mock"""
     user = MagicMock()
     user.id = user_id
+    user.platform_user_id = platform_user_id or f"550e8400-e29b-41d4-a716-4466554400{user_id:02d}"
     user.username = username
     user.role = role
     user.status = status
@@ -93,7 +94,7 @@ class TestListUsers:
         assert len(result.items) == 2
 
         # 验证 user 1
-        assert result.items[0].id == 1
+        assert result.items[0].id == "550e8400-e29b-41d4-a716-446655440001"
         assert result.items[0].username == "alice"
         assert result.items[0].role == "user"
         assert result.items[0].status == "active"
@@ -102,7 +103,7 @@ class TestListUsers:
         assert result.items[0].conversation_count == 10
 
         # 验证 user 2
-        assert result.items[1].id == 2
+        assert result.items[1].id == "550e8400-e29b-41d4-a716-446655440002"
         assert result.items[1].username == "bob"
         assert result.items[1].role == "admin"
         assert result.items[1].kb_count == 5
@@ -256,7 +257,7 @@ class TestGetUserDetail:
 
         result = await get_user_detail(db, user_id=3)
 
-        assert result.id == 3
+        assert result.id == "550e8400-e29b-41d4-a716-446655440003"
         assert result.username == "zhangsan"
         assert result.role == "user"
         assert result.status == "active"
@@ -266,6 +267,32 @@ class TestGetUserDetail:
         assert result.message_count == 156
         assert result.total_input_tokens == 5000
         assert result.total_output_tokens == 2000
+
+    @pytest.mark.asyncio
+    async def test_用户详情返回platform_uuid(self):
+        """A 类：get_user_detail 返回的 DTO id 为 Platform User UUID，非内部 users.id。"""
+        from app.services.admin_service import get_user_detail
+
+        db = AsyncMock()
+        user = _make_user(3, "zhangsan")
+        db.get = AsyncMock(return_value=user)
+
+        token_execute_mock = MagicMock()
+        token_execute_mock.one.return_value = (0, 0, None)
+
+        effects = [
+            _make_scalar_mock(0),                   # kb_count
+            _make_scalar_mock(0),                   # doc_count
+            _make_scalar_mock(0),                   # conversation_count
+            _make_scalar_mock(0),                   # message_count
+            token_execute_mock,                     # token_stats
+        ]
+        db.execute = AsyncMock(side_effect=effects)
+
+        result = await get_user_detail(db, user_id=3)
+
+        assert result.id == "550e8400-e29b-41d4-a716-446655440003"
+        assert result.id != 3
 
     @pytest.mark.asyncio
     async def test_用户详情不存在抛出异常(self):
@@ -335,7 +362,7 @@ class TestChangeUserStatus:
             )
 
         assert result.status == "disabled"
-        assert result.id == 3
+        assert result.id == "550e8400-e29b-41d4-a716-446655440003"
         assert result.username == "target_user"
         assert user.status == "disabled"
         db.flush.assert_called_once()
@@ -436,7 +463,7 @@ class TestResetUserPassword:
 
             result = await reset_user_password(db, user_id=3, new_password="NewPass123!")
 
-        assert result.id == 3
+        assert result.id == "550e8400-e29b-41d4-a716-446655440003"
         assert result.username == "target_user"
         mock_verify.assert_called_once_with("NewPass123!", "$2b$12$old_hash_value")
         mock_hash.assert_called_once_with("NewPass123!")

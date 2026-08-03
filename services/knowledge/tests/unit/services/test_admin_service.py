@@ -36,13 +36,15 @@ def _make_kb_row(kb_id=1, name="测试KB", description="描述", visibility="pri
     kb.created_at = datetime(2026, 6, 1, tzinfo=timezone.utc)
     kb.updated_at = datetime(2026, 6, 10, tzinfo=timezone.utc)
     username = f"user_{user_id}"
-    return (kb, username)
+    # B 类：owner 引用输出 Platform User UUID（对齐 conftest 尾号推导约定）
+    platform_user_id = f"550e8400-e29b-41d4-a716-4466554400{user_id:02d}"
+    return (kb, username, platform_user_id)
 
 
 def _make_doc_row(doc_id=1, kb_id=1, filename="测试文档.pdf", file_type="pdf",
                   file_size=1024, status="completed", current_stage=None,
                   chunk_count=5, error_msg=None):
-    """构造 Document + KB + User JOIN 查询结果行（6 值：doc, kb_name, kb_uuid, kb_visibility, owner_id, owner_username）"""
+    """构造 Document + KB + User JOIN 查询结果行（6 值：doc, kb_name, kb_uuid, kb_visibility, owner_id[UUID], owner_username）"""
     doc = MagicMock()
     doc.id = doc_id
     doc.uuid = f"doc-uuid-{doc_id:04d}-0000-0000-000000000000"
@@ -59,7 +61,8 @@ def _make_doc_row(doc_id=1, kb_id=1, filename="测试文档.pdf", file_type="pdf
     kb_name = f"KB_{kb_id}"
     kb_uuid = f"kb-uuid-{kb_id:04d}-0000-0000-000000000000"
     kb_visibility = "private" if kb_id % 2 == 0 else "public"
-    owner_id = kb_id * 10
+    # B 类：owner_id 输出 Platform User UUID（非内部 users.id）
+    owner_id = f"550e8400-e29b-41d4-a716-4466554400{kb_id:02d}"
     owner_username = f"owner_{kb_id}"
     return (doc, kb_name, kb_uuid, kb_visibility, owner_id, owner_username)
 
@@ -188,6 +191,7 @@ class TestListAllKBs:
         assert result.items[0].uuid == "kb-uuid-0001-0000-0000-000000000000"
         assert result.items[0].name == "KB_1"
         assert result.items[0].username == "user_1"
+        assert result.items[0].owner_user_id == "550e8400-e29b-41d4-a716-446655440001"
         assert result.items[0].visibility == "private"
         assert result.items[0].status == "active"
 
@@ -244,7 +248,7 @@ class TestListAllKBs:
         result = await list_all_kbs(db, user_id=5)
 
         assert result.total == 1
-        assert result.items[0].user_id == 5
+        assert result.items[0].owner_user_id == "550e8400-e29b-41d4-a716-446655440005"
 
     @pytest.mark.asyncio
     async def test_按名称模糊搜索(self):
@@ -323,6 +327,7 @@ class TestListAllDocuments:
         assert result.items[0].kb_uuid == "kb-uuid-0001-0000-0000-000000000000"
         assert result.items[0].kb_name == "KB_1"
         assert result.items[0].owner_username == "owner_1"
+        assert result.items[0].owner_id == "550e8400-e29b-41d4-a716-446655440001"
         assert result.items[0].filename == "文档A.pdf"
         assert result.items[0].file_type == "pdf"
         assert result.items[0].file_size == 1024

@@ -85,6 +85,13 @@ def _make_scalar_mock(value):
     return m
 
 
+def _make_scalar_one_or_none_mock(value):
+    """构造 scalar_one_or_none() 返回指定值的 execute 结果 mock（resolve_user_uuid 用）"""
+    m = MagicMock()
+    m.scalar_one_or_none.return_value = value
+    return m
+
+
 def _make_scalars_all_mock(items):
     """构造 scalars().all() 返回列表的 execute 结果 mock"""
     m = MagicMock()
@@ -130,6 +137,7 @@ class TestListConversations:
         db.execute = AsyncMock(side_effect=[
             _make_scalar_mock(2),                      # count
             _make_scalars_unique_all([conv1, conv2]),   # list query
+            _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),  # owner uuid
         ])
 
         result = await list_conversations(db, user_id=1, page=1, page_size=20)
@@ -138,6 +146,7 @@ class TestListConversations:
         assert len(result.items) == 2
         assert result.items[0].kb_status == "active"
         assert result.items[0].kb_name == "我的知识库"
+        assert result.items[0].owner_user_id == "550e8400-e29b-41d4-a716-446655440001"
         assert result.items[0].last_message_at == now
 
     @pytest.mark.asyncio
@@ -170,12 +179,14 @@ class TestListConversations:
         db.execute = AsyncMock(side_effect=[
             _make_scalar_mock(1),
             _make_scalars_unique_all([conv]),
+            _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),  # owner uuid
         ])
 
         result = await list_conversations(db, user_id=1)
 
         assert result.items[0].kb_status == "deleted"
         assert result.items[0].kb_name == "已删除知识库"
+        assert result.items[0].owner_user_id == "550e8400-e29b-41d4-a716-446655440001"
 
 
 # ==================== create_conversation 测试 ====================
@@ -217,8 +228,10 @@ class TestCreateConversation:
 
         # mock resolve_uuid_to_id（service 内部局部导入）+ _enrich_kb_status
         with patch("app.core.uuid_helpers.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.services.conversation_service._enrich_kb_status") as mock_enrich:
+             patch("app.services.conversation_service._enrich_kb_status") as mock_enrich, \
+             patch("app.services.conversation_service.resolve_user_uuid", new_callable=AsyncMock) as mock_uuid:
             mock_resolve.return_value = 1
+            mock_uuid.return_value = "550e8400-e29b-41d4-a716-446655440001"
             result = await create_conversation(db, user_id=1, data=data)
 
         assert db.add.called
@@ -228,7 +241,7 @@ class TestCreateConversation:
         # 验证返回值的实际字段
         assert result.uuid == "conv-uuid-100"
         assert result.title == "测试会话"
-        assert result.user_id == 1
+        assert result.owner_user_id == "550e8400-e29b-41d4-a716-446655440001"
         # kb_uuid 是 @property，从 knowledge_base.uuid 读取（fake_refresh 设置的 kb mock）
         assert result.kb_uuid == "kb-uuid-1"
         assert result.last_message_at is None
@@ -257,6 +270,7 @@ class TestGetConversationDetail:
         db.execute = AsyncMock(side_effect=[
             _make_scalars_unique_one_or_none(conv),  # get conv
             _make_scalars_all_mock([msg1, msg2]),     # get messages
+            _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),  # owner uuid
         ])
 
         result = await get_conversation_detail(db, conv_id=1, user_id=1)
@@ -264,6 +278,7 @@ class TestGetConversationDetail:
         assert result.title == "报销问答"
         assert result.kb_status == "active"
         assert result.kb_name == "测试知识库"
+        assert result.owner_user_id == "550e8400-e29b-41d4-a716-446655440001"
         assert len(result.messages) == 2
         assert result.messages[0].role == "user"
 

@@ -40,7 +40,7 @@ import TraceDetail from '@/views/admin/TraceDetail.vue'
 
 const MOCK_TRACE = {
   trace_id: 'abc12345-6789-abcd-ef01-234567890abc',
-  user_id: 10,
+  owner_user_id: '550e8400-e29b-41d4-a716-446655440001',
   username: 'alice',
   conversation_uuid: 'conv-uuid-42',
   conversation_title: '报销流程咨询',
@@ -133,6 +133,22 @@ describe('TraceDetail', () => {
       // 找到「用户」标签对应的值
       const userItem = infoItems.find(i => i.find('.info-label').text() === '用户')
       expect(userItem.find('.info-value').text()).toBe('alice')
+    })
+
+    it('用户链接跳转使用 owner_user_id（Platform User UUID）', async () => {
+      mockSuccessResponse()
+      const wrapper = getComponent()
+      await flushPromises()
+      const infoItems = wrapper.findAll('.info-item')
+      const userItem = infoItems.find(i => i.find('.info-label').text() === '用户')
+      await userItem.find('.info-value.link').trigger('click')
+      expect(mockRouterPush).toHaveBeenCalledWith('/admin/users/550e8400-e29b-41d4-a716-446655440001')
+    })
+
+    it('Trace 详情响应不含 user_id（内部 users.id 不进入外部响应）', () => {
+      expect(MOCK_TRACE).not.toHaveProperty('user_id')
+      expect(MOCK_TRACE).toHaveProperty('owner_user_id')
+      expect(MOCK_TRACE.owner_user_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
     })
 
     it('显示会话标题和 ID（纯文本，不可点击）', async () => {

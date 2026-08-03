@@ -11,7 +11,7 @@ class TraceListItem(BaseModel):
     对齐 API.md §7.5：列表项（不含 JSON 详情字段）
     """
     trace_id: str
-    user_id: int
+    owner_user_id: str = Field(description="用户 Platform User UUID（非内部 users.id）")
     username: str = Field(description="用户名")
     conversation_uuid: str | None = None
     kb_uuid: str | None = None
@@ -107,7 +107,7 @@ class TraceDetailResponse(BaseModel):
     对齐 API.md §7.5：Trace 详情（含各阶段 JSON 详情）
     """
     trace_id: str
-    user_id: int
+    owner_user_id: str = Field(description="用户 Platform User UUID（非内部 users.id）")
     username: str = Field(description="用户名")
     conversation_uuid: str | None = None
     conversation_title: str | None = Field(None, description="会话标题")

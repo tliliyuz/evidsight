@@ -76,6 +76,7 @@ async def list_traces(
         select(
             Trace,
             User.username,
+            User.platform_user_id,
             func.coalesce(KnowledgeBase.name, Conversation.original_kb_name).label("kb_name"),
             func.coalesce(KnowledgeBase.uuid, Conversation.original_kb_uuid).label("kb_uuid"),
             Conversation.uuid.label("conversation_uuid"),
@@ -185,10 +186,10 @@ async def list_traces(
     rows = (await db.execute(q)).all()
 
     items = []
-    for trace, username, kb_name, kb_uuid_val, conv_uuid in rows:
+    for trace, username, kb_name, kb_uuid_val, conv_uuid, platform_user_id in rows:
         items.append(TraceListItem(
             trace_id=trace.trace_id,
-            user_id=trace.user_id,
+            owner_user_id=platform_user_id,
             username=username,
             conversation_uuid=conv_uuid,
             kb_uuid=kb_uuid_val,
@@ -219,6 +220,7 @@ async def get_trace_detail(
         select(
             Trace,
             User.username,
+            User.platform_user_id,
             func.coalesce(KnowledgeBase.name, Conversation.original_kb_name).label("kb_name"),
             func.coalesce(KnowledgeBase.uuid, Conversation.original_kb_uuid).label("kb_uuid"),
             Conversation.title.label("conversation_title"),
@@ -233,11 +235,11 @@ async def get_trace_detail(
     if row is None:
         raise TraceNotFoundException(trace_id)
 
-    trace, username, kb_name, kb_uuid_val, conversation_title, conv_uuid = row
+    trace, username, kb_name, kb_uuid_val, conversation_title, conv_uuid, platform_user_id = row
 
     return TraceDetailResponse(
         trace_id=trace.trace_id,
-        user_id=trace.user_id,
+        owner_user_id=platform_user_id,
         username=username,
         conversation_uuid=conv_uuid,
         conversation_title=conversation_title,
