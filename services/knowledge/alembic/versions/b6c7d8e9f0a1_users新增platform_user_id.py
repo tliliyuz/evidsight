@@ -17,9 +17,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("users", sa.Column("platform_user_id", sa.String(36), nullable=True))
+    # 兼容历史漂移：列已存在（手动或半截迁移遗留）时跳过 ADD COLUMN，
+    # 回填、NOT NULL、唯一约束仍按需执行；对全新库行为不变。
+    inspector = sa.inspect(op.get_bind())
+    if "platform_user_id" not in {
+        col["name"] for col in inspector.get_columns("users")
+    }:
+        op.add_column("users", sa.Column("platform_user_id", sa.String(36), nullable=True))
     op.execute("UPDATE users SET platform_user_id = UUID() WHERE platform_user_id IS NULL")
-    op.alter_column("users", "platform_user_id", nullable=False)
+    op.alter_column(
+        "users", "platform_user_id", existing_type=sa.String(36), nullable=False
+    )
     op.create_unique_constraint(
         "uq_users_platform_user_id", "users", ["platform_user_id"]
     )
