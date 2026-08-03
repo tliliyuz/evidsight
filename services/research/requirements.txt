@@ -44,3 +44,5 @@ prometheus-client==0.21.*
 pytest==8.3.*
 pytest-asyncio==0.24.*
 pytest-cov==6.0.*
+# 契约测试：tests/contract/ 的 JSON Schema 校验
+jsonschema==4.*

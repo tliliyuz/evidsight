@@ -1,0 +1,9 @@
+{
+  "error": {
+    "error_code": "INTERNAL_IDENTITY_UNAVAILABLE",
+    "message": "身份状态事实源暂时不可用。",
+    "request_id": "01J00000000000000000000001",
+    "retryable": true,
+    "details": {}
+  }
+}

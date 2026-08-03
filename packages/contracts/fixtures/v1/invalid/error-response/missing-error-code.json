@@ -1,0 +1,8 @@
+{
+  "error": {
+    "message": "用户不可用。",
+    "request_id": "01J00000000000000000000000",
+    "retryable": false,
+    "details": {}
+  }
+}

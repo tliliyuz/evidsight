@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidsight.local/schemas/v1/identity-status-response.schema.json",
+  "title": "Identity Status Response",
+  "description": "Knowledge Service 在 Research 创建长期任务前返回的最小权威用户状态。只有 active 用户产生成功响应；禁用或不存在的用户返回错误响应（AUTH_USER_DISABLED）。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "$ref": "./common.schema.json#/$defs/SemVer",
+      "description": "Provider 实际使用的精确 Contract 版本。"
+    },
+    "platform_user_id": {
+      "$ref": "./common.schema.json#/$defs/UUIDv4",
+      "description": "被查询的 Platform User ID。"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active"],
+      "description": "只有 active 用户产生成功响应；禁用或不存在用户产生携带 AUTH_USER_DISABLED 的错误响应。"
+    },
+    "status_version": {
+      "$ref": "./common.schema.json#/$defs/NonNegativeInteger",
+      "description": "Knowledge 权威状态版本；未来状态缓存必须按此版本失效或更新。"
+    }
+  },
+  "required": ["contract_version", "platform_user_id", "status", "status_version"]
+}

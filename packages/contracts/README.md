@@ -337,4 +337,14 @@ Contract 变更必须依次通过：
 
 ## 14. 后续实施边界
 
-下一步先建立 `schemas/v1/`、Fixture、生成器配置和契约测试，再由 Knowledge/Research 专项规范分别定义 Provider 与 Consumer 的业务实现。任何需要改变本文服务边界、正文持久化策略、版本兼容规则或授权顺序的实现，都必须先修订本设计；涉及安全、数据生命周期或跨服务职责变化时同时新增 ADR。
+Contract 当前为 `1.0.0-draft` 设计阶段。已落地的最小可执行集合为 **Internal Identity Status** 契约（2026-08-03）：
+
+- `schemas/v1/common.schema.json`、`schemas/v1/identity-status-response.schema.json`、`schemas/v1/error-response.schema.json`；
+- `fixtures/v1/` 下 identity-status-response（1 valid / 12 invalid）与 error-response（2 valid / 3 invalid）Fixture；
+- `generated/python/evidsight_contracts/` 参考 Pydantic 模型与 `loader.py`（`$ref` 文件系统解析 + `referencing.Registry`）；
+- 契约自检测试 `packages/contracts/tests/`（Meta-Schema、`$ref`、Fixture 校验）；
+- Knowledge Provider 契约测试（`services/knowledge/tests/contract/`，当前端点 RED）与 Research Consumer 契约测试（`services/research/tests/contract/`，Fixture 消费/拒绝）。
+
+TypeScript 生成物、`datamodel-code-generator`/`json-schema-to-typescript` 生成器配置、Retrieval/Evidence/EvidenceRelation Schema 与 Fixture 均留给后续 Internal Retrieval 事件在 M4 React/TS 与 CI 工具链就绪后补齐。
+
+下一步由 Knowledge/Research 专项规范分别定义 Provider 与 Consumer 的业务实现。任何需要改变本文服务边界、正文持久化策略、版本兼容规则或授权顺序的实现，都必须先修订本设计；涉及安全、数据生命周期或跨服务职责变化时同时新增 ADR。

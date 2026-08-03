@@ -1,0 +1,9 @@
+{
+  "error": {
+    "error_code": "SOMETHING_ELSE",
+    "message": "未知错误码。",
+    "request_id": "01J00000000000000000000000",
+    "retryable": false,
+    "details": {}
+  }
+}

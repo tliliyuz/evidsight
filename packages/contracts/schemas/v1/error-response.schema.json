@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidsight.local/schemas/v1/error-response.schema.json",
+  "title": "Internal Contract Error Response",
+  "description": "Internal Contract 统一错误信封。错误详情只能包含 Schema 明确允许的安全字段，不得包含正文、查询原文回显、凭证、SQL、堆栈、内部路径或缓存 Key。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error_code", "message", "request_id", "retryable", "details"],
+      "properties": {
+        "error_code": {
+          "type": "string",
+          "enum": [
+            "INTERNAL_SERVICE_UNAUTHENTICATED",
+            "INTERNAL_CONTRACT_UNSUPPORTED",
+            "INTERNAL_CONTRACT_INVALID",
+            "AUTH_USER_DISABLED",
+            "INTERNAL_IDENTITY_UNAVAILABLE"
+          ],
+          "description": "稳定错误码；未知错误码必须由 Provider 与 Consumer 同时发布新版本 Contract。"
+        },
+        "message": {
+          "$ref": "./common.schema.json#/$defs/NonEmptyString",
+          "description": "面向调用方的最小安全摘要，不包含内部实现细节。"
+        },
+        "request_id": {
+          "$ref": "./common.schema.json#/$defs/RequestId",
+          "description": "跨服务请求关联 ID。"
+        },
+        "retryable": {
+          "type": "boolean",
+          "description": "调用方是否可安全重试。"
+        },
+        "details": {
+          "type": "object",
+          "propertyNames": {
+            "not": {
+              "enum": ["query", "token", "stack", "path", "excerpt"]
+            }
+          },
+          "description": "可选的受控细节；禁止使用正文、查询原文、凭证、堆栈、内部路径或缓存 Key 作为键名。空对象是合法的。"
+        }
+      }
+    }
+  },
+  "required": ["error"]
+}

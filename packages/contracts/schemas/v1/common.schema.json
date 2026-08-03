@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidsight.local/schemas/v1/common.schema.json",
+  "title": "EvidSight Contract Common Definitions",
+  "description": "共享类型定义，供所有 Internal Contract Schema 通过相对 $ref 引用。",
+  "$defs": {
+    "SemVer": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[\\w\\.]+)?(\\+[\\w\\.]+)?$"
+    },
+    "UUIDv4": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "NonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "NonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "RequestId": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

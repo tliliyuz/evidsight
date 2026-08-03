@@ -30,3 +30,5 @@ datasets>=3.0
 pytest==8.*
 pytest-asyncio==0.24.*
 pytest-cov==5.*
+# 契约测试：tests/contract/ 的 JSON Schema 校验
+jsonschema==4.*

@@ -1,0 +1,11 @@
+{
+  "error": {
+    "error_code": "AUTH_USER_DISABLED",
+    "message": "用户不可用。",
+    "request_id": "01J00000000000000000000000",
+    "retryable": false,
+    "details": {
+      "stack": "Traceback (most recent call last): ..."
+    }
+  }
+}
