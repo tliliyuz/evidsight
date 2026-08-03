@@ -4,7 +4,7 @@
 |:---|:---|
 | 文档状态 | 已确认设计 |
 | 文档版本 | v1.0 |
-| 最后更新 | 2026-08-02 |
+| 最后更新 | 2026-08-03 |
 | 适用范围 | Web、Knowledge Service、Research Service 与内部服务调用 |
 
 > 本文是统一身份、令牌、服务认证、授权上下文和敏感数据外发策略的权威规范。产品角色与权限矩阵见 [PRD.md](PRD.md) §8；服务所有权与网络信任边界见 [ARCHITECTURE.md](ARCHITECTURE.md)；HTTP 路由、状态码和错误码见 [API.md](API.md)。本文不定义数据库字段或业务 API Schema。
@@ -16,6 +16,14 @@
 - 命中原因：统一身份改变跨服务信任边界和身份契约；服务认证与敏感数据外发属于长期安全机制；决策共同影响身份、API、配置、数据库和 Contract 规范。
 - 裁决：负责人于 2026-08-02 明确接受 [ADR-005](../decisions/ADR-005-unified-identity-service-auth-egress.md)，当前状态为 `accepted`。
 - 门禁：现在可以从本规范导出验收测试；生产实现仍须先观察对应验收测试因目标行为缺失而正确 RED。
+
+Refresh Token Cookie/CSRF 收口检查：
+
+- 检查日期：2026-08-03
+- 检查结果：ADR 检查 3、4、7 为是（公共契约、数据与安全、跨规范影响），1、2、5、6、8 为否。
+- 理由：Refresh Token 从响应体迁移到 HttpOnly Cookie + double-submit CSRF 会改变外部认证 API 契约（`login`/`refresh` 不再返回明文、`refresh`/`logout` 新增必需 `X-CSRF-Token`）、敏感信息存储与传输边界（localStorage → HttpOnly Cookie）、部署/跨域配置（Origin 白名单、SameSite），并需同步修改 Auth、Frontend、Testing、API、CONFIGURATION 五份规范。ADR-005 只裁决统一身份、服务认证与数据外发，未裁决浏览器传输载体，故不能视为 ADR-005 已接受基线。
+- 裁决：负责人于 2026-08-03 明确接受 [ADR-006](../decisions/ADR-006-refresh-token-cookie-csrf.md)，当前状态为 `accepted`。
+- 门禁：可以更新 Auth、Frontend、Testing 和 Knowledge API 规范，并从 IA-015/IA-016 导出 RED 测试；生产实现不得在 RED 前开始。
 
 ## 1. 目标与边界
 
@@ -43,7 +51,7 @@ v1.0 不建立独立 Identity Service，不支持企业 SSO、SAML、SCIM、部�
 | 管理员 | 用户 Access Token 中的 `admin` 角色 | PRD 权限矩阵规定的审计和治理操作 | 替普通用户上传文档或绕过实时证据权限 |
 | 外部 Provider | 独立 Provider 凭证 | 被策略允许的单次模型、搜索或抓取请求 | 对内部网络、数据库或完整用户身份的访问 |
 
-Platform User ID 使用 UUID 字符串对外表达。用户名、邮箱、显示名和数据库自增主键都不能替代 Platform User ID 作为跨服务关联键。
+Platform User ID 使用 UUID 字符串对外表达。所有外部 User DTO 的 `id` 字段都表示 Platform User ID；用户名、邮箱、显示名和数据库自增主键都不能替代 Platform User ID 作为跨服务关联键。迁移期 Knowledge 内部 `users.id` 仍可服务旧表关系，但不得进入 `/api/v1/*` 响应、SSE、Research Contract 或前端身份状态。
 
 系统角色仅有 `user` 与 `admin`。业务画像不产生额外角色；资源能力由角色、所有权、可见性、资源状态和操作类型共同决定。
 
@@ -63,7 +71,7 @@ Platform User ID 使用 UUID 字符串对外表达。用户名、邮箱、显示
 | `nbf` | 生效时间 | 当前时间早于该值时拒绝 |
 | `exp` | 过期时间 | 过期立即拒绝 |
 
-Claims 只能携带稳定身份语义，不嵌入知识库列表、资源权限快照或私有业务数据。资源权限必须在服务端实时计算。
+Claims 只能携带稳定身份语义，不嵌入知识库列表、资源权限快照或私有业务数据；不得携带 `username` 等可派生展示字段，显示信息（用户名、角色、状态）必须由服务端从数据库当前状态读取。资源权限必须在服务端实时计算。
 
 ### 3.2 签名与验证
 
@@ -101,9 +109,20 @@ Refresh Token 只由 Knowledge Auth API 接收和处理，Research Service、URL
 - 并发刷新只允许一个请求成功；其余请求按已轮换或冲突处理，不能生成多个有效后继。
 - 退出登录撤销当前 Token Family；管理员禁用用户时撤销该用户全部 Token Family。
 
-### 4.2 传输
+### 4.2 浏览器传输
 
-浏览器首选使用 `HttpOnly`、`Secure`、适当 `SameSite` 的 Cookie 保存 Refresh Token，并使用 CSRF 防护；若部署选择响应体模式，前端只能使用受控安全存储，且必须在前端安全设计中说明 XSS 风险和退出清理方式。Refresh Token 禁止进入 URL、SSE、Analytics 或普通应用日志。
+浏览器目标态必须使用 `HttpOnly`、`Secure`、适当 `SameSite` 的 Cookie 保存 Refresh Token，并使用 CSRF 防护。Refresh Token 禁止进入 URL、SSE、Analytics、普通应用日志、Local Storage、Session Storage、IndexedDB、可读 Cookie 或前端业务状态。
+
+Cookie 模式采用以下规则：
+
+- Refresh Cookie 仅由 Knowledge Auth API 设置、轮换和清除，名称由配置定义，生产环境必须使用 `__Host-` 前缀、`Path=/api/v1/auth`、`HttpOnly`、`Secure`、`SameSite=Lax`；跨站部署需要 `SameSite=None; Secure` 时，必须同时启用严格 Origin 校验。
+- 登录成功创建 Token Family 后设置 Refresh Cookie；刷新成功必须在同一响应中设置新的 Refresh Cookie；退出、重放检测、Token Family 撤销和用户禁用后的刷新失败必须清除 Refresh Cookie。
+- Access Token 仍在响应体返回，由前端保存在内存或受控短期状态中并通过 `Authorization: Bearer` 调用业务 API；Access Token 不得写入长期可读持久存储。
+- Cookie 只用于 `/api/v1/auth/refresh` 与 `/api/v1/auth/logout`，不得被 Chat、Research、SSE、Internal API 或其他业务接口作为认证凭据。
+
+CSRF 采用 double-submit 模式：Knowledge Auth API 同时设置一个非 `HttpOnly` 的 CSRF Cookie，前端在刷新和退出请求中回传同值 `X-CSRF-Token` Header。服务端必须在执行任何 Refresh Token 解码、哈希查询、轮换或撤销前完成 CSRF 校验；Header 缺失、Cookie 缺失、值不一致或 Origin 不在允许列表时返回安全认证错误，且不得改变 Token Family 或写入重放审计。
+
+迁移期允许后端继续接受 JSON Body 中的 `refresh_token`，但仅作为旧 Web 调用兼容入口。兼容入口必须受配置开关控制、记录不含 Token 的弃用调用量，并在观测窗口归零后删除；前端目标态不得再读取、写入或传递 Body refresh_token。若部署明确选择响应体模式作为长期例外，必须在本规范重新完成 ADR 检查并在前端安全设计中记录 XSS 风险、退出清理和禁用传播影响。
 
 ## 5. 登录、刷新与退出
 
@@ -113,21 +132,23 @@ Refresh Token 只由 Knowledge Auth API 接收和处理，Research Service、URL
 2. 按固定耗时策略校验凭证，用户不存在与密码错误使用同一公开错误。
 3. 检查用户启用状态。
 4. 在数据库事务中创建 Refresh Token Family。
-5. 签发 Access/Refresh Token，记录成功审计，返回最小用户摘要。
+5. 签发 Access/Refresh Token，设置 Refresh Cookie 与 CSRF Cookie，记录成功审计，返回 Access Token 和最小用户摘要；目标态响应体不得包含 Refresh Token 明文。
 
 认证失败不得暴露用户是否存在、密码哈希、Token、数据库异常或堆栈。
 
 ### 5.2 刷新
 
-1. 验证 Refresh Token 格式、哈希、类型、过期和撤销状态。
-2. 锁定当前 Token 或使用等价 CAS，避免并发双花。
-3. 重新检查用户启用状态。
-4. 轮换 Token，并在同一事务中提交旧 Token 撤销和新 Token 创建。
-5. 返回新 Token；事务失败时不得留下两个有效后继。
+1. 先校验 CSRF 与 Origin；校验失败不得读取或改变 Refresh Token 状态。
+2. 从 Refresh Cookie 读取 Refresh Token；迁移期可在配置允许时回退读取 JSON Body。
+3. 验证 Refresh Token 格式、哈希、类型、过期和撤销状态。
+4. 锁定当前 Token 或使用等价 CAS，避免并发双花。
+5. 重新检查用户启用状态。
+6. 轮换 Token，并在同一事务中提交旧 Token 撤销和新 Token 创建。
+7. 设置新的 Refresh Cookie 与 CSRF Cookie，返回新 Access Token；事务失败时不得留下两个有效后继。
 
 ### 5.3 退出
 
-退出是幂等操作。服务撤销能够识别的当前 Token Family，清除 Refresh Cookie，并返回成功；重复退出不得泄露 Token 是否曾有效。前端同时清除 Access Token、用户信息、Chat/Research 订阅和敏感页面状态。
+退出是幂等操作。服务先校验 CSRF 与 Origin；校验通过后撤销能够识别的当前 Token Family，清除 Refresh Cookie 与 CSRF Cookie，并返回成功；重复退出不得泄露 Token 是否曾有效。前端同时清除 Access Token、用户信息、Chat/Research 订阅和敏感页面状态。
 
 ## 6. 用户禁用语义
 
@@ -261,5 +282,10 @@ Knowledge Service 的校验顺序为：
 | IA-010 | 签名密钥轮换 | 窗口内按 Key ID 验证新旧 Token，窗口后旧 Key 失效 |
 | IA-011 | 用户并发刷新同一 Token | 至多一个请求成功，不产生两个有效后继 |
 | IA-012 | Internal Retrieval 缺少服务身份或用户上下文 | 请求被拒绝且不返回 Evidence |
+| IA-013 | Access Token Claim 不含展示字段 | 用户名、角色和状态从 `/api/v1/auth/me` 当前状态读取 |
+| IA-014 | 调用 `/api/v1/auth/me` | 返回 Platform User UUID 摘要，禁用/不存在统一拒绝 |
+| IA-015 | Cookie 模式刷新和退出 | Refresh Token 只在 HttpOnly Cookie 中传输，CSRF/Origin 失败不改变 Token 状态 |
+| IA-016 | 旧 Body Refresh Token 迁移期调用 | 仅配置允许时兼容并记录弃用用量；目标态前端不再持久化或提交 Refresh Token 明文 |
+| IA-017 | 外部 User DTO 与旧 Auth 接口退出 | User DTO `id` 为 Platform User UUID；旧 `/api/auth/*` 与 `id=int` UserResponse 按观测窗口退出 |
 
 以上场景必须转化为 Auth、Research、Internal Retrieval 的自动化验收测试；涉及外发的数据泄露场景同时检查请求载荷和日志。

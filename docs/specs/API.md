@@ -23,7 +23,7 @@ M1 的统一身份、服务认证和敏感数据外发决策由已接受的 [ADR
 
 - HTTP 使用 HTTPS；JSON 与 SSE 均为 UTF-8。
 - 时间使用 RFC 3339 UTC（推荐 `Z`）；持续时间使用毫秒整数。
-- ID 对外为不透明 UUID 字符串，客户端不得依赖排序或内部主键。
+- ID 对外为不透明 UUID 字符串，客户端不得依赖排序或内部主键。所有外部 User DTO 的 `id` 必须是 Platform User UUID；Knowledge 迁移期内部 `users.id` BIGINT 不得出现在 `/api/v1/*` 响应、SSE 事件或前端状态中。
 - 外部 `/api/v1` 的 Breaking Change 使用新主版本；新增可选字段或非终态枚举值必须允许旧客户端安全降级。
 - Internal Retrieval 使用精确 Contract 版本和 `additionalProperties: false`；其未知字段/枚举必须拒绝，不适用外部客户端的宽容读取规则。
 - 迁移期旧 DocMind/ResearchMind 路由保持原行为，由兼容层映射；废弃前必须有调用方清单、替代路径、观测窗口和回归测试。
@@ -48,7 +48,7 @@ M1 的统一身份、服务认证和敏感数据外发决策由已接受的 [ADR
 | DTO | 必需字段 | 关键约束 |
 |:---|:---|:---|
 | `LoginRequest` | `username`、`password` | 非空；错误不区分账号不存在和密码错误 |
-| `UserSummary` | `id`、`username`、`role`、`status` | UUID；`role=user|admin`，`status=active|disabled` |
+| `UserSummary` | `id`、`username`、`role`、`status` | `id` 为 Platform User UUID，不是 Knowledge 内部 `users.id`；`role=user|admin`，`status=active|disabled` |
 | `KnowledgeBaseCreate` | `name`、`visibility` | `visibility=private|public` |
 | `KnowledgeBaseResponse` | `id`、`name`、`visibility`、`owner`、`index_status`、时间 | 不返回内部主键、Collection 或路径 |
 | `DocumentResponse` | `id`、`knowledge_base_id`、`display_name`、`status`、时间 | `queued|processing|completed|partial|failed` |
@@ -93,12 +93,18 @@ M1 的统一身份、服务认证和敏感数据外发决策由已接受的 [ADR
 
 | 方法与路径 | 权限 | 成功 | 主要语义 |
 |:---|:---|:---:|:---|
+| `POST /api/v1/auth/register` | 匿名、限流 | 201 | 创建用户并返回外部 User DTO |
 | `POST /api/v1/auth/login` | 匿名、限流 | 200 | 登录并建立 Refresh Family |
-| `POST /api/v1/auth/refresh` | Refresh Token | 200 | 原子轮换；重放撤销 Family |
-| `POST /api/v1/auth/logout` | 可识别会话 | 204 | 幂等撤销并清理 Cookie |
+| `POST /api/v1/auth/refresh` | Refresh Cookie + CSRF | 200 | 原子轮换；重放撤销 Family |
+| `POST /api/v1/auth/logout` | Access Token + Refresh Cookie + CSRF | 204 | 幂等撤销并清理 Cookie |
 | `GET /api/v1/auth/me` | 用户 | 200 | 返回最小用户与角色摘要 |
+| `PUT /api/v1/auth/password` | 用户 | 204 | 改密并撤销全部 Refresh Family |
 
 认证、轮换、禁用、Cookie/CSRF 和安全错误以身份规范为准。
+
+浏览器 Auth API 的 Refresh Token 目标态只通过 Knowledge 设置的 HttpOnly Refresh Cookie 传输；`login` 和 `refresh` 响应体返回 Access Token，不返回 Refresh Token 明文。`refresh` 与 `logout` 请求必须携带 CSRF Cookie 对应的 `X-CSRF-Token` Header；CSRF 或 Origin 校验失败返回认证错误，且不得进入 Refresh Token 轮换、撤销或重放审计分支。
+
+旧 `/api/auth/*` 路由、JSON Body `refresh_token` 和返回 `id=int` 的旧 User DTO 只作为 M1 迁移期兼容入口。兼容入口不得成为新前端契约，必须记录不含 Token 的弃用调用量，并在观测窗口归零、Web 与脚本 Consumer 全部切换到 `/api/v1/auth/*` 且回归测试通过后删除。迁移期文档必须同时标注目标路径、Consumer、观测方式和删除动作。
 
 ## 6. Knowledge API
 

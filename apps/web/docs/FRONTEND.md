@@ -138,6 +138,28 @@ Query Key 必须包含资源范围，例如 `['knowledge-base', kbId]`、`['conv
 
 登录抽屉包含账号、密码、显示密码、记住登录状态与提交按钮。错误文案不区分“用户不存在”和“密码错误”。提交期间按钮进入忙碌状态并防止重复请求；成功后默认进入 `/workbench`。
 
+### 5.1.1 身份恢复
+
+前端身份的权威来源是 `GET /api/v1/auth/me`，返回 `UserSummary`（`id` 为 UUID 字符串，`username`/`role`/`status` 来自数据库当前状态）。客户端不得从 Access Token Claim 解析或拼装用户名、角色、状态，也不得对 `id` 做数值解析。
+
+- 登录成功保存 Access Token 后调用 `/me`，**成功后才建立** `user` 状态；失败按未登录处理。
+- 注册、登录、刷新、退出、改密和 `/me` 目标态均调用 `/api/v1/auth/*`；旧 `/api/auth/*` 只允许作为迁移期兼容测试，不得在新代码中新增依赖。
+- 页面重载时**不恢复持久化的 `user`**，用 Access Token 调用 `/me` 重建身份。
+- `/me` 返回 `401`、用户被禁用或请求失败时，清除 Token、清理会话并返回登录入口。
+- Refresh 成功后重新调用 `/me`，以获取可能变化的角色与状态。
+- `isLoggedIn` 在 `/me` 完成前保持「未就绪」态，受保护路由不得提前进入。
+- 任何 User DTO 的 `id` 都按 Platform User UUID 字符串处理；前端不得接受、缓存或向下游传递旧 `id=int` 用户身份。
+
+### 5.1.2 Refresh Cookie 与 CSRF
+
+前端目标态不读取、不保存、不传递 Refresh Token 明文。登录和刷新只消费响应体中的 Access Token；Refresh Token 由 Knowledge 通过 HttpOnly Cookie 持有并随 `/api/v1/auth/refresh`、`/api/v1/auth/logout` 自动发送。
+
+- API 客户端必须启用凭据携带，使 Refresh Cookie 只发送到 Auth 端点；
+- 刷新和退出请求必须读取非 HttpOnly CSRF Cookie，并以 `X-CSRF-Token` Header 回传；
+- CSRF Header/Cookie 缺失、不一致或 Origin 被拒绝时，前端按刷新失败处理：清除 Access Token、用户状态、Query、SSE 和敏感页面快照，返回登录入口；
+- 前端不得把 Refresh Token 写入 Local Storage、Session Storage、IndexedDB、可读 Cookie、Pinia 持久状态、URL、日志或 Analytics；
+- M1 迁移期若后端仍允许 body `refresh_token`，旧调用只用于兼容测试；新代码不得新增对 `localStorage.refresh_token` 的读写。
+
 ### 5.2 工作台
 
 工作台是行动入口而非统计仪表盘：
@@ -338,7 +360,8 @@ Research SSE 只是持久任务的观察通道：
 
 ## 11. 安全与隐私
 
-- Refresh Token 优先使用 HttpOnly Cookie，禁止写入 URL、日志、Analytics 或可读持久存储；
+- Refresh Token 使用 HttpOnly Cookie，禁止写入 URL、日志、Analytics、Local Storage、Session Storage、IndexedDB、可读 Cookie 或前端业务状态；
+- Refresh/Logout 必须携带 CSRF Header；CSRF 失败按认证失败清理本地敏感状态；
 - Access Token 只通过统一 API 客户端附加，错误上报前进行脱敏；
 - 前端不缓存内部 Evidence 正文到 Local Storage、IndexedDB 或离线缓存；
 - 打开内部文档片段时实时鉴权；权限撤销后清理对应 Query；

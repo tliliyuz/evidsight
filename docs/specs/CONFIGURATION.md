@@ -27,7 +27,7 @@
 
 - 数据库：独立 DSN、连接池、超时和 UTC；
 - Redis：独立 DB、Key 前缀、队列名和 `noeviction` 要求；
-- 身份：issuer、audience、算法、Key ID、Access/Refresh 生命周期和双 Key 窗口；
+- 身份：issuer、audience、算法、Key ID、Access/Refresh 生命周期、双 Key 窗口、Refresh Cookie/CSRF 浏览器传输和严格 Origin 校验；
 - 文件/向量：上传路径、允许类型、大小、磁盘保护水位、Chroma 路径；
 - Provider：能力开关、endpoint、model、超时、重试、并发、预算和外发策略；
 - Research：租约时长、续租周期、Scanner 间隔、Task 并发、队列上限和单任务预算；
@@ -49,6 +49,13 @@
 | `EVIDSIGHT_PLATFORM_JWT_PUBLIC_KEYS_FILE` | Knowledge/Research | path | 必填 | sensitive |
 | `EVIDSIGHT_PLATFORM_ACCESS_TOKEN_TTL_SECONDS` | Platform | int | `900` | public |
 | `EVIDSIGHT_PLATFORM_REFRESH_TOKEN_TTL_SECONDS` | Platform | int | `604800` | public |
+| `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME` | Platform | string | `__Host-evidsight_refresh` | public |
+| `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_PATH` | Platform | string | `/api/v1/auth` | public |
+| `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE` | Platform | bool | `true` | public |
+| `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SAMESITE` | Platform | enum | `lax`；跨站部署用 `none` 且必须 `Secure` | public |
+| `EVIDSIGHT_PLATFORM_CSRF_COOKIE_NAME` | Platform | string | `evidsight_csrf` | public |
+| `EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS` | Platform | csv string | 必填（严格 Origin 校验） | public |
+| `EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT` | Platform | bool | `false`（M1 迁移期可开） | public |
 | `EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER` | Platform | string | `evidsight-platform` | public |
 | `EVIDSIGHT_PLATFORM_SERVICE_JWT_ALGORITHM` | Platform | enum | `RS256` | public |
 | `EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE` | Platform | string | `knowledge-internal` | public |
@@ -94,6 +101,8 @@
 | `EVIDSIGHT_WEB_API_BASE_PATH` | Web | string | `/api/v1` | public |
 
 生产部署可以覆盖默认值，但必须在变更记录中说明容量、安全和保留影响。新增键先进入本表，再进入 `.env.example`、Settings Schema、Compose 和配置测试。
+
+Refresh Cookie 与 CSRF 传输规则见 [IDENTITY_AND_ACCESS.md](IDENTITY_AND_ACCESS.md) §4.2；错误码见 [API.md](API.md) §5。生产环境 `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME` 必须使用 `__Host-` 前缀（同时要求 `Secure` 且不设 Domain）；`EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS` 用于 Refresh/Logout 的 Origin 白名单校验，为空时按同站处理。开发环境允许将 `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE` 置为 `false` 以便在 HTTP 下调试，但生产必须为 `true`。`EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT` 开启后仅作为 M1 迁移期兼容入口，需记录不含 Token 的弃用调用量并在观测窗口归零后删除，禁止被新前端依赖。
 
 Service JWT 只由 Research 签发、由 Knowledge 验证，使用独立于用户 Access/Refresh Token 的密钥材料。JWT Header 必须包含 `kid`；Payload 必须包含 `iss`、`aud`、`sub=research-service`、`token_type=service`、`jti`、`iat`、`nbf` 和 `exp`。Knowledge 只接受算法允许列表、配置的 Issuer、`knowledge-internal` Audience 和已登记 Key ID。公钥文件必须支持当前 Key 与上一 Key 的受控验证窗口；私钥、公钥内容和 Token 不得进入日志或错误响应。
 

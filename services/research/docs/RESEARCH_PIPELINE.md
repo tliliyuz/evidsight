@@ -121,6 +121,15 @@ Step 状态为 `pending|running|completed|failed|skipped|retrying`。Step 的业
 
 同一逻辑 Step 的重试递增 `attempt_count`。可复用旧业务结果时跳过已 completed Step；必须重建内部工作集时创建新 attempt，并使依赖该输入的后续 Step 重新执行。过期 Worker 的迟到写入因 generation 不匹配被拒绝。
 
+### 4.4 创建前身份复核
+
+创建长期研究任务（`POST /api/v1/research/tasks`）前，Research 必须通过 `GET /internal/v1/identity/users/{platform_user_id}/status` 实时复核 Platform User 的当前状态。该调用只依赖 Service JWT、Contract 版本、`X-Request-ID` 与 W3C Trace Context，不读取 Knowledge 数据库或本地用户表（见 [`docs/specs/API.md`](../../../docs/specs/API.md) §11.1 与 [`packages/contracts/`](../../../packages/contracts/README.md) §5.1）。
+
+- 成功响应 `status=active` 才允许创建任务；用户不存在或已禁用统一返回 `AUTH_USER_DISABLED`，任务创建被拒绝，不得创建 Task 或投递 Worker。
+- 身份事实源暂时不可用返回可重试的 `INTERNAL_IDENTITY_UNAVAILABLE`，任务创建失败关闭；不得用历史 `active` 响应或 Access Token 剩余有效期放行新任务。
+- v1.0 不缓存身份状态；创建任务前必须实时调用，不得复用陈旧结果。未来引入状态缓存前，必须先定义短 TTL、`status_version` 比较和禁用事件主动失效机制（对齐 [`docs/specs/IDENTITY_AND_ACCESS.md`](../../../docs/specs/IDENTITY_AND_ACCESS.md) §3.3）。
+- 身份复核失败不得分发 Worker，也不得把状态结论写入 Task 业务字段或日志摘要。
+
 ## 5. Planning
 
 ### 5.1 输入与输出

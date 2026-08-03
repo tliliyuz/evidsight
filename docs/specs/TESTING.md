@@ -42,6 +42,11 @@
 - IA-004：重放已轮换 Refresh Token 时撤销整个 Family、持久化携带 `request_id` 且不含 Token 的安全事件，并返回 `E5009`；普通撤销 Token 不得误判为重放；
 - IA-012 基线：Knowledge Internal API 拒绝缺失、伪造、过期、错误 Issuer/Audience/类型/Key ID 的 Service JWT；拒绝缺失或非法的 Platform User UUID、Contract 版本、`X-Request-ID` 和 `traceparent`，且不得进入用户查询或后续检索；
 - IA-012 身份状态 Contract：active 用户只返回 Platform User UUID、`status=active` 和非负 `status_version`；用户不存在或禁用统一返回 `AUTH_USER_DISABLED`；身份库不可用返回可重试的 `INTERNAL_IDENTITY_UNAVAILABLE`，Research 创建任务失败关闭且不分发 Worker；
+- IA-013 Access Token 不含 `username` 等可派生展示字段；`username`/`role`/`status` 显示信息必须由 `/api/v1/auth/me` 从数据库当前状态读取，不得从 Token Claim 拼装；
+- IA-014 `/api/v1/auth/me` 直接返回 `UserSummary`（`id` 为合法 UUID 字符串，来自 `users.platform_user_id`）；Token 无效返回 `401 E5004`，用户不存在或禁用统一返回 `401 E5010`；
+- IA-015 Refresh Cookie/CSRF：登录设置 HttpOnly Refresh Cookie 与非 HttpOnly CSRF Cookie，响应体不含 Refresh Token；刷新和退出必须携带匹配的 `X-CSRF-Token`，缺失、不一致或 Origin 不允许时返回认证错误，且不得解码、轮换、撤销 Token Family 或写入重放审计；刷新成功同时轮换 Refresh Cookie 与 CSRF Cookie；
+- IA-016 迁移期兼容：配置允许时旧 JSON Body `refresh_token` 可完成刷新/退出并记录不含 Token 的弃用用量；配置关闭时 body `refresh_token` 被拒绝。Web 新代码不得读写 `localStorage.refresh_token`，刷新和退出只依赖 Cookie 与 CSRF Header；
+- IA-017 外部 User DTO 与遗留接口退出：`/api/v1/auth/register` 和 `/api/v1/auth/me` 返回的 User DTO `id` 均为 Platform User UUID，响应不得包含 Knowledge 内部 `users.id`；旧 `/api/auth/*` 和旧 `id=int` UserResponse 只在配置允许的迁移期可用，必须有调用量观测，关闭后 Web、脚本和 API 测试全部使用 `/api/v1/auth/*`；
 - 退出撤销当前 Refresh Token Family；
 - 禁用用户不能登录、刷新、创建任务、Chat 或 Internal Retrieval；
 - private/public、owner/admin 操作矩阵；
@@ -78,6 +83,22 @@
 ## 4. Contract 门禁
 
 Internal Contract 每个版本必须通过 Meta-Schema、唯一 `$id`、可解析 `$ref`、有效/无效 Fixture、生成物无差异、Knowledge Provider 和 Research Consumer 测试。External OpenAPI 必须通过语法、引用、示例和 Breaking Change 检查。
+
+契约 Schema 与 Fixture 以 `packages/contracts/` 为唯一权威源，双方测试不得复制 Schema 或自造 Fixture。已落地的 Internal Identity Status 契约测试分布：
+
+- Schema 自检：`packages/contracts/tests/`（Meta-Schema、`$id` 唯一、`$ref` 可解析、Fixture 校验）；
+- Knowledge Provider：`services/knowledge/tests/contract/`（端点 `GET /internal/v1/identity/users/{id}/status` 当前为正确 RED）；
+- Research Consumer：`services/research/tests/contract/`（只消费/拒绝 Fixture，独立运行，不依赖端点）。
+
+运行命令：
+
+```bash
+python3 -m pytest packages/contracts/tests
+cd services/knowledge && python -m pytest tests/contract   # 或在 knowledge 容器内执行
+cd services/research && python -m pytest tests/contract
+```
+
+`jsonschema==4.*` 是契约测试的测试依赖，已登记在 `requirements-dev.txt`、`services/knowledge/requirements.txt` 与 `services/research/requirements.txt`。
 
 ## 5. PRD 验收映射
 

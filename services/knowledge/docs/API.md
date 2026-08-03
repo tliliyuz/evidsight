@@ -145,7 +145,7 @@
 
 ## 2. 认证接口
 
-### POST `/api/auth/register`
+### POST `/api/v1/auth/register`（兼容：`/api/auth/register`）
 
 **权限**：公开
 
@@ -165,15 +165,18 @@
   "code": "0",
   "message": "注册成功",
   "data": {
-    "id": 1,
+    "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "zhangsan",
     "role": "user",
+    "status": "active",
     "created_at": "2026-05-11T10:00:00"
   }
 }
 ```
 
-### POST `/api/auth/login`
+`data.id` 是 Platform User UUID（`users.platform_user_id`），不是 Knowledge 内部 `users.id` BIGINT。迁移期兼容路由若仍返回旧 `id=int` UserResponse，只能服务旧 Consumer；新 Web、脚本和测试必须使用 `/api/v1/auth/register` 的 UUID DTO。
+
+### POST `/api/v1/auth/login`（兼容：`/api/auth/login`）
 
 **权限**：公开
 
@@ -194,35 +197,40 @@
   "message": "登录成功",
   "data": {
     "access_token": "eyJhbGciOiJIUzI1NiIs...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
     "token_type": "bearer",
     "expires_in": 900
   }
 }
 ```
 
+响应同时设置：
+
+- HttpOnly Refresh Cookie：保存 Refresh Token 明文，生产环境使用 `__Host-` 前缀、`Secure`、`SameSite`、`Path=/api/v1/auth`；
+- CSRF Cookie：非 HttpOnly，前端后续刷新和退出时以 `X-CSRF-Token` Header 回传同值。
+
 | 字段 | 类型 | 说明 |
 |:---|:---|:---|
 | access_token | string | JWT 访问令牌，有效期 15 分钟 |
-| refresh_token | string | JWT 刷新令牌，有效期 7 天（MySQL 持久化，支持 Rotation） |
 | token_type | string | 固定 `bearer` |
 | expires_in | int | access_token 有效期（秒），900 = 15 分钟 |
 
-> **设计说明**：`access_token` 15 分钟短有效期降低泄露风险；`refresh_token` 7 天长有效期避免频繁登录。前端 Axios 拦截器自动刷新，用户无感。
+> **设计说明**：`access_token` 15 分钟短有效期降低泄露风险；`refresh_token` 7 天长有效期避免频繁登录，但浏览器目标态只能通过 HttpOnly Cookie 持有，响应体不返回 Refresh Token 明文。M1 迁移期可由配置允许旧响应体字段，但新前端不得依赖。
 
-### POST `/api/auth/refresh`
+### POST `/api/v1/auth/refresh`（兼容：`/api/auth/refresh`）
 
-**权限**：公开（携带 refresh_token）
+**权限**：Refresh Cookie + CSRF
 
-用 refresh_token 换取新的 token 对。每次刷新后旧 refresh_token 立即失效（Rotation）。
+用 Refresh Cookie 换取新的 Access Token，并轮换 Refresh Token。每次刷新后旧 Refresh Token 立即失效（Rotation）。
 
-**请求**：
+**请求 Header**：
 
-```json
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIs..."
-}
+```http
+Cookie: __Host-evidsight_refresh=...
+Cookie: evidsight_csrf=...
+X-CSRF-Token: <与 evidsight_csrf Cookie 相同的值>
 ```
+
+JSON Body `refresh_token` 只允许作为 M1 迁移期兼容入口，必须由配置显式开启并记录不含 Token 的弃用调用量。
 
 **响应** (200)：
 
@@ -232,17 +240,19 @@
   "message": "Token 刷新成功",
   "data": {
     "access_token": "eyJhbGciOiJIUzI1NiIs...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
     "token_type": "bearer",
     "expires_in": 900
   }
 }
 ```
 
+响应同时设置新的 HttpOnly Refresh Cookie 与新的 CSRF Cookie。
+
 **错误响应**：
 
 | 场景 | 错误码 | HTTP 码 |
 |:---|:---|:---|
+| CSRF Header/Cookie 缺失、不一致或 Origin 不允许 | E5004 | 401 |
 | refresh_token 已过期（> 7 天） | E5006 | 401 |
 | refresh_token 已被主动吊销 | E5007 | 401 |
 | refresh_token 格式无效 | E5008 | 401 |
@@ -250,31 +260,28 @@
 
 > **泄露检测（E5009）**：当用户正常刷新后攻击者仍使用旧 Refresh Token 请求刷新，说明 Token 可能已泄露。此时系统吊销该 Token 所属 Refresh Token Family 并记录安全审计事件，要求当前会话重新登录；同一用户的其他登录 Family 不受影响。
 
-### POST `/api/auth/logout`
+### POST `/api/v1/auth/logout`（兼容：`/api/auth/logout`）
 
-**权限**：user（需登录）
+**权限**：Access Token + Refresh Cookie + CSRF
 
-吊销当前 refresh_token，access_token 在短有效期后自然过期。
+吊销当前 Refresh Token Family，清除 Refresh Cookie 与 CSRF Cookie，Access Token 在短有效期后自然过期。
 
-**请求**：
+**请求 Header**：
 
-```json
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIs..."
-}
+```http
+Authorization: Bearer <access_token>
+Cookie: __Host-evidsight_refresh=...
+Cookie: evidsight_csrf=...
+X-CSRF-Token: <与 evidsight_csrf Cookie 相同的值>
 ```
 
-**响应** (200)：
+JSON Body `refresh_token` 只允许作为 M1 迁移期兼容入口，必须由配置显式开启并记录不含 Token 的弃用调用量。
 
-```json
-{
-  "code": "0",
-  "message": "已退出登录",
-  "data": null
-}
-```
+**响应** (204)：
 
-### PUT `/api/auth/password`
+无响应体。兼容路由在迁移期可继续返回 `200 {"code":"0","message":"已退出登录","data":null}`。
+
+### PUT `/api/v1/auth/password`（兼容：`/api/auth/password`）
 
 **权限**：user（需登录）
 
@@ -1970,11 +1977,11 @@ data: {"message_id": 13, "title": null, "token_usage": {"prompt": 80, "completio
 
 | 方法 | 路径 | 权限 | 说明 | 实现 |
 |:---|:---|:---|:---|:---|
-| POST | `/api/auth/register` | 公开 | 注册 | Phase 1 ✅ |
-| POST | `/api/auth/login` | 公开 | 登录（Phase 4 新增 refresh_token 字段） | Phase 1 ✅ |
-| POST | `/api/auth/refresh` | 公开（携带 refresh_token） | Token 刷新（Rotation） | Phase 4 |
-| POST | `/api/auth/logout` | user | 吊销 refresh_token | Phase 4 |
-| PUT | `/api/auth/password` | user | 改密并吊销全部 refresh_token | Phase 4 |
+| POST | `/api/v1/auth/register`（兼容 `/api/auth/register`） | 公开 | 注册并返回 UUID User DTO | M1 |
+| POST | `/api/v1/auth/login`（兼容 `/api/auth/login`） | 公开 | 登录并设置 Refresh/CSRF Cookie | M1 |
+| POST | `/api/v1/auth/refresh`（兼容 `/api/auth/refresh`） | Refresh Cookie + CSRF | Token 刷新（Rotation） | M1 |
+| POST | `/api/v1/auth/logout`（兼容 `/api/auth/logout`） | Access Token + Refresh Cookie + CSRF | 幂等吊销并清理 Cookie | M1 |
+| PUT | `/api/v1/auth/password`（兼容 `/api/auth/password`） | user | 改密并吊销全部 Refresh Family | M1 |
 | POST | `/api/knowledge-bases` | user | 创建知识库（可指定 visibility） | Phase 2 ✅ |
 | GET | `/api/knowledge-bases` | user | 我的知识库列表（仅当前用户） | Phase 2 ✅ |
 | GET | `/api/knowledge-bases/public` | user | 公开知识库列表（跨用户，仅 public+active） | Phase 2.5 ✅ |

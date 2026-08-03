@@ -16,7 +16,7 @@
    # Windows
    celery -A app.tasks.celery_app worker --loglevel=info --pool=solo
    ```
-3. 已创建好登录用户（可通过 `/api/auth/register` 或数据库初始化）。
+3. 已创建好登录用户（目标接口为 `/api/v1/auth/register`；旧 `/api/auth/register` 仅在 M1 迁移期兼容）。
 
 ## 快速开始
 
@@ -120,4 +120,4 @@ rm scripts/data/batch_progress.json
   2. 临时调大 `.env` 里的 `PENDING_TASK_TIMEOUT_SECONDS`（仅限测试环境）。
 - 当前版本**不会自动 retry** 失败任务，第二天可查看 CSV 中的 `error_code` 与 `error_message`。
 - 脚本不下载完整 report，只记录状态。需要 report 请调用 `GET /api/research/{task_id}/report`。
-- 自动刷新 `access_token`：过期前 60 秒会调用 `/api/auth/refresh`。
+- 自动刷新 `access_token`：过期前 60 秒调用目标接口 `/api/v1/auth/refresh`；旧 `/api/auth/refresh` 仅在 M1 迁移期兼容。
