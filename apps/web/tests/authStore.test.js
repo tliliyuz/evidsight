@@ -1,4 +1,12 @@
-/** auth store 单元测试 — JWT 解析、刷新定时器、并发守卫、登录/注册/登出 */
+/**
+ * auth store 单元测试 — v1 Cookie/CSRF 目标态（S6 事件③）
+ *
+ * 对齐 FRONTEND.md §5.1.1/§5.1.2：
+ * - 登录消费 unwrapped LoginV1Response { access_token, user }，Refresh Token 由 HttpOnly Cookie 持有，store 不保存；
+ * - 刷新调用 v1（无 refresh_token 参数，凭据来自 Cookie）；
+ * - 退出调用 v1（无 refresh_token 参数），幂等；
+ * - store 不再暴露 refreshToken 状态，localStorage 不写入 refresh_token。
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
@@ -24,6 +32,15 @@ function makeJwt(payload) {
   return `${header}.${body}.signature`
 }
 
+/** v1 登录响应（unwrapped LoginV1Response，不含 refresh_token） */
+function loginV1Response(accessToken) {
+  return { data: { access_token: accessToken, token_type: 'bearer', expires_in: 900, user: { id: 'u' } } }
+}
+/** v1 刷新响应（unwrapped RefreshV1Response，不含 refresh_token） */
+function refreshV1Response(accessToken) {
+  return { data: { access_token: accessToken, token_type: 'bearer', expires_in: 900 } }
+}
+
 let useAuthStore
 
 beforeEach(async () => {
@@ -31,7 +48,7 @@ beforeEach(async () => {
   localStorage.clear()
   vi.resetModules()
   // 默认 safe mock：防止未配置时 refresh() 访问 undefined.data
-  mockRefreshApi.mockResolvedValue({ data: { data: { access_token: '', refresh_token: '' } } })
+  mockRefreshApi.mockResolvedValue(refreshV1Response(''))
   // 默认 safe mock：防止未配置时 fetchMe() 访问 undefined.data
   mockGetMeApi.mockResolvedValue({ data: { id: 'u', username: 'u', role: 'user', status: 'active' } })
   setActivePinia(createPinia())
@@ -52,9 +69,7 @@ describe('身份获取（/me）', () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: '42', username: 'ignored', role: 'user' })
     // 通过 loginAction 完整链路验证：user 来自 /me，而非 JWT Claim
-    mockLoginApi.mockResolvedValue({
-      data: { data: { access_token: jwt, refresh_token: 'refresh-xxx' } },
-    })
+    mockLoginApi.mockResolvedValue(loginV1Response(jwt))
     mockGetMeApi.mockResolvedValue({
       data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'testuser', role: 'admin', status: 'active' },
     })
@@ -67,9 +82,7 @@ describe('身份获取（/me）', () => {
   it('user 不来自 JWT Claim（token 中 username 被忽略，高度以 /me 为准）', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: '42', username: 'claim-user', role: 'user' })
-    mockLoginApi.mockResolvedValue({
-      data: { data: { access_token: jwt, refresh_token: 'refresh-xxx' } },
-    })
+    mockLoginApi.mockResolvedValue(loginV1Response(jwt))
     mockGetMeApi.mockResolvedValue({
       data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'db-user', role: 'user', status: 'active' },
     })
@@ -80,29 +93,25 @@ describe('身份获取（/me）', () => {
   it('/me 失败时登录流程抛错（身份无法建立）', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: '1', username: 'u', role: 'user' })
-    mockLoginApi.mockResolvedValue({
-      data: { data: { access_token: jwt, refresh_token: 'refresh-xxx' } },
-    })
+    mockLoginApi.mockResolvedValue(loginV1Response(jwt))
     mockGetMeApi.mockRejectedValue(new Error('Unauthorized'))
     await expect(store.login('u', 'pass')).rejects.toThrow('Unauthorized')
   })
 
-  it('登录后 /me 失败时清除刚保存的 Token（不留半登录态）', async () => {
+  it('登录后 /me 失败时清除刚保存的 Token（不留半登录态），且不写入 refresh_token', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: '42', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
-    mockLoginApi.mockResolvedValue({
-      data: { data: { access_token: jwt, refresh_token: 'refresh-abc' } },
-    })
+    mockLoginApi.mockResolvedValue(loginV1Response(jwt))
     mockGetMeApi.mockRejectedValue(new Error('Unauthorized'))
 
     await expect(store.login('u', 'pass')).rejects.toThrow('Unauthorized')
 
     // 身份建立失败 → 清除 token 对与 user，按未登录处理（FRONTEND.md §5.1.1）
     expect(store.token).toBe('')
-    expect(store.refreshToken).toBe('')
     expect(store.user).toBeNull()
     expect(store.isLoggedIn).toBe(false)
     expect(localStorage.getItem('access_token')).toBeNull()
+    // S6：Refresh Token 不得写入 localStorage（FRONTEND.md §5.1.2）
     expect(localStorage.getItem('refresh_token')).toBeNull()
   })
 })
@@ -121,7 +130,7 @@ describe('scheduleRefresh() / clearRefreshTimer()', () => {
 
     // 防止 timer 触发时 refresh() 因 mock 未就绪而抛错
     mockRefreshApi.mockReturnValue(new Promise(() => {}))  // 永远 pending
-    store.setTokens(jwt, 'refresh-xxx')
+    store.setTokens(jwt)
     const countBefore = vi.getTimerCount()
     store.scheduleRefresh()
     expect(vi.getTimerCount()).toBe(countBefore + 1)
@@ -138,7 +147,7 @@ describe('scheduleRefresh() / clearRefreshTimer()', () => {
     const exp = Math.floor((now + 3 * 1000) / 1000)
     const jwt = makeJwt({ sub: '1', username: 'u', role: 'user', exp })
 
-    store.setTokens(jwt, 'refresh-xxx')
+    store.setTokens(jwt)
     mockRefreshApi.mockReturnValue(new Promise(() => {}))
     const countBefore = vi.getTimerCount()
     store.scheduleRefresh()
@@ -154,7 +163,7 @@ describe('scheduleRefresh() / clearRefreshTimer()', () => {
     const now = Date.now()
     const exp = Math.floor((now + 120 * 1000) / 1000)
     const jwt = makeJwt({ sub: '1', username: 'u', role: 'user', exp })
-    store.setTokens(jwt, 'refresh-xxx')
+    store.setTokens(jwt)
     mockRefreshApi.mockReturnValue(new Promise(() => {}))
 
     // 调用两次 scheduleRefresh
@@ -175,36 +184,37 @@ describe('scheduleRefresh() / clearRefreshTimer()', () => {
 })
 
 // =====================================================
-// _refreshing 并发守卫
+// refresh() 并发守卫（v1 Cookie 刷新，无 refresh_token 参数）
 // =====================================================
 describe('refresh() 并发守卫', () => {
-  it('单次刷新成功更新 token 并重取 /me', async () => {
+  it('单次刷新成功更新 token 并重取 /me，不写入 refresh_token', async () => {
     const store = useAuthStore()
     const oldJwt = makeJwt({ sub: '1', username: 'old', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
-    store.setTokens(oldJwt, 'old-refresh')
+    store.setTokens(oldJwt)
 
     const newJwt = makeJwt({ sub: '1', username: 'new', role: 'admin', exp: Math.floor(Date.now() / 1000) + 7200 })
-    mockRefreshApi.mockResolvedValue({
-      data: { data: { access_token: newJwt, refresh_token: 'new-refresh' } },
-    })
+    mockRefreshApi.mockResolvedValue(refreshV1Response(newJwt))
     mockGetMeApi.mockResolvedValue({
       data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'new', role: 'admin', status: 'active' },
     })
 
     const result = await store.refresh()
     expect(result).toBe(true)
+    // v1 刷新：无 refresh_token 参数，凭据来自 Cookie
     expect(mockRefreshApi).toHaveBeenCalledTimes(1)
+    expect(mockRefreshApi).toHaveBeenCalledWith()
     expect(mockGetMeApi).toHaveBeenCalledTimes(1)
     expect(store.user.username).toBe('new')
     expect(store.user.role).toBe('admin')
     expect(store.token).toBe(newJwt)
-    expect(store.refreshToken).toBe('new-refresh')
+    expect(localStorage.getItem('access_token')).toBe(newJwt)
+    expect(localStorage.getItem('refresh_token')).toBeNull()
   })
 
   it('并发刷新：第二个调用直接返回 true 不调 API', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: '1', username: 'u', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
-    store.setTokens(jwt, 'old-refresh')
+    store.setTokens(jwt)
 
     // 让第一次刷新挂起
     let resolveRefresh
@@ -218,21 +228,20 @@ describe('refresh() 并发守卫', () => {
 
     // 完成第一次刷新
     const newJwt = makeJwt({ sub: '1', username: 'u', role: 'user', exp: Math.floor(Date.now() / 1000) + 7200 })
-    resolveRefresh({ data: { data: { access_token: newJwt, refresh_token: 'new-refresh' } } })
+    resolveRefresh(refreshV1Response(newJwt))
     await p1
   })
 
   it('刷新 API 失败时清除所有状态并抛异常', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: '1', username: 'u', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
-    store.setTokens(jwt, 'old-refresh')
+    store.setTokens(jwt)
     store.user = { id: 1, username: 'u', role: 'user' }
 
     mockRefreshApi.mockRejectedValue(new Error('Refresh failed'))
 
     await expect(store.refresh()).rejects.toThrow('Refresh failed')
     expect(store.token).toBe('')
-    expect(store.refreshToken).toBe('')
     expect(store.user).toBeNull()
     expect(store.isLoggedIn).toBe(false)
   })
@@ -242,12 +251,10 @@ describe('refresh() 并发守卫', () => {
 // loginAction() / registerAction()
 // =====================================================
 describe('loginAction() / registerAction()', () => {
-  it('登录成功：设置 token、经 /me 建立 user、持久化', async () => {
+  it('登录成功：设置 token、经 /me 建立 user，不写入 refresh_token', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: '42', username: 'loginuser', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
-    mockLoginApi.mockResolvedValue({
-      data: { data: { access_token: jwt, refresh_token: 'refresh-abc' } },
-    })
+    mockLoginApi.mockResolvedValue(loginV1Response(jwt))
     mockGetMeApi.mockResolvedValue({
       data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'loginuser', role: 'admin', status: 'active' },
     })
@@ -258,18 +265,18 @@ describe('loginAction() / registerAction()', () => {
     expect(user.username).toBe('loginuser')
     expect(user.role).toBe('admin')
     expect(store.token).toBe(jwt)
-    expect(store.refreshToken).toBe('refresh-abc')
     expect(store.isLoggedIn).toBe(true)
     expect(localStorage.getItem('access_token')).toBe(jwt)
-    expect(localStorage.getItem('refresh_token')).toBe('refresh-abc')
     expect(localStorage.getItem('user')).toBe(JSON.stringify(user))
+    // S6：Refresh Token 只由 HttpOnly Cookie 持有，不得写入 localStorage
+    expect(localStorage.getItem('refresh_token')).toBeNull()
   })
 
   it('登录 API 失败时抛异常，不破坏已有状态', async () => {
     const store = useAuthStore()
     // 预置登录态（经 /me 建立，isLoggedIn 需 _meReady）
     const oldJwt = makeJwt({ sub: '1', username: 'existing', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
-    store.setTokens(oldJwt, 'existing-refresh')
+    store.setTokens(oldJwt)
     mockGetMeApi.mockResolvedValue({
       data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'existing', role: 'user', status: 'active' },
     })
@@ -305,21 +312,21 @@ describe('loginAction() / registerAction()', () => {
 })
 
 // =====================================================
-// logout()
+// logout()（v1，无 refresh_token 参数，凭据来自 Cookie）
 // =====================================================
 describe('logout()', () => {
-  it('正常登出：调 API 吊销 + 清除所有本地状态', async () => {
+  it('正常登出：调 v1 退出 API（无参数）+ 清除所有本地状态', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: '1', username: 'u', role: 'user' })
-    store.setTokens(jwt, 'refresh-abc')
+    store.setTokens(jwt)
     store.user = { id: 1, username: 'u', role: 'user' }
-    mockLogoutApi.mockResolvedValue({ data: {} })
+    mockLogoutApi.mockResolvedValue({ data: null })
 
     await store.logout()
 
-    expect(mockLogoutApi).toHaveBeenCalledWith('refresh-abc')
+    // v1 退出：无 refresh_token 参数，凭据来自 Cookie
+    expect(mockLogoutApi).toHaveBeenCalledWith()
     expect(store.token).toBe('')
-    expect(store.refreshToken).toBe('')
     expect(store.user).toBeNull()
     expect(store.isLoggedIn).toBe(false)
     expect(localStorage.getItem('access_token')).toBeNull()
@@ -327,7 +334,7 @@ describe('logout()', () => {
 
   it('登出 API 失败仍清除本地状态（优雅降级）', async () => {
     const store = useAuthStore()
-    store.setTokens('token', 'refresh-xyz')
+    store.setTokens('token')
     mockLogoutApi.mockRejectedValue(new Error('网络错误'))
 
     await store.logout()
@@ -336,13 +343,13 @@ describe('logout()', () => {
     expect(store.isLoggedIn).toBe(false)
   })
 
-  it('无 refresh_token 时不调 API，直接清除状态', async () => {
+  it('始终调用 v1 退出 API（Refresh Cookie 由后端 HttpOnly 持有，前端无法判断会话是否仍在）', async () => {
     const store = useAuthStore()
-    store.setTokens('token', '')  // 无 refresh_token
+    store.setTokens('token')
 
     await store.logout()
 
-    expect(mockLogoutApi).not.toHaveBeenCalled()
+    expect(mockLogoutApi).toHaveBeenCalledWith()
     expect(store.token).toBe('')
     expect(store.isLoggedIn).toBe(false)
   })
@@ -356,7 +363,6 @@ describe('Store 初始化恢复', () => {
     const jwt = makeJwt({ sub: '5', username: 'cached', role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
     // 持久化的 user 应立即被 /me 覆盖/忽略
     localStorage.setItem('access_token', jwt)
-    localStorage.setItem('refresh_token', 'cached-refresh')
     localStorage.setItem('user', JSON.stringify({ id: 99, username: 'stale', role: 'user' }))
     mockGetMeApi.mockResolvedValue({
       data: { id: '550e8400-e29b-41d4-a716-446655440001', username: 'fresh', role: 'user', status: 'active' },
@@ -390,7 +396,6 @@ describe('Store 初始化恢复', () => {
   it('isAdmin 根据 /me 返回的 role 正确计算', async () => {
     const jwt = makeJwt({ sub: '1', username: 'admin', role: 'admin', exp: Math.floor(Date.now() / 1000) + 3600 })
     localStorage.setItem('access_token', jwt)
-    localStorage.setItem('refresh_token', 'r')
     mockGetMeApi.mockResolvedValue({
       data: { id: '550e8400-e29b-41d4-a716-446655440002', username: 'admin', role: 'admin', status: 'active' },
     })

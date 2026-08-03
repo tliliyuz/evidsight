@@ -105,24 +105,23 @@ async def get_current_user_profile(
     )
 
 
-async def login(db: AsyncSession, username: str, password: str) -> TokenResponse:
-    """验证用户名密码，返回 access_token + refresh_token。
-
-    对齐 API.md §2 POST /api/auth/login：
-    - access_token 15min 短有效期
-    - refresh_token 7 天长有效期，SHA-256 哈希存 MySQL
-    """
+async def _authenticate_user(db: AsyncSession, username: str, password: str) -> User:
+    """校验用户名密码并返回用户；失败抛出统一登录异常（不区分用户是否存在）。"""
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
-
     if user is None or not verify_password(password, user.password_hash):
         raise InvalidCredentialsException()
-
-    # 禁用用户拒绝登录
     if user.status == "disabled":
         raise UserDisabledException()
+    return user
 
-    # 签发 token 对
+
+async def _issue_token_pair(db: AsyncSession, user: User) -> tuple[str, str]:
+    """为已认证用户签发 access/refresh token 对，并落库 Refresh Token Family。
+
+    返回 (access_token, refresh_token_str)。refresh_token 明文只交回调用方，
+    由路由决定写入 HttpOnly Cookie，绝不进入响应体明文位置（ADR-006）。
+    """
     access_token = create_access_token(_platform_user_id(user), user.role)
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
@@ -143,13 +142,47 @@ async def login(db: AsyncSession, username: str, password: str) -> TokenResponse
     )
     db.add(rt)
     await db.flush()
+    return access_token, refresh_token_str
 
+
+async def login(db: AsyncSession, username: str, password: str) -> TokenResponse:
+    """验证用户名密码，返回 access_token + refresh_token（旧 /api/auth/login 兼容入口）。
+
+    对齐 API.md §2 POST /api/auth/login：
+    - access_token 15min 短有效期
+    - refresh_token 7 天长有效期，SHA-256 哈希存 MySQL
+    """
+    user = await _authenticate_user(db, username, password)
+    access_token, refresh_token_str = await _issue_token_pair(db, user)
     logger.info("用户登录成功: user_id=%d", user.id)
-
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token_str,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+
+
+async def login_v1(
+    db: AsyncSession, username: str, password: str
+) -> tuple[str, str, UserSummary]:
+    """v1 登录（对齐 ADR-006 / API.md §5 POST /api/v1/auth/login）。
+
+    返回 (access_token, refresh_token_str, UserSummary)；refresh_token 由路由写入
+    HttpOnly Cookie，响应体不返回 refresh_token 明文。与 login() 共享凭证校验
+    与 Token Family 签发逻辑。
+    """
+    user = await _authenticate_user(db, username, password)
+    access_token, refresh_token_str = await _issue_token_pair(db, user)
+    logger.info("用户登录成功(v1): user_id=%d", user.id)
+    return (
+        access_token,
+        refresh_token_str,
+        UserSummary(
+            id=uuid.UUID(_platform_user_id(user)),
+            username=user.username,
+            role=user.role,
+            status=user.status,
+        ),
     )
 
 

@@ -5,7 +5,8 @@ import { login as loginApi, register as registerApi, refreshToken as refreshApi,
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const token = ref(localStorage.getItem('access_token') || '')
-  const refreshTokenValue = ref(localStorage.getItem('refresh_token') || '')
+  // S6（事件③）：Refresh Token 由后端 HttpOnly Cookie 持有（ADR-006），
+  // 前端不读取、不保存、不传递 Refresh Token 明文（FRONTEND.md §5.1.2），store 不持有其状态。
   /** 身份是否已从 /me 就绪（未就绪时 isLoggedIn 为 false，受保护路由不得提前进入） */
   const _meReady = ref(false)
 
@@ -17,12 +18,10 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => !!token.value && _meReady.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
 
-  /** 统一存储 token 对到 state + localStorage */
-  function setTokens(accessToken, refreshTokenStr) {
+  /** 持久化 access_token 到 state + localStorage（Refresh Token 不落盘） */
+  function setTokens(accessToken) {
     token.value = accessToken
-    refreshTokenValue.value = refreshTokenStr
     localStorage.setItem('access_token', accessToken)
-    localStorage.setItem('refresh_token', refreshTokenStr)
   }
 
   /**
@@ -84,11 +83,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** 登录 — 调用 API 并持久化 token 对，随后用 /me 建立用户身份 */
+  /** 登录 — 调用 v1 API 并持久化 access_token，随后用 /me 建立用户身份。
+   *  Refresh Token 由后端 HttpOnly Cookie 持有，前端不保存。 */
   async function loginAction(username, password) {
     const res = await loginApi(username, password)
-    const { access_token, refresh_token } = res.data.data
-    setTokens(access_token, refresh_token)
+    const { access_token } = res.data  // unwrapped LoginV1Response
+    setTokens(access_token)
 
     try {
       await fetchMe()
@@ -103,22 +103,19 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value
   }
 
-  /** 刷新 Token — 调用 refresh API 换取新 token 对，随后重新调用 /me 获取最新状态。
-   *  带并发防护：避免定时器与拦截器同时触发刷新时，第二个请求
-   *  使用已被 Rotation 吊销的旧 refresh_token 导致踢下线。 */
+  /** 刷新 Token — 调用 v1 刷新 API（无 refresh_token 参数，凭据来自 HttpOnly Cookie），
+   *  随后重新调用 /me 获取最新状态。
+   *  带并发防护：避免定时器与拦截器同时触发刷新时重复请求。 */
   async function refresh() {
-    if (!refreshTokenValue.value) {
-      throw new Error('无 refresh_token')
-    }
     if (_refreshing) {
       // 已有刷新进行中，直接返回（调用方可通过 token 获取最新值）
       return true
     }
     _refreshing = true
     try {
-      const res = await refreshApi(refreshTokenValue.value)
-      const { access_token, refresh_token } = res.data.data
-      setTokens(access_token, refresh_token)
+      const res = await refreshApi()  // v1，无参数，Refresh Cookie + CSRF 自动携带
+      const { access_token } = res.data  // unwrapped RefreshV1Response
+      setTokens(access_token)
 
       // 更新用户信息（角色/状态可能变化）
       await fetchMe()
@@ -127,7 +124,7 @@ export const useAuthStore = defineStore('auth', () => {
       scheduleRefresh()
       return true
     } catch (err) {
-      // 刷新失败 → 清除全部状态
+      // 刷新失败（含 CSRF 缺失/不一致、Refresh Cookie 过期/吊销）→ 清除全部状态
       clearState()
       throw err
     } finally {
@@ -141,27 +138,25 @@ export const useAuthStore = defineStore('auth', () => {
     return res.data.data
   }
 
-  /** 清除本地状态（token + user + 定时器） */
+  /** 清除本地状态（token + user + 定时器；refresh_token 键仅迁移期遗留清理） */
   function clearState() {
     clearRefreshTimer()
     user.value = null
     token.value = ''
-    refreshTokenValue.value = ''
     _meReady.value = false
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
   }
 
-  /** 退出登录 — 调后端吊销 refresh_token + 清除本地状态 */
+  /** 退出登录 — 调 v1 后端注销（凭据来自 Cookie + CSRF，幂等）+ 清除本地状态 */
   async function logout() {
-    // 尝试调后端吊销 refresh_token（失败不影响本地清除）
-    if (refreshTokenValue.value) {
-      try {
-        await logoutApi(refreshTokenValue.value)
-      } catch {
-        // 吊销失败不阻塞退出流程
-      }
+    // 始终调用：Refresh Cookie 由后端 HttpOnly 持有，前端无法判断会话是否仍在；
+    // 后端幂等返回 204。失败不影响本地清除。
+    try {
+      await logoutApi()
+    } catch {
+      // 注销失败不阻塞退出流程
     }
     clearState()
   }
@@ -170,7 +165,6 @@ export const useAuthStore = defineStore('auth', () => {
     // 状态
     user,
     token,
-    refreshToken: refreshTokenValue,
     isLoggedIn,
     isAdmin,
 

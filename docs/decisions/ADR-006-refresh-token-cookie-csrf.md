@@ -16,7 +16,7 @@ ADR-005 只裁决了统一身份、服务认证与数据外发，未裁决浏览
 ### 浏览器目标态
 
 - Refresh Token 由 Knowledge Auth API 通过 **HttpOnly Refresh Cookie** 设置、轮换和清除，禁止进入 URL、SSE、Analytics、普通应用日志、Local Storage、Session Storage、IndexedDB、可读 Cookie 或前端业务状态。
-- Refresh Cookie 名称由配置定义，生产环境必须使用 `__Host-` 前缀、`Path=/api/v1/auth`、`HttpOnly`、`Secure`、`SameSite=Lax`；跨站部署需要 `SameSite=None; Secure` 时，必须同时启用严格 Origin 校验。
+- Refresh Cookie 名称由配置定义，生产环境必须使用 `__Host-` 前缀、`Path=/`、`HttpOnly`、`Secure`、`SameSite=Lax`；跨站部署需要 `SameSite=None; Secure` 时，必须同时启用严格 Origin 校验。`Path=/` 是 `__Host-` 前缀的强制要求（RFC 6265bis §5.5：`__Host-` Cookie 必须 `Secure` + `Path=/` + 无 `Domain`）；Cookie 仍只被 `/api/v1/auth/refresh` 与 `/api/v1/auth/logout` 作为凭据读取，其他业务接口不得将其作为认证凭据。（2026-08-03 文档裁决方案 A 更正 Path）
 - Access Token 仍在响应体返回，由前端保存在内存或受控短期状态中并通过 `Authorization: Bearer` 调用业务 API；不得写入长期可读持久存储。
 - Cookie 只用于 `/api/v1/auth/refresh` 与 `/api/v1/auth/logout`，不得被其他业务接口作为认证凭据。
 

@@ -17,6 +17,7 @@ from app.api.knowledge_base import router as kb_router
 from app.api.document import router as doc_router
 from app.config import settings
 from app.core.chroma_client import init_chroma
+from app.core.csrf import clear_auth_cookies
 from app.core.exceptions import AppException
 from app.core.logging_config import get_request_id, setup_logging
 from app.core.redis_client import close_async_redis, get_async_redis
@@ -125,7 +126,7 @@ async def app_exception_handler(request: Request, exc: AppException):
         exc.error_code, exc.error_message,
         extra={"error_code": exc.error_code, "status_code": exc.status_code},
     )
-    return JSONResponse(
+    response = JSONResponse(
         status_code=exc.status_code,
         content={
             "code": exc.error_code,
@@ -133,6 +134,12 @@ async def app_exception_handler(request: Request, exc: AppException):
             "detail": exc.error_detail,
         },
     )
+    # 事件③：Refresh 刷新失败（重放、Family 撤销、用户禁用、过期等）必须清除
+    # Refresh/CSRF Cookie（ADR-006）。注入的 Response 在抛异常时会被错误响应替换，
+    # 因此 Cookie 清除必须在错误响应上执行。
+    if getattr(exc, "clear_auth_cookies", False):
+        clear_auth_cookies(response)
+    return response
 
 
 @app.exception_handler(RequestValidationError)

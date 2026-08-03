@@ -1,5 +1,11 @@
-/** Token 自动刷新测试 — ROADMAP §6.6 */
+/** Token 自动刷新测试 — S6 事件③ v1 Cookie + CSRF 目标态（FRONTEND.md §5.1.2） */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+function makeJwt(payload) {
+  const header = btoa(JSON.stringify({ alg: 'HS256' }))
+  const body = btoa(JSON.stringify(payload))
+  return `${header}.${body}.signature`
+}
 
 describe('Axios 拦截器 — 请求拦截器', () => {
   let api
@@ -40,7 +46,6 @@ describe('Axios 拦截器 — 请求拦截器', () => {
 
   it('非 401 错误直接拒绝（不触发刷新）', async () => {
     localStorage.setItem('access_token', 'token')
-    localStorage.setItem('refresh_token', 'refresh')
 
     const error500 = {
       response: { status: 500, data: { code: 'E9001', message: '服务器错误' } },
@@ -55,9 +60,10 @@ describe('Axios 拦截器 — 请求拦截器', () => {
     expect(localStorage.getItem('access_token')).toBe('token')
   })
 
-  it('401 + E5004 Token 无效时清除 token', async () => {
+  it('401 + E5004 Token 无效时清除 token（并清理遗留 refresh_token）', async () => {
     localStorage.setItem('access_token', 'token')
-    localStorage.setItem('refresh_token', 'refresh')
+    // 迁移期遗留键：清除本地状态时应一并清理（FRONTEND.md §5.1.2 不依赖它）
+    localStorage.setItem('refresh_token', 'legacy')
 
     const error401 = {
       response: { status: 401, data: { code: 'E5004', message: 'Token 无效' } },
@@ -75,7 +81,6 @@ describe('Axios 拦截器 — 请求拦截器', () => {
 
   it('401 + E5002 密码错误时不触发清除（透传给调用方）', async () => {
     localStorage.setItem('access_token', 'token')
-    localStorage.setItem('refresh_token', 'refresh')
 
     const error401 = {
       response: { status: 401, data: { code: 'E5002', message: '用户名或密码错误' } },
@@ -89,12 +94,43 @@ describe('Axios 拦截器 — 请求拦截器', () => {
 
     // E5002 是业务错误（密码错误），token 不应被清除
     expect(localStorage.getItem('access_token')).toBe('token')
-    expect(localStorage.getItem('refresh_token')).toBe('refresh')
   })
 
-  it('401 + E5003 且无 refresh_token 时清除 token', async () => {
+  it('401 + E5003 → 刷新成功（v1 Cookie 刷新）后重放原请求', async () => {
+    const oldJwt = 'expired-token'
+    const newJwt = makeJwt({ sub: '1', exp: Math.floor(Date.now() / 1000) + 3600 })
+    localStorage.setItem('access_token', oldJwt)
+
+    const error401 = {
+      response: { status: 401, data: { code: 'E5003', message: 'Token 过期' } },
+      config: { headers: {}, _retry: false },
+    }
+
+    // v1 刷新：unwrapped RefreshV1Response
+    const axios = (await import('axios')).default
+    vi.spyOn(axios, 'post').mockResolvedValue({
+      data: { access_token: newJwt, token_type: 'bearer', expires_in: 900 },
+    })
+
+    const mockAdapter = vi.fn()
+      .mockRejectedValueOnce(error401)   // 原请求 401
+      .mockResolvedValueOnce({ data: { replayed: true } })  // 刷新后重放
+      .mockResolvedValueOnce({ data: { id: 'u', username: 'u', role: 'user', status: 'active' } })  // refreshToken 内 fetchMe
+    api.defaults.adapter = mockAdapter
+
+    const res = await api.get('/test')
+
+    expect(res.data.replayed).toBe(true)
+    // 重放请求使用新 token
+    const replayConfig = mockAdapter.mock.calls[1][0]
+    expect(replayConfig.headers.Authorization).toBe(`Bearer ${newJwt}`)
+    expect(localStorage.getItem('access_token')).toBe(newJwt)
+    // Refresh Token 不写入 localStorage
+    expect(localStorage.getItem('refresh_token')).toBeNull()
+  })
+
+  it('401 + E5003 且刷新失败 → 清除 token（CSRF/Refresh Cookie 缺失按刷新失败处理）', async () => {
     localStorage.setItem('access_token', 'expired-token')
-    // 不设置 refresh_token
 
     const error401 = {
       response: { status: 401, data: { code: 'E5003', message: 'Token 过期' } },
@@ -104,46 +140,49 @@ describe('Axios 拦截器 — 请求拦截器', () => {
     const mockAdapter = vi.fn().mockRejectedValue(error401)
     api.defaults.adapter = mockAdapter
 
-    await expect(api.get('/test')).rejects.toThrow()
+    // 刷新端点失败（如 CSRF Cookie 缺失 → E5004/E5008）
+    const axios = (await import('axios')).default
+    vi.spyOn(axios, 'post').mockRejectedValue(new Error('刷新失败'))
+
+    await expect(api.get('/test')).rejects.toThrow('刷新失败')
 
     expect(localStorage.getItem('access_token')).toBeNull()
   })
 })
 
-describe('authStore Token 管理', () => {
+describe('authStore Token 管理（v1 Cookie 目标态）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
     vi.resetModules()
   })
 
-  it('setTokens 同时更新 localStorage 和 state', async () => {
+  it('setTokens 只更新 access_token，不写入 refresh_token', async () => {
     const { createPinia, setActivePinia } = await import('pinia')
     setActivePinia(createPinia())
 
     const { useAuthStore } = await import('@/stores/auth')
     const store = useAuthStore()
 
-    store.setTokens('new-access', 'new-refresh')
+    store.setTokens('new-access')
 
     expect(store.token).toBe('new-access')
-    expect(store.refreshToken).toBe('new-refresh')
     expect(localStorage.getItem('access_token')).toBe('new-access')
-    expect(localStorage.getItem('refresh_token')).toBe('new-refresh')
+    // S6：Refresh Token 不得写入 localStorage（FRONTEND.md §5.1.2）
+    expect(localStorage.getItem('refresh_token')).toBeNull()
   })
 
-  it('logout 清除全部本地状态', async () => {
+  it('logout 清除全部本地状态（含遗留 refresh_token）', async () => {
     const { createPinia, setActivePinia } = await import('pinia')
     setActivePinia(createPinia())
 
     const { useAuthStore } = await import('@/stores/auth')
     const store = useAuthStore()
 
-    store.setTokens('access', 'refresh')
+    store.setTokens('access')
     await store.logout()
 
     expect(store.token).toBe('')
-    expect(store.refreshToken).toBe('')
     expect(localStorage.getItem('access_token')).toBeNull()
     expect(localStorage.getItem('refresh_token')).toBeNull()
   })
@@ -159,12 +198,12 @@ describe('authStore Token 管理', () => {
     const { useAuthStore } = await import('@/stores/auth')
     const store = useAuthStore()
 
-    store.setTokens('access', 'refresh')
+    store.setTokens('access')
     await store.logout()
 
     // 即使后端失败，本地状态也要清除
     expect(store.token).toBe('')
-    expect(store.refreshToken).toBe('')
+    expect(store.isLoggedIn).toBe(false)
     expect(localStorage.getItem('access_token')).toBeNull()
 
     global.fetch = originalFetch
@@ -172,7 +211,6 @@ describe('authStore Token 管理', () => {
 
   it('从 localStorage 恢复 token 状态（身份经 /me 重建）', async () => {
     localStorage.setItem('access_token', 'stored-access')
-    localStorage.setItem('refresh_token', 'stored-refresh')
     localStorage.setItem('user', JSON.stringify({ id: 1, username: 'test', role: 'user' }))
 
     const { createPinia, setActivePinia } = await import('pinia')
@@ -182,7 +220,6 @@ describe('authStore Token 管理', () => {
     const store = useAuthStore()
 
     expect(store.token).toBe('stored-access')
-    expect(store.refreshToken).toBe('stored-refresh')
     // 未调用 /me 前 isLoggedIn 未就绪
     expect(store.isLoggedIn).toBe(false)
   })
@@ -199,7 +236,6 @@ describe('authStore Token 管理', () => {
 
   it('isAdmin 在用户角色为 admin 时为 true', async () => {
     localStorage.setItem('access_token', 'token')
-    localStorage.setItem('refresh_token', 'refresh')
     localStorage.setItem('user', JSON.stringify({ id: 1, username: 'admin', role: 'admin' }))
 
     const { createPinia, setActivePinia } = await import('pinia')

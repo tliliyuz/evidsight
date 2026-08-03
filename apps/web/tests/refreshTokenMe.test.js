@@ -1,7 +1,12 @@
 /**
- * refreshToken() 辅助函数测试 — Axios 拦截器 / SSE 共用入口换发 token 后重取 /me。
+ * refreshToken() 辅助函数测试 — Axios 拦截器 / SSE 共用入口（v1 Cookie + CSRF）。
  *
- * 对齐 FRONTEND.md §5.1.1：Refresh 成功后重新调用 /me，获取可能变化的角色与状态。
+ * 对齐 FRONTEND.md §5.1.1/§5.1.2 / ADR-006：
+ * - 刷新走 POST /api/v1/auth/refresh：Refresh Token 由后端 HttpOnly Cookie 持有，
+ *   前端不读取 localStorage.refresh_token，CSRF 从非 HttpOnly Cookie 读取回传；
+ * - 响应为 unwrapped RefreshV1Response { access_token, ... }；
+ * - 刷新成功后同步 Pinia store（setTokens + /me + scheduleRefresh）；
+ * - /me 重取失败不阻断刷新。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
@@ -25,9 +30,22 @@ function makeJwt(payload) {
 const UUID = '550e8400-e29b-41d4-a716-446655440001'
 const NEW_ACCESS = makeJwt({ sub: UUID, role: 'admin', exp: Math.floor(Date.now() / 1000) + 7200 })
 
+function setCookie(name, value) {
+  document.cookie = `${name}=${value}; path=/`
+}
+function clearCookies() {
+  document.cookie.split(';').forEach((c) => {
+    const name = c.split('=')[0].trim()
+    if (name) {
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`
+    }
+  })
+}
+
 beforeEach(async () => {
   vi.clearAllMocks()
   localStorage.clear()
+  clearCookies()
   vi.resetModules()
   setActivePinia(createPinia())
   // 默认：/me 返回数据库当前状态
@@ -40,15 +58,13 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('refreshToken() — 刷新成功后重取 /me', () => {
-  it('换发新 token 后重新调用 /me，user 取数据库最新角色/状态', async () => {
-    localStorage.setItem('refresh_token', 'old-refresh')
-
-    // refreshToken() 内部使用原始 axios.post 调 /api/auth/refresh
+describe('refreshToken() — v1 Cookie 刷新并同步 store', () => {
+  it('走 /api/v1/auth/refresh，携带 X-CSRF-Token，不读写 localStorage.refresh_token', async () => {
     const axios = (await import('axios')).default
-    vi.spyOn(axios, 'post').mockResolvedValue({
-      data: { data: { access_token: NEW_ACCESS, refresh_token: 'new-refresh' } },
+    const postSpy = vi.spyOn(axios, 'post').mockResolvedValue({
+      data: { access_token: NEW_ACCESS, token_type: 'bearer', expires_in: 900 },
     })
+    setCookie('evidsight_csrf', 'csrf-token-abc')
 
     // api 实例的 /me 请求走 mock adapter
     const { default: api, refreshToken } = await import('@/api/index')
@@ -59,8 +75,13 @@ describe('refreshToken() — 刷新成功后重取 /me', () => {
     const access = await refreshToken()
 
     expect(access).toBe(NEW_ACCESS)
+    // 刷新端点与 CSRF 回传
+    expect(postSpy.mock.calls[0][0]).toBe('/api/v1/auth/refresh')
+    expect(postSpy.mock.calls[0][1] == null).toBe(true) // 无 body refresh_token
+    expect(postSpy.mock.calls[0][2].headers['X-CSRF-Token']).toBe('csrf-token-abc')
+    // access_token 更新，refresh_token 不再写入
     expect(localStorage.getItem('access_token')).toBe(NEW_ACCESS)
-    expect(localStorage.getItem('refresh_token')).toBe('new-refresh')
+    expect(localStorage.getItem('refresh_token')).toBeNull()
 
     // 刷新成功后重取 /me（角色/状态以数据库为准）
     expect(mockGetMeApi).toHaveBeenCalledTimes(1)
@@ -70,15 +91,16 @@ describe('refreshToken() — 刷新成功后重取 /me', () => {
     expect(store.user.id).toBe(UUID)
     expect(store.user.username).toBe('db-user')
     expect(store.user.role).toBe('admin')
+    // store 不再持有 refresh_token 状态
+    expect(store.refreshToken).toBeUndefined()
   })
 
   it('/me 重取失败不阻断刷新（保留新 token 并返回）', async () => {
-    localStorage.setItem('refresh_token', 'old-refresh')
-
     const axios = (await import('axios')).default
     vi.spyOn(axios, 'post').mockResolvedValue({
-      data: { data: { access_token: NEW_ACCESS, refresh_token: 'new-refresh' } },
+      data: { access_token: NEW_ACCESS, token_type: 'bearer', expires_in: 900 },
     })
+    setCookie('evidsight_csrf', 'csrf-token-abc')
 
     const { default: api, refreshToken } = await import('@/api/index')
     api.defaults.adapter = vi.fn().mockResolvedValue({ data: {} })
@@ -89,6 +111,6 @@ describe('refreshToken() — 刷新成功后重取 /me', () => {
     // token 刷新已成功，/me 失败不回滚
     expect(access).toBe(NEW_ACCESS)
     expect(localStorage.getItem('access_token')).toBe(NEW_ACCESS)
-    expect(localStorage.getItem('refresh_token')).toBe('new-refresh')
+    expect(localStorage.getItem('refresh_token')).toBeNull()
   })
 })

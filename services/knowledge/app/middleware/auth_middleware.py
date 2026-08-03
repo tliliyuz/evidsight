@@ -9,11 +9,15 @@ from starlette.responses import JSONResponse
 from app.core.security import decode_access_token
 
 # 不需要认证的公开路由（已完整覆盖 /docs 及其子路径）
+# 事件③：/api/v1/auth/login 与 /api/v1/auth/refresh 公开（凭据来自 Cookie + CSRF）；
+# /api/v1/auth/logout 需要 Access Token，保持受保护。
 _PUBLIC_PATHS = {
     "/api/auth/register",
     "/api/auth/login",
     "/api/auth/refresh",
     "/api/v1/auth/register",
+    "/api/v1/auth/login",
+    "/api/v1/auth/refresh",
     "/api/health",
 }
 

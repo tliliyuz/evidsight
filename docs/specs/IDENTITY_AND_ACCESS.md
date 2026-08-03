@@ -115,7 +115,7 @@ Refresh Token 只由 Knowledge Auth API 接收和处理，Research Service、URL
 
 Cookie 模式采用以下规则：
 
-- Refresh Cookie 仅由 Knowledge Auth API 设置、轮换和清除，名称由配置定义，生产环境必须使用 `__Host-` 前缀、`Path=/api/v1/auth`、`HttpOnly`、`Secure`、`SameSite=Lax`；跨站部署需要 `SameSite=None; Secure` 时，必须同时启用严格 Origin 校验。
+- Refresh Cookie 仅由 Knowledge Auth API 设置、轮换和清除，名称由配置定义，生产环境必须使用 `__Host-` 前缀、`Path=/`、`HttpOnly`、`Secure`、`SameSite=Lax`；跨站部署需要 `SameSite=None; Secure` 时，必须同时启用严格 Origin 校验。`Path=/` 是 `__Host-` 前缀的强制要求（RFC 6265bis §5.5）；Cookie 仍只被 `/api/v1/auth/refresh` 与 `/api/v1/auth/logout` 作为凭据读取，其他业务接口不得将其作为认证凭据。（2026-08-03 文档裁决方案 A 更正 Path）
 - 登录成功创建 Token Family 后设置 Refresh Cookie；刷新成功必须在同一响应中设置新的 Refresh Cookie；退出、重放检测、Token Family 撤销和用户禁用后的刷新失败必须清除 Refresh Cookie。
 - Access Token 仍在响应体返回，由前端保存在内存或受控短期状态中并通过 `Authorization: Bearer` 调用业务 API；Access Token 不得写入长期可读持久存储。
 - Cookie 只用于 `/api/v1/auth/refresh` 与 `/api/v1/auth/logout`，不得被 Chat、Research、SSE、Internal API 或其他业务接口作为认证凭据。

@@ -1,9 +1,14 @@
 import axios from 'axios'
 
+/** 非 HttpOnly CSRF Cookie 名（double-submit 回传用，对齐后端 EVIDSIGHT_PLATFORM_CSRF_COOKIE_NAME 默认值） */
+export const CSRF_COOKIE_NAME = 'evidsight_csrf'
+
 const api = axios.create({
   baseURL: '/api',
   timeout: 30000,
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 'Content-Type': 'application/json' },
+  // FRONTEND.md §5.1.2：启用凭据携带，使 HttpOnly Refresh Cookie 随请求发送到 Auth 端点
+  withCredentials: true,
 })
 
 // ===== Token 自动刷新机制 =====
@@ -12,6 +17,12 @@ const api = axios.create({
 
 let isRefreshing = false
 let requestQueue = []  // [{ resolve, reject }]
+
+/** 读取非 HttpOnly CSRF Cookie（double-submit 模式，FRONTEND.md §5.1.2） */
+export function getCsrfToken() {
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : ''
+}
 
 /** 处理刷新队列：刷新成功后统一重放排队中的请求 */
 function processQueue(error, newToken) {
@@ -26,7 +37,7 @@ function processQueue(error, newToken) {
   requestQueue = []
 }
 
-/** 清除本地 token 并跳转登录页 */
+/** 清除本地 token 并跳转登录页（removeItem('refresh_token') 仅迁移期遗留清理，新代码不读写该键） */
 export function clearAndRedirect() {
   localStorage.removeItem('access_token')
   localStorage.removeItem('refresh_token')
@@ -37,31 +48,31 @@ export function clearAndRedirect() {
 }
 
 /** 执行 Token 刷新（独立调用，不经过拦截器循环）。
- *  刷新后同步更新 Pinia store，防止 store 内持过期/已吊销 refresh_token
- *  导致后续 store.refresh() 失败而踢下线。
+ *  v1 Cookie 刷新（ADR-006）：Refresh Token 由后端 HttpOnly Cookie 持有并随请求自动发送，
+ *  前端不读取/保存 Refresh Token 明文（FRONTEND.md §5.1.2），CSRF 从非 HttpOnly Cookie 读取回传。
+ *  刷新后同步更新 Pinia store（Access Token + /me + 定时器）。
  *
  *  统一入口：Axios 响应拦截器与 SSE 流式请求（utils/sse.js）共用此函数，
  *  避免 SSE 路径单独实现刷新逻辑时漏同步 Pinia store（历史 bug）。 */
 export async function refreshToken() {
-  const refreshToken = localStorage.getItem('refresh_token')
-  if (!refreshToken) {
-    throw new Error('无 refresh_token')
-  }
-  // 使用 axios 原生调用，绕过拦截器避免死循环
-  const res = await axios.post('/api/auth/refresh', { refresh_token: refreshToken }, {
+  // 使用 axios 原生调用，绕过拦截器避免死循环；无 body，Refresh 凭据来自 HttpOnly Cookie
+  const res = await axios.post('/api/v1/auth/refresh', undefined, {
     timeout: 10000,
-    headers: { 'Content-Type': 'application/json' }
+    withCredentials: true,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': getCsrfToken(),
+    },
   })
-  const { access_token, refresh_token: newRefreshToken } = res.data.data
+  const { access_token } = res.data
   localStorage.setItem('access_token', access_token)
-  localStorage.setItem('refresh_token', newRefreshToken)
 
-  // 同步更新 Pinia store 的 token 对，确保 store.refresh() 使用最新 refresh_token
-  // （避免 store 用已吊销的旧 token 调 refresh 导致用户被踢下线）
+  // 同步更新 Pinia store，确保 store 与最新 Access Token 一致
+  // （Refresh Token 由 Cookie 持有，store 不再保存）
   try {
     const { useAuthStore } = await import('@/stores/auth')
     const authStore = useAuthStore()
-    authStore.setTokens(access_token, newRefreshToken)
+    authStore.setTokens(access_token)
     // FRONTEND.md §5.1.1：Refresh 成功后重新调用 /me，获取可能变化的角色与状态
     await authStore.fetchMe()
     authStore.scheduleRefresh()

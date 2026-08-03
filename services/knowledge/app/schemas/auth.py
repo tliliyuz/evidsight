@@ -53,6 +53,30 @@ class TokenResponse(BaseModel):
     expires_in: int  # 秒
 
 
+class LoginV1Response(BaseModel):
+    """v1 登录响应 — 对齐 API.md §5 POST /api/v1/auth/login（ADR-006）。
+
+    Refresh Token 经 HttpOnly Cookie 下发，响应体绝不含 refresh_token 明文；
+    user 为外部身份摘要 UserSummary（id 为 Platform User UUID）。
+    """
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # 秒
+    user: UserSummary
+
+
+class RefreshV1Response(BaseModel):
+    """v1 刷新响应 — 对齐 API.md §5 POST /api/v1/auth/refresh（ADR-006）。
+
+    新 Refresh Token 经 HttpOnly Cookie 轮换下发，响应体只返回 Access Token。
+    """
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # 秒
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 

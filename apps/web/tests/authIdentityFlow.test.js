@@ -48,7 +48,7 @@ describe('身份恢复：登录后从 /me 获取 UserSummary', () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: UUID, role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
     mockLoginApi.mockResolvedValue({
-      data: { data: { access_token: jwt, refresh_token: 'refresh-xxx' } },
+      data: { access_token: jwt, token_type: 'bearer', expires_in: 900, user: { id: UUID, username: 'u', role: 'user', status: 'active' } },
     })
     mockGetMeApi.mockResolvedValue({
       data: { id: UUID, username: 'testuser', role: 'user', status: 'active' },
@@ -68,7 +68,7 @@ describe('身份恢复：登录后从 /me 获取 UserSummary', () => {
     // token 的 sub 是 UUID，payload 无 username（事件②已移除）
     const jwt = makeJwt({ sub: UUID, role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
     mockLoginApi.mockResolvedValue({
-      data: { data: { access_token: jwt, refresh_token: 'refresh-xxx' } },
+      data: { access_token: jwt, token_type: 'bearer', expires_in: 900, user: { id: UUID, username: 'u', role: 'user', status: 'active' } },
     })
     mockGetMeApi.mockResolvedValue({
       data: { id: UUID, username: 'db-name', role: 'admin', status: 'active' },
@@ -87,7 +87,6 @@ describe('身份恢复：页面重载', () => {
     const jwt = makeJwt({ sub: UUID, role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
     // 预置 localStorage 中过期的 user（应立即被 /me 覆盖/忽略）
     localStorage.setItem('access_token', jwt)
-    localStorage.setItem('refresh_token', 'refresh-xxx')
     localStorage.setItem('user', JSON.stringify({ id: 999, username: 'stale', role: 'user' }))
     mockGetMeApi.mockResolvedValue({
       data: { id: UUID, username: 'db-name', role: 'user', status: 'active' },
@@ -111,7 +110,7 @@ describe('身份恢复：失败处理', () => {
   it('/me 返回 401 时清态并视为未登录', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: UUID, role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
-    store.setTokens(jwt, 'refresh-xxx')
+    store.setTokens(jwt)
     mockGetMeApi.mockRejectedValue(new Error('Unauthorized'))
 
     await store.restoreSession()
@@ -126,12 +125,12 @@ describe('身份恢复：Refresh 后重取与 isLoggedIn 门控', () => {
   it('Refresh 成功后重新调用 /me 获取最新角色与状态', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: UUID, role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
-    store.setTokens(jwt, 'old-refresh')
+    store.setTokens(jwt)
     store.user = { id: UUID, username: 'old', role: 'user', status: 'active' }
 
     const newJwt = makeJwt({ sub: UUID, role: 'admin', exp: Math.floor(Date.now() / 1000) + 7200 })
     mockRefreshApi.mockResolvedValue({
-      data: { data: { access_token: newJwt, refresh_token: 'new-refresh' } },
+      data: { access_token: newJwt, token_type: 'bearer', expires_in: 900 },
     })
     mockGetMeApi.mockResolvedValue({
       data: { id: UUID, username: 'old', role: 'admin', status: 'active' },
@@ -146,7 +145,7 @@ describe('身份恢复：Refresh 后重取与 isLoggedIn 门控', () => {
   it('/me 完成前 isLoggedIn 保持未就绪', async () => {
     const store = useAuthStore()
     const jwt = makeJwt({ sub: UUID, role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 })
-    store.setTokens(jwt, 'refresh-xxx')
+    store.setTokens(jwt)
 
     // 挂起 /me，断言期间 isLoggedIn 为 false
     let resolveMe

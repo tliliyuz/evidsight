@@ -50,7 +50,7 @@
 | `EVIDSIGHT_PLATFORM_ACCESS_TOKEN_TTL_SECONDS` | Platform | int | `900` | public |
 | `EVIDSIGHT_PLATFORM_REFRESH_TOKEN_TTL_SECONDS` | Platform | int | `604800` | public |
 | `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME` | Platform | string | `__Host-evidsight_refresh` | public |
-| `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_PATH` | Platform | string | `/api/v1/auth` | public |
+| `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_PATH` | Platform | string | `/`（`__Host-` 前缀强制 Path=/，RFC 6265bis §5.5） | public |
 | `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE` | Platform | bool | `true` | public |
 | `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SAMESITE` | Platform | enum | `lax`；跨站部署用 `none` 且必须 `Secure` | public |
 | `EVIDSIGHT_PLATFORM_CSRF_COOKIE_NAME` | Platform | string | `evidsight_csrf` | public |

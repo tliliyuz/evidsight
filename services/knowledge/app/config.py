@@ -59,6 +59,17 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # refresh_token 长有效期
     REFRESH_TOKEN_SECRET_KEY: str = ""  # 空则回退到 JWT_SECRET_KEY
 
+    # ── Refresh Cookie / CSRF（事件③，对齐 ADR-006 / CONFIGURATION.md §3.1）──
+    # `__Host-` 前缀强制要求 Path=/（RFC 6265bis §5.5），故 Path 默认 `/`；
+    # Cookie 仍只被 /api/v1/auth/refresh 与 /api/v1/auth/logout 作为凭据读取。
+    EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME: str = "__Host-evidsight_refresh"
+    EVIDSIGHT_PLATFORM_REFRESH_COOKIE_PATH: str = "/"
+    EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE: bool = True
+    EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SAMESITE: str = "lax"  # 跨站部署用 none 且必须 Secure
+    EVIDSIGHT_PLATFORM_CSRF_COOKIE_NAME: str = "evidsight_csrf"
+    EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS: str = ""  # csv string，生产必填（严格 Origin 校验）
+    EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT: bool = False  # M1 迁移期 body refresh_token 兼容入口
+
     @property
     def platform_jwt_audiences(self) -> list[str]:
         """返回统一 Access Token 的目标服务集合。"""
@@ -66,6 +77,15 @@ class Settings(BaseSettings):
             audience.strip()
             for audience in self.EVIDSIGHT_PLATFORM_JWT_AUDIENCES.split(",")
             if audience.strip()
+        ]
+
+    @property
+    def auth_allowed_origins(self) -> list[str]:
+        """解析 Refresh/Logout 的严格 Origin 白名单；为空时按同站处理（开发环境）。"""
+        return [
+            origin.strip()
+            for origin in self.EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS.split(",")
+            if origin.strip()
         ]
 
     # Redis
