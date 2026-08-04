@@ -24,6 +24,13 @@ class Section(Base):
         nullable=False,
         comment="所属文档 ID",
     )
+    document_version_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("document_versions.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+        comment="所属 Document Version ID（迁移态允许空）",
+    )
     kb_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
@@ -61,5 +68,6 @@ class Section(Base):
     )
 
     document = relationship("Document", back_populates="sections")
+    document_version = relationship("DocumentVersion", back_populates="sections")
     knowledge_base = relationship("KnowledgeBase", back_populates="sections")
     chunks = relationship("Chunk", back_populates="section")

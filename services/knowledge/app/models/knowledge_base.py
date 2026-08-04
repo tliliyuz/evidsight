@@ -37,6 +37,16 @@ class KnowledgeBase(Base):
         server_default=text("'active'"),
         comment="active（正常）/ deleting（异步清理中，随后物理删除行）"
     )
+    index_status: Mapped[str] = mapped_column(
+        Enum("ready", "updating", "recovering", name="kb_index_status"),
+        default="ready",
+        server_default=text("'ready'"),
+        comment="ready（可检索）/ updating（版本发布中，新检索有界等待）/ recovering（索引恢复中）"
+    )
+    index_generation: Mapped[int] = mapped_column(
+        BigInteger, default=0, server_default=text("0"),
+        comment="非负向量发布世代，发布时递增"
+    )
     chunk_count: Mapped[int] = mapped_column(
         Integer, default=0, server_default=text("0")
     )

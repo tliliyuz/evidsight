@@ -33,6 +33,17 @@ class Chunk(Base):
         index=True,
         comment="所属章节 ID",
     )
+    document_version_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("document_versions.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+        comment="所属 Document Version ID（迁移态允许空，版本化入库后必填）",
+    )
+    segment_uuid: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, unique=True,
+        comment="Evidence 稳定 Segment UUID；Internal Retrieval 以它返回位置",
+    )
     chroma_id: Mapped[str] = mapped_column(
         String(256), nullable=False, comment="ChromaDB 中的 chunk id"
     )
@@ -53,3 +64,4 @@ class Chunk(Base):
     document = relationship("Document", back_populates="chunks")
     knowledge_base = relationship("KnowledgeBase", back_populates="chunks")
     section = relationship("Section", back_populates="chunks")
+    document_version = relationship("DocumentVersion", back_populates="chunks")

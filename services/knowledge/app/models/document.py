@@ -26,6 +26,9 @@ class Document(Base):
         nullable=False, index=True, comment="所属知识库"
     )
     filename: Mapped[str] = mapped_column(String(256), nullable=False)
+    display_name: Mapped[str | None] = mapped_column(
+        String(256), comment="用户可见名称；缺失时回退为 filename"
+    )
     file_type: Mapped[str] = mapped_column(
         String(32), nullable=False, comment="pdf/docx/md/txt"
     )
@@ -41,6 +44,9 @@ class Document(Base):
     )
     chunk_count: Mapped[int] = mapped_column(
         Integer, default=0, server_default=text("0")
+    )
+    active_version: Mapped[int | None] = mapped_column(
+        Integer, comment="当前可检索版本号，可空；检索只读该版本"
     )
     error_msg: Mapped[str | None] = mapped_column(Text)
     current_stage: Mapped[str | None] = mapped_column(
@@ -59,6 +65,7 @@ class Document(Base):
     )
 
     knowledge_base = relationship("KnowledgeBase", back_populates="documents")
+    versions = relationship("DocumentVersion", back_populates="document", passive_deletes=True)
     sections = relationship("Section", back_populates="document", passive_deletes=True)
     chunks = relationship("Chunk", back_populates="document", passive_deletes=True)
 

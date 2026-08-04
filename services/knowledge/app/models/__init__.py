@@ -6,6 +6,7 @@ from .enums import DocumentStatus, TERMINAL_STATUSES, is_terminal  # noqa: F401
 from .user import User
 from .knowledge_base import KnowledgeBase
 from .document import Document
+from .document_version import DocumentVersion
 from .section import Section
 from .chunk import Chunk
 from .conversation import Conversation
@@ -23,6 +24,7 @@ __all__ = [
     "User",
     "KnowledgeBase",
     "Document",
+    "DocumentVersion",
     "Section",
     "Chunk",
     "Conversation",
