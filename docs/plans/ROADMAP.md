@@ -139,7 +139,7 @@ M0 的结构迁移与单机运行基线已完成。原 `docs/migration/` 下的�
 - [x] Service JWT + Identity Status Provider 端点 GREEN。
 - [x] Research 身份状态门禁 GREEN：Research 创建任务前调用 `GET /internal/v1/identity/users/{id}/status` 实时复核用户状态；禁用/不存在用户 → `E1010`、身份库不可用/网络/超时 → `E9002`，失败关闭且不分发 Worker（对齐 TESTING.md IA-012 身份状态契约）。
 
-M1 当前处于统一身份纵向切片持续实施阶段。`ADR-005` 已接受，IA-001/IA-002、IA-001-B、IA-003/IA-011、IA-004 与 IA-012 身份状态契约 Research 侧已观察正确 RED 并完成 GREEN；其余身份、服务认证和敏感数据外发能力仍须逐项遵循 SDD 门禁。
+M1 当前处于统一身份纵向切片持续实施阶段。`ADR-005` 已接受，IA-001/IA-002、IA-001-B、IA-003/IA-011、IA-004 与 IA-012 身份状态契约 Research 侧已观察正确 RED 并完成 GREEN；IA-005 禁用用户全链路（Chat/上传/重处理/治理写操作拒绝）API 层验收测试已补齐并 GREEN。其余身份、服务认证和敏感数据外发能力仍须逐项遵循 SDD 门禁。
 
 ### 范围内工作
 
@@ -168,7 +168,7 @@ M1 当前处于统一身份纵向切片持续实施阶段。`ADR-005` 已接受�
 ### 退出门禁
 
 - 两个服务对相同 JWT Claims、过期和禁用语义的测试结果一致；
-- 被禁用用户不能刷新凭证或创建新任务；
+- 被禁用用户不能刷新凭证、创建新任务、Chat、上传、重处理或治理写操作；
 - 服务间请求无法仅凭用户输入伪造服务身份或授权结论；
 - 知识库 READ、WRITE 和管理权限均由明确矩阵覆盖；
 - 跨服务 Contract 具备版本、样例、Provider 测试和 Consumer 测试；

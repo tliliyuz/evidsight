@@ -48,7 +48,7 @@
 - IA-016 迁移期兼容：配置允许时旧 JSON Body `refresh_token` 可完成刷新/退出并记录不含 Token 的弃用用量；配置关闭时 body `refresh_token` 被拒绝。Web 新代码不得读写 `localStorage.refresh_token`，刷新和退出只依赖 Cookie 与 CSRF Header；
 - IA-017 外部 User DTO 与遗留接口退出：`/api/v1/auth/register` 和 `/api/v1/auth/me` 返回的 User DTO `id` 均为 Platform User UUID，响应不得包含 Knowledge 内部 `users.id`；旧 `/api/auth/*` 和旧 `id=int` UserResponse 只在配置允许的迁移期可用，必须有调用量观测，关闭后 Web、脚本和 API 测试全部使用 `/api/v1/auth/*`；
 - 退出撤销当前 Refresh Token Family；
-- 禁用用户不能登录、刷新、创建任务、Chat 或 Internal Retrieval；
+- 禁用用户不能登录、刷新、创建任务、Chat、上传、重处理、治理写操作或 Internal Retrieval；
 - private/public、owner/admin 操作矩阵；
 - Internal Retrieval 任一 KB 无权时整批失败且检索未执行；
 - 历史报告展开内部来源时实时复核权限。
