@@ -136,6 +136,7 @@ M0 的结构迁移与单机运行基线已完成。原 `docs/migration/` 下的�
 - [x] 完成 IA-001-B：Research 退出本地身份所有权，仅保留 Knowledge Access Token 验证与 Platform User UUID 任务归属。
 - [x] 完成 IA-003/IA-011：Knowledge 以 Refresh Token Family 和数据库行锁执行原子轮换，同一旧 Token 至多产生一个有效后继。
 - [x] 完成 IA-004：重放已轮换 Refresh Token 时原子撤销所属 Family，持久化安全审计事件并返回 `E5009`。
+- [x] Service JWT + Identity Status Provider 端点 GREEN。
 
 M1 当前处于统一身份纵向切片持续实施阶段。`ADR-005` 已接受，IA-001/IA-002、IA-001-B、IA-003/IA-011 与 IA-004 已观察正确 RED 并完成 GREEN；其余身份、服务认证和敏感数据外发能力仍须逐项遵循 SDD 门禁。
 

@@ -87,7 +87,7 @@ Internal Contract 每个版本必须通过 Meta-Schema、唯一 `$id`、可解�
 契约 Schema 与 Fixture 以 `packages/contracts/` 为唯一权威源，双方测试不得复制 Schema 或自造 Fixture。已落地的 Internal Identity Status 契约测试分布：
 
 - Schema 自检：`packages/contracts/tests/`（Meta-Schema、`$id` 唯一、`$ref` 可解析、Fixture 校验）；
-- Knowledge Provider：`services/knowledge/tests/contract/`（端点 `GET /internal/v1/identity/users/{id}/status` 当前为正确 RED）；
+- Knowledge Provider：`services/knowledge/tests/contract/`（端点 `GET /internal/v1/identity/users/{id}/status` GREEN，9 个测试覆盖有效/无效/禁用/缺失/信封场景）；
 - Research Consumer：`services/research/tests/contract/`（只消费/拒绝 Fixture，独立运行，不依赖端点）。
 
 运行命令：
