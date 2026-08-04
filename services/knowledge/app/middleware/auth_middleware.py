@@ -23,7 +23,12 @@ _PUBLIC_PATHS = {
 
 
 def _is_public(path: str) -> bool:
-    return path in _PUBLIC_PATHS or path.startswith("/docs") or path.startswith("/openapi.json")
+    return (
+        path in _PUBLIC_PATHS
+        or path.startswith("/docs")
+        or path.startswith("/openapi.json")
+        or path.startswith("/internal/v1")  # 内部端点走 Service JWT，豁免用户 Bearer 中间件
+    )
 
 
 class AuthMiddleware:

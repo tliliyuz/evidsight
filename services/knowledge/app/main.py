@@ -15,6 +15,7 @@ from app.api.chat import router as chat_router
 from app.api.conversation import router as conversation_router
 from app.api.knowledge_base import router as kb_router
 from app.api.document import router as doc_router
+from app.api.internal import router as internal_router
 from app.config import settings
 from app.core.chroma_client import init_chroma
 from app.core.csrf import clear_auth_cookies
@@ -112,6 +113,7 @@ app.include_router(conversation_router)
 app.include_router(kb_router)
 app.include_router(doc_router)
 app.include_router(admin_router)
+app.include_router(internal_router)
 
 
 # ==================== 全局异常处理器 ====================
