@@ -6,6 +6,8 @@
 
 ### Added
 
+- 接受 ADR-007：Knowledge 文档版本化生命周期与删除一致性——每次入库/重处理创建独立 `document_version` 并以阶段 Checkpoint 为恢复点（MySQL 为唯一权威），Embedding 先入 staging、发布以 per-KB `index_status` 短时锁原子切换 `active_version` 并清理旧向量，删除走 KB `deleting` 幂等清理与 BM25 缓存失效；检索权限语义由 ADR-002/005 交叉引用覆盖，不重复定义；ADR 检查项 4、5 命中，负责人于 2026-08-04 接受为 `accepted`；同步 decisions 索引、RAG_PIPELINE §16 门禁记录、DATABASE §9 与 API §6.2 交叉引用。（2026-08-04）
+- M1 退出门禁 6 负向日志测试补齐：新增 `services/knowledge/tests/unit/services/test_auth_service.py::TestLoginLogSensitivity`，断言登录成功与失败路径日志均不含密码明文、登录成功日志不含 Access/Refresh Token 明文；负向验证确认在 `auth_service.login` 注入密码日志时测试正确 RED，GREEN 无生产代码修改（目标行为由既有实现满足）；同步 TESTING.md §3.2 与 IDENTITY_AND_ACCESS ADR 检查记录。（2026-08-04）
 - 补齐知识库权限矩阵验收测试：新增 `services/knowledge/tests/unit/core/test_permissions.py` 纯函数矩阵测试，以 PRD §8.2 五列矩阵驱动 `require_kb_readable`（READ 由 visibility 优先：public→所有登录用户、private→owner+admin）、`require_kb_writable`（WRITE 由 ownership 决定、admin 治理覆盖）与 `require_kb_owner`（上传文档 owner-only、admin 不可代传），共 15 个用例；容器内负向验证确认移除 admin 分支或破坏 owner 检查时对应测试正确 RED，GREEN 无生产代码修改（目标行为由既有 `permissions.py` 满足）；同步 TESTING.md §3.2 与 IDENTITY_AND_ACCESS ADR 检查记录。（2026-08-04）
 - 补齐 IA-010 签名密钥轮换验收测试：`test_service_security.py` 新增 `TestServiceKeyRotation`，验证 Service JWT 双 Key 验证窗口内新旧 Token 均按 Key ID 通过、窗口后移除旧 Key 旧 Token 失效且新 Token 仍有效、切换签发侧使用新 Key ID 后按新 Key 验证通过；容器内负向验证确认测试可检测轮换窗口支持缺失，GREEN 无生产代码修改（目标行为由既有 `verify_service_token` 多 Key 映射满足）；同步 TESTING.md §3.2 与 IDENTITY_AND_ACCESS ADR 检查记录。（2026-08-04）
 - 补齐 IA-005 禁用用户全链路 API 层验收测试：新增 `services/knowledge/tests/unit/api/test_disabled_user_access.py`，依赖层验证 `get_current_user` 对不存在/禁用用户统一抛 `E5010`，API 层验证禁用用户对 Chat 创建、单个/批量上传、重处理、治理写操作（禁用/启用用户、重置密码）均返回 401 `E5010` 且不进入业务逻辑；容器内负向验证确认测试可检测禁用检查缺失，GREEN 无生产代码修改（目标行为由既有 `get_current_user` 满足）；同步扩充 TESTING.md §3.2 与 IDENTITY_AND_ACCESS §13 IA-005 场景表述。（2026-08-04）
@@ -27,6 +29,7 @@
 
 ### Updated
 
+- M1 收尾并标记完成：六条退出门禁逐条核对证据齐备（双侧 JWT Claims/过期/禁用语义测试一致、禁用用户全链路拒绝、服务间伪造拒绝、KB 权限矩阵、Contract Provider/Consumer 测试、敏感信息不进前端响应或普通日志），ROADMAP 将 M1 状态由"进行中"更新为"已完成"并勾选全部门禁清单，DEVELOPMENT.md 当前阶段同步；Retrieval/Evidence Contract 与 IA-006—IA-009 依赖 Internal Retrieval，明确划入 M2/M3。（2026-08-04）
 - 固化 M1 Refresh Token Cookie/CSRF 安全收口规范：浏览器目标态使用 HttpOnly Refresh Cookie + double-submit CSRF，Refresh/Logout 先校验 CSRF/Origin，旧 body `refresh_token` 仅作为迁移期兼容入口。（2026-08-03）
 - 固化外部 User DTO UUID 与遗留 Auth 接口退出规则：`/api/v1/auth/*` 的 User DTO `id` 一律为 Platform User UUID，旧 `/api/auth/*` 与旧 `id=int` UserResponse 仅作为 M1 迁移期兼容并需调用量观测后删除。（2026-08-03）
 - 实现 IA-013/IA-014 事件②：Access Token 移除 `username` 等可派生展示 Claim，前端身份权威来源改为 `GET /api/v1/auth/me`（`UserSummary`，`id` 为 Platform User UUID 字符串，`username`/`role`/`status` 来自数据库当前状态）；登录、重载、Refresh 均经 `/me` 重建身份，`isLoggedIn` 在 `/me` 完成前保持未就绪，客户端不再解析 JWT Claim 或恢复持久化 `user`。（2026-08-03）

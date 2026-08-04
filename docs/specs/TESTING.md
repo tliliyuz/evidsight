@@ -52,7 +52,8 @@
 - 禁用用户不能登录、刷新、创建任务、Chat、上传、重处理、治理写操作或 Internal Retrieval；
 - 知识库权限矩阵（PRD §8.2）：READ 由 visibility 优先（public→所有登录用户，private→owner+admin），WRITE 由 ownership 决定且 admin 治理覆盖（owner+admin），上传文档 owner-only（admin 作为非 owner 不可代传）；纯函数矩阵测试覆盖 `test_permissions.py::TestRequireKbReadable/TestRequireKbWritable/TestRequireKbOwner`；
 - Internal Retrieval 任一 KB 无权时整批失败且检索未执行；
-- 历史报告展开内部来源时实时复核权限。
+- 历史报告展开内部来源时实时复核权限；
+- M1 退出门禁 6：登录成功与失败路径日志均不得包含密码或 Access/Refresh Token 明文（`test_auth_service.py::TestLoginLogSensitivity`）；生产模式错误响应屏蔽内部堆栈与异常细节（`test_error_handlers.py`）。
 
 ### 3.3 Knowledge
 

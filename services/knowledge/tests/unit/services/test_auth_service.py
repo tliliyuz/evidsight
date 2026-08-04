@@ -228,3 +228,48 @@ class TestGetCurrentUserProfile:
         with pytest.raises(UserDisabledException) as exc:
             await get_current_user_profile(mock_db, self.PLATFORM_UUID)
         assert exc.value.error_code == "E5010"
+
+
+class TestLoginLogSensitivity:
+    """M1 退出门禁 6：登录路径日志不得包含密码或 Token 明文。
+
+    目标行为由 auth_service 既有实现满足（登录成功只记录 user_id，失败不记录
+    请求凭证）；本测试在日志中出现密码或 Token 明文时 RED，防止未来回归。
+    """
+
+    @pytest.mark.asyncio
+    async def test_login_success_log_omits_password_and_tokens(self, mock_db, caplog):
+        import logging
+        from app.core.security import hash_password
+
+        password = "P@ssw0rd!门禁明文"
+        user = User(
+            id=1,
+            platform_user_id="550e8400-e29b-41d4-a716-446655440000",
+            username="secret_user",
+            password_hash=hash_password(password),
+        )
+        mock_db.execute.return_value = _make_mock_result(user)
+
+        with caplog.at_level(logging.INFO, logger="app.services.auth_service"):
+            result = await login(mock_db, "secret_user", password)
+
+        logged = [r.getMessage() for r in caplog.records]
+        for secret in (password, result.access_token, result.refresh_token):
+            assert all(secret not in msg for msg in logged), f"登录成功日志泄露敏感明文: {secret}"
+
+    @pytest.mark.asyncio
+    async def test_login_failure_log_omits_password(self, mock_db, caplog):
+        import logging
+        from app.core.security import hash_password
+
+        wrong = "错误密码明文"
+        user = User(username="test", password_hash=hash_password("correct"))
+        mock_db.execute.return_value = _make_mock_result(user)
+
+        with caplog.at_level(logging.INFO, logger="app.services.auth_service"):
+            with pytest.raises(InvalidCredentialsException):
+                await login(mock_db, "test", wrong)
+
+        logged = [r.getMessage() for r in caplog.records]
+        assert all(wrong not in msg for msg in logged), "登录失败日志泄露密码明文"

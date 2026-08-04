@@ -4,7 +4,7 @@
 |:---|:---|
 | 文档状态 | 已确认 |
 | 文档版本 | v1.0 |
-| 最后更新 | 2026-08-02 |
+| 最后更新 | 2026-08-04 |
 | 排期方式 | 阶段里程碑与验收门禁，不绑定具体日期 |
 
 > 本文档是据见实施顺序、阶段依赖和发布门禁的权威计划。产品范围与成功指标见 [PRD.md](../specs/PRD.md)，总体服务边界与部署约束见 [ARCHITECTURE.md](../specs/ARCHITECTURE.md)，第一阶段代码布局迁移步骤见 [MONOREPO_MIGRATION_PLAN.md](MONOREPO_MIGRATION_PLAN.md)。字段、状态机、算法和界面细节由对应专项规范定义，本文不复制其定义。
@@ -49,8 +49,8 @@
 | 里程碑 | 状态 | 阶段名称 | 核心结果 | 主要依赖 |
 |:---|:---|:---|:---|:---|
 | M0 | 已完成 | 规范基线与 Monorepo 迁移 | 两个来源项目进入统一仓库并保持独立构建、测试和数据边界 | 已确认 PRD、总体架构、来源基线 |
-| M1 | 进行中 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
-| M2 | 未开始 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence | M1 的身份与 Contract 基线 |
+| M1 | 已完成 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
+| M2 | 进行中 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence | M1 的身份与 Contract 基线 |
 | M3 | 未开始 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 |
 | M4 | 未开始 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
 | M5 | 未开始 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的 2C2G 试点部署 | M1—M4 |
@@ -131,7 +131,7 @@ M0 的结构迁移与单机运行基线已完成。原 `docs/migration/` 下的�
 - [x] 统一身份、权限、服务认证与敏感数据外发规范已形成已确认设计；
 - [x] ADR 检查已记录，并创建 `ADR-005` 候选；
 - [x] `ADR-005` 经负责人评审并明确接受为 `accepted`；
-- [ ] 将 IA-001—IA-012、权限矩阵和 Contract 门禁拆分为可执行验收测试场景；
+- [x] 将 IA-001—IA-012、权限矩阵和 Contract 门禁拆分为可执行验收测试场景；
 - [x] 确认首个 M1 切片的受影响模块、测试命令和 RED 预期，并完成 IA-001/IA-002 核心 GREEN；
 - [x] 完成 IA-001-B：Research 退出本地身份所有权，仅保留 Knowledge Access Token 验证与 Platform User UUID 任务归属。
 - [x] 完成 IA-003/IA-011：Knowledge 以 Refresh Token Family 和数据库行锁执行原子轮换，同一旧 Token 至多产生一个有效后继。
@@ -140,6 +140,8 @@ M0 的结构迁移与单机运行基线已完成。原 `docs/migration/` 下的�
 - [x] Research 身份状态门禁 GREEN：Research 创建任务前调用 `GET /internal/v1/identity/users/{id}/status` 实时复核用户状态；禁用/不存在用户 → `E1010`、身份库不可用/网络/超时 → `E9002`，失败关闭且不分发 Worker（对齐 TESTING.md IA-012 身份状态契约）。
 
 M1 当前处于统一身份纵向切片持续实施阶段。`ADR-005` 已接受，IA-001/IA-002、IA-001-B、IA-003/IA-011、IA-004 与 IA-012 身份状态契约 Research 侧已观察正确 RED 并完成 GREEN；IA-005 禁用用户全链路（Chat/上传/重处理/治理写操作拒绝）API 层验收测试已补齐并 GREEN；IA-010 Service JWT 签名密钥轮换双 Key 窗口验收测试已补齐并 GREEN（窗口内新旧 Token 按 Key ID 均通过、窗口后移除旧 Key 旧 Token 失效）；PRD §8.2 知识库权限矩阵纯函数验收测试已补齐并 GREEN（READ visibility 优先、WRITE ownership+admin 治理、上传 owner-only，共 15 用例）。其余身份、服务认证和敏感数据外发能力仍须逐项遵循 SDD 门禁。
+
+M1 已完成（2026-08-04）：六条退出门禁逐条核对证据齐备——两个服务对相同 JWT Claims、过期和禁用语义的测试结果一致（Knowledge 与 Research `test_security.py`）；禁用用户不能刷新、创建任务、Chat、上传、重处理或治理写操作（`test_disabled_user_access.py` + Research 创建任务身份门禁）；服务间请求无法凭用户输入伪造服务身份或授权结论（两侧 `test_service_security.py` + Internal 校验顺序）；KB READ/WRITE/管理权限矩阵全覆盖（`test_permissions.py` 15 用例）；跨服务 Contract 具备版本、样例、Provider 与 Consumer 测试（`packages/contracts/tests/` + 双方 `tests/contract/`）；密钥、Token、密码和内部异常不进前端响应或普通日志（生产模式屏蔽堆栈 + `TestLoginLogSensitivity` 负向日志测试）。IA-006—IA-009 与 Retrieval/Evidence Contract 依赖 Internal Retrieval，明确划入 M2/M3。
 
 ### 范围内工作
 
@@ -192,6 +194,13 @@ M1 当前处于统一身份纵向切片持续实施阶段。`ADR-005` 已接受�
 - M1 的身份、服务认证、错误语义和基础 Contract 已确认；
 - Knowledge Service 迁移后回归测试通过；
 - Internal Retrieval 的请求方、数据所有者和实时授权责任已明确。
+
+### 当前状态
+
+- [x] 文档生命周期、检索权限和删除一致性 ADR：`ADR-007` 经负责人评审并明确接受为 `accepted`（命中检查项 4、5，2026-08-04）；检索权限语义由 `ADR-002`/`ADR-005` 交叉引用覆盖，不另建重复 ADR。
+- [ ] Internal Retrieval 与 Evidence Contract Schema/Fixture 与 Provider/Consumer 验收测试（契约先行，下一个切片）。
+- [ ] 权限感知的 `/internal/v1/retrieval/search` 与 `/resolve` Provider 端点及实时 READ 校验。
+- [ ] 文档入库/重处理/删除/失败恢复异常演练与 PRD AC-005、AC-006、AC-010 验证入口。
 
 ### 范围内工作
 
