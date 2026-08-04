@@ -321,6 +321,8 @@ Trace 用于性能与质量诊断，Audit 用于安全和治理；两者不得�
 
 ## 9. 生命周期与一致性
 
+> 文档版本化生命周期、Staging 原子发布与删除一致性决策由已接受的 [ADR-007](../../../docs/decisions/ADR-007-knowledge-document-lifecycle-delete-consistency.md) 裁决；本节实现其 Schema 与一致性约束。
+
 ### 9.1 KB 删除
 
 1. 事务内将 KB 标记为 `deleting`，写入审计并提交。

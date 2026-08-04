@@ -222,4 +222,5 @@ Internal Query 和最小片段仅用于内部处理，不得自动转发互联�
 
 ## 16. 实现记录
 
+- （2026-08-04）M2 文档生命周期与删除一致性决策经负责人裁决创建 [ADR-007](../../../docs/decisions/ADR-007-knowledge-document-lifecycle-delete-consistency.md) 并明确接受为 `accepted`：ADR 检查项 4（数据与安全）、5（核心机制）命中；裁决人：负责人；裁决：创建 ADR；2026-08-04 接受。本 Pipeline 的版本化生命周期、Staging 原子发布、删除一致性与失败恢复行为以 ADR-007 及本文为权威依据，检索权限语义由 ADR-002/005 交叉引用覆盖。
 - （2026-08-02）M2 数据清洗：在 Parse 与 Structure/Chunk 之间新增确定性 Clean 阶段（`app/rag/cleaner.py`，接线见 `app/ingest/tasks.py` 3a'）。作用域限定为页号/页眉页脚去噪、空白/空行规整、损坏 Unicode 修复；引用/目录噪声过滤与近重复去重留待后续切片。清洗对**新入库**生效，存量 Chunk/向量需重处理才受影响。配套新增 4 个配置键（`CLEAN_ENABLED` 及三个逐项开关）与 `tests/unit/rag/test_cleaner.py`（35 项）、`tests/unit/ingest/test_tasks.py::TestCleanStageWiring`（2 项）。ADR 检查 1–8：否（不触发）。

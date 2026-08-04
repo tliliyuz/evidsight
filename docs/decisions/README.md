@@ -72,3 +72,5 @@ ADR 候选
 - [ADR-003：内部 Evidence 不持久化正文](ADR-003-internal-evidence-no-content.md)
 - [ADR-004：M0 Vue 迁移基线与 M4 React 目标](ADR-004-web-framework-transition.md)
 - [ADR-005：统一身份、服务认证与敏感数据外发策略](ADR-005-unified-identity-service-auth-egress.md)（accepted）
+- [ADR-006：Refresh Token 浏览器传输（HttpOnly Cookie + double-submit CSRF）](ADR-006-refresh-token-cookie-csrf.md)（accepted）
+- [ADR-007：Knowledge 文档版本化生命周期与删除一致性](ADR-007-knowledge-document-lifecycle-delete-consistency.md)（accepted）
