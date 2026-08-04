@@ -1,0 +1,8 @@
+{
+  "relation_id": "550e8400-e29b-41d4-a716-446655440061",
+  "evidence_id": "550e8400-e29b-41d4-a716-446655440051",
+  "claim_id": "550e8400-e29b-41d4-a716-446655440070",
+  "relation_type": "contradicts",
+  "confidence": 0.3,
+  "rationale": "来源表述与结论相反。"
+}

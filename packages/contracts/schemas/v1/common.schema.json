@@ -23,6 +23,80 @@
     "RequestId": {
       "type": "string",
       "minLength": 1
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$",
+      "description": "RFC 3339 UTC 时间；序列化使用 Z 结尾，固定宽度使词法序与时间序一致。"
+    },
+    "UnitInterval": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "0—1 闭区间数值，用于置信度等归一化度量。"
+    },
+    "ScoreKind": {
+      "type": "string",
+      "enum": ["vector", "bm25", "rrf", "coarse", "rerank"],
+      "description": "检索分数类型；Consumer 不得比较不同 score_kind 的裸值。未知 kind 必须随新版本 Contract 发布。"
+    },
+    "InternalSourceIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["knowledge_base_id", "document_id", "document_version_id", "segment_id"],
+      "properties": {
+        "knowledge_base_id": {
+          "$ref": "#/$defs/UUIDv4",
+          "description": "目标 Knowledge Base 的稳定 ID。"
+        },
+        "document_id": {
+          "$ref": "#/$defs/UUIDv4",
+          "description": "文档的稳定 ID。"
+        },
+        "document_version_id": {
+          "$ref": "#/$defs/UUIDv4",
+          "description": "文档版本的稳定 ID；用于解释重处理后的历史来源身份，但不授予旧版本正文访问权。"
+        },
+        "segment_id": {
+          "$ref": "#/$defs/UUIDv4",
+          "description": "Segment（Chunk）的稳定 ID。"
+        }
+      },
+      "description": "内部来源稳定身份：KB、Document、Document Version 与 Segment 的稳定 UUID，不含正文或存储路径。"
+    },
+    "SourceLocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "anyOf": [
+        { "required": ["page_number"] },
+        { "required": ["section_path"] },
+        { "required": ["char_span"] }
+      ],
+      "properties": {
+        "page_number": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "来源页码；基值由 Pipeline 定义，Consumer 不假设其基值。"
+        },
+        "section_path": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/NonEmptyString" },
+          "description": "章节路径，自根到叶的有序标题。"
+        },
+        "char_span": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "$ref": "#/$defs/NonNegativeInteger", "description": "字符区间起点（含）。" },
+            "end": { "$ref": "#/$defs/NonNegativeInteger", "description": "字符区间终点（不含）。" }
+          },
+          "description": "字符区间；start 必须小于 end（由语义校验强制）。"
+        }
+      },
+      "description": "来源可解释定位：页码、章节路径或字符区间中的至少一种。"
     }
   }
 }

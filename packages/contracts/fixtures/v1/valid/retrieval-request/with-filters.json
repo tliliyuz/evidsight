@@ -1,0 +1,14 @@
+{
+  "contract_version": "1.0.0",
+  "user_id": "550e8400-e29b-41d4-a716-446655440001",
+  "knowledge_base_ids": ["550e8400-e29b-41d4-a716-446655440010"],
+  "query": "带过滤条件的检索",
+  "purpose": "research_retrieval",
+  "limit": 20,
+  "filters": {
+    "document_ids": ["550e8400-e29b-41d4-a716-446655440020"],
+    "languages": ["zh-CN", "en"],
+    "updated_since": "2026-08-01T00:00:00Z",
+    "updated_until": "2026-08-04T00:00:00Z"
+  }
+}

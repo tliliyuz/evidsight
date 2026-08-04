@@ -1,0 +1,9 @@
+{
+  "error": {
+    "error_code": "INTERNAL_RATE_LIMITED",
+    "message": "内部调用达到受控限额。",
+    "request_id": "01J00000000000000000000000",
+    "retryable": true,
+    "details": {}
+  }
+}

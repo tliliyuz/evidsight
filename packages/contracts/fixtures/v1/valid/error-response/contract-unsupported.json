@@ -1,0 +1,9 @@
+{
+  "error": {
+    "error_code": "INTERNAL_CONTRACT_UNSUPPORTED",
+    "message": "Contract 版本不受支持或版本载体不一致。",
+    "request_id": "01J00000000000000000000000",
+    "retryable": false,
+    "details": {}
+  }
+}

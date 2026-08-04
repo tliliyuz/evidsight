@@ -198,7 +198,7 @@ M1 已完成（2026-08-04）：六条退出门禁逐条核对证据齐备——�
 ### 当前状态
 
 - [x] 文档生命周期、检索权限和删除一致性 ADR：`ADR-007` 经负责人评审并明确接受为 `accepted`（命中检查项 4、5，2026-08-04）；检索权限语义由 `ADR-002`/`ADR-005` 交叉引用覆盖，不另建重复 ADR。
-- [ ] Internal Retrieval 与 Evidence Contract Schema/Fixture 与 Provider/Consumer 验收测试（契约先行，下一个切片）。
+- [x] Internal Retrieval 与 Evidence Contract Schema/Fixture 与 Provider/Consumer 验收测试（契约先行）：新增 7 个 Schema（retrieval-request/response、retrieval-hit、evidence-resolve-request/response、evidence-reference、evidence-relation）并扩展 common（Timestamp/ScoreKind/UnitInterval/InternalSourceIdentity/SourceLocation）与 error-response 错误码（KB_FORBIDDEN 等 4 个）；落地 24 valid + 50 invalid Fixture、跨字段语义不变量 `semantics.py`、7 个 Pydantic 参考模型；契约自检 131 项、Research Consumer 73 项、Knowledge Provider 15 项全绿（2026-08-04，Knowledge venv 4.26/Research venv 8.3.5）；Provider 端点级测试由下一项落地。
 - [ ] 权限感知的 `/internal/v1/retrieval/search` 与 `/resolve` Provider 端点及实时 READ 校验。
 - [ ] 文档入库/重处理/删除/失败恢复异常演练与 PRD AC-005、AC-006、AC-010 验证入口。
 

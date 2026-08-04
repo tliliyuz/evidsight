@@ -18,7 +18,11 @@
             "INTERNAL_CONTRACT_UNSUPPORTED",
             "INTERNAL_CONTRACT_INVALID",
             "AUTH_USER_DISABLED",
-            "INTERNAL_IDENTITY_UNAVAILABLE"
+            "INTERNAL_IDENTITY_UNAVAILABLE",
+            "KB_FORBIDDEN",
+            "INTERNAL_RATE_LIMITED",
+            "INTERNAL_RETRIEVAL_UNAVAILABLE",
+            "EVIDENCE_SOURCE_UNAVAILABLE"
           ],
           "description": "稳定错误码；未知错误码必须由 Provider 与 Consumer 同时发布新版本 Contract。"
         },

@@ -1,0 +1,9 @@
+{
+  "error": {
+    "error_code": "EVIDENCE_SOURCE_UNAVAILABLE",
+    "message": "指定来源已删除或不可用于当前步骤。",
+    "request_id": "01J00000000000000000000000",
+    "retryable": false,
+    "details": {}
+  }
+}

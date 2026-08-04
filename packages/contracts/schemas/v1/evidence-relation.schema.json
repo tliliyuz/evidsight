@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidsight.local/schemas/v1/evidence-relation.schema.json",
+  "title": "Evidence Relation",
+  "description": "证据与结论之间的独立关系对象。同一 Evidence 可以关联多个结论；冲突和不确定性由多条关系及 Research Pipeline 的结论规则表达，Contract 不替代状态解析或报告生成算法。rationale 是安全摘要，不得复制内部原文。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["relation_id", "evidence_id", "claim_id", "relation_type", "confidence"],
+  "properties": {
+    "relation_id": {
+      "$ref": "./common.schema.json#/$defs/UUIDv4",
+      "description": "稳定关系 ID。"
+    },
+    "evidence_id": {
+      "$ref": "./common.schema.json#/$defs/UUIDv4",
+      "description": "关联的 Evidence ID。"
+    },
+    "claim_id": {
+      "$ref": "./common.schema.json#/$defs/UUIDv4",
+      "description": "关联的结论 ID。"
+    },
+    "relation_type": {
+      "type": "string",
+      "enum": ["supports", "contradicts", "context"],
+      "description": "关系类型：支持、反对或背景。"
+    },
+    "confidence": {
+      "$ref": "./common.schema.json#/$defs/UnitInterval",
+      "description": "0—1 置信度；表示关系判断置信度，不表示来源绝对真实性。"
+    },
+    "rationale": {
+      "$ref": "./common.schema.json#/$defs/NonEmptyString",
+      "description": "可选安全摘要，不得复制内部原文。"
+    }
+  }
+}

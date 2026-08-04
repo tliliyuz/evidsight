@@ -337,14 +337,13 @@ Contract 变更必须依次通过：
 
 ## 14. 后续实施边界
 
-Contract 当前为 `1.0.0-draft` 设计阶段。已落地的最小可执行集合为 **Internal Identity Status** 契约（2026-08-03）：
+Contract 当前为 `1.0.0-draft` 设计阶段，Schema 与 Fixture 覆盖如下（2026-08-04 状态）：
 
-- `schemas/v1/common.schema.json`、`schemas/v1/identity-status-response.schema.json`、`schemas/v1/error-response.schema.json`；
-- `fixtures/v1/` 下 identity-status-response（1 valid / 12 invalid）与 error-response（2 valid / 3 invalid）Fixture；
-- `generated/python/evidsight_contracts/` 参考 Pydantic 模型与 `loader.py`（`$ref` 文件系统解析 + `referencing.Registry`）；
-- 契约自检测试 `packages/contracts/tests/`（Meta-Schema、`$ref`、Fixture 校验）；
-- Knowledge Provider 契约测试（`services/knowledge/tests/contract/`，当前端点 RED）与 Research Consumer 契约测试（`services/research/tests/contract/`，Fixture 消费/拒绝）。
+- **Internal Identity Status**（2026-08-03）：`common.schema.json`、`identity-status-response.schema.json`、`error-response.schema.json`；identity-status-response（1 valid / 12 invalid）与 error-response（2 valid / 3 invalid）Fixture。
+- **Internal Retrieval & Evidence**（2026-08-04，M2）：`retrieval-request/response.schema.json`、`retrieval-hit.schema.json`、`evidence-resolve-request/response.schema.json`、`evidence-reference.schema.json`、`evidence-relation.schema.json`；`common.schema.json` 扩展 `Timestamp`/`ScoreKind`/`UnitInterval`/`InternalSourceIdentity`/`SourceLocation`；`error-response.schema.json` 扩展 `KB_FORBIDDEN`/`INTERNAL_RATE_LIMITED`/`INTERNAL_RETRIEVAL_UNAVAILABLE`/`EVIDENCE_SOURCE_UNAVAILABLE`。落地 24 valid / 50 invalid Fixture 与共享语义不变量 `generated/python/evidsight_contracts/semantics.py`（跨字段约束：`returned_count == len(results)`、`updated_since <= updated_until`、`source_type` 与来源身份匹配）。
 
-TypeScript 生成物、`datamodel-code-generator`/`json-schema-to-typescript` 生成器配置、Retrieval/Evidence/EvidenceRelation Schema 与 Fixture 均留给后续 Internal Retrieval 事件在 M4 React/TS 与 CI 工具链就绪后补齐。
+`generated/python/evidsight_contracts/` 包含参考 Pydantic 模型与 `loader.py`（`$ref` 文件系统解析 + `referencing.Registry`）。契约自检 `packages/contracts/tests/` 覆盖 Meta-Schema、`$ref` 解析、Fixture 正反校验、语义不变量与 Pydantic 参考模型 smoke。Knowledge Provider 契约测试（`services/knowledge/tests/contract/`）与 Research Consumer 契约测试（`services/research/tests/contract/`）覆盖 Identity Status 与 Retrieval/Evidence 两套契约；Provider 端点级（`/internal/v1/retrieval/*`）验收由权限感知 Provider 切片落地。
+
+TypeScript 生成物、`datamodel-code-generator`/`json-schema-to-typescript` 生成器配置留给 M4 React/TS 与 CI 工具链就绪后补齐；届时重新生成并核对「重新生成后无工作区差异」。
 
 下一步由 Knowledge/Research 专项规范分别定义 Provider 与 Consumer 的业务实现。任何需要改变本文服务边界、正文持久化策略、版本兼容规则或授权顺序的实现，都必须先修订本设计；涉及安全、数据生命周期或跨服务职责变化时同时新增 ADR。

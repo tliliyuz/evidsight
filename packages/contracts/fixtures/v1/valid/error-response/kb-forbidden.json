@@ -1,0 +1,9 @@
+{
+  "error": {
+    "error_code": "KB_FORBIDDEN",
+    "message": "请求的知识库不可访问。",
+    "request_id": "01J00000000000000000000000",
+    "retryable": false,
+    "details": {}
+  }
+}

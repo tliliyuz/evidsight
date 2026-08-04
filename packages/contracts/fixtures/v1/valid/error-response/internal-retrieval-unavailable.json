@@ -1,0 +1,9 @@
+{
+  "error": {
+    "error_code": "INTERNAL_RETRIEVAL_UNAVAILABLE",
+    "message": "检索依赖暂时不可用。",
+    "request_id": "01J00000000000000000000000",
+    "retryable": true,
+    "details": {}
+  }
+}

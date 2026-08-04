@@ -1,0 +1,13 @@
+{
+  "evidence_id": "550e8400-e29b-41d4-a716-446655440051",
+  "source_type": "web",
+  "source_identity": {
+    "url": "https://example.com/security-standards",
+    "fetched_at": "2026-08-03T10:00:00Z"
+  },
+  "display": { "title": "Example 安全规范" },
+  "captured_at": "2026-08-04T12:05:00Z",
+  "source_observed_at": "2026-08-03T10:00:00Z",
+  "score_summary": { "best_score": 0.6, "score_kind": "rerank", "rank": 1 },
+  "validity": "available"
+}

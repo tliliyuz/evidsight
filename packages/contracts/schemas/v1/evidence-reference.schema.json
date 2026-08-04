@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidsight.local/schemas/v1/evidence-reference.schema.json",
+  "title": "Evidence Reference",
+  "description": "跨内部/外部来源的可持久化最小引用，不含正文。内部 Evidence 可长期保留文档显示名和位置描述，但这不授予原文访问权；展开原文必须调用 Knowledge 来源访问 API 并按当前用户、KB、文档状态重新鉴权。Schema 从结构上禁止出现正文、Embedding、Prompt、文件路径或任意扩展字段。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evidence_id",
+    "source_type",
+    "source_identity",
+    "display",
+    "captured_at",
+    "source_observed_at",
+    "score_summary",
+    "validity"
+  ],
+  "properties": {
+    "evidence_id": {
+      "$ref": "./common.schema.json#/$defs/UUIDv4",
+      "description": "稳定 Evidence ID。"
+    },
+    "source_type": {
+      "type": "string",
+      "enum": ["internal", "web"],
+      "description": "来源类型；与 source_identity 的来源种类匹配（该跨字段约束由语义校验强制）。"
+    },
+    "source_identity": {
+      "oneOf": [
+        { "$ref": "./common.schema.json#/$defs/InternalSourceIdentity" },
+        { "$ref": "#/$defs/WebSourceIdentity" }
+      ],
+      "description": "与来源类型匹配的标识对象；两类来源字段严格互斥，不得伪装来源。"
+    },
+    "display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": {
+          "$ref": "./common.schema.json#/$defs/NonEmptyString",
+          "description": "可公开给当前任务读者的标题。"
+        },
+        "location_summary": {
+          "$ref": "./common.schema.json#/$defs/NonEmptyString",
+          "description": "可公开的位置摘要；不包含内部路径。"
+        }
+      },
+      "description": "可公开给当前任务读者的标题与位置摘要。"
+    },
+    "captured_at": {
+      "$ref": "./common.schema.json#/$defs/Timestamp",
+      "description": "Evidence 创建时间。"
+    },
+    "source_observed_at": {
+      "$ref": "./common.schema.json#/$defs/Timestamp",
+      "description": "检索或抓取时观察到的来源时间。"
+    },
+    "score_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["best_score", "score_kind", "rank"],
+      "properties": {
+        "best_score": {
+          "type": "number",
+          "description": "生成时采用的最佳分数；不作为当前权限或有效性证明。"
+        },
+        "score_kind": {
+          "$ref": "./common.schema.json#/$defs/ScoreKind",
+          "description": "最佳分数对应的分数类型。"
+        },
+        "rank": {
+          "$ref": "./common.schema.json#/$defs/NonNegativeInteger",
+          "description": "生成时的排序位置。"
+        }
+      },
+      "description": "生成时的受控评分摘要，不作为当前权限或有效性证明。"
+    },
+    "validity": {
+      "type": "string",
+      "enum": ["available", "restricted", "missing", "stale"],
+      "description": "当前来源有效性的受控状态；不授予未来访问权。"
+    }
+  },
+  "$defs": {
+    "WebSourceIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "fetched_at"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1,
+          "description": "规范化 URL。"
+        },
+        "fetched_at": {
+          "$ref": "./common.schema.json#/$defs/Timestamp",
+          "description": "抓取时间。"
+        }
+      },
+      "description": "外部来源身份：规范化 URL 与获取时间，不得伪装成内部来源。"
+    }
+  }
+}

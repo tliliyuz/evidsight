@@ -1,0 +1,14 @@
+{
+  "request_id": "01J00000000000000000000002",
+  "results": [
+    {
+      "knowledge_base_id": "550e8400-e29b-41d4-a716-446655440010",
+      "document_id": "550e8400-e29b-41d4-a716-446655440020",
+      "document_version_id": "550e8400-e29b-41d4-a716-446655440031",
+      "segment_id": "550e8400-e29b-41d4-a716-446655440041",
+      "minimal_excerpt": "KB 的 READ 权限决定该用户是否可检索。",
+      "location": { "page_number": 3 },
+      "source_updated_at": "2026-08-03T09:00:00Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "contract_version": "1.0.0",
+  "request_id": "01J00000000000000000000001",
+  "results": [
+    {
+      "hit_id": "550e8400-e29b-41d4-a716-446655440100",
+      "knowledge_base_id": "550e8400-e29b-41d4-a716-446655440010",
+      "document_id": "550e8400-e29b-41d4-a716-446655440020",
+      "document_version_id": "550e8400-e29b-41d4-a716-446655440031",
+      "segment_id": "550e8400-e29b-41d4-a716-446655440041",
+      "document_display_name": "权限设计文档",
+      "location": { "page_number": 3 },
+      "minimal_excerpt": "KB 的 READ 权限决定该用户是否可检索。",
+      "scores": [ { "score_kind": "vector", "value": 0.87, "rank": 0 } ],
+      "source_updated_at": "2026-08-03T09:00:00Z",
+      "retrieved_at": "2026-08-04T12:00:00Z",
+      "access_scope": "internal"
+    }
+  ],
+  "returned_count": 2,
+  "has_more": false
+}

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidsight.local/schemas/v1/retrieval-request.schema.json",
+  "title": "Internal Retrieval Request",
+  "description": "Research 向 Knowledge 请求受限多 KB Internal Retrieval。请求不得携带角色、可见性、所有者或任何调用方计算的授权结论；user_id 仅作为实时授权主体。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "user_id", "knowledge_base_ids", "query", "purpose"],
+  "properties": {
+    "contract_version": {
+      "$ref": "./common.schema.json#/$defs/SemVer",
+      "description": "与 X-EvidSight-Contract-Version 头一致的精确版本。"
+    },
+    "user_id": {
+      "$ref": "./common.schema.json#/$defs/UUIDv4",
+      "description": "Platform User ID；Knowledge 以它为实时授权主体，不信任调用方授权结论。"
+    },
+    "knowledge_base_ids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": { "$ref": "./common.schema.json#/$defs/UUIDv4" },
+      "description": "所有目标 KB 均需当前 READ 权限；任一无权时整次失败，不返回部分结果。"
+    },
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8192,
+      "description": "仅用于内部检索，不得自动转发互联网 Provider。"
+    },
+    "purpose": {
+      "type": "string",
+      "enum": ["research_retrieval"],
+      "description": "防止契约被复用于未审查用途。"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 20,
+      "description": "跨全部目标 KB 的最大命中数；缺省为 20。"
+    },
+    "filters": {
+      "$ref": "#/$defs/RetrievalFilters",
+      "description": "可选过滤；只允许已声明的文档 ID、语言和更新时间范围。"
+    }
+  },
+  "$defs": {
+    "RetrievalFilters": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "不接受 SQL、路径、Collection 名称、任意字段名或任意排序表达式。updated_since 必须早于或等于 updated_until（该跨字段约束由语义校验强制，不在纯 Schema 中表达）。",
+      "properties": {
+        "document_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "./common.schema.json#/$defs/UUIDv4" },
+          "description": "只检索这些文档 ID。"
+        },
+        "languages": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": { "$ref": "./common.schema.json#/$defs/NonEmptyString" },
+          "description": "语言标签；空数组非法。"
+        },
+        "updated_since": {
+          "$ref": "./common.schema.json#/$defs/Timestamp",
+          "description": "只检索此时间之后（含）更新的来源。"
+        },
+        "updated_until": {
+          "$ref": "./common.schema.json#/$defs/Timestamp",
+          "description": "只检索此时间之前（含）更新的来源。"
+        }
+      }
+    }
+  }
+}

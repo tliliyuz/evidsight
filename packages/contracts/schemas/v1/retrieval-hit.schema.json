@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidsight.local/schemas/v1/retrieval-hit.schema.json",
+  "title": "Retrieval Hit",
+  "description": "Internal Retrieval 的临时命中对象，不是可持久化 Evidence。minimal_excerpt 只允许在当前研究步骤的内存或受控短期执行上下文使用，不得进入 Research 业务表、Evidence Graph 持久层、报告、SSE、日志、Trace 或错误详情。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "hit_id",
+    "knowledge_base_id",
+    "document_id",
+    "document_version_id",
+    "segment_id",
+    "document_display_name",
+    "location",
+    "minimal_excerpt",
+    "scores",
+    "source_updated_at",
+    "retrieved_at",
+    "access_scope"
+  ],
+  "properties": {
+    "hit_id": { "$ref": "./common.schema.json#/$defs/UUIDv4", "description": "本次命中实例的稳定 ID。" },
+    "knowledge_base_id": { "$ref": "./common.schema.json#/$defs/UUIDv4", "description": "命中所属 KB 的稳定 ID。" },
+    "document_id": { "$ref": "./common.schema.json#/$defs/UUIDv4", "description": "命中所属文档的稳定 ID。" },
+    "document_version_id": { "$ref": "./common.schema.json#/$defs/UUIDv4", "description": "命中所处的文档版本 ID。" },
+    "segment_id": { "$ref": "./common.schema.json#/$defs/UUIDv4", "description": "命中 Segment（Chunk）的稳定 ID。" },
+    "document_display_name": {
+      "$ref": "./common.schema.json#/$defs/NonEmptyString",
+      "description": "可展示的文档标题。"
+    },
+    "section_title": {
+      "$ref": "./common.schema.json#/$defs/NonEmptyString",
+      "description": "可选的章节标题。"
+    },
+    "location": {
+      "$ref": "./common.schema.json#/$defs/SourceLocation",
+      "description": "来源可解释定位：页码、章节路径或字符区间中的至少一种。"
+    },
+    "minimal_excerpt": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000,
+      "description": "最小片段；临时内容，不得持久化、入日志、Trace、SSE 或报告。"
+    },
+    "scores": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/RetrievalScore" },
+      "description": "至少一个带 score_kind、value 和排序位置的受控分数。"
+    },
+    "source_updated_at": {
+      "$ref": "./common.schema.json#/$defs/Timestamp",
+      "description": "来源被检索时的已知更新时间。"
+    },
+    "retrieved_at": {
+      "$ref": "./common.schema.json#/$defs/Timestamp",
+      "description": "检索发生时间。"
+    },
+    "access_scope": {
+      "type": "string",
+      "enum": ["internal"],
+      "description": "访问范围固定为 internal。"
+    }
+  },
+  "$defs": {
+    "RetrievalScore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score_kind", "value", "rank"],
+      "properties": {
+        "score_kind": {
+          "$ref": "./common.schema.json#/$defs/ScoreKind",
+          "description": "分数类型；Consumer 不比较不同 score_kind 的裸值。"
+        },
+        "value": {
+          "type": "number",
+          "description": "该分数来源阶段的裸值；范围与含义由 Pipeline 定义。"
+        },
+        "rank": {
+          "$ref": "./common.schema.json#/$defs/NonNegativeInteger",
+          "description": "该分数来源阶段内的排序位置。"
+        }
+      }
+    }
+  }
+}

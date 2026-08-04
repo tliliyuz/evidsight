@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidsight.local/schemas/v1/evidence-resolve-response.schema.json",
+  "title": "Internal Evidence Resolve Response",
+  "description": "按请求顺序返回相同稳定身份、最小正文、安全位置与来源时间。正文仍只允许存在于当前 Step 内存，响应不得被持久化。该操作只恢复已经由先前 RetrievalHit 选定的工作集，不执行搜索、排序或生成新 Candidate。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "results"],
+  "properties": {
+    "contract_version": {
+      "$ref": "./common.schema.json#/$defs/SemVer",
+      "description": "Provider 实际使用的精确版本。"
+    },
+    "request_id": {
+      "$ref": "./common.schema.json#/$defs/RequestId",
+      "description": "回显跨服务请求关联 ID。"
+    },
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/ResolvedSource" },
+      "description": "按请求顺序排列；每个 ResolvedSource 携带与请求一致的稳定身份。"
+    }
+  },
+  "$defs": {
+    "ResolvedSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "knowledge_base_id",
+        "document_id",
+        "document_version_id",
+        "segment_id",
+        "minimal_excerpt",
+        "location",
+        "source_updated_at"
+      ],
+      "properties": {
+        "knowledge_base_id": { "$ref": "./common.schema.json#/$defs/UUIDv4" },
+        "document_id": { "$ref": "./common.schema.json#/$defs/UUIDv4" },
+        "document_version_id": { "$ref": "./common.schema.json#/$defs/UUIDv4" },
+        "segment_id": { "$ref": "./common.schema.json#/$defs/UUIDv4" },
+        "minimal_excerpt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000,
+          "description": "最小正文；临时内容，不得持久化。"
+        },
+        "location": { "$ref": "./common.schema.json#/$defs/SourceLocation" },
+        "source_updated_at": { "$ref": "./common.schema.json#/$defs/Timestamp" }
+      }
+    }
+  }
+}

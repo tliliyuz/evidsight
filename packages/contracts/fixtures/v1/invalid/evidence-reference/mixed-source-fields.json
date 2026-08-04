@@ -1,0 +1,14 @@
+{
+  "evidence_id": "550e8400-e29b-41d4-a716-446655440050",
+  "source_type": "internal",
+  "source_identity": {
+    "url": "https://example.com/security-standards",
+    "fetched_at": "2026-08-03T10:00:00Z",
+    "knowledge_base_id": "550e8400-e29b-41d4-a716-446655440010"
+  },
+  "display": { "title": "权限设计文档" },
+  "captured_at": "2026-08-04T12:05:00Z",
+  "source_observed_at": "2026-08-03T09:00:00Z",
+  "score_summary": { "best_score": 0.87, "score_kind": "vector", "rank": 0 },
+  "validity": "available"
+}

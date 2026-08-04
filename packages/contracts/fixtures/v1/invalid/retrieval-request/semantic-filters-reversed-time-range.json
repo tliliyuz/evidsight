@@ -1,0 +1,11 @@
+{
+  "contract_version": "1.0.0",
+  "user_id": "550e8400-e29b-41d4-a716-446655440001",
+  "knowledge_base_ids": ["550e8400-e29b-41d4-a716-446655440010"],
+  "query": "检索",
+  "purpose": "research_retrieval",
+  "filters": {
+    "updated_since": "2026-08-04T00:00:00Z",
+    "updated_until": "2026-08-01T00:00:00Z"
+  }
+}

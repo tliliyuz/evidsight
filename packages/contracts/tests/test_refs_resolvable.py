@@ -18,7 +18,11 @@ def test_schema_loads_and_constructs_validator(name):
 
 
 def test_no_relative_refs_after_load():
-    """加载后所有 $ref 必须为 file:// 绝对路径，不得残留相对 ./ 引用。"""
+    """加载后不得残留相对 ./ 文件引用（跨文件 $ref 必须重写为 file:// 绝对路径）。
+
+    同文档内部 #/$defs/... 片段引用是合法 JSON Schema，loader 不重写且按原样解析；
+    本测试只禁止未重写的相对文件引用。
+    """
     for name in _all_schema_names():
         schema = load_schema(name)
 
@@ -36,4 +40,4 @@ def test_no_relative_refs_after_load():
             return refs
 
         refs = _collect(schema)
-        assert all(r.startswith("file://") for r in refs), f"{name} 存在未重写 $ref: {refs}"
+        assert all(not r.startswith("./") for r in refs), f"{name} 存在未重写为绝对路径的相对 $ref: {refs}"

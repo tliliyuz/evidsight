@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidsight.local/schemas/v1/evidence-resolve-request.schema.json",
+  "title": "Internal Evidence Resolve Request",
+  "description": "Research 在 Reranking、Synthesis 或恢复时需要重新取得已经选定的内部候选正文，不得用文本查询猜测原命中。对每项重新验证用户、KB、Document、Version 和 Segment 的当前可访问性；任一项无权时整批失败。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "user_id", "references", "purpose"],
+  "properties": {
+    "contract_version": {
+      "$ref": "./common.schema.json#/$defs/SemVer",
+      "description": "与 X-EvidSight-Contract-Version 头一致的精确版本。"
+    },
+    "user_id": {
+      "$ref": "./common.schema.json#/$defs/UUIDv4",
+      "description": "当前授权主体；实时 READ 校验依据。"
+    },
+    "references": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": { "$ref": "./common.schema.json#/$defs/InternalSourceIdentity" },
+      "description": "每项包含 KB、Document、Document Version 与 Segment 稳定身份；重复引用非法。"
+    },
+    "purpose": {
+      "type": "string",
+      "enum": ["research_evidence_resolve"],
+      "description": "禁止复用于其他正文读取。"
+    }
+  }
+}

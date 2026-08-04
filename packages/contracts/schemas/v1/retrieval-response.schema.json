@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evidsight.local/schemas/v1/retrieval-response.schema.json",
+  "title": "Internal Retrieval Response",
+  "description": "Knowledge 对 Internal Retrieval 的响应。returned_count 必须等于 results 长度（该跨字段不变量由语义校验强制）。空结果是成功响应，不伪造 Evidence。不得包含调试信息、内部查询计划、数据库字段、文件路径或缓存信息。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "results", "returned_count", "has_more"],
+  "properties": {
+    "contract_version": {
+      "$ref": "./common.schema.json#/$defs/SemVer",
+      "description": "Provider 实际使用的精确版本。"
+    },
+    "request_id": {
+      "$ref": "./common.schema.json#/$defs/RequestId",
+      "description": "回显跨服务请求关联 ID。"
+    },
+    "results": {
+      "type": "array",
+      "items": { "$ref": "./retrieval-hit.schema.json" },
+      "description": "按 Provider 已确定的顺序返回；空数组是成功响应。"
+    },
+    "returned_count": {
+      "$ref": "./common.schema.json#/$defs/NonNegativeInteger",
+      "description": "必须等于 results 长度。"
+    },
+    "has_more": {
+      "type": "boolean",
+      "description": "表示当前约束下仍可能存在更多结果。"
+    }
+  }
+}

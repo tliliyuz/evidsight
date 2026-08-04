@@ -1,0 +1,8 @@
+{
+  "contract_version": "1.0.0",
+  "user_id": "550e8400-e29b-41d4-a716-446655440001",
+  "knowledge_base_ids": ["550e8400-e29b-41d4-a716-446655440010"],
+  "query": "检索",
+  "purpose": "research_retrieval",
+  "limit": 101
+}

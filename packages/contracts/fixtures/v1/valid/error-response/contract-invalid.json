@@ -1,0 +1,9 @@
+{
+  "error": {
+    "error_code": "INTERNAL_CONTRACT_INVALID",
+    "message": "请求不符合已协商 Schema。",
+    "request_id": "01J00000000000000000000000",
+    "retryable": false,
+    "details": {}
+  }
+}
