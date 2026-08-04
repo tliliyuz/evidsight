@@ -461,6 +461,7 @@ async def change_user_status(
         return AdminUserStatusResponse(id=user.platform_user_id, username=user.username, status=user.status)
 
     user.status = new_status
+    user.status_version = (user.status_version or 0) + 1
     await db.flush()
 
     # 禁用时吊销全部 refresh_token
