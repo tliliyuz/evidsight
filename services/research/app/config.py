@@ -141,6 +141,12 @@ class Settings(BaseSettings):
     EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID: str = ""  # 必填
     EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE: str = ""  # path, secret；必填
 
+    # ── Internal Identity Status（Research → Knowledge，对齐 API.md §11.1）──
+    # Knowledge 内部 API 基址（如 http://knowledge-api:8000），必须直达内部网络，不得走 Nginx
+    EVIDSIGHT_KNOWLEDGE_INTERNAL_BASE_URL: str = ""  # 必填
+    # 身份状态查询超时（秒）；身份事实源不可用必须失败关闭，不得用旧 active 结果放行
+    EVIDSIGHT_IDENTITY_STATUS_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0, le=30)
+
     # ── CORS ──
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 

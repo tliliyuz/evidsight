@@ -88,7 +88,8 @@ Internal Contract 每个版本必须通过 Meta-Schema、唯一 `$id`、可解�
 
 - Schema 自检：`packages/contracts/tests/`（Meta-Schema、`$id` 唯一、`$ref` 可解析、Fixture 校验）；
 - Knowledge Provider：`services/knowledge/tests/contract/`（端点 `GET /internal/v1/identity/users/{id}/status` GREEN，9 个测试覆盖有效/无效/禁用/缺失/信封场景）；
-- Research Consumer：`services/research/tests/contract/`（只消费/拒绝 Fixture，独立运行，不依赖端点）。
+- Research Consumer：`services/research/tests/contract/`（只消费/拒绝 Fixture，独立运行，不依赖端点）；
+- Research 身份状态门禁 GREEN：`services/research/tests/unit/core/test_identity_status_client.py`（200→放行、403→`UserDisabledException`、503/网络/超时→`ServiceUnavailableException`，校验 Service JWT/Contract 版本/`X-Request-ID`/`traceparent` 请求头）与 `tests/unit/services/test_research_service.py::TestCreateTaskIdentityGate`、`tests/unit/api/test_research.py::TestCreateResearchIntentAPI`（禁用用户/身份库不可用 → 创建失败关闭，无任务行、不分发 Worker）。
 
 运行命令：
 

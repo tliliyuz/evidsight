@@ -241,6 +241,80 @@ class TestCreateTask:
             _make_request(topic="   ")
 
 
+class TestCreateTaskIdentityGate:
+    """创建任务前的身份状态实时复核（IA-012 身份状态契约 Research 侧）。
+
+    对齐 API.md §11.1：Research 创建任务前实时调用 Identity Status Provider；
+    对齐 TESTING.md IA-012：用户禁用/身份库不可用时失败关闭，无任务行、不分发 Worker。
+
+    说明：raising=False 使 RED 阶段（check_user_status 尚不存在）也能干净失败，
+    失败原因是 create_task 未调用检查而直接创建任务，而非 mock 装配错误。
+    """
+
+    async def test_禁用用户_创建任务失败关闭_无任务行(
+        self, db_session: AsyncSession, monkeypatch
+    ):
+        from unittest.mock import AsyncMock
+
+        from app.core.exceptions import UserDisabledException
+        from app.services import research_service
+
+        async def _raise_disabled(user_id: str):
+            raise UserDisabledException()
+
+        monkeypatch.setattr(
+            research_service, "check_user_status", AsyncMock(side_effect=_raise_disabled),
+            raising=False,
+        )
+
+        req = _make_request()
+        with pytest.raises(UserDisabledException):
+            await create_task(db_session, user_id="550e8400-e29b-41d4-a716-446655440000", request=req)
+
+        # 失败关闭：不得留下任务行
+        tasks = (await db_session.execute(select(ResearchTask))).scalars().all()
+        assert tasks == []
+
+    async def test_身份库不可用_创建任务失败关闭_无任务行(
+        self, db_session: AsyncSession, monkeypatch
+    ):
+        from unittest.mock import AsyncMock
+
+        from app.core.exceptions import ServiceUnavailableException
+        from app.services import research_service
+
+        async def _raise_unavailable(user_id: str):
+            raise ServiceUnavailableException("身份事实源不可用")
+
+        monkeypatch.setattr(
+            research_service, "check_user_status", AsyncMock(side_effect=_raise_unavailable),
+            raising=False,
+        )
+
+        req = _make_request()
+        with pytest.raises(ServiceUnavailableException):
+            await create_task(db_session, user_id="550e8400-e29b-41d4-a716-446655440000", request=req)
+
+        tasks = (await db_session.execute(select(ResearchTask))).scalars().all()
+        assert tasks == []
+
+    async def test_身份检查通过_正常创建任务(self, db_session: AsyncSession, monkeypatch):
+        from unittest.mock import AsyncMock
+
+        from app.services import research_service
+
+        async def _ok(user_id: str):
+            return None
+
+        monkeypatch.setattr(
+            research_service, "check_user_status", AsyncMock(side_effect=_ok), raising=False,
+        )
+
+        req = _make_request()
+        result = await create_task(db_session, user_id="550e8400-e29b-41d4-a716-446655440000", request=req)
+        assert result.status == "pending"
+
+
 # ═══════════════════════════════════════════════════════════════
 # get_task_list()
 # ═══════════════════════════════════════════════════════════════

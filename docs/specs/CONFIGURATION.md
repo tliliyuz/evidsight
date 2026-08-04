@@ -63,6 +63,8 @@
 | `EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID` | Research | string | 必填 | public |
 | `EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE` | Research | path | 必填 | secret |
 | `EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE` | Knowledge | path | 必填 | sensitive |
+| `EVIDSIGHT_KNOWLEDGE_INTERNAL_BASE_URL` | Research | URL | 必填（Knowledge 内部 API 基址，如 `http://knowledge-api:8000`，必须直达内部网络，不得走 Nginx） | secret |
+| `EVIDSIGHT_IDENTITY_STATUS_TIMEOUT_SECONDS` | Research | float | `5.0`，范围 0&lt;x≤30 | public |
 | `EVIDSIGHT_KNOWLEDGE_DATABASE_URL` | Knowledge | URL | 必填 | secret |
 | `EVIDSIGHT_RESEARCH_DATABASE_URL` | Research | URL | 必填 | secret |
 | `EVIDSIGHT_KNOWLEDGE_REDIS_URL` | Knowledge | URL | 必填 | secret |

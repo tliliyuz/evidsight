@@ -892,3 +892,65 @@ class TestCreateResearchIntentAPI:
         assert data["data"]["status"] == "pending"
         assert data["data"]["direct_answer"] is False
         mock_delay.assert_called_once()
+
+    async def test_禁用用户_创建失败关闭且不触发celery_delay(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        """对齐 TESTING.md IA-012：身份状态检查抛 UserDisabled → 失败关闭，不分发 Worker。"""
+        from unittest.mock import AsyncMock
+
+        from app.core.exceptions import UserDisabledException
+        from app.services import research_service
+
+        async def _raise_disabled(user_id: str):
+            raise UserDisabledException()
+
+        with patch(
+            "app.services.research_service.check_user_status",
+            AsyncMock(side_effect=_raise_disabled),
+            create=True,
+        ), patch("app.api.research._execute_research_task.delay") as mock_delay:
+            response = await async_client.post(
+                "/api/research",
+                json={
+                    "topic": "量子计算对密码学的影响",
+                    "requirements": {"task_type": "analysis"},
+                },
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 401
+        body = response.json()
+        assert body["code"] == "E1010"
+        mock_delay.assert_not_called()
+
+    async def test_身份库不可用_创建失败关闭且不触发celery_delay(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        """对齐 API.md §11.1：身份库不可用返回 503，不得用旧的 active 结果放行新任务。"""
+        from unittest.mock import AsyncMock
+
+        from app.core.exceptions import ServiceUnavailableException
+        from app.services import research_service
+
+        async def _raise_unavailable(user_id: str):
+            raise ServiceUnavailableException("身份事实源不可用")
+
+        with patch(
+            "app.services.research_service.check_user_status",
+            AsyncMock(side_effect=_raise_unavailable),
+            create=True,
+        ), patch("app.api.research._execute_research_task.delay") as mock_delay:
+            response = await async_client.post(
+                "/api/research",
+                json={
+                    "topic": "量子计算对密码学的影响",
+                    "requirements": {"task_type": "analysis"},
+                },
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 503
+        body = response.json()
+        assert body["code"] == "E9002"
+        mock_delay.assert_not_called()

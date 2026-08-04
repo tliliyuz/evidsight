@@ -24,6 +24,7 @@ from app.core.exceptions import (
     InvalidDepthException,
     InvalidRequirementsException,
 )
+from app.core.identity_status_client import check_user_status
 from app.metrics import emit_task_status_transition
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
@@ -67,12 +68,16 @@ async def create_task(
 ) -> ResearchCreateResponse:
     """创建研究任务 + 首个 Planning Step（或直接回答）。
 
+    0. 身份状态实时复核：创建任务前调用 Knowledge Identity Status Provider，
+       用户禁用/不存在或身份库不可用时失败关闭，不写入任务行、不分发 Worker。
     1. 意图识别：非研究输入直接生成 completed 任务与单章节报告
     2. 研究输入：写入 research_tasks (status=pending) + 首个 planning step
 
     注意：Celery 分发（commit + delay）由 API 层在返回前执行，
     避免在 Service 层 commit 破坏测试事务隔离。
     """
+    await check_user_status(user_id)
+
     _validate_create_request(request)
 
     intent_result = await classify_intent(request.topic)
