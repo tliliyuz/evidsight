@@ -38,6 +38,7 @@ from app.models.enums import DocumentStatus, is_terminal
 from app.models.knowledge_base import KnowledgeBase
 from app.models.section import Section
 from app.rag.chunker import chunk_document
+from app.rag.cleaner import clean_parse_result
 from app.rag.embedder import embed_chunks
 from app.rag.parser import parse_document
 
@@ -274,6 +275,18 @@ async def _ingest_document_async(doc_id: int) -> dict:
                 doc_id, parse_result.total_pages, parse_result.failed_pages,
                 parse_result.failure_rate * 100,
             )
+
+            # 3a'. 数据清洗（M2 RAG 优化）：逐页去噪 + 空白规整 + Unicode 修复
+            # 作用于页面结构而非 full_text，chunker 的 offset→page 映射自动保持；
+            # 各 knob 可独立关闭实现 A/B 与逐项回滚。仅影响新入库，历史 Chunk 不动。
+            if settings.CLEAN_ENABLED:
+                parse_result = clean_parse_result(
+                    parse_result,
+                    strip_boilerplate=settings.CLEAN_STRIP_BOILERPLATE,
+                    normalize_space=settings.CLEAN_NORMALIZE_WHITESPACE,
+                    repair_unicode=settings.CLEAN_REPAIR_UNICODE,
+                )
+                logger.info("文档 %d 数据清洗完成", doc_id)
 
             # 3b. 空文档检测 + 容错判定
             async with async_session() as db:

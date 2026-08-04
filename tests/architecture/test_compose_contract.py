@@ -6,9 +6,34 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 
+# 统一身份平台命名空间键（CONFIGURATION.md §3.1），由 Knowledge Service 消费。
+PLATFORM_IDENTITY_KEYS = {
+    "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME",
+    "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_PATH",
+    "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE",
+    "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SAMESITE",
+    "EVIDSIGHT_PLATFORM_CSRF_COOKIE_NAME",
+    "EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS",
+    "EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT",
+}
+
+# 各服务 Redis/Celery 独立 URL，根 .env 以此名覆盖（compose anchor 内插值到 REDIS_URL/CELERY_*）。
+SERVICE_REDIS_CELERY_KEYS = {
+    "KNOWLEDGE_REDIS_URL",
+    "KNOWLEDGE_CELERY_BROKER_URL",
+    "KNOWLEDGE_CELERY_RESULT_BACKEND",
+    "RESEARCH_REDIS_URL",
+    "RESEARCH_CELERY_BROKER_URL",
+    "RESEARCH_CELERY_RESULT_BACKEND",
+}
+
 
 def _compose(name: str = "docker-compose.yml"):
     return yaml.safe_load((ROOT / name).read_text())
+
+
+def _compose_raw(name: str = "docker-compose.yml") -> str:
+    return (ROOT / name).read_text()
 
 
 def _example_env_keys() -> set[str]:
@@ -98,6 +123,46 @@ def test_provider_settings_are_passed_to_the_correct_services():
     } <= research.keys()
 
 
+def test_knowledge_clean_settings_are_passed_to_knowledge_only():
+    compose = _compose()
+    knowledge = compose["x-knowledge-environment"]
+    research = compose["x-research-environment"]
+    expected = {
+        "CLEAN_ENABLED",
+        "CLEAN_STRIP_BOILERPLATE",
+        "CLEAN_NORMALIZE_WHITESPACE",
+        "CLEAN_REPAIR_UNICODE",
+    }
+
+    assert expected <= knowledge.keys()
+    assert research.keys().isdisjoint(expected)
+
+
+def test_platform_identity_settings_are_passed_to_knowledge_only():
+    """Refresh Cookie/CSRF 与 Origin 白名单由 Knowledge 消费，不得注入 Research。"""
+    compose = _compose()
+    knowledge = compose["x-knowledge-environment"]
+    research = compose["x-research-environment"]
+
+    assert PLATFORM_IDENTITY_KEYS <= knowledge.keys()
+    assert research.keys().isdisjoint(PLATFORM_IDENTITY_KEYS)
+
+
+def test_example_env_contains_platform_identity_keys():
+    """根 .env.example 必须登记统一身份平台命名空间键，作为 compose 覆盖入口。"""
+    keys = _example_env_keys()
+
+    assert PLATFORM_IDENTITY_KEYS <= keys
+
+
+def test_redis_and_celery_urls_are_interpolated_per_service():
+    """根 .env 的 KNOWLEDGE_*/RESEARCH_* Redis/Celery 键必须被 compose 插值引用。"""
+    text = _compose_raw()
+
+    for key in SERVICE_REDIS_CELERY_KEYS:
+        assert f"${{{key}:-" in text, f"{key} 未被 compose 引用"
+
+
 def test_example_env_matches_the_provider_compose_contract():
     keys = _example_env_keys()
     required = {
@@ -111,6 +176,10 @@ def test_example_env_matches_the_provider_compose_contract():
         "RERANK_BASE_URL",
         "RERANK_API_KEY",
         "RERANK_MODEL",
+        "CLEAN_ENABLED",
+        "CLEAN_STRIP_BOILERPLATE",
+        "CLEAN_NORMALIZE_WHITESPACE",
+        "CLEAN_REPAIR_UNICODE",
         "TAVILY_BASE_URL",
         "TAVILY_API_KEY",
     }

@@ -514,6 +514,8 @@ async def main_async(kb_id: int, top_k: int) -> None:
         print("🎉 全部指标达标！\n")
     else:
         print("⚠️  部分指标未达标，详见上方标记 ❌ 的项目。\n")
+        # fail-fast：未达标即以非零码退出，使 Rec@5 成为可重复门禁（M2 清洗前后度量）
+        sys.exit(1)
 
 
 def main() -> None:

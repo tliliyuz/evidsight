@@ -22,7 +22,7 @@ v1.0 继承 DocMind 已验证的 Query Rewrite、Vector+BM25、RRF、Coarse Rank
 ```text
 Knowledge Pipeline
 ├── Ingestion Pipeline
-│   └── Validate → Parse → Structure/Chunk → Embed → Index → Verify → Publish
+│   └── Validate → Parse → Clean → Structure/Chunk → Embed → Index → Verify → Publish
 ├── Retrieval Core
 │   └── Vector/BM25 → Per-KB RRF → Coarse Rank → Cross-KB Merge → Rerank → Locate
 ├── Chat Orchestrator
@@ -56,6 +56,8 @@ queued → parsing → chunking → embedding → indexing → verifying → rea
 ### 4.1 解析与结构化
 
 PDF 使用 PyMuPDF 主解析、pdfplumber 按需提取表格；DOCX、Markdown 和纯文本使用对应确定性解析器。解析输出统一为带页码、章节路径、段落与字符区间的中间结构。解析器不得把临时路径写入业务字段或错误响应。
+
+Parse 与 Chunk 之间插入确定性 Clean 阶段（M2 数据清洗）：逐页去除首尾页号/页眉页脚噪声、规整空白与空行（含安全折行拼接修复 PDF 断行）、修复损坏 Unicode（U+FFFD / latin-1 mojibake / 全半角归一）。清洗作用于**页面结构**而非拼接后的 `full_text`，使 Chunk 的 offset→page 映射保持不变。由 `CLEAN_ENABLED` 总开关与 `CLEAN_STRIP_BOILERPLATE` / `CLEAN_NORMALIZE_WHITESPACE` / `CLEAN_REPAIR_UNICODE` 逐项开关控制，可独立关闭实现 A/B 与逐项回滚；仅影响新入库内容，历史 Chunk/向量不动。实现见 `app/rag/cleaner.py`。
 
 分块保留 DocMind 的递归分隔策略和重叠语义；精确默认值属于配置 Schema。每个 Segment 获得稳定 UUID，并携带 Document Version、顺序、Token 估算和受控位置。相同 Version 的 `(document_id, chunk_index)` 唯一。
 
@@ -217,3 +219,7 @@ Internal Query 和最小片段仅用于内部处理，不得自动转发互联�
 ## 15. 后续边界
 
 任何改变 per-KB Collection、跨 KB融合、Evidence门控、正文外发、发布原子性或失败关闭语义的实现必须先修订本文；涉及服务职责、安全或数据生命周期变化时新增 ADR。Research Pipeline 只能消费 Internal Retrieval Contract，不得导入本 Pipeline 内部 DTO。
+
+## 16. 实现记录
+
+- （2026-08-02）M2 数据清洗：在 Parse 与 Structure/Chunk 之间新增确定性 Clean 阶段（`app/rag/cleaner.py`，接线见 `app/ingest/tasks.py` 3a'）。作用域限定为页号/页眉页脚去噪、空白/空行规整、损坏 Unicode 修复；引用/目录噪声过滤与近重复去重留待后续切片。清洗对**新入库**生效，存量 Chunk/向量需重处理才受影响。配套新增 4 个配置键（`CLEAN_ENABLED` 及三个逐项开关）与 `tests/unit/rag/test_cleaner.py`（35 项）、`tests/unit/ingest/test_tasks.py::TestCleanStageWiring`（2 项）。ADR 检查 1–8：否（不触发）。
