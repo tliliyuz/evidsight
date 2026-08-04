@@ -70,6 +70,13 @@ class Settings(BaseSettings):
     EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS: str = ""  # csv string，生产必填（严格 Origin 校验）
     EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT: bool = False  # M1 迁移期 body refresh_token 兼容入口
 
+    # ── Service JWT（服务间认证，对齐 CONFIGURATION.md §3）──
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER: str = "evidsight-platform"
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_ALGORITHM: str = "RS256"
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE: str = "knowledge-internal"
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: int = 60  # 范围 10—300
+    EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE: str = ""  # path, sensitive；必填
+
     @property
     def platform_jwt_audiences(self) -> list[str]:
         """返回统一 Access Token 的目标服务集合。"""

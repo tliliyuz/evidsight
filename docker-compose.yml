@@ -107,6 +107,7 @@ services:
     volumes:
       - evidsight_knowledge_uploads:/data/uploads
       - evidsight_knowledge_chroma:/data/chroma
+      - ./packages/contracts:/app/packages/contracts:ro
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8000/api/health"]
       interval: 10s
@@ -125,6 +126,8 @@ services:
   research-api:
     <<: *research-service
     command: ["web"]
+    volumes:
+      - ./packages/contracts:/app/packages/contracts:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 10s

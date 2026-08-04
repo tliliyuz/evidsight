@@ -132,6 +132,14 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     REFRESH_TOKEN_SECRET_KEY: str = ""
 
+    # ── Service JWT（服务间认证，对齐 CONFIGURATION.md §3）──
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER: str = "evidsight-platform"
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_ALGORITHM: str = "RS256"
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE: str = "knowledge-internal"
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: int = 60  # 范围 10—300
+    EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID: str = ""  # 必填
+    EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE: str = ""  # path, secret；必填
+
     # ── CORS ──
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 
