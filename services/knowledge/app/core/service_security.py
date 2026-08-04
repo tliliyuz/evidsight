@@ -49,7 +49,7 @@ def verify_service_token(token: str) -> dict:
         )
         if payload.get("token_type") != "service":
             return {}
-        if not payload.get("sub"):
+        if not isinstance(payload.get("sub"), str) or not payload.get("sub"):
             return {}
         return payload
     except (JWTError, KeyError, TypeError, ValueError, OSError, json.JSONDecodeError):
