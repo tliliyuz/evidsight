@@ -50,7 +50,7 @@
 - IA-017 外部 User DTO 与遗留接口退出：`/api/v1/auth/register` 和 `/api/v1/auth/me` 返回的 User DTO `id` 均为 Platform User UUID，响应不得包含 Knowledge 内部 `users.id`；旧 `/api/auth/*` 和旧 `id=int` UserResponse 只在配置允许的迁移期可用，必须有调用量观测，关闭后 Web、脚本和 API 测试全部使用 `/api/v1/auth/*`；
 - 退出撤销当前 Refresh Token Family；
 - 禁用用户不能登录、刷新、创建任务、Chat、上传、重处理、治理写操作或 Internal Retrieval；
-- private/public、owner/admin 操作矩阵；
+- 知识库权限矩阵（PRD §8.2）：READ 由 visibility 优先（public→所有登录用户，private→owner+admin），WRITE 由 ownership 决定且 admin 治理覆盖（owner+admin），上传文档 owner-only（admin 作为非 owner 不可代传）；纯函数矩阵测试覆盖 `test_permissions.py::TestRequireKbReadable/TestRequireKbWritable/TestRequireKbOwner`；
 - Internal Retrieval 任一 KB 无权时整批失败且检索未执行；
 - 历史报告展开内部来源时实时复核权限。
 
