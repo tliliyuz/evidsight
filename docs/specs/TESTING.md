@@ -41,6 +41,7 @@
 - IA-003/IA-011：登录创建以 Platform User UUID 归属的 Refresh Token Family；刷新使用行锁原子标记旧 Token、记录唯一后继并签发新 Token，同一旧 Token 至多产生一个有效后继；
 - IA-004：重放已轮换 Refresh Token 时撤销整个 Family、持久化携带 `request_id` 且不含 Token 的安全事件，并返回 `E5009`；普通撤销 Token 不得误判为重放；
 - IA-012 基线：Knowledge Internal API 拒绝缺失、伪造、过期、错误 Issuer/Audience/类型/Key ID 的 Service JWT；拒绝缺失或非法的 Platform User UUID、Contract 版本、`X-Request-ID` 和 `traceparent`，且不得进入用户查询或后续检索；
+- IA-010 密钥轮换：Service JWT 双 Key 验证窗口内新旧 Token 均按 Key ID 通过，窗口后移除旧 Key 后旧 Token 失效、新 Token 仍有效；切换签发侧使用新 Key ID 签发后按新 Key 验证通过（`test_service_security.py::TestServiceKeyRotation`）；
 - IA-012 身份状态 Contract：active 用户只返回 Platform User UUID、`status=active` 和非负 `status_version`；用户不存在或禁用统一返回 `AUTH_USER_DISABLED`；身份库不可用返回可重试的 `INTERNAL_IDENTITY_UNAVAILABLE`，Research 创建任务失败关闭且不分发 Worker；
 - IA-013 Access Token 不含 `username` 等可派生展示字段；`username`/`role`/`status` 显示信息必须由 `/api/v1/auth/me` 从数据库当前状态读取，不得从 Token Claim 拼装；
 - IA-014 `/api/v1/auth/me` 直接返回 `UserSummary`（`id` 为合法 UUID 字符串，来自 `users.platform_user_id`）；Token 无效返回 `401 E5004`，用户不存在或禁用统一返回 `401 E5010`；
