@@ -29,6 +29,12 @@ class User(Base):
         default="active",
         server_default=text("'active'"),
     )
+    status_version: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, server_default=func.current_timestamp()
     )
