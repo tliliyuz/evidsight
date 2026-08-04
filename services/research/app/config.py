@@ -9,6 +9,7 @@ ResearchMind 全局配置单例。
 
 from urllib.parse import quote_plus
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -136,7 +137,7 @@ class Settings(BaseSettings):
     EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER: str = "evidsight-platform"
     EVIDSIGHT_PLATFORM_SERVICE_JWT_ALGORITHM: str = "RS256"
     EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE: str = "knowledge-internal"
-    EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: int = 60  # 范围 10—300
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: int = Field(default=60, ge=10, le=300)  # 范围 10—300
     EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID: str = ""  # 必填
     EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE: str = ""  # path, secret；必填
 

@@ -4,8 +4,6 @@
 → 用户状态。错误一律返回 error-response.schema.json 信封，与外部 API 扁平错误分离。
 """
 
-import uuid
-
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select

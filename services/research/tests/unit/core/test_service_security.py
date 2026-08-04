@@ -1,7 +1,4 @@
 """Research Service JWT 签发单测 — 载荷对齐 CONFIGURATION.md §3"""
-import json
-from pathlib import Path
-
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa

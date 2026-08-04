@@ -1,5 +1,6 @@
 """应用配置 — 字段声明与 .env 变量自动映射，提供类型校验和 IDE 补全"""
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
@@ -74,7 +75,7 @@ class Settings(BaseSettings):
     EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER: str = "evidsight-platform"
     EVIDSIGHT_PLATFORM_SERVICE_JWT_ALGORITHM: str = "RS256"
     EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE: str = "knowledge-internal"
-    EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: int = 60  # 范围 10—300
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: int = Field(default=60, ge=10, le=300)  # 范围 10—300
     EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE: str = ""  # path, sensitive；必填
 
     @property

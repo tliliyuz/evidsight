@@ -87,7 +87,6 @@ class TestIdentityStatusProvider:
     @pytest.mark.asyncio
     async def test_active_user_returns_200_schema_compliant(self, async_client, mock_db, service_auth):
         """GREEN：active 用户 → 200 + IdentityStatusResponse，且不含用户资料字段。"""
-        from sqlalchemy import select
         from app.models.user import User
         user = User(
             id=1, platform_user_id=self.PLATFORM_UUID,
@@ -141,7 +140,6 @@ class TestIdentityStatusProvider:
 
     @pytest.mark.asyncio
     async def test_disabled_user_returns_403(self, async_client, mock_db, service_auth):
-        from sqlalchemy import select
         from app.models.user import User
         user = User(
             id=1, platform_user_id=self.PLATFORM_UUID,
@@ -161,7 +159,6 @@ class TestIdentityStatusProvider:
 
     @pytest.mark.asyncio
     async def test_missing_user_returns_403(self, async_client, mock_db, service_auth):
-        from sqlalchemy import select
         result = AsyncMock()
         result.scalar_one_or_none = MagicMock(return_value=None)
         mock_db.execute = AsyncMock(return_value=result)
