@@ -189,6 +189,14 @@ class FakeSession:
             ]
         return FakeResult(rows)
 
+    async def refresh(self, instance):
+        """模拟 session.refresh：默认不改变实例。
+
+        _require_kb_ready 在 index_status=='updating' 时轮询 refresh；测试可
+        覆盖本方法模拟发布锁收敛（index_status: updating → ready）。
+        """
+        return None
+
 
 @pytest.fixture
 def fake_db():
@@ -367,9 +375,61 @@ class TestRetrievalSearchEndpoint:
         assert response.json()["error"]["error_code"] == "KB_FORBIDDEN"
 
     @pytest.mark.asyncio
-    async def test_kb_index_not_ready_returns_503(self, contract_client, fake_db, service_auth):
+    async def test_kb_index_not_ready_returns_503(self, contract_client, fake_db, service_auth, monkeypatch):
+        # ADR-007：updating 有界等待后仍未收敛 → 503 可重试；缩短等待窗避免测试空等
+        monkeypatch.setattr(settings, "PUBLISH_LOCK_WAIT_MS", 100)
         fake_db.seed(User, _user())
         fake_db.seed(KnowledgeBase, _kb(index_status="updating"))
+        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
+        assert response.status_code == 503
+        body = response.json()
+        assert body["error"]["error_code"] == "INTERNAL_RETRIEVAL_UNAVAILABLE"
+        assert body["error"]["retryable"] is True
+
+    @pytest.mark.asyncio
+    async def test_kb_updating_then_ready_waits_and_succeeds(
+        self, contract_client, fake_db, service_auth, monkeypatch,
+    ):
+        """updating（发布锁持有中）→ 有界等待 → refresh 收敛为 ready → 检索放行。
+
+        对齐 RAG_PIPELINE.md §4.2：发布窗口内检索不直接 503，等待原子切换完成。
+        """
+        from app.rag.retriever import RetrievalOutput, RetrievalResult
+        from app.services import internal_retrieval
+
+        fake_db.seed(User, _user())
+        fake_db.seed(KnowledgeBase, _kb(index_status="updating"))
+        fake_db.seed(Document, _doc())
+        fake_db.seed(DocumentVersion, _version())
+        fake_db.seed(Chunk, _chunk())
+
+        async def fake_retrieve(db, kb_id, query, top_k=20, document_ids=None):
+            return RetrievalOutput(
+                results=[RetrievalResult(doc_id=20, chunk_index=0, content="正文", score=0.02)],
+                total=1, fusion_method="rrf",
+            )
+        monkeypatch.setattr(internal_retrieval, "_retrieve_kb", fake_retrieve)
+
+        refresh_calls = {"n": 0}
+
+        async def _converge(instance):
+            refresh_calls["n"] += 1
+            instance.index_status = "ready"
+
+        fake_db.refresh = _converge
+
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(),
+            headers=_headers(_service_token(service_auth)),
+        )
+        assert response.status_code == 200, response.text
+        assert refresh_calls["n"] >= 1
+
+    @pytest.mark.asyncio
+    async def test_kb_recovering_returns_503_immediately(self, contract_client, fake_db, service_auth):
+        """recovering 为不可恢复状态：不做有界等待，直接 503 可重试。"""
+        fake_db.seed(User, _user())
+        fake_db.seed(KnowledgeBase, _kb(index_status="recovering"))
         response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
         assert response.status_code == 503
         body = response.json()

@@ -17,7 +17,7 @@ MOCK_DIM = 1024  # DashScope text-embedding-v3 默认维度
 # ==================== DB / Session（test_tasks / test_bm25 共用） ====================
 
 
-def make_mock_doc(status=DocumentStatus.UPLOADED, current_stage=None, last_success_batch=0,
+def make_mock_doc(status=DocumentStatus.QUEUED, current_stage=None, last_success_batch=0,
                   file_path="/tmp/test.pdf", file_type="pdf", kb_id=1, doc_id=1):
     """构造 mock Document 对象"""
     doc = MagicMock()

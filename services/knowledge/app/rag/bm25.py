@@ -35,6 +35,8 @@ from app.config import settings
 from app.core.exceptions import RetrievalServiceException
 from app.core.redis_client import get_async_redis, get_redis
 from app.models.chunk import Chunk
+from app.models.document import Document
+from app.models.document_version import DocumentVersion
 from app.rag.retriever import RetrievalOutput, RetrievalResult
 
 logger = logging.getLogger(__name__)
@@ -83,9 +85,13 @@ def _get_memory_mb() -> float:
         return -1.0
 
 
-def _build_cache_key(kb_id: int) -> str:
-    """构建 Redis 缓存 key"""
-    return f"{BM25_CACHE_KEY_PREFIX}:{kb_id}"
+def _build_cache_key(kb_id: int, generation: int = 0) -> str:
+    """构建 Redis 缓存 key（含 index_generation；generation 递增使 key 自动失效）
+
+    对齐 RAG_PIPELINE.md §4.2 / ADR-007：BM25 只索引 Active Version chunks，
+    publish 递增 index_generation 后新 key 未命中触发重载，天然解决缓存陈旧。
+    """
+    return f"{BM25_CACHE_KEY_PREFIX}:{kb_id}:{generation}"
 
 
 def _tokenize(text: str) -> list[str]:
@@ -275,6 +281,7 @@ class BM25Retriever:
         kb_id: int,
         top_k: int = settings.BM25_TOP_K,
         min_score: float = settings.BM25_MIN_SCORE,
+        index_generation: int = 0,
     ) -> RetrievalOutput:
         """执行 BM25 关键词检索。
 
@@ -300,7 +307,10 @@ class BM25Retriever:
 
             # 2. 获取 BM25 索引（进程内缓存 → Redis 缓存 → MySQL 懒加载）
             #    注意：不再返回 chunk 原文，只返回 bm25 + doc_ids + section_info
-            bm25, doc_ids, section_info_list, cache_type = await self._get_bm25_index(kb_id)
+            #    generation 参与缓存 key：publish 递增 generation → 新 key 未命中自动重载
+            bm25, doc_ids, section_info_list, cache_type = await self._get_bm25_index(
+                kb_id, index_generation
+            )
             t_index = time.perf_counter()
 
             if not doc_ids or bm25 is None:
@@ -435,7 +445,7 @@ class BM25Retriever:
         return content_map
 
     async def _get_bm25_index(
-        self, kb_id: int
+        self, kb_id: int, generation: int = 0
     ) -> tuple[BM25Okapi | None, list[tuple[int, int]], list[dict], str]:
         """获取 BM25Okapi 实例 + 文档元数据。
 
@@ -468,7 +478,7 @@ class BM25Retriever:
                 return bm25, doc_ids, section_info, "local_hit"
 
         # 2. 尝试 Redis 缓存
-        cache_key = _build_cache_key(kb_id)
+        cache_key = _build_cache_key(kb_id, generation)
         try:
             t_redis_start = time.perf_counter()
             cached = await self._async_redis.get(cache_key)
@@ -544,10 +554,18 @@ class BM25Retriever:
         logger.info("BM25_LOAD_START kb_id=%d mem=%.1fMB", kb_id, mem0)
 
         # 0. 快速 COUNT 检查（避免超大 KB 触发 OOM）
+        #    只统计 Active Version 的 chunks（对齐 ADR-007：BM25 只索引当前可检索版本）
         from sqlalchemy import func
         async with self._session_factory() as db:
             count_result = await db.execute(
-                select(func.count()).select_from(Chunk).where(Chunk.kb_id == kb_id)
+                select(func.count())
+                .select_from(Chunk)
+                .join(DocumentVersion, DocumentVersion.id == Chunk.document_version_id)
+                .join(Document, Document.id == DocumentVersion.document_id)
+                .where(
+                    Chunk.kb_id == kb_id,
+                    Document.active_version == DocumentVersion.version,
+                )
             )
             chunk_count = count_result.scalar()
         if chunk_count > settings.BM25_MAX_CHUNKS:
@@ -568,7 +586,12 @@ class BM25Retriever:
         async with self._session_factory() as db:
             result = await db.execute(
                 select(Chunk.doc_id, Chunk.chunk_index, Chunk.content, Chunk.metadata_)
-                .where(Chunk.kb_id == kb_id)
+                .join(DocumentVersion, DocumentVersion.id == Chunk.document_version_id)
+                .join(Document, Document.id == DocumentVersion.document_id)
+                .where(
+                    Chunk.kb_id == kb_id,
+                    Document.active_version == DocumentVersion.version,
+                )
                 .order_by(Chunk.doc_id, Chunk.chunk_index)
             )
             rows = result.all()
@@ -655,18 +678,25 @@ async def invalidate_bm25_cache_async(kb_id: int) -> None:
     """清除指定 KB 的 BM25 缓存（异步版本，用于 FastAPI 上下文）。
 
     同时清除进程内缓存和 Redis 缓存。
+    缓存 key 含 index_generation（bm25_tokens:{kb_id}:{gen}），此处按前缀
+    删除该 KB 的所有 generation 变体，覆盖非 publish 场景（如删除文档）。
     """
     # 清除进程内缓存
     if kb_id in _local_cache:
         del _local_cache[kb_id]
         logger.info("BM25 进程内缓存已清除: kb_id=%d", kb_id)
 
-    # 清除 Redis 缓存
+    # 清除 Redis 缓存（前缀匹配删除所有 generation 变体）
     try:
         async_redis = await get_async_redis()
-        cache_key = _build_cache_key(kb_id)
-        await async_redis.delete(cache_key)
-        logger.info("BM25 Redis 缓存已清除: kb_id=%d", kb_id)
+        pattern = f"{BM25_CACHE_KEY_PREFIX}:{kb_id}:*"
+        try:
+            async for key in async_redis.scan_iter(match=pattern):
+                await async_redis.delete(key)
+            logger.info("BM25 Redis 缓存已清除: kb_id=%d pattern=%s", kb_id, pattern)
+        except (AttributeError, NotImplementedError):
+            # 线程池包装客户端不支持 scan_iter：回退删除默认 key
+            await async_redis.delete(_build_cache_key(kb_id))
     except Exception as e:
         logger.warning("BM25 Redis 缓存清除失败（非致命）: kb_id=%d, error=%s", kb_id, e)
 
@@ -675,11 +705,15 @@ def invalidate_bm25_cache(kb_id: int) -> None:
     """清除指定 KB 的 BM25 缓存（同步版本，用于 Celery 任务）。
 
     仅清除 Redis 缓存（进程内缓存由 FastAPI 进程管理，Celery 进程无需清除）。
+    按前缀删除该 KB 的所有 generation 变体 key（bm25_tokens:{kb_id}:*）。
     """
-    cache_key = _build_cache_key(kb_id)
     try:
         sync_redis = get_redis()
-        sync_redis.delete(cache_key)
-        logger.info("BM25 Redis 缓存已清除（同步）: kb_id=%d", kb_id)
+        pattern = f"{BM25_CACHE_KEY_PREFIX}:{kb_id}:*"
+        keys = list(sync_redis.scan_iter(match=pattern))
+        if keys:
+            sync_redis.delete(*keys)
+        logger.info("BM25 Redis 缓存已清除（同步）: kb_id=%d pattern=%s keys=%d",
+                    kb_id, pattern, len(keys))
     except Exception as e:
         logger.warning("BM25 Redis 缓存清除失败（非致命）: kb_id=%d, error=%s", kb_id, e)

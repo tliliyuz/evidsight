@@ -8,14 +8,17 @@
 （见 retrieval-hit.schema.json / evidence-resolve-response.schema.json）。
 """
 
+import asyncio
 import logging
 import re
+import time
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.database import async_session
 from app.core.exceptions import PermissionDeniedException, RetrievalServiceException
 from app.core.permissions import require_kb_readable
@@ -100,9 +103,22 @@ def _require_kb_active(kb: KnowledgeBase) -> None:
                                      "目标知识库不可访问", False)
 
 
-def _require_kb_ready(kb: KnowledgeBase) -> None:
-    """索引就绪检查；未就绪时抛 503 可重试信号。"""
+async def _require_kb_ready(db: AsyncSession, kb: KnowledgeBase) -> None:
+    """索引就绪检查；未就绪时抛 503 可重试信号。
+
+    对齐 RAG_PIPELINE.md §4.2 / ADR-007：index_status == 'updating' 表示发布锁
+    持有中（原子切换窗口），做有界等待（PUBLISH_LOCK_WAIT_MS，默认 5s）轮询
+    刷新 KB 状态；等待期间切换完成即放行。超时仍 updating，或处于
+    recovering/其他不可恢复状态，直接抛 503 可重试。
+    """
     if kb.index_status != "ready":
+        if kb.index_status == "updating":
+            deadline = time.monotonic() + settings.PUBLISH_LOCK_WAIT_MS / 1000
+            while time.monotonic() < deadline:
+                await asyncio.sleep(0.2)
+                await db.refresh(kb)
+                if kb.index_status == "ready":
+                    return
         raise InternalRetrievalError(
             503, "INTERNAL_RETRIEVAL_UNAVAILABLE",
             "知识库索引尚未就绪", True,
@@ -141,7 +157,12 @@ async def _retrieve_kb(
             async_redis=await get_async_redis(),
             session_factory=async_session,
         )
-        outputs.append(await bm25.search(query, kb_id, top_k=top_k))
+        # BM25 缓存 key 含 index_generation：publish 递增 generation 后自动失效
+        kb_row = await db.get(KnowledgeBase, kb_id)
+        generation = kb_row.index_generation if kb_row is not None else 0
+        outputs.append(await bm25.search(
+            query, kb_id, top_k=top_k, index_generation=generation,
+        ))
     except RetrievalServiceException:
         logger.exception("BM25 检索失败: kb_id=%d", kb_id)
         raise
@@ -264,9 +285,9 @@ async def search_internal(db: AsyncSession, body: dict, request_id: str) -> dict
         _require_kb_readable(kb, user)
         kbs.append(kb)
 
-    # 任一 KB 索引未就绪 → 503 可重试
+    # 任一 KB 索引未就绪 → 有界等待（updating）或直接 503 可重试
     for kb in kbs:
-        _require_kb_ready(kb)
+        await _require_kb_ready(db, kb)
 
     query = body["query"]
     limit = body.get("limit", 20)

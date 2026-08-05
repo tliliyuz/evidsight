@@ -280,7 +280,7 @@ class TestDocumentUuidAPI:
             filename="test.pdf",
             file_type="pdf",
             file_size=1024,
-            status="uploaded",
+            status="queued",
         )
         with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
              patch("app.api.document.upload_document", new_callable=AsyncMock) as mock_upload:
@@ -300,7 +300,7 @@ class TestDocumentUuidAPI:
         assert body["data"]["uuid"] == VALID_DOC_UUID
         assert body["data"]["kb_uuid"] == VALID_KB_UUID
         assert body["data"]["filename"] == "test.pdf"
-        assert body["data"]["status"] == "uploaded"
+        assert body["data"]["status"] == "queued"
         assert "id" not in body["data"]
 
 

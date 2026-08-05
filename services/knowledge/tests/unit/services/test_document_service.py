@@ -438,8 +438,7 @@ class TestDeleteDocument:
         mock_db.commit = AsyncMock()
 
         with patch("app.services.document_service.delete_doc_task") as mock_task:
-            with patch("app.services.document_service.invalidate_bm25_cache_async", new_callable=AsyncMock):
-                result = await delete_document(mock_db, doc_id=5, kb_id=1, user_id=1, role="user")
+            result = await delete_document(mock_db, doc_id=5, kb_id=1, user_id=1, role="user")
 
         assert result.doc_uuid == "doc-uuid-0001"
         assert doc.status == DocumentStatus.DELETING
@@ -482,7 +481,7 @@ class TestDeleteDocument:
 class TestReprocessDocument:
     @pytest.mark.asyncio
     async def test_重新处理失败状态文档(self, mock_db):
-        """failed 状态的文档可以重新处理"""
+        """failed 状态（终态）文档可以重新处理 → 创建新版本并分发 ingest_version"""
         kb = _make_kb()
         doc = _make_doc(doc_id=5, status="failed")
         mock_db.execute = AsyncMock()
@@ -493,19 +492,27 @@ class TestReprocessDocument:
         mock_db.flush = AsyncMock()
         mock_db.commit = AsyncMock()
 
-        with patch("app.services.document_service.ingest_doc_task") as mock_task:
-            with patch("app.services.document_service.invalidate_bm25_cache_async", new_callable=AsyncMock):
+        version = MagicMock(id=7, uuid="ver-uuid-0001")
+
+        def _fake_create(db, doc, *, source):
+            doc.status = DocumentStatus.QUEUED
+            return version
+
+        with patch("app.services.document_service.ingest_version_task") as mock_task:
+            with patch("app.services.document_service.create_document_version",
+                       new_callable=AsyncMock, side_effect=_fake_create) as mock_create:
                 result = await reprocess_document(mock_db, doc_id=5, kb_id=1, user_id=1, role="user")
 
         assert result.doc_uuid == "doc-uuid-0001"
-        assert result.status == "uploaded"
-        mock_task.delay.assert_called_once()
+        assert result.status == "queued"  # 创建新版本后 doc 重置为 queued
+        mock_create.assert_called_once_with(mock_db, doc, source="reprocess")
+        mock_task.delay.assert_called_once_with(7)
 
     @pytest.mark.asyncio
-    async def test_completed状态拒绝重新处理(self, mock_db):
-        """completed 状态不是允许 reprocess 的状态"""
+    async def test_进行中状态拒绝重新处理(self, mock_db):
+        """queued/processing（存在进行中版本）不允许 reprocess，避免并行版本"""
         kb = _make_kb()
-        doc = _make_doc(doc_id=5, status="completed")
+        doc = _make_doc(doc_id=5, status="queued")
         mock_db.execute = AsyncMock()
         mock_db.execute.side_effect = [
             _make_scalar_one_or_none_result(kb),
@@ -609,7 +616,7 @@ class TestBatchUploadCountLimit:
 
         # 不抛 BatchUploadCountExceededException（后续 upload_document 因缺少 mock 会抛异常，但不属于本测试范围）
         with patch("app.services.document_service.upload_document", new_callable=AsyncMock) as mock_upload:
-            mock_upload.return_value = MagicMock(uuid="test-uuid", filename="test.pdf", status="uploaded")
+            mock_upload.return_value = MagicMock(uuid="test-uuid", filename="test.pdf", status="queued")
             result = await batch_upload_documents(
                 mock_db, kb_id=1, user_id=1, role="user", files=exact_limit
             )

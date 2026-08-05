@@ -174,6 +174,11 @@ class Settings(BaseSettings):
     # ── Idempotency ──
     IDEMPOTENCY_LOCK_TTL: int = 600
 
+    # ── Versioning / Publish（对齐 ADR-007）──
+    PUBLISH_LOCK_WAIT_MS: int = 5000  # 检索对 updating KB 的有界等待上限（毫秒）
+    STUCK_VERSION_TIMEOUT: int = 300  # 版本非终态停留超时（秒），超时重投递 ingest_version
+    KB_LOCK_TIMEOUT: int = 600        # KB 发布锁（updating/recovering）停留超时（秒），超时恢复
+
     # ── Parsing ──
     PARSE_FAILURE_PARTIAL: float = 0.2
     PARSE_FAILURE_FAILED: float = 0.5

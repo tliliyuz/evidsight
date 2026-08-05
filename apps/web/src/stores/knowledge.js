@@ -16,11 +16,10 @@ import {
   getDocumentChunks
 } from '@/api/knowledge'
 
-/** 文档终态集合 — 与后端 DocumentStatus.TERMINAL_STATUSES 保持一致 */
+/** 文档终态集合 — 与后端 DocumentStatus.TERMINAL_STATUSES 保持一致（ADR-007 枚举对齐） */
 export const TERMINAL_STATUSES = [
   'completed',
-  'success_with_warnings',
-  'partial_failed',
+  'partial',
   'failed'
 ]
 

@@ -30,14 +30,10 @@
           @change="reloadList"
         >
           <el-option label="全部状态" value="" />
-          <el-option label="已上传" value="uploaded" />
-          <el-option label="解析中" value="parsing" />
-          <el-option label="分块中" value="chunking" />
-          <el-option label="向量化中" value="embedding" />
-          <el-option label="写入向量库" value="vector_storing" />
+          <el-option label="排队中" value="queued" />
+          <el-option label="处理中" value="processing" />
           <el-option label="已完成" value="completed" />
-          <el-option label="有警告" value="success_with_warnings" />
-          <el-option label="部分失败" value="partial_failed" />
+          <el-option label="部分可用" value="partial" />
           <el-option label="失败" value="failed" />
           <el-option label="删除中" value="deleting" />
         </el-select>
@@ -264,10 +260,8 @@ async function confirmDelete(row) {
 
 // ==================== 工具函数 ====================
 const STATUS_LABELS = {
-  uploaded: '已上传', parsing: '解析中', chunking: '分块中',
-  embedding: '向量化中', vector_storing: '写入向量库', completed: '已完成',
-  success_with_warnings: '有警告', partial_failed: '部分失败', failed: '失败',
-  deleting: '删除中',
+  queued: '排队中', processing: '处理中', completed: '已完成',
+  partial: '部分可用', failed: '失败', deleting: '删除中',
 }
 
 function getStatusLabel(status) {
@@ -418,15 +412,11 @@ onMounted(loadList)
 }
 
 .doc-status-tag.completed { background: var(--dm-success-light); color: var(--dm-success); }
-.doc-status-tag.success_with_warnings { background: var(--dm-success-light); color: var(--dm-success); }
-.doc-status-tag.partial_failed { background: var(--dm-warning-light); color: var(--dm-warning); }
+.doc-status-tag.partial { background: var(--dm-warning-light); color: var(--dm-warning); }
 .doc-status-tag.failed { background: var(--dm-danger-light); color: var(--dm-danger); }
 .doc-status-tag.deleting { background: var(--dm-bg-page); color: var(--dm-text-tertiary); }
-.doc-status-tag.uploaded,
-.doc-status-tag.parsing,
-.doc-status-tag.chunking,
-.doc-status-tag.embedding,
-.doc-status-tag.vector_storing { background: var(--dm-primary-light); color: var(--dm-primary); }
+.doc-status-tag.queued,
+.doc-status-tag.processing { background: var(--dm-primary-light); color: var(--dm-primary); }
 
 /* 分页 */
 .pagination-wrap {

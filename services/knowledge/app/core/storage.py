@@ -77,6 +77,16 @@ class LocalStorage(StorageBackend):
     async def read(self, path: str) -> bytes:
         return await asyncio.to_thread(Path(path).read_bytes)
 
+    async def save_bytes(self, path: str, data: bytes) -> str:
+        """写入原始字节到指定路径（staging JSON 产物等非上传文件）。
+
+        返回写入后的绝对路径；不参与魔数/扩展名校验。
+        """
+        target = Path(path)
+        await asyncio.to_thread(target.parent.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(target.write_bytes, data)
+        return str(target)
+
     async def delete(self, path: str) -> None:
         file_path = Path(path)
         if await asyncio.to_thread(file_path.is_file):

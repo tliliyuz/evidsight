@@ -77,35 +77,33 @@ class TestDocumentStatusEnum:
         self.TERMINAL_STATUSES = TERMINAL_STATUSES
         self.is_terminal = is_terminal
 
-    def test_ten_statuses(self):
-        assert len(list(self.DocumentStatus)) == 10
+    def test_six_statuses(self):
+        assert len(list(self.DocumentStatus)) == 6
 
     def test_all_values_match_doc(self):
         expected = {
-            "uploaded", "parsing", "chunking", "embedding", "vector_storing",
-            "completed", "success_with_warnings", "partial_failed", "failed", "deleting",
+            "queued", "processing", "completed", "partial", "failed", "deleting",
         }
         actual = {m.value for m in self.DocumentStatus}
         assert actual == expected
 
     def test_terminal_statuses_count(self):
-        assert len(self.TERMINAL_STATUSES) == 4
+        assert len(self.TERMINAL_STATUSES) == 3
         assert "completed" in self.TERMINAL_STATUSES
-        assert "success_with_warnings" in self.TERMINAL_STATUSES
-        assert "partial_failed" in self.TERMINAL_STATUSES
+        assert "partial" in self.TERMINAL_STATUSES
         assert "failed" in self.TERMINAL_STATUSES
 
-    @pytest.mark.parametrize("status", ["completed", "success_with_warnings", "partial_failed", "failed"])
+    @pytest.mark.parametrize("status", ["completed", "partial", "failed"])
     def test_is_terminal_true(self, status):
         assert self.is_terminal(status) is True
 
-    @pytest.mark.parametrize("status", ["uploaded", "parsing", "chunking", "embedding", "vector_storing", "deleting"])
+    @pytest.mark.parametrize("status", ["queued", "processing", "deleting"])
     def test_is_terminal_false(self, status):
         assert self.is_terminal(status) is False
 
     def test_is_terminal_accepts_plain_string(self):
         assert self.is_terminal("completed") is True
-        assert self.is_terminal("uploaded") is False
+        assert self.is_terminal("queued") is False
         assert self.is_terminal("nonexistent") is False
 
 
@@ -121,9 +119,9 @@ class TestDocumentResponse:
         from app.models.enums import DocumentStatus
         resp = self.DocumentResponse(
             uuid="doc-001", kb_uuid="kb-001", filename="test.pdf", file_type="pdf",
-            status=DocumentStatus.UPLOADED, created_at="2026-05-17T00:00:00",
+            status=DocumentStatus.QUEUED, created_at="2026-05-17T00:00:00",
         )
-        assert resp.status == DocumentStatus.UPLOADED
+        assert resp.status == DocumentStatus.QUEUED
 
     def test_accepts_string_and_converts(self):
         resp = self.DocumentResponse(

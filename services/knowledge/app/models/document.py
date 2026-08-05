@@ -39,8 +39,8 @@ class Document(Base):
     status: Mapped[DocumentStatus] = mapped_column(
         Enum(DocumentStatus, name="document_status",
              values_callable=lambda obj: [e.value for e in obj]),
-        default=DocumentStatus.UPLOADED,
-        server_default=text("'uploaded'"),
+        default=DocumentStatus.QUEUED,
+        server_default=text("'queued'"),
     )
     chunk_count: Mapped[int] = mapped_column(
         Integer, default=0, server_default=text("0")

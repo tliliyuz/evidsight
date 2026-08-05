@@ -28,7 +28,6 @@ from app.core.exceptions import (
 from app.core.permissions import require_kb_owner, require_kb_readable, require_kb_writable
 from app.core.redis_client import get_redis
 from app.core.storage import local_storage
-from app.rag.bm25 import invalidate_bm25_cache_async
 from app.models.document import Document
 from app.models.chunk import Chunk
 from app.models.enums import DocumentStatus, is_terminal
@@ -46,7 +45,8 @@ from app.schemas.document import (
     DocumentUploadResponse,
 )
 from app.ingest.delete_tasks import delete_document as delete_doc_task
-from app.ingest.tasks import ingest_document as ingest_doc_task
+from app.ingest.tasks import ingest_version as ingest_version_task
+from app.ingest.versioning import create_document_version
 from app.core.utils import escape_like
 from app.services.knowledge_base_service import check_kb_active
 
@@ -66,6 +66,17 @@ def _pool_status() -> str:
 
 # 允许的排序字段
 SORT_ALLOWED_FIELDS = {"created_at", "updated_at", "filename", "file_size", "status"}
+
+# 旧状态名 → 新枚举值（向后兼容 API 查询参数，对齐 API.md §6.2 / ADR-007 映射）
+LEGACY_STATUS_ALIASES = {
+    "uploaded": "queued",
+    "parsing": "processing",
+    "chunking": "processing",
+    "embedding": "processing",
+    "vector_storing": "processing",
+    "success_with_warnings": "partial",
+    "partial_failed": "partial",
+}
 
 # 从 settings 解析允许的文件类型（逗号分隔 → set）
 ALLOWED_EXTENSIONS = set(
@@ -197,8 +208,9 @@ async def upload_document(
             except Exception:
                 logger.warning("向量存储清理 doc=%d 失败，跳过", doc.id)
 
-            # 重置文档状态
-            doc.status = DocumentStatus.UPLOADED
+            # 重置文档状态（新枚举：queued 排队入库；旧 Active Version 不再服务）
+            doc.status = DocumentStatus.QUEUED
+            doc.active_version = None
             doc.error_msg = None
             doc.chunk_count = 0
             doc.current_stage = None
@@ -277,8 +289,9 @@ async def upload_document(
     except Exception:
         raise StorageErrorException(f"文件保存失败：{filename}")
 
-    # 分发 Celery 入库任务
-    ingest_doc_task.delay(doc.id)
+    # 创建 DocumentVersion（version 递增）并分发版本化入库任务
+    version = await create_document_version(db, doc, source="upload")
+    ingest_version_task.delay(version.id)
 
     # 获取 KB uuid 用于响应（关系未预加载，直接查 KB）
     kb = await db.get(KnowledgeBase, kb_id)
@@ -379,6 +392,8 @@ async def list_documents(
     conditions.append(Document.status != DocumentStatus.DELETING)
 
     if status:
+        # 旧状态名反向兼容映射（uploaded→queued 等），其余按原值过滤
+        status = LEGACY_STATUS_ALIASES.get(status, status)
         conditions.append(Document.status == status)
     if filename:
         conditions.append(Document.filename.like(f"%{escape_like(filename)}%", escape="\\"))
@@ -531,37 +546,25 @@ async def reprocess_document(
     user_id: int,
     role: str,
 ) -> DocumentReprocessResponse:
-    """重新处理失败或部分失败的文档（仅 partial_failed / failed 允许）"""
+    """重新处理文档（仅终态允许：completed/partial/failed）。
+
+    版本化语义：创建新 DocumentVersion，旧 Active Version 继续服务，
+    直到新版本发布时才切换 active_version（对齐 ADR-007）。
+    queued/processing（存在进行中版本）拒绝，避免并行版本竞争。
+    """
     await _check_kb_ownership(db, kb_id, user_id, role, owner_only=True)
     doc = await _get_doc_in_kb(db, kb_id, doc_id)
 
-    if doc.status not in (DocumentStatus.PARTIAL_FAILED, DocumentStatus.FAILED):
+    if not is_terminal(doc.status):
         raise ReprocessFailedException(
-            f"文档 {doc_id} 当前状态为 {doc.status}，仅 partial_failed/failed 状态允许重新处理"
+            f"文档 {doc_id} 当前状态为 {doc.status}，"
+            f"仅终态（completed/partial/failed）允许重新处理"
         )
 
-    # 清理 ChromaDB 旧向量（新文档分块数可能少于旧文档，残留向量需清除）
-    # 清理旧向量（通过 VectorStore 抽象，内部已处理异步线程卸载）
-    try:
-        store = get_vector_store()
-        await store.delete(kb_id=kb_id, where={"doc_id": doc_id})
-        logger.info("文档 %d reprocess 前向量存储旧向量已清理", doc_id)
-    except Exception:
-        logger.exception("文档 %d reprocess 前 ChromaDB 旧向量清理失败", doc_id)
+    # 创建新版本（version=next+1）；旧版本继续服务直到发布切换
+    version = await create_document_version(db, doc, source="reprocess")
 
-    # 清除 BM25 缓存（对齐 ARCHITECTURE.md §6.2）
-    await invalidate_bm25_cache_async(kb_id)
-
-    # 清理旧 chunk 记录（MySQL FK CASCADE 自动删除）并重置状态
-    doc.status = DocumentStatus.UPLOADED
-    doc.error_msg = None
-    doc.current_stage = None
-    doc.last_success_batch = 0
-    await db.flush()
-    await db.commit()  # 必须在 delay 前提交，否则 Worker 看不到状态变更
-    await db.refresh(doc)
-
-    # 分发 Celery 入库任务（重新处理）
-    ingest_doc_task.delay(doc.id)
+    # 分发 Celery 版本化入库任务（重新处理）
+    ingest_version_task.delay(version.id)
 
     return DocumentReprocessResponse(doc_uuid=doc.uuid, status=doc.status)

@@ -31,8 +31,13 @@ def run_migrations_offline() -> None:
 async def run_migrations_online() -> None:
     """在线模式：连接数据库并执行迁移"""
     connectable = create_async_engine(settings.mysql_url)
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+    try:
+        async with connectable.connect() as connection:
+            await connection.run_sync(do_run_migrations)
+    finally:
+        # 显式归还连接池，避免事件循环关闭后 aiomysql 连接被 GC 回收时
+        # 在 __del__ 中触发 "Event loop is closed" 清理期警告
+        await connectable.dispose()
 
 
 def do_run_migrations(connection):

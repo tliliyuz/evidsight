@@ -108,14 +108,10 @@
             @change="reloadDocList"
           >
             <el-option label="全部状态" value="" />
-            <el-option label="已上传" value="uploaded" />
-            <el-option label="解析中" value="parsing" />
-            <el-option label="分块中" value="chunking" />
-            <el-option label="向量化中" value="embedding" />
-            <el-option label="写入向量库" value="vector_storing" />
+            <el-option label="排队中" value="queued" />
+            <el-option label="处理中" value="processing" />
             <el-option label="已完成" value="completed" />
-            <el-option label="有警告" value="success_with_warnings" />
-            <el-option label="部分失败" value="partial_failed" />
+            <el-option label="部分可用" value="partial" />
             <el-option label="失败" value="failed" />
             <el-option label="删除中" value="deleting" />
           </el-select>
@@ -219,7 +215,7 @@
                 <i class="fas fa-list-ul"></i>
               </button>
               <button
-                v-if="row.status === 'partial_failed' || row.status === 'failed'"
+                v-if="row.status === 'partial' || row.status === 'failed'"
                 class="action-btn"
                 title="重新处理"
                 @click.stop="handleReprocess(row)"
@@ -724,14 +720,10 @@ function getFileTypeIcon(fileType) {
 
 // ==================== 状态标签工具函数 ====================
 const STATUS_CONFIG = {
-  uploaded:    { label: '已上传',   icon: 'fa-upload' },
-  parsing:     { label: '解析中',   icon: 'fa-spinner fa-spin' },
-  chunking:    { label: '分块中',   icon: 'fa-spinner fa-spin' },
-  embedding:   { label: '向量化中',  icon: 'fa-spinner fa-spin' },
-  vector_storing: { label: '写入向量库', icon: 'fa-spinner fa-spin' },
+  queued:      { label: '排队中',   icon: 'fa-hourglass-half' },
+  processing:  { label: '处理中',   icon: 'fa-spinner fa-spin' },
   completed:   { label: '已完成',   icon: 'fa-check-circle' },
-  success_with_warnings: { label: '有警告', icon: 'fa-check-circle' },
-  partial_failed: { label: '部分失败', icon: 'fa-exclamation-triangle' },
+  partial:     { label: '部分可用',  icon: 'fa-exclamation-triangle' },
   failed:      { label: '失败',     icon: 'fa-times-circle' },
   deleting:    { label: '删除中',   icon: 'fa-spinner fa-spin' }
 }
@@ -1082,22 +1074,18 @@ onUnmounted(() => {
   gap: var(--dm-space-1);
 }
 
-.status-tag.uploaded,
-.status-tag.parsing,
-.status-tag.chunking,
-.status-tag.embedding,
-.status-tag.vector_storing {
+.status-tag.queued,
+.status-tag.processing {
   background: var(--dm-info-light);
   color: var(--dm-info);
 }
 
-.status-tag.completed,
-.status-tag.success_with_warnings {
+.status-tag.completed {
   background: var(--dm-success-light);
   color: var(--dm-success);
 }
 
-.status-tag.partial_failed {
+.status-tag.partial {
   background: var(--dm-warning-light);
   color: var(--dm-warning);
 }

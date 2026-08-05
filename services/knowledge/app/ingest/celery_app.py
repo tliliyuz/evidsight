@@ -28,6 +28,8 @@ celery_app.conf.update(
     task_track_started=True,
     task_routes={
         "app.ingest.tasks.ingest_document": {"queue": settings.CELERY_INGEST_QUEUE},
+        "app.ingest.tasks.ingest_version": {"queue": settings.CELERY_INGEST_QUEUE},
+        "app.ingest.recovery_tasks.scan_stuck_versions": {"queue": settings.CELERY_INGEST_QUEUE},
         "app.ingest.delete_tasks.delete_document": {"queue": settings.CELERY_DELETE_QUEUE},
         "app.ingest.delete_tasks.delete_kb": {"queue": settings.CELERY_DELETE_QUEUE},
     },
@@ -35,6 +37,13 @@ celery_app.conf.update(
     # 入库任务耗时较长，放宽超时
     task_soft_time_limit=600,
     task_time_limit=900,
+    # 版本恢复扫描（ADR-007）：每 60s 检查卡死版本/卡死 KB 发布锁
+    beat_schedule={
+        "scan-stuck-versions": {
+            "task": "app.ingest.recovery_tasks.scan_stuck_versions",
+            "schedule": 60.0,
+        },
+    },
 )
 
 # Windows: solo 池（默认），避免 eventlet/gevent 与 asyncio 冲突
@@ -52,3 +61,4 @@ def _init_worker_resources(**kwargs):
 # 注册任务模块（导入即注册 @celery_app.task 装饰的任务）
 import app.ingest.tasks  # noqa: E402, F401
 import app.ingest.delete_tasks  # noqa: E402, F401
+import app.ingest.recovery_tasks  # noqa: E402, F401

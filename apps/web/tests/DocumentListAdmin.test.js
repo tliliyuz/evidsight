@@ -314,7 +314,7 @@ describe('DocumentListAdmin', () => {
       await flushPromises()
 
       expect(wrapper.vm.getStatusLabel('completed')).toBe('已完成')
-      expect(wrapper.vm.getStatusLabel('parsing')).toBe('解析中')
+      expect(wrapper.vm.getStatusLabel('processing')).toBe('处理中')
       expect(wrapper.vm.getStatusLabel('failed')).toBe('失败')
       expect(wrapper.vm.getStatusLabel('unknown_xyz')).toBe('unknown_xyz')
     })
@@ -325,11 +325,10 @@ describe('DocumentListAdmin', () => {
       await flushPromises()
 
       expect(wrapper.vm.isTerminal('completed')).toBe(true)
+      expect(wrapper.vm.isTerminal('partial')).toBe(true)
       expect(wrapper.vm.isTerminal('failed')).toBe(true)
-      expect(wrapper.vm.isTerminal('success_with_warnings')).toBe(true)
-      expect(wrapper.vm.isTerminal('partial_failed')).toBe(true)
-      expect(wrapper.vm.isTerminal('parsing')).toBe(false)
-      expect(wrapper.vm.isTerminal('uploaded')).toBe(false)
+      expect(wrapper.vm.isTerminal('processing')).toBe(false)
+      expect(wrapper.vm.isTerminal('queued')).toBe(false)
       expect(wrapper.vm.isTerminal('deleting')).toBe(false)
     })
 

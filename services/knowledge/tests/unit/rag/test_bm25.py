@@ -142,10 +142,15 @@ class TestBuildCacheKey:
     """_build_cache_key 测试"""
 
     def test_正常构建(self):
-        assert _build_cache_key(1) == "bm25_tokens:1"
+        assert _build_cache_key(1) == "bm25_tokens:1:0"
 
     def test_kb_id为大数值(self):
-        assert _build_cache_key(999999) == "bm25_tokens:999999"
+        assert _build_cache_key(999999) == "bm25_tokens:999999:0"
+
+    def test_携带generation(self):
+        # 对齐 ADR-007：generation 参与缓存 key，publish 递增后新 key 未命中自动重载
+        assert _build_cache_key(1, 3) == "bm25_tokens:1:3"
+        assert _build_cache_key(1, 0) == "bm25_tokens:1:0"
 
 
 class TestTokenize:
@@ -212,14 +217,25 @@ class TestInvalidateBM25Cache:
     @patch("app.rag.bm25.get_redis")
     def test_正常清除(self, mock_get_redis):
         mock_redis = MagicMock()
+        # 缓存 key 含 generation → 按前缀扫描删除该 KB 所有变体
+        mock_redis.scan_iter.return_value = iter(["bm25_tokens:1:0", "bm25_tokens:1:2"])
         mock_get_redis.return_value = mock_redis
         invalidate_bm25_cache(1)
-        mock_redis.delete.assert_called_once_with("bm25_tokens:1")
+        mock_redis.scan_iter.assert_called_once_with(match="bm25_tokens:1:*")
+        mock_redis.delete.assert_called_once_with("bm25_tokens:1:0", "bm25_tokens:1:2")
+
+    @patch("app.rag.bm25.get_redis")
+    def test_无匹配key时不做delete(self, mock_get_redis):
+        mock_redis = MagicMock()
+        mock_redis.scan_iter.return_value = iter([])
+        mock_get_redis.return_value = mock_redis
+        invalidate_bm25_cache(1)
+        mock_redis.delete.assert_not_called()
 
     @patch("app.rag.bm25.get_redis")
     def test_redis异常不影响调用方(self, mock_get_redis):
         mock_redis = MagicMock()
-        mock_redis.delete.side_effect = Exception("Redis 连接失败")
+        mock_redis.scan_iter.side_effect = Exception("Redis 连接失败")
         mock_get_redis.return_value = mock_redis
         # 不应抛出异常
         invalidate_bm25_cache(1)
@@ -232,16 +248,28 @@ class TestInvalidateBM25CacheAsync:
     @patch("app.rag.bm25.get_async_redis")
     async def test_正常清除(self, mock_get_async_redis):
         mock_redis = AsyncMock()
+
+        async def fake_scan_iter(match=None):
+            yield "bm25_tokens:1:0"
+            yield "bm25_tokens:1:2"
+
+        mock_redis.scan_iter = fake_scan_iter
         mock_get_async_redis.return_value = mock_redis
         _set_local_cache(1, None, [])
         await invalidate_bm25_cache_async(1)
-        mock_redis.delete.assert_called_once_with("bm25_tokens:1")
+        mock_redis.delete.assert_any_await("bm25_tokens:1:0")
+        mock_redis.delete.assert_any_await("bm25_tokens:1:2")
         assert 1 not in _local_cache
 
     @pytest.mark.asyncio
     @patch("app.rag.bm25.get_async_redis")
     async def test_redis异常不影响调用方(self, mock_get_async_redis):
         mock_redis = AsyncMock()
+
+        async def fake_scan_iter(match=None):
+            yield "bm25_tokens:1:0"
+
+        mock_redis.scan_iter = fake_scan_iter
         mock_redis.delete.side_effect = Exception("Redis 连接失败")
         mock_get_async_redis.return_value = mock_redis
         # 不应抛出异常
@@ -386,7 +414,7 @@ class TestBM25RetrieverSearch:
         # 验证 Redis SETEX 被调用（缓存写入）
         async_redis.setex.assert_called_once()
         call_args = async_redis.setex.call_args
-        assert call_args[0][0] == "bm25_tokens:1"  # key
+        assert call_args[0][0] == "bm25_tokens:1:0"  # key
         assert call_args[0][1] == settings.BM25_CACHE_TTL    # TTL
         # 写入值不含 contents（ADR-023）
         cached = json.loads(call_args[0][2])
@@ -541,7 +569,30 @@ class TestBM25RetrieverSearch:
             await retriever.search("测试", kb_id=42)
 
         # 验证 Redis GET 使用了正确的 key
-        async_redis.get.assert_called_once_with("bm25_tokens:42")
+        async_redis.get.assert_called_once_with("bm25_tokens:42:0")
+
+    @pytest.mark.asyncio
+    @patch("app.rag.bm25.jieba.lcut")
+    async def test_index_generation参与缓存key(self, mock_jieba):
+        """search 传 index_generation → Redis GET 使用 bm25_tokens:{kb}:{gen}
+
+        对齐 ADR-007：publish 递增 generation 后新 key 未命中 → 自动重载，
+        无需显式失效即可避免索引陈旧。
+        """
+        mock_jieba.side_effect = lambda t: list(t)
+
+        cached_data = json.dumps({
+            "doc_ids": [[1, 0]],
+            "tokens": [["测", "试"]],
+        }, ensure_ascii=False)
+        async_redis = _mock_async_redis(get_return=cached_data)
+        session_factory = _mock_session_factory(_mock_content_rows([(1, 0, "测试")]))
+
+        retriever = BM25Retriever(async_redis, session_factory)
+        output = await retriever.search("测试", kb_id=1, top_k=5, index_generation=7)
+
+        assert output.total == 1
+        async_redis.get.assert_called_once_with("bm25_tokens:1:7")
 
     @pytest.mark.asyncio
     @patch("app.rag.bm25.jieba.lcut")
@@ -665,7 +716,7 @@ class TestBM25MaxChunks:
 
         retriever = BM25Retriever(async_redis, session_factory)
         # 通过 _load_and_cache 间接测试：缓存未命中 → COUNT → 超限 → 返回空
-        bm25, doc_ids, section_info = await retriever._load_and_cache(1, "bm25_tokens:1")
+        bm25, doc_ids, section_info = await retriever._load_and_cache(1, "bm25_tokens:1:0")
 
         assert bm25 is None
         assert doc_ids == []

@@ -76,8 +76,8 @@ vi.mock('@/stores/knowledge', () => ({
     fetchDocChunks: mockFetchDocChunks,
     resetDocState: vi.fn(),
   }),
-  TERMINAL_STATUSES: ['completed', 'success_with_warnings', 'partial_failed', 'failed'],
-  isTerminal: (s) => ['completed', 'success_with_warnings', 'partial_failed', 'failed'].includes(s),
+  TERMINAL_STATUSES: ['completed', 'partial', 'failed'],
+  isTerminal: (s) => ['completed', 'partial', 'failed'].includes(s),
 }))
 
 import KnowledgeDetail from '@/views/KnowledgeDetail.vue'
@@ -198,7 +198,7 @@ describe('KnowledgeDetail', () => {
   it('有文档时渲染表格并隐藏空状态', () => {
     mockDocList.push(
       { uuid: 'd1111111-1111-1111-1111-111111111111', filename: '入职指南.pdf', file_type: 'pdf', file_size: 204800, status: 'completed', chunk_count: 24, created_at: '2026-05-11T10:35:00' },
-      { uuid: 'd2222222-2222-2222-2222-222222222222', filename: '报销制度.md', file_type: 'md', file_size: 51200, status: 'parsing', chunk_count: 0, created_at: '2026-05-11T11:00:00' },
+      { uuid: 'd2222222-2222-2222-2222-222222222222', filename: '报销制度.md', file_type: 'md', file_size: 51200, status: 'processing', chunk_count: 0, created_at: '2026-05-11T11:00:00' },
     )
     const wrapper = getComponent()
     expect(wrapper.findComponent({ name: 'el-table' }).exists()).toBe(true)

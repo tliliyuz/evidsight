@@ -87,7 +87,7 @@ class TestDocumentResponseSchema:
         resp = DocumentResponse(
             uuid=VALID_UUID, kb_uuid=VALID_UUID_2,
             filename="test.pdf", file_type="pdf",
-            status="uploaded", created_at=NOW,
+            status="queued", created_at=NOW,
         )
         data = resp.model_dump()
         assert "id" not in data
@@ -98,7 +98,7 @@ class TestDocumentResponseSchema:
         resp = DocumentUploadResponse(
             uuid=VALID_UUID, kb_uuid=VALID_UUID_2,
             filename="test.pdf", file_type="pdf",
-            status="uploaded",
+            status="queued",
         )
         data = resp.model_dump()
         assert "uuid" in data
@@ -116,7 +116,7 @@ class TestDocumentResponseSchema:
     def test_reprocess_response_has_doc_uuid(self):
         """DocumentReprocessResponse 含 doc_uuid"""
         resp = DocumentReprocessResponse(
-            doc_uuid=VALID_UUID, status="uploaded",
+            doc_uuid=VALID_UUID, status="queued",
         )
         data = resp.model_dump()
         assert data["doc_uuid"] == VALID_UUID

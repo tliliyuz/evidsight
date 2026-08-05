@@ -16,6 +16,8 @@ from app.config import settings
 
 # 幂等键前缀
 IDEMPOTENCY_KEY_PREFIX = "doc_lock"
+# Version 幂等键前缀（Worker 以 Version UUID 为幂等键，对齐 ADR-007）
+VERSION_LOCK_KEY_PREFIX = "version_lock"
 
 
 def _build_lock_key(doc_id: int, task_type: str) -> str:
@@ -74,5 +76,32 @@ async def release_idempotency_lock_async(doc_id: int, task_type: str) -> None:
     from app.core.redis_client import get_async_redis
 
     key = _build_lock_key(doc_id, task_type)
+    redis_client = await get_async_redis()
+    await redis_client.delete(key)
+
+
+# ==================== Version 幂等锁（Worker 以 Version UUID 为幂等键） ====================
+
+
+def _build_version_lock_key(version_uuid: str) -> str:
+    return f"{VERSION_LOCK_KEY_PREFIX}:{version_uuid}"
+
+
+async def acquire_version_lock_async(
+    version_uuid: str, ttl: int = settings.IDEMPOTENCY_LOCK_TTL
+) -> bool:
+    """异步获取 Version 幂等锁（对齐 ADR-007：重复投递不得生成重复 Chunk/向量）。"""
+    from app.core.redis_client import get_async_redis
+
+    key = _build_version_lock_key(version_uuid)
+    redis_client = await get_async_redis()
+    return bool(await redis_client.set(key, "locked", ex=ttl, nx=True))
+
+
+async def release_version_lock_async(version_uuid: str) -> None:
+    """异步释放 Version 幂等锁（幂等操作）。"""
+    from app.core.redis_client import get_async_redis
+
+    key = _build_version_lock_key(version_uuid)
     redis_client = await get_async_redis()
     await redis_client.delete(key)

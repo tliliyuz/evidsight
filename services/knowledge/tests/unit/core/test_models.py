@@ -100,7 +100,7 @@ class TestSectionModel:
             kb_id=1,
             filename="test.md",
             file_type="md",
-            status=DocumentStatus.UPLOADED,
+            status=DocumentStatus.QUEUED,
         )
         section = Section(
             id=20,

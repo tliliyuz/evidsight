@@ -20,6 +20,7 @@ def _matches_any_route(task_name: str, routes: dict[str, object]) -> bool:
     ("task_name", "expected_queue"),
     [
         ("app.ingest.tasks.ingest_document", "knowledge.ingest"),
+        ("app.ingest.recovery_tasks.scan_stuck_versions", "knowledge.ingest"),
         ("app.ingest.delete_tasks.delete_document", "knowledge.delete"),
         ("app.ingest.delete_tasks.delete_kb", "knowledge.delete"),
     ],

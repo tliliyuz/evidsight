@@ -150,7 +150,7 @@ IA-004 重放事件使用 `event_type=refresh_replay`、`outcome=denied`，安�
 | `storage_key` | VARCHAR(512) | Knowledge 内部存储键，不对外暴露 |
 | `file_size` | BIGINT | 非负字节数 |
 | `content_hash` | CHAR(64) | 文件内容 SHA-256，用于校验和幂等 |
-| `status` | ENUM | `pending`、`processing`、`ready`、`ready_with_warnings`、`failed`、`deleting` |
+| `status` | ENUM | `queued`、`processing`、`completed`、`partial`、`failed`、`deleting`（对齐 ADR-007 / API.md §6.2 对外 6 值，内部版本阶段见 `document_versions.status`） |
 | `active_version` | INT | 当前可检索版本号，可空 |
 | `error_code` | VARCHAR(64) | 安全错误码，可空 |
 | `error_summary` | VARCHAR(500) | 安全摘要，可空 |
@@ -158,7 +158,7 @@ IA-004 重放事件使用 `event_type=refresh_replay`、`outcome=denied`，安�
 | `created_at` | DATETIME | UTC |
 | `updated_at` | DATETIME | UTC |
 
-只有 `ready` 与 `ready_with_warnings` 文档的 Active Version 可检索；后者只允许非核心位置/结构增强缺失，不允许 Chunk 或向量不完整。原始文件路径从 DocMind 的 `file_path` 迁移为存储后端无关的 `storage_key`。
+只有 `active_version` 对应版本处于 `ready` / `ready_with_warnings` 的文档可检索；后者只允许非核心位置/结构增强缺失，不允许 Chunk 或向量不完整。`documents.status` 为对外映射（`map_document_status`：`queued→queued`、解析~验证→`processing`、`ready→completed`、`ready_with_warnings→partial`、`failed→failed`），内部阶段以 `document_versions.status` 为准。原始文件路径从 DocMind 的 `file_path` 迁移为存储后端无关的 `storage_key`。
 
 ### 5.3 `document_versions`
 

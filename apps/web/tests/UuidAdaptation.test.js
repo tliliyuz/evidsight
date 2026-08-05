@@ -141,7 +141,7 @@ vi.mock('@/stores/knowledge', () => ({
     fetchDocChunks: vi.fn(),
     resetDocState: vi.fn(),
   }),
-  isTerminal: (s) => ['completed', 'success_with_warnings', 'partial_failed', 'failed'].includes(s),
+  isTerminal: (s) => ['completed', 'partial', 'failed'].includes(s),
   getDepartmentStyle: () => ({ color: '#333', bg: '#eee', icon: 'fa-database', dept: 'default' }),
 }))
 

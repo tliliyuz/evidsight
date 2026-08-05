@@ -65,7 +65,7 @@ def _uuid_to_id_side_effect(db, model_class, uuid_str):
 
 
 def _make_upload_response(doc_uuid=DOC_UUID, kb_uuid=KB_UUID, filename="test.pdf",
-                           file_type="pdf", file_size=1024, status=DocumentStatus.UPLOADED):
+                           file_type="pdf", file_size=1024, status=DocumentStatus.QUEUED):
     return DocumentUploadResponse(
         uuid=doc_uuid, kb_uuid=kb_uuid, filename=filename,
         file_type=file_type, file_size=file_size, status=status,
@@ -93,7 +93,7 @@ def _make_delete_data(doc_uuid=DOC_UUID, status=DocumentStatus.DELETING):
     return DocumentDeleteResponse(doc_uuid=doc_uuid, status=status)
 
 
-def _make_reprocess_data(doc_uuid=DOC_UUID, status=DocumentStatus.UPLOADED):
+def _make_reprocess_data(doc_uuid=DOC_UUID, status=DocumentStatus.QUEUED):
     return DocumentReprocessResponse(doc_uuid=doc_uuid, status=status)
 
 
@@ -139,7 +139,7 @@ class TestUploadDocument:
         assert body["data"]["kb_uuid"] == KB_UUID
         assert body["data"]["filename"] == "入职指南.pdf"
         assert body["data"]["file_type"] == "pdf"
-        assert body["data"]["status"] == "uploaded"
+        assert body["data"]["status"] == "queued"
 
     @pytest.mark.asyncio
     async def test_upload_duplicate_filename(self, async_client, auth_headers):
@@ -169,7 +169,7 @@ class TestUploadDocument:
                    side_effect=_uuid_to_id_side_effect):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_upload_response(
-                    doc_uuid=DOC_UUID_2, filename="入职指南.pdf", status=DocumentStatus.UPLOADED
+                    doc_uuid=DOC_UUID_2, filename="入职指南.pdf", status=DocumentStatus.QUEUED
                 )
 
                 response = await async_client.post(
@@ -182,7 +182,7 @@ class TestUploadDocument:
         assert response.status_code == 201
         body = response.json()
         assert body["code"] == "0"
-        assert body["data"]["status"] == "uploaded"
+        assert body["data"]["status"] == "queued"
 
     @pytest.mark.asyncio
     async def test_upload_force_override_conflict(self, async_client, auth_headers):
@@ -364,8 +364,8 @@ class TestBatchUploadDocuments:
             with patch("app.api.document.batch_upload_documents", new_callable=AsyncMock) as mock:
                 mock.return_value = DocumentBatchUploadResponse(
                     success=[
-                        DocumentBatchUploadItem(uuid=DOC_UUID, filename="a.pdf", status=DocumentStatus.UPLOADED),
-                        DocumentBatchUploadItem(uuid=DOC_UUID_2, filename="b.md", status=DocumentStatus.UPLOADED),
+                        DocumentBatchUploadItem(uuid=DOC_UUID, filename="a.pdf", status=DocumentStatus.QUEUED),
+                        DocumentBatchUploadItem(uuid=DOC_UUID_2, filename="b.md", status=DocumentStatus.QUEUED),
                     ],
                     failed=[],
                 )
@@ -395,7 +395,7 @@ class TestBatchUploadDocuments:
             with patch("app.api.document.batch_upload_documents", new_callable=AsyncMock) as mock:
                 mock.return_value = DocumentBatchUploadResponse(
                     success=[
-                        DocumentBatchUploadItem(uuid=DOC_UUID, filename="a.pdf", status=DocumentStatus.UPLOADED),
+                        DocumentBatchUploadItem(uuid=DOC_UUID, filename="a.pdf", status=DocumentStatus.QUEUED),
                     ],
                     failed=[
                         DocumentBatchUploadFailedItem(
@@ -817,11 +817,11 @@ class TestReprocessDocument:
 
     @pytest.mark.asyncio
     async def test_reprocess_success(self, async_client, auth_headers):
-        """A3.10: 重新处理失败文档 → 200"""
+        """A3.10: 重新处理终态文档 → 200（创建新版本返回 queued）"""
         with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
                    side_effect=_uuid_to_id_side_effect):
             with patch("app.api.document.reprocess_document", new_callable=AsyncMock) as mock:
-                mock.return_value = _make_reprocess_data(doc_uuid=DOC_UUID, status=DocumentStatus.UPLOADED)
+                mock.return_value = _make_reprocess_data(doc_uuid=DOC_UUID, status=DocumentStatus.QUEUED)
 
                 response = await async_client.post(
                     f"/api/knowledge-bases/{KB_UUID}/documents/{DOC_UUID}/reprocess",
@@ -833,16 +833,16 @@ class TestReprocessDocument:
         assert body["code"] == "0"
         assert body["message"] == "重新处理任务已提交"
         assert body["data"]["doc_uuid"] == DOC_UUID
-        assert body["data"]["status"] == "uploaded"
+        assert body["data"]["status"] == "queued"
 
     @pytest.mark.asyncio
     async def test_reprocess_invalid_status(self, async_client, auth_headers):
-        """非 partial_failed/failed 状态不允许 reprocess → 400 E2010"""
+        """进行中状态（queued/processing）不允许 reprocess → 400 E2010"""
         with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
                    side_effect=_uuid_to_id_side_effect):
             with patch("app.api.document.reprocess_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = ReprocessFailedException(
-                    "文档 5 当前状态为 completed，仅 partial_failed/failed 状态允许重新处理"
+                    "文档 5 当前状态为 queued，仅终态（completed/partial/failed）允许重新处理"
                 )
 
                 response = await async_client.post(
