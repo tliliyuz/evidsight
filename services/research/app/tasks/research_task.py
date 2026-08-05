@@ -15,21 +15,26 @@ Worker 拾取任务后调用 PipelineOrchestrator 执行全 Pipeline。
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select as sa_select, update as sa_update
+from sqlalchemy import func, select as sa_select, update as sa_update
 
 from app.core.database import async_session_factory
 from app.core.exceptions import AppException, extract_recoverable_from_exception
 from app.core.trace_recorder import TraceRecorder
 from app.metrics import emit_task_status_transition
 from app.models.research_task import ResearchTask
+from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
 from app.models.research_step import ResearchStep
 from app.agent.runtime import AgentRuntime
 from app.pipeline.sse_bridge import SSEBridge
 from app.services.pipeline_orchestrator import PHASE_ORDER
+from app.services.task_lifecycle import emergency_fail_task
 from app.tasks.celery_app import celery_app
 from app.tasks.event_loop import get_worker_loop
 
 logger = logging.getLogger(__name__)
+
+# knowledge/hybrid 策略依赖内部知识库选择（DATABASE.md §5.1 不变量）
+_KB_DEPENDENT_STRATEGIES = ("knowledge", "hybrid")
 
 
 @celery_app.task(
@@ -154,6 +159,47 @@ async def _build_trace_from_steps(session, task_id: str) -> dict | None:
     }
 
 
+async def _enforce_strategy_dependency(session, task: ResearchTask) -> bool:
+    """Worker 来源策略 fail-closed 守卫（#7，RESEARCH_PIPELINE §1.7/§6.1/§12.2、DATABASE.md §5.1）。
+
+    knowledge/hybrid 任务执行时必须持有至少一个知识库选择行（§5.1 不变量）；
+    不变量被破坏（如历史数据、选择行被删）时任务失败关闭（E3114），
+    不得静默退化为 web 路径。返回 False 表示已失败关闭。
+
+    Args:
+        session: 当前异步 DB 会话
+        task: 已加载的 ResearchTask
+
+    Returns:
+        bool: True 可继续执行；False 已写入 failed，调用方应中止。
+    """
+    if task.source_strategy not in _KB_DEPENDENT_STRATEGIES:
+        return True
+
+    result = await session.execute(
+        sa_select(func.count())
+        .select_from(ResearchTaskKnowledgeBase)
+        .where(ResearchTaskKnowledgeBase.task_id == task.id)
+    )
+    kb_count = result.scalar() or 0
+    if kb_count > 0:
+        return True
+
+    logger.warning(
+        "来源策略为 %s 但任务缺少知识库选择，失败关闭: task_id=%s",
+        task.source_strategy, task.id,
+    )
+    await emergency_fail_task(
+        session,
+        str(task.id),
+        error_code="E3114",
+        error_message="该研究任务依赖内部知识库，但未绑定任何知识库，任务已失败关闭",
+        recoverable=False,
+    )
+    emit_task_status_transition("failed", recoverable=False, error_code="E3114")
+    return False
+
+
 async def _run_pipeline(task_id: str) -> dict:
     """异步 Pipeline 执行体（在 Worker 持久事件循环中运行）。
 
@@ -184,7 +230,13 @@ async def _run_pipeline(task_id: str) -> dict:
             )
             return {"status": "skipped", "task_id": task_id, "reason": f"status={task.status}"}
 
-        # 2. 实例化依赖
+        # 2. 来源策略 fail-closed 守卫：knowledge/hybrid 必须持有 KB 选择，
+        #    不变量破坏时任务失败关闭（E3114），不得静默退化为 web
+        if not await _enforce_strategy_dependency(session, task):
+            await session.commit()
+            return {"status": "failed", "task_id": task_id, "reason": "strategy_dependency_missing"}
+
+        # 3. 实例化依赖
         sse_bridge = SSEBridge(task_id)
 
         # 断点续跑：传入上一次运行的 trace，使续跑中被跳过的阶段保留记录，
@@ -206,7 +258,7 @@ async def _run_pipeline(task_id: str) -> dict:
             topic=task.topic,
             previous_trace=previous_trace,
         )
-        # 3. 使用 AgentRuntime 执行研究任务（PipelineOrchestrator 已弃用）
+        # 4. 使用 AgentRuntime 执行研究任务（PipelineOrchestrator 已弃用）
         runtime = AgentRuntime.build_default(
             task=task,
             session=session,
@@ -215,10 +267,10 @@ async def _run_pipeline(task_id: str) -> dict:
         )
         await runtime.run()
 
-        # 4. 提交全部变更（Step 状态 + Execution Context + Task 状态）
+        # 5. 提交全部变更（Step 状态 + Execution Context + Task 状态）
         await session.commit()
 
-        # 5. 刷新内存对象：Orchestrator 内部可能通过 update 直接修改 DB，
+        # 6. 刷新内存对象：Orchestrator 内部可能通过 update 直接修改 DB，
         #    避免返回 stale 状态或触发懒加载异常
         await session.refresh(task)
 

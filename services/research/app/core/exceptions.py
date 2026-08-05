@@ -446,6 +446,20 @@ class CeleryWorkerNotPickedUpException(AppException):
         )
 
 
+class KnowledgeBasesMissingException(AppException):
+    """knowledge/hybrid 任务执行时缺少任何知识库选择（Worker fail-closed，API.md §8.1）。"""
+
+    def __init__(self, detail: str = ""):
+        super().__init__(
+            "E3114", "任务依赖的内部知识库选择缺失", 500,
+            {
+                "error_type": "KnowledgeBasesMissing",
+                "error_description": detail or "knowledge/hybrid 任务必须绑定至少一个知识库，任务失败关闭",
+                "recoverable": False,
+            },
+        )
+
+
 class UnknownInternalException(AppException):
     """未预期的内部错误（兜底错误码，Worker 崩溃/未捕获异常时使用）。"""
 

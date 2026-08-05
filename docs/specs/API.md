@@ -160,7 +160,7 @@ v1.0 Chat 请求只接受一个 `knowledge_base_id`，Conversation 也只绑定�
 | `DELETE /api/v1/research/tasks/{task_id}` | owner/admin 治理 | 204 |
 | `GET /api/v1/research/tasks/{task_id}/events` | owner/admin 审计 | 200 SSE |
 
-ADR 检查 1–8：否。本切片（M3 A）实现本节已定义的 `POST /api/v1/research/tasks` 幂等创建，契约与幂等机制由本节、DATABASE.md §5.1–5.2 与 ADR-008 唯一确定，属「已有规范唯一确定实现方式」。裁决记录（2026-08-05）：负责人裁决 ① 创建响应沿用 `{"code","message","data"}` 信封（迁移态，见 §8.2）；② KB「当前可读」在 Internal Retrieval 时实时鉴权，创建时仅结构校验；③ 本节新增 `idempotent_replayed` 字段定义。
+ADR 检查 1–8：否。本切片（M3 A）实现本节已定义的 `POST /api/v1/research/tasks` 幂等创建，契约与幂等机制由本节、DATABASE.md §5.1–5.2 与 ADR-008 唯一确定，属「已有规范唯一确定实现方式」。裁决记录（2026-08-05）：负责人裁决 ① 创建响应沿用 `{"code","message","data"}` 信封（迁移态，见 §8.2）；② KB「当前可读」在 Internal Retrieval 时实时鉴权，创建时仅结构校验；③ 本节新增 `idempotent_replayed` 字段定义。§8.1 的 Worker 来源策略 fail-closed 守卫（E3114）ADR 检查 1–8：否（行为由 RESEARCH_PIPELINE §1.7/§6.1/§12.1/§12.2 与 DATABASE.md §5.1 唯一确定，仅新增任务终态错误码，与既有 E2xxx/E3xxx 迁移期错误码同类）。（2026-08-05）
 
 ### 8.1 创建语义
 
@@ -172,6 +172,8 @@ ADR 检查 1–8：否。本切片（M3 A）实现本节已定义的 `POST /api/
 `request_fingerprint` 由服务端对规范化请求载荷计算（SHA-256，64 位 hex）。`idempotent_replayed` 首次创建为 `false`，重放命中为 `true`；重放时响应返回该任务当前状态，不反映创建时刻。
 
 `knowledge`/`hybrid` 至少选择一个 KB（1–50 个，合法 UUID）；`web` 不接受 KB。创建时仅做上述结构校验；「当前可读」由 Knowledge 在 `/internal/v1/retrieval/search` 对全部目标 KB 实时鉴权，任一不可访问时该次检索整体失败（DATABASE.md §5.2、ADR-010），创建成功不构成对 KB 后续权限的承诺。
+
+Worker 执行时再次核验来源策略依赖（fail-closed，RESEARCH_PIPELINE §1.7/§6.1/§12.1/§12.2）：`knowledge`/`hybrid` 任务必须持有至少一个知识库选择行（DATABASE.md §5.1 不变量）；不变量被破坏时（历史数据、选择行被删等）任务直接进入终态 `failed`（迁移期错误码 `E3114 KnowledgeBasesMissing`，`recoverable=false`），不得静默按 `web` 路径执行或部分放行。
 
 取消和恢复命令幂等。并发或队列达到上限返回 `429 RS_TASK_CONCURRENCY_LIMIT` 或 `RS_QUEUE_LIMIT`，`retryable=true`。
 

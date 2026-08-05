@@ -7,21 +7,44 @@ from sqlalchemy import select as sa_select
 
 from app.core.exceptions import SearchFailedException
 from app.models.research_task import ResearchTask
+from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
 from app.models.research_step import ResearchStep
 from app.tasks.research_task import _build_trace_from_steps, _emergency_fail, _run_pipeline
 
 
-async def _seed_user_and_task(db_session, task_status: str = "pending") -> ResearchTask:
+async def _seed_user_and_task(
+    db_session,
+    task_status: str = "pending",
+    source_strategy: str = "web",
+) -> ResearchTask:
     """创建使用外部身份 UUID 的任务。"""
     task = ResearchTask(
         user_id="00000000-0000-4000-8000-000000000001",
         topic="emergency fail 测试",
         requirements={"task_type": "analysis", "max_sources": 10, "language": "zh"},
+        source_strategy=source_strategy,
         status=task_status,
     )
     db_session.add(task)
     await db_session.flush()
     return task
+
+
+async def _seed_kb_row(
+    db_session,
+    task_id: str,
+    kb_id: str = "11111111-1111-4111-8111-111111111111",
+    order: int = 0,
+) -> None:
+    """为任务添加一条知识库选择行。"""
+    db_session.add(
+        ResearchTaskKnowledgeBase(
+            task_id=task_id,
+            knowledge_base_id=kb_id,
+            selection_order=order,
+        )
+    )
+    await db_session.flush()
 
 
 class _SessionContextManager:
@@ -213,6 +236,117 @@ class TestRunPipelineStatusBranches:
         assert result["status"] == "error"
         assert result["reason"] == "TaskNotFound"
         mock_runtime_cls.assert_not_called()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 来源策略 fail-closed 守卫（#7）
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestRunPipelineStrategyGuard:
+    """Worker 来源策略 fail-closed 守卫。
+
+    对齐 RESEARCH_PIPELINE §1.7 / §6.1 / §12.1 / §12.2 与 DATABASE.md §5.1：
+    knowledge/hybrid 任务执行时必须持有至少一个知识库选择行（§5.1 不变量），
+    否则任务失败关闭（E3114），不得静默退化为 web 路径。
+    """
+
+    @pytest.mark.asyncio
+    async def test_knowledge_有KB_正常执行(self, db_session):
+        task = await _seed_user_and_task(db_session, source_strategy="knowledge")
+        await _seed_kb_row(db_session, task.id)
+
+        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
+                mock_runtime = MagicMock()
+                mock_runtime.run = AsyncMock()
+                mock_runtime_cls.build_default.return_value = mock_runtime
+
+                result = await _run_pipeline(str(task.id))
+
+        assert result["status"] == "pending"
+        mock_runtime.run.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_knowledge_无KB_失败关闭(self, db_session):
+        task = await _seed_user_and_task(db_session, source_strategy="knowledge")
+
+        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
+                result = await _run_pipeline(str(task.id))
+
+        assert result["status"] == "failed"
+        await db_session.refresh(task)
+        assert task.status == "failed"
+        assert task.error_code == "E3114"
+        assert task.error_message  # 安全文案已写入
+        assert task.recoverable is False
+        assert task.completed_at is not None
+        mock_runtime_cls.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_hybrid_有KB_正常执行(self, db_session):
+        task = await _seed_user_and_task(db_session, source_strategy="hybrid")
+        await _seed_kb_row(db_session, task.id)
+
+        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
+                mock_runtime = MagicMock()
+                mock_runtime.run = AsyncMock()
+                mock_runtime_cls.build_default.return_value = mock_runtime
+
+                result = await _run_pipeline(str(task.id))
+
+        assert result["status"] == "pending"
+        mock_runtime.run.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_hybrid_无KB_失败关闭(self, db_session):
+        task = await _seed_user_and_task(db_session, source_strategy="hybrid")
+
+        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
+                result = await _run_pipeline(str(task.id))
+
+        assert result["status"] == "failed"
+        await db_session.refresh(task)
+        assert task.status == "failed"
+        assert task.error_code == "E3114"
+        assert task.recoverable is False
+        assert task.completed_at is not None
+        mock_runtime_cls.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_web_无KB_不受守卫影响(self, db_session):
+        task = await _seed_user_and_task(db_session, source_strategy="web")
+
+        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
+                mock_runtime = MagicMock()
+                mock_runtime.run = AsyncMock()
+                mock_runtime_cls.build_default.return_value = mock_runtime
+
+                result = await _run_pipeline(str(task.id))
+
+        assert result["status"] == "pending"
+        mock_runtime.run.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_knowledge_多KB_放行执行(self, db_session):
+        task = await _seed_user_and_task(db_session, source_strategy="knowledge")
+        await _seed_kb_row(db_session, task.id, "22222222-2222-4222-8222-222222222222", 1)
+        await _seed_kb_row(db_session, task.id, "33333333-3333-4333-8333-333333333333", 2)
+
+        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
+                mock_runtime = MagicMock()
+                mock_runtime.run = AsyncMock()
+                mock_runtime_cls.build_default.return_value = mock_runtime
+
+                result = await _run_pipeline(str(task.id))
+
+        assert result["status"] == "pending"
+        mock_runtime.run.assert_awaited_once()
 
 
 # ═══════════════════════════════════════════════════════════════════════
