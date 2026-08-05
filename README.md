@@ -1,69 +1,171 @@
 # 据见（EvidSight）
 
-据见是面向企业内部研究场景的证据驱动知识与深度研究平台。它将企业知识问答、互联网研究、Evidence Graph 和结构化报告放在统一身份、权限和审计边界内，使关键结论可以回到证据，再回到原始来源位置。
+> **有据，方有见。**
 
-> 当前状态：规范基线与 Monorepo 迁移准备阶段。仓库已经建立产品、架构、接口、数据库、Pipeline 和前端设计，DocMind/ResearchMind 的生产实现尚未完成迁入；根目录示例 CLI 不代表 EvidSight 产品已经可运行。
+据见是一款面向企业的 AI 驱动可信研究平台。它将企业内部知识与互联网信息统一检索、分析和验证，让每个结论都可追溯、可复核。
 
-## v1.0 范围
+---
 
-- 单 KB 企业知识问答与会话；前端保留可演进选择器，多选显示“规划中”且不可执行；
-- `knowledge`、`web`、`hybrid` 三类深度研究来源策略；
-- Research 通过权限感知的 Internal Retrieval 使用一个或多个 KB；
-- 内外来源区分、Evidence Graph、冲突与不确定性表达；
-- 结构化报告及引用—Evidence—原始来源联动；
-- 统一身份、实时权限复核、治理审计和可恢复任务。
+## 产品简介
 
-多 KB Chat、正式 PDF/Word 导出、跨任务 Evidence 复用和完整成本看板属于 v1.x。
+企业研究通常依赖内部文档、市场材料、政策法规等多类分散来源。据见提供统一入口，根据问题复杂度自动匹配知识问答、综合问答或深度研究，支持仅使用企业知识、仅使用互联网、或混合使用两类来源。
 
-## 仓库导航
+### 核心能力
 
-| 入口 | 内容 |
-|:---|:---|
-| [文档中心](docs/README.md) | 文档分层、规范索引和维护规则 |
-| [开发指南](docs/guides/DEVELOPMENT.md) | 环境、目录结构、启动、测试和开发工作流 |
-| [PRD](docs/specs/PRD.md) | 产品范围、角色、功能和验收指标 |
-| [总体架构](docs/specs/ARCHITECTURE.md) | 服务边界、部署拓扑、数据隔离和恢复目标 |
-| [身份与访问](docs/specs/IDENTITY_AND_ACCESS.md) | JWT、用户禁用、服务认证、权限与敏感数据外发 |
-| [API](docs/specs/API.md) | HTTP、错误码、幂等和两类 SSE |
-| [跨服务契约](packages/contracts/README.md) | Internal Retrieval 与 Evidence Contract |
-| [Knowledge Pipeline](services/knowledge/docs/RAG_PIPELINE.md) | 入库、单 KB Chat、多 KB Internal Retrieval |
-| [Research Pipeline](services/research/docs/RESEARCH_PIPELINE.md) | 七阶段研究、恢复、Evidence Graph 和报告发布 |
-| [前端设计](apps/web/docs/FRONTEND.md) | 页面、交互和客户端状态机 |
-| [路线图](docs/plans/ROADMAP.md) | M0—M6 里程碑与退出门禁 |
+**企业知识问答** — 上传文档构建知识库，自然语言提问获得带来源引用的流式回答。系统支持多轮对话，每次回答都关联具体来源位置。
 
-## 当前开发入口
+![知识问答界面：选择知识库后提问，获得带引用的流式回答](resource/prototype/07-chat.png)
 
-当前应先执行 [Monorepo 迁移计划](docs/plans/MONOREPO_MIGRATION_PLAN.md)。在 M0 验收完成前，不应把根目录 `uv run evidsight`、空的服务目录或原型页面描述为可发布能力。
+**深度研究** — 面对复杂问题时，系统启动多阶段 Agent 执行研究。支持对比型、解释型和影响分析型任务，用户可选择仅使用企业知识、仅使用互联网、或混合使用两类来源。
 
-开发行为遵循 [AGENT.md](AGENTS) 的规范驱动开发门禁：先确认权威规范和验收条件，再写测试与实现，最后同步文档和变更记录。
+![创建研究任务：选择任务类型和来源策略](resource/prototype/03-research-create.png)
 
-## M0 Monorepo 开发入口
+**证据驱动报告** — 研究完成后生成结构化报告，关键结论关联证据，证据可追溯到原始来源位置。内外来源清晰区分，冲突与不确定性显式展示，不会将矛盾信息伪装为确定事实。
 
-M0 按 [总体架构](docs/specs/ARCHITECTURE.md)、[PRD](docs/specs/PRD.md) 和 [迁移计划](docs/plans/MONOREPO_MIGRATION_PLAN.md) 将两个来源项目迁入以下独立边界：
+![研究执行过程：展示阶段进度、状态和耗时](resource/prototype/05-research-runtime.png)
 
-```text
-apps/web/                 # M0 阶段的统一 Web 基线
-services/knowledge/       # Knowledge Service，独立 Python 环境与迁移链
-services/research/        # Research Service，独立 Python 环境与迁移链
-packages/contracts/       # 跨服务纯数据契约
-packages/frontend-shared/ # 经验证后才能进入的前端共享能力
+**权限感知** — 研究和报告不绕过原知识来源的访问权限。内部证据进入报告不会赋予永久访问权，用户打开原文时按当前权限重新校验。
+
+## 技术架构
+
+据见采用 Monorepo 结构，前后端分离，服务间通过契约通信。Knowledge Service 负责身份认证、知识库管理和知识问答；Research Service 负责研究任务执行和报告生成。两个服务通过 `Internal Retrieval API` 协作，Research 不直读 Knowledge 数据库。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Nginx 统一入口                        │
+│              (TLS 终止 / SPA 静态文件 / 路由)                 │
+└──────────────┬──────────────────────────┬───────────────────┘
+               │                          │
+    ┌──────────▼──────────┐    ┌──────────▼──────────┐
+    │   Knowledge API     │    │   Research API      │
+    │   (FastAPI)         │    │   (FastAPI)         │
+    │   - 身份认证         │    │   - 研究任务         │
+    │   - 知识库管理       │    │   - Agent Runtime   │
+    │   - 知识问答         │    │   - 报告生成         │
+    │   - Internal API    │◄───│   - SSE 推送         │
+    └──────────┬──────────┘    └──────────┬──────────┘
+               │                          │
+    ┌──────────▼──────────┐    ┌──────────▼──────────┐
+    │ Knowledge Worker    │    │ Research Worker     │
+    │ (Celery)            │    │ (Celery)            │
+    │ - 文档入库           │    │ - 研究执行           │
+    │ - 解析/分块/Embedding│    │ - 重试与恢复         │
+    └─────────────────────┘    └─────────────────────┘
+               │                          │
+    ┌──────────▼──────────────────────────▼──────────┐
+    │              MySQL 8 / Redis 7                  │
+    │         (三个逻辑数据库 / 队列与缓存)             │
+    └─────────────────────────────────────────────────┘
 ```
 
-本地开发需要 Python 3.12、Node.js 20+、Docker Engine、Docker Compose v2 和 Git。迁移完成后，两个后端分别在自己的服务目录创建 `.venv` 并安装各自 `requirements.txt`；Web 严格使用 `apps/web/package-lock.json` 安装依赖。根目录不合并两个服务的运行时依赖。
+用户登录后进入统一工作台，从同一入口访问知识中心、问答、研究和管理功能：
 
-根验证入口：
+![统一工作台：知识中心、问答、研究和管理功能的入口](resource/prototype/02-workbench.png)
+
+## 技术栈
+
+| 层级 | 技术选型 |
+|:---|:---|
+| **前端** | Vue 3 + TypeScript、Vite、Pinia、Vue Router、Element Plus、ECharts |
+| **后端** | Python 3.12、FastAPI、SQLAlchemy (async)、Celery、Alembic |
+| **数据库** | MySQL 8.0（三个逻辑数据库）、Redis 7（队列/缓存/锁） |
+| **向量存储** | ChromaDB（嵌入式，Knowledge 服务管理） |
+| **LLM / Embedding** | OpenAI 兼容接口（DeepSeek / 通义千问等） |
+| **RAG Pipeline** | LangChain、BM25 + 向量召回、RRF 融合、Rerank |
+| **部署** | Docker Compose、Nginx、单机 2C2G 基线 |
+
+## 部署架构
+
+默认单机 Docker Compose 部署，面向 10–30 名试点用户。只有 Nginx 暴露公网端口，MySQL、Redis 和 Internal API 都在内部网络，不对外映射。
+
+```
+Browser ──► Nginx (80/443)
+              │
+    ┌─────────┼─────────┐
+    │         │         │
+    ▼         ▼         ▼
+  Web SPA  K-Edge    R-Edge     ← edge 网络
+              │         │
+    ┌─────────┼─────────┼─────────┐
+    │         ▼         ▼         │
+    │    K-Worker  R-Worker   Beat │
+    │         │         │         │
+    │         ▼         ▼         │
+    │       MySQL     Redis       │  ← internal 网络
+    │         │                   │
+    │    uploads   chroma         │
+    └─────────────────────────────┘
+```
+
+## 快速开始
+
+### 环境要求
+
+| 工具 | 版本 |
+|:---|:---|
+| Python | 3.12+ |
+| Node.js | 20+ |
+| Docker Engine | 24+ |
+| Docker Compose | v2 |
+
+### Docker Compose 一键部署
 
 ```bash
-make test
-make test-knowledge
-make test-research
-make test-web
-make build-web
-make compose-config
+# 复制环境变量并填写 LLM/Embedding 等 API Key
+cp .env.example .env
+
+# 启动全部服务
+docker compose up -d
+
+# 查看状态
+docker compose ps
 ```
 
-在对应来源代码完成迁入前，这些命令只表示已经建立的目标入口，不代表服务当前可运行。
+### 本地开发启动
+
+```bash
+# Knowledge Service
+uv sync --project services/knowledge --locked
+uv run --project services/knowledge alembic upgrade head
+uv run --project services/knowledge uvicorn app.main:app --reload --port 8000
+
+# Research Service
+uv sync --project services/research --locked
+uv run --project services/research alembic upgrade head
+uv run --project services/research uvicorn app.main:app --reload --port 8001
+
+# Web 前端
+npm --prefix apps/web ci
+npm --prefix apps/web run dev
+```
+
+### 验证命令
+
+```bash
+# 全量测试
+bash scripts/test_all.sh
+
+# 前端构建
+make build-web
+
+# Compose 配置校验
+docker compose config --quiet
+```
+
+部署完成后，管理员可以通过管理中心管理用户、知识库和研究任务：
+
+![管理中心：用户、知识库、研究任务的管理和审计](resource/prototype/11-admin-overview.png)
+
+## 项目状态
+
+据见当前处于 **规范基线与 Monorepo 迁移准备阶段**。仓库已完成产品、架构、接口、数据库、Pipeline 和前端设计规范，核心业务服务的生产实现正在迁入中。
+
+## 开发说明
+
+项目采用规范驱动开发（SDD）流程：先确认权威规范和验收条件，再写测试与实现，最后同步文档和变更记录。
+
+完整文档索引见 [文档中心](docs/README.md)，开发指南详见 [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md)。
 
 ## License
 
-许可证见后续迁移保留的项目授权文件；正式发布前必须完成来源项目许可证兼容复核。
+正式发布前将完成来源项目许可证兼容复核。
