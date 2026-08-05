@@ -104,10 +104,16 @@ def main() -> int:
         try:
             hits = _search(args.base_url, args.kb_uuid, args.service_token,
                            args.user_id, item["question"], args.request_timeout)
-            recalled = [d for d in hits if any(
-                _name_matches(d, exp) for exp in expected
-            )]
-            recall = len(recalled) / len(expected) if expected else 0.0
+            # Recall@K 以「期望文档是否出现在命中里」为准，同一文档的多个
+            # chunk 命中只计一次；直接数命中条数会得到 >1 的伪 recall。
+            recalled = sorted({
+                d for d in hits if any(_name_matches(d, exp) for exp in expected)
+            })
+            matched_expected = sum(
+                1 for exp in expected
+                if any(_name_matches(d, exp) for d in hits)
+            )
+            recall = matched_expected / len(expected) if expected else 0.0
             failed = False
         except Exception as e:  # noqa: BLE001
             recalled, recall, failed = [], 0.0, True

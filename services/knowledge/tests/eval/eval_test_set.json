@@ -1,0 +1,12 @@
+[
+  {"id": 1, "question": "员工因业务需要招待客户时，人均餐费的标准上限是多少？", "expected_docs": ["报销制度.md"]},
+  {"id": 2, "question": "如何申请VPN账号？首次登录后需要在多长时间内修改初始密码？", "expected_docs": ["VPN配置指南.md"]},
+  {"id": 3, "question": "研发岗位实行弹性工作制，核心在岗时间段是什么？", "expected_docs": ["请假与考勤制度.md"]},
+  {"id": 4, "question": "员工因公出差产生的差旅费用应按照哪份文件进行报销？", "expected_docs": ["差旅管理规定.md"]},
+  {"id": 5, "question": "固定资产的购置、使用、维护、盘点、处置属于哪个管理办法的全生命周期管理？", "expected_docs": ["固定资产管理办法.md"]},
+  {"id": 6, "question": "代码评审标准的目的是什么？", "expected_docs": ["代码评审标准.md"]},
+  {"id": 7, "question": "公司数据的采集、存储、使用、传输、共享及销毁等全生命周期管理由哪份规范规定？", "expected_docs": ["数据安全规范.md"]},
+  {"id": 8, "question": "员工如何申请各类信息系统的账号及权限？", "expected_docs": ["系统权限申请流程.md"]},
+  {"id": 9, "question": "公司绩效考核结果用于哪些方面？", "expected_docs": ["绩效考核制度.md"]},
+  {"id": 10, "question": "员工离职时应完成哪些工作交接以确保业务连续性？", "expected_docs": ["离职交接流程.md"]}
+]

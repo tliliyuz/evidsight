@@ -37,6 +37,8 @@ x-knowledge-environment: &knowledge-environment
   CLEAN_REPAIR_UNICODE: ${CLEAN_REPAIR_UNICODE:-true}
   CHROMA_PERSIST_DIR: /data/chroma
   UPLOAD_DIR: /data/uploads
+  # Service JWT 验证（Research 签发 / Knowledge 公钥验证，对齐 CONFIGURATION.md §3）
+  EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE: ${EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE:-/run/secrets/service_jwt_public_keys.json}
 
 x-research-environment: &research-environment
   DEBUG: "true"
@@ -59,6 +61,10 @@ x-research-environment: &research-environment
   LLM_FLASH_MODEL: ${LLM_FLASH_MODEL:-mimo-v2.5}
   TAVILY_BASE_URL: ${TAVILY_BASE_URL:-https://api.tavily.com}
   TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+  # Service JWT 签发（对齐 CONFIGURATION.md §3；TTL 300s 便于 AC 验证与联调）
+  EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE: ${EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE:-/run/secrets/service_jwt_private.pem}
+  EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID: ${EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID:-dev-20260805}
+  EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: ${EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS:-300}
 
 x-knowledge-service: &knowledge-service
   build:
@@ -108,6 +114,7 @@ services:
       - evidsight_knowledge_uploads:/data/uploads
       - evidsight_knowledge_chroma:/data/chroma
       - ./packages/contracts:/app/packages/contracts:ro
+      - ./deploy/secrets/service-jwt:/run/secrets:ro
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8000/api/health"]
       interval: 10s
@@ -123,11 +130,27 @@ services:
       - evidsight_knowledge_uploads:/data/uploads
       - evidsight_knowledge_chroma:/data/chroma
 
+  knowledge-beat:
+    image: evidsight-knowledge-worker
+    pull_policy: never
+    environment: *knowledge-environment
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [internal]
+    restart: unless-stopped
+    command: ["celery", "-A", "app.ingest.celery_app", "beat", "--loglevel=info"]
+    volumes:
+      - evidsight_knowledge_beat:/var/lib/celery
+
   research-api:
     <<: *research-service
     command: ["web"]
     volumes:
       - ./packages/contracts:/app/packages/contracts:ro
+      - ./deploy/secrets/service-jwt:/run/secrets:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 10s
@@ -190,3 +213,4 @@ volumes:
   evidsight_knowledge_uploads:
   evidsight_knowledge_chroma:
   evidsight_research_beat:
+  evidsight_knowledge_beat:

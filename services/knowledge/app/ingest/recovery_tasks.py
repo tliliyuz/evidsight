@@ -25,7 +25,7 @@ from app.ingest.lock import (
     release_version_lock_async,
 )
 from app.ingest.tasks import ingest_version
-from app.ingest.versioning import PROCESSING_STAGES
+from app.ingest.versioning import PROCESSING_STAGES, QUEUED
 from app.models.document_version import DocumentVersion
 from app.models.knowledge_base import KnowledgeBase
 
@@ -33,17 +33,22 @@ logger = logging.getLogger(__name__)
 
 _KB_LOCK_STATUSES = ("updating", "recovering")
 
+# 恢复扫描覆盖的阶段：处理中阶段 + queued（对齐 RAG_PIPELINE.md §3.4：
+# “queued 或超时非终态 Version 由周期扫描恢复”；Worker 在首个 Checkpoint
+# 前崩溃、任务已被 ack 的场景会把版本留在 queued，必须同样可重投）。
+SCAN_STATUSES = frozenset(PROCESSING_STAGES) | {QUEUED}
+
 
 async def _scan_stuck_versions_async() -> dict:
     """扫描卡死版本与卡死 KB 发布锁并执行恢复，返回本次处理统计。"""
     now = datetime.now(timezone.utc)
 
-    # 1. 卡死版本：非终态 + 超过超时阈值 + 无活跃锁 → 重投 ingest_version
+    # 1. 卡死版本：非终态（含 queued）+ 超过超时阈值 + 无活跃锁 → 重投 ingest_version
     version_cutoff = now - timedelta(seconds=settings.STUCK_VERSION_TIMEOUT)
     async with async_session() as db:
         result = await db.execute(
             select(DocumentVersion).where(
-                DocumentVersion.status.in_(PROCESSING_STAGES),
+                DocumentVersion.status.in_(SCAN_STATUSES),
                 DocumentVersion.updated_at < version_cutoff,
             )
         )

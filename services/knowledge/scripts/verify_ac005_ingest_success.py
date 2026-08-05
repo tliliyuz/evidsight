@@ -67,7 +67,10 @@ def _list_documents(api_base: str, kb_uuid: str, token: str) -> dict[str, str]:
         headers=headers, timeout=30,
     )
     resp.raise_for_status()
-    items = resp.json().get("data") or []
+    # 列表接口返回 {data: {total, page, page_size, items: [...]}}，
+    # 不可按顶层 data 直接迭代（实测会拿到分页元数据的字符串键）。
+    payload = resp.json().get("data") or {}
+    items = payload.get("items") or []
     return {item.get("filename"): item.get("status") for item in items}
 
 
@@ -120,7 +123,10 @@ def main() -> int:
         failures.append((name, "状态轮询超时未达终态"))
 
     # 3. 统计（排除上传失败未产生状态的文档；用户主动取消由执行者记录）
-    evaluated = [n for n in files if n not in {f for f, _ in failures}]
+    # 注意：files 为 Path 对象，而 final_status/failures 以 fp.name 字符串为键，
+    # 必须统一按文件名比较，否则 Path != str 导致状态查询全部落空。
+    evaluated = [fp.name for fp in files
+                 if fp.name not in {f for f, _ in failures}]
     successes = [n for n in evaluated if final_status.get(n) in SUCCESS_STATUSES]
     failed_ingest = [n for n in evaluated if final_status.get(n) in FAILED_STATUSES]
     success_rate = (len(successes) / len(evaluated)) if evaluated else 0.0

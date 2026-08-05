@@ -14,3 +14,4 @@ htmlcov/
 chroma_data/
 /services/knowledge/knowledge_samples/
 /services/knowledge/scripts/.ab/
+deploy/secrets/

@@ -107,6 +107,18 @@ class TestScanStuckVersions:
 
         assert not (PROCESSING_STAGES & TERMINAL_VERSION_STATUSES)
 
+    def test_扫描状态集合覆盖queued(self):
+        """恢复扫描必须覆盖 queued（RAG_PIPELINE.md §3.4：queued 或超时非终态由扫描恢复）。
+
+        Worker 在首个 Checkpoint（parsing）提交前崩溃、任务已被 ack 时，
+        版本停留在 queued；若不覆盖该状态，版本将永久卡死无法重投。
+        """
+        from app.ingest.recovery_tasks import SCAN_STATUSES
+        from app.ingest.versioning import TERMINAL_VERSION_STATUSES
+
+        assert "queued" in SCAN_STATUSES
+        assert not (SCAN_STATUSES & TERMINAL_VERSION_STATUSES)
+
 
 class TestScanStuckKbLock:
     """卡死 KB 发布锁回滚"""
