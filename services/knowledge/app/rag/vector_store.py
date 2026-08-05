@@ -75,6 +75,16 @@ class BaseVectorStore(ABC):
         """
         ...
 
+    @abstractmethod
+    async def get_ids(self, kb_id: int, where: dict | None = None) -> list[str]:
+        """返回匹配 where 条件的向量 id 列表。
+
+        用于发布后在线集合一致性校验（ADR-007「校验在线集合」）：对比
+        在线 Collection 实际向量与 staging 声明的版本作用域 id 是否一致。
+        不定义 count()（不同向量库 count 语义差异大），统一取回 ids 由调用方判等。
+        """
+        ...
+
 
 class ChromaVectorStore(BaseVectorStore):
     """ChromaDB 向量存储实现（Per-KB Collection 策略）
@@ -185,4 +195,31 @@ class ChromaVectorStore(BaseVectorStore):
                 )
         except Exception:
             logger.exception("ChromaDB delete 失败: kb_id=%d where=%s", kb_id, where)
+            raise
+
+    async def get_ids(self, kb_id: int, where: dict | None = None) -> list[str]:
+        """返回匹配 where 的向量 id（offset 分页收集，避免单次 get 拉全量内存）。"""
+        try:
+            _collection = self._get_kb_collection(kb_id)
+            ids: list[str] = []
+            offset = 0
+            page_size = 1000
+            while True:
+                def _get_page():
+                    return _collection.get(
+                        where=where,
+                        include=[],
+                        limit=page_size,
+                        offset=offset,
+                    )
+
+                page = await asyncio.to_thread(_get_page)
+                page_ids = page.get("ids") or []
+                ids.extend(page_ids)
+                if len(page_ids) < page_size:
+                    break
+                offset += page_size
+            return ids
+        except Exception:
+            logger.exception("ChromaDB get_ids 失败: kb_id=%d where=%s", kb_id, where)
             raise

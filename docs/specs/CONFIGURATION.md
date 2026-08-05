@@ -54,7 +54,7 @@
 | `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE` | Platform | bool | `true` | public |
 | `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SAMESITE` | Platform | enum | `lax`；跨站部署用 `none` 且必须 `Secure` | public |
 | `EVIDSIGHT_PLATFORM_CSRF_COOKIE_NAME` | Platform | string | `evidsight_csrf` | public |
-| `EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS` | Platform | csv string | 必填（严格 Origin 校验） | public |
+| `EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS` | Platform | csv string | 生产必填，为空拒绝启动（严格 Origin 校验） | public |
 | `EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT` | Platform | bool | `false`（M1 迁移期可开） | public |
 | `EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER` | Platform | string | `evidsight-platform` | public |
 | `EVIDSIGHT_PLATFORM_SERVICE_JWT_ALGORITHM` | Platform | enum | `RS256` | public |
@@ -104,7 +104,7 @@
 
 生产部署可以覆盖默认值，但必须在变更记录中说明容量、安全和保留影响。新增键先进入本表，再进入 `.env.example`、Settings Schema、Compose 和配置测试。
 
-Refresh Cookie 与 CSRF 传输规则见 [IDENTITY_AND_ACCESS.md](IDENTITY_AND_ACCESS.md) §4.2；错误码见 [API.md](API.md) §5。生产环境 `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME` 必须使用 `__Host-` 前缀（同时要求 `Secure` 且不设 Domain）；`EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS` 用于 Refresh/Logout 的 Origin 白名单校验，为空时按同站处理。开发环境允许将 `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE` 置为 `false` 以便在 HTTP 下调试，但生产必须为 `true`。`EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT` 开启后仅作为 M1 迁移期兼容入口，需记录不含 Token 的弃用调用量并在观测窗口归零后删除，禁止被新前端依赖。
+Refresh Cookie 与 CSRF 传输规则见 [IDENTITY_AND_ACCESS.md](IDENTITY_AND_ACCESS.md) §4.2；错误码见 [API.md](API.md) §5。生产环境 `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME` 必须使用 `__Host-` 前缀（同时要求 `Secure` 且不设 Domain）；`EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS` 用于 Refresh/Logout 的 Origin 白名单校验，生产环境必填、为空拒绝启动（fail-fast，避免带病上线后服务间认证与 CSRF 校验全部失效）；开发环境允许为空按同站处理。开发环境允许将 `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE` 置为 `false` 以便在 HTTP 下调试，但生产必须为 `true`。`EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT` 开启后仅作为 M1 迁移期兼容入口，需记录不含 Token 的弃用调用量并在观测窗口归零后删除，禁止被新前端依赖。
 
 Service JWT 只由 Research 签发、由 Knowledge 验证，使用独立于用户 Access/Refresh Token 的密钥材料。JWT Header 必须包含 `kid`；Payload 必须包含 `iss`、`aud`、`sub=research-service`、`token_type=service`、`jti`、`iat`、`nbf` 和 `exp`。Knowledge 只接受算法允许列表、配置的 Issuer、`knowledge-internal` Audience 和已登记 Key ID。公钥文件必须支持当前 Key 与上一 Key 的受控验证窗口；私钥、公钥内容和 Token 不得进入日志或错误响应。
 

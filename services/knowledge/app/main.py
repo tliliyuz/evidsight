@@ -22,6 +22,8 @@ from app.core.csrf import clear_auth_cookies
 from app.core.exceptions import AppException
 from app.core.logging_config import get_request_id, setup_logging
 from app.core.redis_client import close_async_redis, get_async_redis
+from app.core.service_security import public_keys_loadable
+from app.core.startup_checks import validate_production_config
 from app.middleware.auth_middleware import AuthMiddleware
 from app.middleware.rate_limit_middleware import RateLimitMiddleware
 from app.middleware.request_id_middleware import RequestIDMiddleware
@@ -68,6 +70,11 @@ async def lifespan(app: FastAPI):
                 "JWT_SECRET_KEY 未设置或仍为默认值，"
                 "请通过 .env 文件设置 JWT_SECRET_KEY"
             )
+
+    # 生产配置校验：必填项缺失拒绝启动（fail-fast，对齐 CONFIGURATION.md 生产必填）
+    startup_errors = validate_production_config()
+    if startup_errors:
+        raise RuntimeError("生产配置校验失败: " + "; ".join(startup_errors))
 
     logger.info("DocMind 应用启动完成 (DEBUG=%s)", settings.DEBUG)
     yield
@@ -190,3 +197,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/api/health/ready")
+async def health_ready():
+    """就绪探针（对齐 ADR-005 readiness）：Service 公钥可加载视为就绪。
+
+    /api/health 为 liveness（进程活着即 ok）；readiness 做关键依赖检查，
+    不满足返回 503，避免带病对外服务（如公钥缺失导致 Service JWT 全部验证失败）。
+    """
+    if public_keys_loadable():
+        return {"status": "ok"}
+    return JSONResponse(status_code=503, content={"status": "unavailable"})

@@ -409,7 +409,18 @@ async def _resolve_one(db: AsyncSession, kb: KnowledgeBase, ref: dict) -> dict:
     if page is not None:
         location = {"page_number": int(page)}
     else:
-        location = {"section_path": ["来源"]}
+        # 与 search 路径 _map_hit 一致的真实定位推导：无 page 时用 section_path；
+        # 两者均缺则拒绝（不伪造来源，对齐 CHANGELOG「不做静默错误」）
+        section_path: list[str] = []
+        if chunk.metadata_:
+            raw = chunk.metadata_.get("section_path")
+            if isinstance(raw, str):
+                section_path = [p.strip() for p in raw.split(">") if p.strip()]
+        if section_path:
+            location = {"section_path": section_path}
+        else:
+            raise InternalRetrievalError(400, "EVIDENCE_SOURCE_UNAVAILABLE",
+                                         "引用来源缺少可解释位置", False)
 
     source_updated_at = (
         _fmt_utc(doc.updated_at)

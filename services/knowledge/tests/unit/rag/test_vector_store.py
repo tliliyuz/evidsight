@@ -27,7 +27,7 @@ class TestBaseVectorStore:
             IncompleteStore()  # type: ignore[abstract]
 
     def test_实现全部方法的子类可实例化(self):
-        """实现了 search/add/delete（含 kb_id）的子类可正常实例化"""
+        """实现了 search/add/delete/get_ids（含 kb_id）的子类可正常实例化"""
 
         class FullStore(BaseVectorStore):
             async def search(self, query_embeddings, n_results, kb_id, include, where=None):
@@ -38,6 +38,9 @@ class TestBaseVectorStore:
 
             async def delete(self, kb_id, where=None):
                 pass
+
+            async def get_ids(self, kb_id, where=None):
+                return []
 
         store = FullStore()
         assert isinstance(store, BaseVectorStore)
@@ -203,6 +206,42 @@ class TestChromaVectorStoreAdd:
         store = ChromaVectorStore(mock_client)
         with pytest.raises(RuntimeError, match="ChromaDB 写入失败"):
             await store.add(ids=["id1"], kb_id=1, embeddings=[[0.1]])
+
+
+class TestChromaVectorStoreGetIds:
+    """ChromaVectorStore.get_ids — 发布后在线集合一致性校验用 id 取回"""
+
+    @pytest.mark.asyncio
+    async def test_get_ids委托get并传where(self):
+        """get_ids 在指定 KB collection 中按 where 取回 ids（include=[] 只取 id）"""
+        mock_client, mock_collection = _make_mock_client()
+        mock_collection.get.return_value = {"ids": ["doc_1_v2_c0", "doc_1_v2_c1"]}
+
+        store = ChromaVectorStore(mock_client)
+        ids = await store.get_ids(
+            kb_id=1, where={"$and": [{"doc_id": 1}, {"version": 2}]},
+        )
+
+        assert ids == ["doc_1_v2_c0", "doc_1_v2_c1"]
+        call_kwargs = mock_collection.get.call_args[1]
+        assert call_kwargs["where"] == {"$and": [{"doc_id": 1}, {"version": 2}]}
+        assert call_kwargs["include"] == []
+
+    @pytest.mark.asyncio
+    async def test_get_ids分页收集直到不足页大小(self):
+        """offset 分页：满页继续下一页，不足页大小停止，避免单次全量拉取"""
+        mock_client, mock_collection = _make_mock_client()
+        mock_collection.get.side_effect = [
+            {"ids": [f"id{i}" for i in range(1000)]},
+            {"ids": ["last"]},
+        ]
+
+        store = ChromaVectorStore(mock_client)
+        ids = await store.get_ids(kb_id=1, where=None)
+
+        assert len(ids) == 1001
+        assert mock_collection.get.call_count == 2
+        assert mock_collection.get.call_args_list[1][1]["offset"] == 1000
 
 
 class TestChromaVectorStoreDelete:

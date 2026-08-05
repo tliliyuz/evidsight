@@ -19,6 +19,21 @@ def _load_public_keys() -> dict[str, str]:
         return json.load(f)
 
 
+def public_keys_loadable() -> bool:
+    """Service 公钥文件可加载检查（启动 fail-fast / readiness 探针用）。
+
+    空路径、文件缺失、JSON 解析失败或内容为空映射，均视为不可用（此时
+    verify_service_token 对任何 Token 都返回 {}，服务间认证必然失败）。
+    """
+    if not settings.EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE:
+        return False
+    try:
+        keys = _load_public_keys()
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return False
+    return isinstance(keys, dict) and bool(keys)
+
+
 def verify_service_token(token: str) -> dict:
     """验证 Service JWT，成功返回 payload dict，失败返回 {}。
 

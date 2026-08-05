@@ -199,6 +199,7 @@ class TestPublishVersion:
         kb.id = 1
         kb.index_status = "ready"
         kb.index_generation = 0
+        kb.status = "active"
 
         doc = MagicMock(spec=Document)
         doc.id = 7
@@ -213,6 +214,7 @@ class TestPublishVersion:
         version.staging_artifact_key = "staging/1/ver-uuid.json"
 
         store = AsyncMock()
+        store.get_ids = AsyncMock(return_value=["doc_7_v2_c0", "doc_7_v2_c1"])
         rows = _make_staging_rows(2)
 
         # 记录每次 commit 时 KB 的发布锁状态，验证「updating → ready」的锁窗口
@@ -269,6 +271,7 @@ class TestPublishVersion:
         kb.id = 1
         kb.index_status = "ready"
         kb.index_generation = 0
+        kb.status = "active"
         doc = MagicMock(spec=Document)
         doc.id = 7
         doc.active_version = None
@@ -280,9 +283,95 @@ class TestPublishVersion:
         version.published_at = None
         version.staging_artifact_key = None
         store = AsyncMock()
+        store.get_ids = AsyncMock(return_value=["doc_7_v1_c0"])
 
         with patch("app.ingest.versioning.invalidate_bm25_cache_async", AsyncMock()):
             await versioning.publish_version(db, kb, doc, version, store, _make_staging_rows(1))
 
         assert doc.status == DocumentStatus.PARTIAL
         assert doc.active_version == 1
+
+    @pytest.mark.asyncio
+    async def test_发布_kb删除中_中止并标记版本失败(self):
+        # ADR-007：deleting 状态不发布；置 version failed 并抛 PublishAbortedError
+        db = AsyncMock()
+        db.commit = AsyncMock()
+        kb = MagicMock(spec=KnowledgeBase)
+        kb.id = 1
+        kb.status = "deleting"
+        kb.index_status = "deleting"
+        kb.index_generation = 0
+        doc = MagicMock(spec=Document)
+        doc.id = 7
+        doc.active_version = None
+        doc.status = None
+        version = MagicMock(spec=DocumentVersion)
+        version.id = 99
+        version.version = 2
+        version.status = "verifying"
+        version.published_at = None
+        version.staging_artifact_key = None
+        version.error_msg = None
+        store = AsyncMock()
+
+        with pytest.raises(versioning.PublishAbortedError):
+            await versioning.publish_version(db, kb, doc, version, store, _make_staging_rows(2))
+
+        assert version.status == "failed"
+        assert version.error_msg == "知识库或文档处于删除流程，发布中止"
+        store.add.assert_not_called()
+        db.commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_发布_在线集合不一致_进入recovering(self):
+        # ADR-007「校验在线集合」：发布后新版本向量缺失 → 抛异常并进入 recovering
+        db = AsyncMock()
+        kb = MagicMock(spec=KnowledgeBase)
+        kb.id = 1
+        kb.index_status = "ready"
+        kb.index_generation = 0
+        kb.status = "active"
+        doc = MagicMock(spec=Document)
+        doc.id = 7
+        doc.active_version = None
+        doc.status = None
+        version = MagicMock(spec=DocumentVersion)
+        version.id = 99
+        version.version = 2
+        version.status = "verifying"
+        version.published_at = None
+        version.staging_artifact_key = None
+        store = AsyncMock()
+        # 在线集合只含 c0，缺 c1
+        store.get_ids = AsyncMock(return_value=["doc_7_v2_c0"])
+
+        with patch.object(versioning.local_storage, "delete", AsyncMock()):
+            with pytest.raises(Exception):
+                await versioning.publish_version(db, kb, doc, version, store, _make_staging_rows(2))
+
+        assert kb.index_status == "recovering"
+
+
+# ==================== chunk_count 重算语义（P1） ====================
+
+
+class TestCountChunks:
+    """发布计数重算：只统计 Active Version 覆盖的 chunks（对齐 ADR-007）"""
+
+    @pytest.mark.asyncio
+    async def test_count_active_version_chunks_返回scalar(self):
+        db = AsyncMock()
+        result = MagicMock()
+        result.scalar.return_value = 42
+        db.execute = AsyncMock(return_value=result)
+
+        assert await versioning.count_active_version_chunks(db, kb_id=1) == 42
+
+    @pytest.mark.asyncio
+    async def test_count_version_chunks_返回scalar(self):
+        db = AsyncMock()
+        result = MagicMock()
+        result.scalar.return_value = 7
+        db.execute = AsyncMock(return_value=result)
+
+        assert await versioning.count_version_chunks(db, version_id=99) == 7

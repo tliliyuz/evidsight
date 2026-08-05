@@ -61,9 +61,39 @@ def _make_kb():
     kb.id = 1
     kb.index_status = "ready"
     kb.index_generation = 0
+    kb.status = "active"
     kb.chunk_count = 0
     kb.doc_count = 0
     return kb
+
+
+def _make_stateful_store():
+    """Chroma store mock：add 记录 ids，get_ids 按 doc_id+version 回放。
+
+    模拟在线 Collection 的一致性（ADR-007「校验在线集合」）：add 写入后
+    get_ids 能读到同一批版本作用域 id。
+    """
+    store = AsyncMock()
+    added: list[tuple[int, int, str]] = []
+
+    async def _add(ids, kb_id, **kwargs):
+        metas = kwargs.get("metadatas") or []
+        for chroma_id, meta in zip(ids, metas):
+            added.append((meta["doc_id"], meta["version"], chroma_id))
+
+    async def _get_ids(kb_id, where=None):
+        doc_id = version = None
+        for cond in (where or {}).get("$and", []):
+            if "doc_id" in cond:
+                doc_id = cond["doc_id"]
+            elif "version" in cond and isinstance(cond["version"], int):
+                version = cond["version"]
+        return [cid for (d, v, cid) in added
+                if (doc_id is None or d == doc_id) and (version is None or v == version)]
+
+    store.add = AsyncMock(side_effect=_add)
+    store.get_ids = AsyncMock(side_effect=_get_ids)
+    return store
 
 
 def _make_db(doc, version, kb, chunks=None):
@@ -290,7 +320,7 @@ class TestVersionBatchCheckpoint:
                 with patch("app.ingest.tasks.release_version_lock_async"):
                     mock_embed = AsyncMock(return_value=make_mock_embed_result(2))
                     with patch("app.ingest.tasks.embed_chunks", mock_embed):
-                        with patch("app.ingest.tasks.get_vector_store", return_value=AsyncMock()):
+                        with patch("app.ingest.tasks.get_vector_store", return_value=_make_stateful_store()):
                             with patch("app.ingest.tasks.read_staging_artifact",
                                       AsyncMock(return_value=partial_rows)):
                                 with patch("app.ingest.tasks.settings") as mock_settings:
@@ -350,7 +380,7 @@ class TestCleanStageWiring:
                             with patch("app.ingest.tasks.chunk_document", side_effect=_capture_chunk):
                                 with patch("app.ingest.tasks.embed_chunks",
                                           AsyncMock(return_value=make_mock_embed_result(2))):
-                                    with patch("app.ingest.tasks.get_vector_store", return_value=AsyncMock()):
+                                    with patch("app.ingest.tasks.get_vector_store", return_value=_make_stateful_store()):
                                         with patch("app.ingest.tasks.write_staging_artifact",
                                                   AsyncMock(return_value="uploads/staging/1/ver-uuid-1.json")):
                                             with patch("app.ingest.versioning.invalidate_bm25_cache_async",
@@ -387,7 +417,7 @@ class TestCleanStageWiring:
                             with patch("app.ingest.tasks.chunk_document", side_effect=_capture_chunk):
                                 with patch("app.ingest.tasks.embed_chunks",
                                           AsyncMock(return_value=make_mock_embed_result(2))):
-                                    with patch("app.ingest.tasks.get_vector_store", return_value=AsyncMock()):
+                                    with patch("app.ingest.tasks.get_vector_store", return_value=_make_stateful_store()):
                                         with patch("app.ingest.tasks.write_staging_artifact",
                                                   AsyncMock(return_value="uploads/staging/1/ver-uuid-1.json")):
                                             with patch("app.ingest.versioning.invalidate_bm25_cache_async",

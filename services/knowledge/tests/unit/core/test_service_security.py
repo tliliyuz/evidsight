@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
 
 from app.config import settings
-from app.core.service_security import verify_service_token
+from app.core.service_security import public_keys_loadable, verify_service_token
 
 
 def _generate_keypair(kid="test-kid"):
@@ -160,3 +160,21 @@ class TestServiceKeyRotation:
         # Research 切换签发密钥：ACTIVE_KID 指向新 Key
         new_token = _sign(new["private_pem"], new["kid"])
         assert verify_service_token(new_token)["sub"] == "research-service"
+
+
+class TestPublicKeysLoadable:
+    """public_keys_loadable — 启动 fail-fast / readiness 的键文件可加载检查"""
+
+    def test_空路径_返回False(self, monkeypatch):
+        monkeypatch.setattr(settings, "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE", "")
+        assert public_keys_loadable() is False
+
+    def test_文件不存在_返回False(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(
+            settings, "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
+            str(tmp_path / "missing.json"),
+        )
+        assert public_keys_loadable() is False
+
+    def test_合法文件_返回True(self, keys):
+        assert public_keys_loadable() is True

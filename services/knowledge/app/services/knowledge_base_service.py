@@ -18,6 +18,7 @@ from app.core.uuid_helpers import resolve_user_uuid
 from app.ingest.delete_tasks import delete_kb as delete_kb_task
 from app.models.chunk import Chunk
 from app.models.document import Document
+from app.models.document_version import DocumentVersion
 from app.models.enums import DocumentStatus
 from app.models.knowledge_base import KnowledgeBase
 from app.models.user import User
@@ -51,15 +52,22 @@ async def _get_real_chunk_counts(
 ) -> dict[int, int]:
     """查询指定 KB 的实时分块总数（从 Chunk 表 COUNT，非 KB 表缓存列）。
 
-    用于替代 KnowledgeBase.chunk_count 静态缓存列，避免 Celery 任务
-    更新延迟或失败导致的僵尸计数值。
+    只统计各 Document 当前 Active Version 的 chunks（对齐 ADR-007 / P1 重算语义），
+    避免旧版本 chunks 计入。用于替代 KnowledgeBase.chunk_count 静态缓存列，
+    避免 Celery 任务更新延迟或失败导致的僵尸计数值。
     """
     if not kb_ids:
         return {}
     t0 = time.time()
     result = await db.execute(
         select(Chunk.kb_id, func.count(Chunk.id))
-        .where(Chunk.kb_id.in_(kb_ids))
+        .select_from(Chunk)
+        .join(DocumentVersion, DocumentVersion.id == Chunk.document_version_id)
+        .join(Document, Document.id == DocumentVersion.document_id)
+        .where(
+            Chunk.kb_id.in_(kb_ids),
+            Document.active_version == DocumentVersion.version,
+        )
         .group_by(Chunk.kb_id)
     )
     counts = {row.kb_id: row[1] for row in result.all()}

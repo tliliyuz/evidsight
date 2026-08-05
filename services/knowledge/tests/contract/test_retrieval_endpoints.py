@@ -328,6 +328,46 @@ class TestRetrievalSearchEndpoint:
         assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_INVALID"
 
     @pytest.mark.asyncio
+    async def test_body_contract_version_mismatch_returns_400(self, contract_client, service_auth):
+        # contracts/README §5：正文 contract_version 与版本头不一致 → INTERNAL_CONTRACT_UNSUPPORTED
+        body = _search_body(contract_version="2.0.0")
+        response = await contract_client.post(self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth)))
+        assert response.status_code == 400
+        assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_UNSUPPORTED"
+
+    @pytest.mark.asyncio
+    async def test_empty_query_returns_400(self, contract_client, service_auth):
+        # retrieval-request.schema.json：query minLength=1
+        response = await contract_client.post(self.SEARCH_URL, json=_search_body(query=""), headers=_headers(_service_token(service_auth)))
+        assert response.status_code == 400
+        assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_INVALID"
+
+    @pytest.mark.asyncio
+    async def test_query_too_long_returns_400(self, contract_client, service_auth):
+        # retrieval-request.schema.json：query maxLength=8192
+        response = await contract_client.post(self.SEARCH_URL, json=_search_body(query="x" * 8193), headers=_headers(_service_token(service_auth)))
+        assert response.status_code == 400
+        assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_INVALID"
+
+    @pytest.mark.parametrize(
+        "filters",
+        [
+            {"languages": ["zh"]},
+            {"updated_since": "2026-01-01T00:00:00Z"},
+            {"updated_until": "2026-01-02T00:00:00Z"},
+            {"languages": ["zh"], "updated_since": "2026-01-01T00:00:00Z",
+             "updated_until": "2026-01-02T00:00:00Z"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_unimplemented_filters_rejected_returns_400(self, contract_client, service_auth, filters):
+        # CHANGELOG「不做静默错误」：未实现的过滤字段语义 → 拒绝而非忽略
+        body = _search_body(filters=filters)
+        response = await contract_client.post(self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth)))
+        assert response.status_code == 400
+        assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_INVALID"
+
+    @pytest.mark.asyncio
     async def test_disabled_user_returns_403(self, contract_client, fake_db, service_auth):
         fake_db.seed(__import__("app.models.user", fromlist=["User"]).User, _user(status="disabled"))
         response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
@@ -528,6 +568,27 @@ class TestResolveEndpoint:
         assert resolved["document_id"] == DOC_A
         assert resolved["document_version_id"] == VER_A1
         assert resolved["segment_id"] == SEG_A1
+
+    @pytest.mark.asyncio
+    async def test_resolve_body_contract_version_mismatch_returns_400(self, contract_client, service_auth):
+        # contracts/README §5：正文 contract_version 与版本头不一致 → INTERNAL_CONTRACT_UNSUPPORTED
+        body = _resolve_body(contract_version="2.0.0")
+        response = await contract_client.post(self.RESOLVE_URL, json=body, headers=_headers(_service_token(service_auth)))
+        assert response.status_code == 400
+        assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_UNSUPPORTED"
+
+    @pytest.mark.asyncio
+    async def test_segment_without_location_returns_evidence_unavailable(self, contract_client, fake_db, service_auth):
+        # P5：无真实定位信息（page/section_path 均缺）→ 拒绝，而非伪造 section_path=["来源"]
+        fake_db.seed(User, _user())
+        fake_db.seed(KnowledgeBase, _kb())
+        fake_db.seed(Document, _doc())
+        fake_db.seed(DocumentVersion, _version())
+        fake_db.seed(Chunk, _chunk(metadata_={}))
+
+        response = await contract_client.post(self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth)))
+        assert response.status_code == 400
+        assert response.json()["error"]["error_code"] == "EVIDENCE_SOURCE_UNAVAILABLE"
 
     @pytest.mark.asyncio
     async def test_kb_not_readable_returns_403(self, contract_client, fake_db, service_auth):

@@ -10,6 +10,7 @@
 """
 
 import json
+import logging
 import uuid as uuid_lib
 from datetime import datetime, timezone
 
@@ -21,6 +22,8 @@ from app.models.document import Document
 from app.models.document_version import DocumentVersion
 from app.models.enums import DocumentStatus
 from app.rag.bm25 import invalidate_bm25_cache_async
+
+logger = logging.getLogger(__name__)
 
 # ---- 版本状态常量（内部阶段名不对外泄漏）----
 QUEUED = "queued"
@@ -47,6 +50,13 @@ RETRIEVABLE_VERSION_STATUSES: frozenset[str] = frozenset(
 )
 
 
+class PublishAbortedError(Exception):
+    """发布因删除流程中止（对齐 ADR-007：KB/Document 处于 deleting 时不发布）。
+
+    由调用方（tasks）捕获并返回 failed 状态；不进入 publish 的 recovering 分支。
+    """
+
+
 def map_document_status(version_status: str) -> DocumentStatus:
     """版本状态 → 对外 Document 状态（ADR-007 固定映射，内部阶段名不得泄漏）。"""
     if version_status == QUEUED:
@@ -65,6 +75,36 @@ def map_document_status(version_status: str) -> DocumentStatus:
 def build_version_chroma_id(doc_id: int, version_no: int, chunk_index: int) -> str:
     """版本作用域 Chroma id：doc_{doc_id}_v{version}_c{chunk_index}。"""
     return f"doc_{doc_id}_v{version_no}_c{chunk_index}"
+
+
+async def count_active_version_chunks(db, kb_id: int) -> int:
+    """统计 KB 当前 Active Version 覆盖的 chunks 总数（对齐 ADR-007：只计可检索版本）。
+
+    复用 app/rag/bm25.py 加载前快速 COUNT 的 join 模式：Chunk join DocumentVersion
+    join Document，仅当 Document.active_version == DocumentVersion.version 时计数，
+    避免把旧版本 chunks 计入。
+    """
+    result = await db.execute(
+        select(func.count())
+        .select_from(Chunk)
+        .join(DocumentVersion, DocumentVersion.id == Chunk.document_version_id)
+        .join(Document, Document.id == DocumentVersion.document_id)
+        .where(
+            Chunk.kb_id == kb_id,
+            Document.active_version == DocumentVersion.version,
+        )
+    )
+    return result.scalar() or 0
+
+
+async def count_version_chunks(db, version_id: int) -> int:
+    """统计指定 Version 的 chunks 总数（发布成功后回填 doc.chunk_count）。"""
+    result = await db.execute(
+        select(func.count())
+        .select_from(Chunk)
+        .where(Chunk.document_version_id == version_id)
+    )
+    return result.scalar() or 0
 
 
 async def next_version_number(db, doc_id: int) -> int:
@@ -154,7 +194,17 @@ async def publish_version(db, kb, doc, version, store, staging_rows) -> None:
         store: ChromaVectorStore（在线 per-KB Collection）
         staging_rows: list[dict]，每项含 segment_uuid / chunk_index / content /
             embedding / metadata
+
+    Raises:
+        PublishAbortedError: KB 或 Document 处于删除流程，发布中止（version 置 failed）。
     """
+    # 0. 删除流程守卫（对齐 ADR-007）：deleting 状态不发布，避免发布后被删除器误删
+    if kb.status != "active" or doc.status == DocumentStatus.DELETING:
+        version.status = FAILED
+        version.error_msg = "知识库或文档处于删除流程，发布中止"
+        await db.commit()
+        raise PublishAbortedError("发布中止：知识库或文档处于删除流程")
+
     # 1. KB 短时发布锁：置 updating 并递增 index_generation
     kb.index_status = "updating"
     kb.index_generation = (kb.index_generation or 0) + 1
@@ -206,11 +256,32 @@ async def publish_version(db, kb, doc, version, store, staging_rows) -> None:
             },
         )
 
-        # 5. 清理 staging 产物
+        # 5. 在线集合一致性校验（对齐 ADR-007「校验在线集合」）：新版本向量
+        #    应全部落在在线 Collection；缺失即发布失败 → recovering，
+        #    由恢复器依据 Active Version 补齐或回滚（不静默接受丢失）
+        expected = {
+            build_version_chroma_id(doc.id, version.version, r["chunk_index"])
+            for r in staging_rows
+        }
+        actual = set(await store.get_ids(
+            kb_id=kb.id,
+            where={"$and": [{"doc_id": doc.id}, {"version": version.version}]},
+        ))
+        if actual != expected:
+            missing = sorted(expected - actual)
+            logger.error(
+                "发布后在线集合校验失败: kb_id=%d doc_id=%d version=%d missing=%s",
+                kb.id, doc.id, version.version, missing,
+            )
+            raise RuntimeError(
+                f"在线集合校验失败，缺失 {len(missing)} 个向量（示例: {missing[:5]}）"
+            )
+
+        # 6. 清理 staging 产物
         if version.staging_artifact_key:
             await local_storage.delete(version.staging_artifact_key)
 
-        # 6. 恢复 KB 就绪
+        # 7. 恢复 KB 就绪
         kb.index_status = "ready"
         await db.commit()
     except Exception:

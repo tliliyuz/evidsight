@@ -32,6 +32,9 @@ from app.ingest.versioning import (
     CHUNKING,
     READY_WITH_WARNINGS,
     VERIFYING,
+    PublishAbortedError,
+    count_active_version_chunks,
+    count_version_chunks,
     map_document_status,
     publish_version,
     read_staging_artifact,
@@ -331,7 +334,16 @@ async def _run_publish_from_staging(version_id: int) -> dict:
         version = await db.get(DocumentVersion, version_id)
         doc = await db.get(Document, version.document_id)
         kb = await db.get(KnowledgeBase, doc.kb_id)
-        await publish_version(db, kb, doc, version, get_vector_store(), staging_rows)
+        try:
+            await publish_version(db, kb, doc, version, get_vector_store(), staging_rows)
+        except PublishAbortedError:
+            # 删除流程中止：version 已由 publish 置 failed，此处仅返回失败状态
+            logger.warning("Version %d 发布因删除流程中止", version_id)
+            return {"status": "failed", "version_id": version_id}
+        # 崩溃恢复路径此前不更新计数：发布成功后重算（对齐 P1 重算语义）
+        doc.chunk_count = await count_version_chunks(db, version.id)
+        kb.chunk_count = await count_active_version_chunks(db, kb.id)
+        await db.commit()
 
     return {"status": map_document_status(version.status).value, "version_id": version_id}
 
@@ -442,15 +454,22 @@ async def _embed_and_publish(
         kb = await db.get(KnowledgeBase, doc.kb_id)
         if version.warning_summary:
             version.status = READY_WITH_WARNINGS
-        await publish_version(db, kb, doc, version, get_vector_store(), staging_rows)
+        try:
+            await publish_version(db, kb, doc, version, get_vector_store(), staging_rows)
+        except PublishAbortedError:
+            # 删除流程中止：version 已由 publish 置 failed，此处仅返回失败状态
+            logger.warning("Version %d 发布因删除流程中止", version_id)
+            return {"status": "failed", "version_id": version_id}
         # 回写 token_count（DashScope API 实际值覆盖 chunker 估算值）
         for chunk_id, actual_tokens in token_map.items():
             if chunk_id is not None:
                 await db.execute(
                     update(Chunk).where(Chunk.id == chunk_id).values(token_count=actual_tokens)
                 )
+        # 计数重算（对齐 P1）：kb.chunk_count 不累加，按 Active Version 重算，
+        # 避免旧版本混入或重复发布导致膨胀；doc.chunk_count 即当前版本 chunk_rows
         doc.chunk_count = len(chunk_rows)
-        kb.chunk_count = (kb.chunk_count or 0) + len(chunk_rows)
+        kb.chunk_count = await count_active_version_chunks(db, kb.id)
         await db.commit()
 
     return {"status": map_document_status(version.status).value, "version_id": version_id,

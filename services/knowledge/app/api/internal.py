@@ -26,7 +26,6 @@ router = APIRouter(prefix="/internal/v1", tags=["internal"])
 CONTRACT_VERSION = "1.0.0"
 
 _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(-[\w.]+)?(\+[\w.]+)?$")
-_TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
 
 _SEARCH_ALLOWED_KEYS = {
     "contract_version", "user_id", "knowledge_base_ids", "query", "purpose",
@@ -83,6 +82,19 @@ def _check_service_request(request: Request) -> tuple[str, JSONResponse | None]:
     return request_id, None
 
 
+def _check_body_version(request_id: str, body) -> JSONResponse | None:
+    """正文 contract_version 与版本头一致性校验（contracts/README.md §5）。
+
+    版本头已在 _check_service_request 校验；此处校验请求体携带的版本声明，
+    不一致 → INTERNAL_CONTRACT_UNSUPPORTED（头/正文任一偏离当前版本都属不兼容）。
+    """
+    if isinstance(body, dict) and body.get("contract_version") != CONTRACT_VERSION:
+        return _error_response(
+            400, "INTERNAL_CONTRACT_UNSUPPORTED",
+            "正文 contract_version 与版本头不一致", request_id, False)
+    return None
+
+
 def _validate_search_payload(body) -> str | None:
     """检索请求体结构校验（对齐 retrieval-request.schema.json）。非法返回错误消息。"""
     if not isinstance(body, dict):
@@ -107,6 +119,8 @@ def _validate_search_payload(body) -> str | None:
         return "knowledge_base_ids 中存在非法 UUID"
     if not isinstance(body["query"], str):
         return "query 必须是字符串"
+    if not (1 <= len(body["query"]) <= 8192):
+        return "query 长度必须在 1-8192 字符之间"
     if body["purpose"] != "research_retrieval":
         return "purpose 只支持 research_retrieval"
     limit = body.get("limit")
@@ -119,7 +133,12 @@ def _validate_search_payload(body) -> str | None:
 
 
 def _validate_filters(filters) -> str | None:
-    """检索过滤器结构校验（对齐 retrieval-request.schema.json $defs.RetrievalFilters）。"""
+    """检索过滤器校验（对齐 retrieval-request.schema.json $defs.RetrievalFilters）。
+
+    document_ids 语义真实过滤；languages / updated_since / updated_until 语义
+    尚未实现，按 CHANGELOG「不做静默错误」原则拒绝而非忽略（避免 Consumer
+    误以为过滤已生效）。
+    """
     if not isinstance(filters, dict):
         return "filters 必须是 JSON 对象"
     unknown = set(filters) - _FILTER_ALLOWED_KEYS
@@ -133,22 +152,9 @@ def _validate_filters(filters) -> str | None:
             return "filters.document_ids 不能重复"
         if any(not isinstance(x, str) or not validate_uuid_format(x) for x in document_ids):
             return "filters.document_ids 中存在非法 UUID"
-    languages = filters.get("languages")
-    if languages is not None:
-        if not isinstance(languages, list) or not (1 <= len(languages) <= 20):
-            return "filters.languages 必须是 1-20 个元素的数组"
-        if len(set(languages)) != len(languages):
-            return "filters.languages 不能重复"
-        if any(not isinstance(x, str) or not x for x in languages):
-            return "filters.languages 中存在空字符串"
-    for key in ("updated_since", "updated_until"):
-        value = filters.get(key)
-        if value is not None and (
-                not isinstance(value, str) or not _TIMESTAMP_PATTERN.match(value)):
-            return f"filters.{key} 不是合法 RFC3339 UTC 时间"
-    if ("updated_since" in filters and "updated_until" in filters
-            and filters["updated_since"] > filters["updated_until"]):
-        return "filters.updated_since 必须早于或等于 updated_until"
+    for key in ("languages", "updated_since", "updated_until"):
+        if filters.get(key) is not None:
+            return f"filters.{key} 语义未实现，暂不支持"
     return None
 
 
@@ -259,6 +265,10 @@ async def retrieval_search(request: Request, db: AsyncSession = Depends(get_db))
         return _error_response(400, "INTERNAL_CONTRACT_INVALID",
                                "请求体不是合法 JSON", request_id, False)
 
+    body_error = _check_body_version(request_id, body)
+    if body_error is not None:
+        return body_error
+
     invalid = _validate_search_payload(body)
     if invalid:
         return _error_response(400, "INTERNAL_CONTRACT_INVALID", invalid, request_id, False)
@@ -290,6 +300,10 @@ async def retrieval_resolve(request: Request, db: AsyncSession = Depends(get_db)
     except (json.JSONDecodeError, UnicodeDecodeError):
         return _error_response(400, "INTERNAL_CONTRACT_INVALID",
                                "请求体不是合法 JSON", request_id, False)
+
+    body_error = _check_body_version(request_id, body)
+    if body_error is not None:
+        return body_error
 
     invalid = _validate_resolve_payload(body)
     if invalid:
