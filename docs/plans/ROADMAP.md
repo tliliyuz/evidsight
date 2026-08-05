@@ -257,6 +257,8 @@ M1 已完成（2026-08-04）：六条退出门禁逐条核对证据齐备——�
 - Research Pipeline 迁移后现有 Web 研究行为保持回归通过；
 - 三类来源策略和 Evidence Contract 已在 PRD/API/Contract 中对齐。
 
+进入条件核验（2026-08-05）：三项均按权威文档状态核验通过——① CHANGELOG 2026-08-05 记录 M2 真实环境验收 AC-005/006/010 全通过、Provider 端点级 23 项、Knowledge 全量 1512 项全绿；② Research Worker 在 docker 全栈中运行完整任务闭环（历史记录中 research 全量失败为本机以 `services/research` 为 cwd 运行导致 `env_file=".env"` 未加载根目录 `.env` 的环境误判，非实现回归，mac 开发统一使用 docker 环境）；③ 三类来源策略与 Evidence Contract 已在 API.md §8 与 `packages/contracts/` 中对齐，实现由本阶段（M3）落地。ADR 检查 1–8 命中项 3/4/5/6/7，负责人于 2026-08-05 裁决「创建 ADR（A/B/C 三份）」，对应 [ADR-008](../decisions/ADR-008-research-task-lifecycle-recovery.md)、[ADR-009](../decisions/ADR-009-unified-evidence-graph-report.md)、[ADR-010](../decisions/ADR-010-internal-knowledge-egress-redaction.md)；另裁决 Research API 路径按 API.md 迁移到 `/api/v1/research`。
+
 ### 范围内工作
 
 - 实现 Knowledge Search Tool 及 Consumer Contract 测试；

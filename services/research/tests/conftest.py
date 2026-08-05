@@ -90,8 +90,14 @@ def _dedupe_index_names(metadata) -> None:
 
 @pytest.fixture(scope="session")
 def event_loop():
-    """session 级事件循环（pytest-asyncio 要求）。"""
+    """session 级事件循环（pytest-asyncio 要求）。
+
+    __original_fixture_loop 标记对齐 pytest-asyncio 0.24 自带 event_loop 约定
+    （plugin.py:1035），避免其走弃用警告分支 inspect.getsourcelines() 在
+    容器挂载环境下抛 OSError（could not get source code）。
+    """
     loop = asyncio.new_event_loop()
+    loop.__original_fixture_loop = True  # type: ignore[attr-defined]
     yield loop
     loop.close()
 
@@ -126,6 +132,7 @@ async def test_engine():
     async with engine.begin() as conn:
         # 确保所有模型在导入链中已注册到 Base.metadata
         from app.models.research_task import ResearchTask  # noqa: F401
+        from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase  # noqa: F401
         from app.models.research_step import ResearchStep  # noqa: F401
         from app.models.agent_memory_entry import AgentMemoryEntry  # noqa: F401
         from app.models.research_source import ResearchSource  # noqa: F401

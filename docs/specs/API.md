@@ -160,9 +160,33 @@ v1.0 Chat 请求只接受一个 `knowledge_base_id`，Conversation 也只绑定�
 | `DELETE /api/v1/research/tasks/{task_id}` | owner/admin 治理 | 204 |
 | `GET /api/v1/research/tasks/{task_id}/events` | owner/admin 审计 | 200 SSE |
 
-创建必须使用 `Idempotency-Key`。`knowledge`/`hybrid` 至少选择一个当前可读 KB；`web` 不接受内部 KB。取消和恢复命令幂等。并发或队列达到上限返回 `429 RS_TASK_CONCURRENCY_LIMIT` 或 `RS_QUEUE_LIMIT`，`retryable=true`。
+ADR 检查 1–8：否。本切片（M3 A）实现本节已定义的 `POST /api/v1/research/tasks` 幂等创建，契约与幂等机制由本节、DATABASE.md §5.1–5.2 与 ADR-008 唯一确定，属「已有规范唯一确定实现方式」。裁决记录（2026-08-05）：负责人裁决 ① 创建响应沿用 `{"code","message","data"}` 信封（迁移态，见 §8.2）；② KB「当前可读」在 Internal Retrieval 时实时鉴权，创建时仅结构校验；③ 本节新增 `idempotent_replayed` 字段定义。
+
+### 8.1 创建语义
+
+`POST /api/v1/research/tasks` 必须携带 `Idempotency-Key`（1–128 字符）。同用户同端点同 Key：
+
+- 请求载荷指纹一致：返回首次创建的任务（202，同一 `task_id`，`idempotent_replayed=true`），不重复创建；
+- 请求载荷指纹不一致：返回 `409`（迁移期错误码 `E2009 IdempotencyKeyConflict`），不创建新任务。
+
+`request_fingerprint` 由服务端对规范化请求载荷计算（SHA-256，64 位 hex）。`idempotent_replayed` 首次创建为 `false`，重放命中为 `true`；重放时响应返回该任务当前状态，不反映创建时刻。
+
+`knowledge`/`hybrid` 至少选择一个 KB（1–50 个，合法 UUID）；`web` 不接受 KB。创建时仅做上述结构校验；「当前可读」由 Knowledge 在 `/internal/v1/retrieval/search` 对全部目标 KB 实时鉴权，任一不可访问时该次检索整体失败（DATABASE.md §5.2、ADR-010），创建成功不构成对 KB 后续权限的承诺。
+
+取消和恢复命令幂等。并发或队列达到上限返回 `429 RS_TASK_CONCURRENCY_LIMIT` 或 `RS_QUEUE_LIMIT`，`retryable=true`。
 
 Task/Phase/Step 枚举由 Research Pipeline 权威定义；API 只暴露状态、进度、时间、可恢复性和安全错误。客户端必须容忍未知非终态枚举。
+
+### 8.2 信封迁移态（2026-08-05 裁决，方案 B）
+
+API.md §4 定义的 `{"error":{...}}` 错误结构与本表对应 `ResearchTaskCreate` 扁平 DTO 为已批准目标态，尚未在平台落地；全平台（Knowledge/Research/前端）当前统一使用 `{"code","message","data"}` 成功信封与 `{"code","message","detail"}` 错误信封。
+
+- 当前态：`POST /api/v1/research/tasks` 返回 `{"code":"0","message":"...","data":{...}}`；请求体沿用 `topic + requirements + source_strategy + knowledge_base_ids`；错误信封为 `{"code","message","detail"}`；
+- 目标态：API.md §4 `{"error":{...}}` 错误结构、§3.1 扁平 `ResearchTaskCreate`（含预算摘要）；
+- 迁移步骤：本切片先落地 `/api/v1/research/tasks` 幂等创建；后续切片按里程碑迁移其余 Research 端点；最终统一为 API.md §4 信封；
+- Consumer：apps/web 尚无 Research API 调用；legacy `/api/research` 保持原行为（§2 兼容层）；
+- 观测：后端访问日志与幂等创建验收测试覆盖该端点；
+- 退出条件：平台统一落地 API.md §4 信封后删除本迁移记录。
 
 ## 9. Evidence 与 Report API
 

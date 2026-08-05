@@ -12,7 +12,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models._types import UTCDateTime, new_uuid
-from app.models.enums import TASK_STATUS_ENUM, TASK_PHASE_ENUM
+from app.models.enums import (
+    SOURCE_STRATEGY_ENUM,
+    TASK_STATUS_ENUM,
+    TASK_PHASE_ENUM,
+)
 
 
 class ResearchTask(Base):
@@ -31,6 +35,23 @@ class ResearchTask(Base):
     )
     requirements: Mapped[dict] = mapped_column(
         sa.JSON, nullable=False, comment="研究要求（task_type, depth, max_sources, language...）"
+    )
+    source_strategy: Mapped[str] = mapped_column(
+        sa.Enum(*SOURCE_STRATEGY_ENUM, name="source_strategy"),
+        default="web",
+        server_default=sa.text("'web'"),
+        nullable=False,
+        comment="来源策略：knowledge / web / hybrid（DATABASE.md §5.1）",
+    )
+
+    # ── 幂等（API.md §8：创建必须使用 Idempotency-Key）──
+    idempotency_key: Mapped[str | None] = mapped_column(
+        sa.String(128), default=None, server_default=sa.text("NULL"),
+        comment="幂等键，(user_id, idempotency_key) 唯一",
+    )
+    request_fingerprint: Mapped[str | None] = mapped_column(
+        sa.String(64), default=None, server_default=sa.text("NULL"),
+        comment="请求内容指纹；同 Key 不同指纹拒绝",
     )
 
     # ── Level 1: Task State ──
@@ -118,6 +139,9 @@ class ResearchTask(Base):
         sa.Index("idx_status", "status"),
         sa.Index("idx_user_created", "user_id", sa.text("created_at DESC")),
         sa.Index("idx_user_status_created", "user_id", "status", sa.text("created_at DESC")),
+        # 创建幂等（DATABASE.md §5.1）：(user_id, idempotency_key) 唯一；
+        # idempotency_key 可空，MySQL/SQLite 对 NULL 均允许多行，不阻塞旧任务。
+        sa.UniqueConstraint("user_id", "idempotency_key", name="uq_research_tasks_user_idempotency"),
     )
 
     # ── 关联 ──

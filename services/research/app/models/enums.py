@@ -11,6 +11,10 @@ TASK_STATUS_ENUM = (
     "failed", "canceled", "paused",
 )
 
+# ── 来源策略（DATABASE.md §5.1）────────────────────────────────
+
+SOURCE_STRATEGY_ENUM = ("knowledge", "web", "hybrid")
+
 TASK_PHASE_ENUM = (
     "planning", "searching", "fetching", "reranking",
     "synthesizing", "building_evidence_graph", "rendering",

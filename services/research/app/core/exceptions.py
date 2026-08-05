@@ -318,6 +318,16 @@ class InvalidRequirementsException(AppException):
         )
 
 
+class IdempotencyKeyConflictException(AppException):
+    """同 Key 不同请求载荷的幂等冲突（API.md §8.1：409）。"""
+
+    def __init__(self, detail: str = ""):
+        super().__init__(
+            "E2009", "幂等键冲突，请求载荷与首次创建不一致", 409,
+            {"error_type": "IdempotencyKeyConflict", "error_description": detail or "相同 Idempotency-Key 的请求载荷与首次创建不一致，拒绝创建新任务"},
+        )
+
+
 # ==================== 研究执行错误 E3xxx ====================
 
 class PlanningFailedException(AppException):

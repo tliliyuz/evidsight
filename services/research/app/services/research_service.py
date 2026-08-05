@@ -8,14 +8,18 @@
 - get_report()：获取完整研究报告（含 Evidence Graph 与 Trace）
 """
 
+import hashlib
+import json
 import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select, func, delete as sa_delete, update as sa_update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.exceptions import (
+    IdempotencyKeyConflictException,
     TaskNotFoundException,
     TaskAccessDeniedException,
     TaskStatusConflictException,
@@ -29,6 +33,7 @@ from app.metrics import emit_task_status_transition
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
 from app.models.research_task import ResearchTask
+from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
 from app.models.research_step import ResearchStep
 from app.models.section_evidence import SectionEvidence
 from app.services.intent_classifier import (
@@ -65,6 +70,9 @@ async def create_task(
     db: AsyncSession,
     user_id: str,
     request: ResearchCreateRequest,
+    *,
+    idempotency_key: str | None = None,
+    request_fingerprint: str | None = None,
 ) -> ResearchCreateResponse:
     """创建研究任务 + 首个 Planning Step（或直接回答）。
 
@@ -80,17 +88,114 @@ async def create_task(
 
     _validate_create_request(request)
 
+    # 来源策略分流：knowledge/hybrid 显式依赖内部知识，直接进入研究 Pipeline；
+    # 仅 web 策略保留意图识别（可直接回答非研究主题）。
+    if request.source_strategy != "web":
+        return await _create_research_task(
+            db, user_id, request,
+            idempotency_key=idempotency_key, request_fingerprint=request_fingerprint,
+        )
+
     intent_result = await classify_intent(request.topic)
     if intent_result.intent == INTENT_DIRECT_ANSWER:
-        return await _create_direct_answer_task(db, user_id, request, intent_result.direct_answer)
+        return await _create_direct_answer_task(
+            db, user_id, request, intent_result.direct_answer,
+            idempotency_key=idempotency_key, request_fingerprint=request_fingerprint,
+        )
 
-    return await _create_research_task(db, user_id, request)
+    return await _create_research_task(
+        db, user_id, request,
+        idempotency_key=idempotency_key, request_fingerprint=request_fingerprint,
+    )
+
+
+def compute_request_fingerprint(request: ResearchCreateRequest) -> str:
+    """计算创建请求的规范化载荷指纹（API.md §8.1，SHA-256 64 位 hex）。
+
+    覆盖 topic / requirements / source_strategy / knowledge_base_ids；
+    同语义载荷（含 Pydantic 默认补全）产生同一指纹。
+    """
+    canonical = json.dumps(
+        {
+            "topic": request.topic,
+            "requirements": request.requirements.model_dump(),
+            "source_strategy": request.source_strategy,
+            "knowledge_base_ids": request.knowledge_base_ids,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def create_task_idempotent(
+    db: AsyncSession,
+    user_id: str,
+    request: ResearchCreateRequest,
+    idempotency_key: str,
+    request_fingerprint: str,
+) -> ResearchCreateResponse:
+    """幂等创建（API.md §8.1）：同用户同 Key 同指纹重放，不同指纹 409。
+
+    - 已存在 (user_id, idempotency_key)：指纹一致返回原任务（replayed=true），不一致抛 E2009；
+    - 不存在：走 create_task 写入幂等列；并发唯一约束竞争时按重放收敛。
+    """
+    existing = await _find_task_by_idempotency_key(db, user_id, idempotency_key)
+    if existing is not None:
+        if existing.request_fingerprint != request_fingerprint:
+            raise IdempotencyKeyConflictException(
+                "相同 Idempotency-Key 的请求载荷与首次创建不一致"
+            )
+        return _build_replay_response(existing)
+
+    try:
+        return await create_task(
+            db, user_id, request,
+            idempotency_key=idempotency_key, request_fingerprint=request_fingerprint,
+        )
+    except IntegrityError:
+        # 并发竞争：另一请求已创建同一 (user_id, idempotency_key)，按重放收敛
+        await db.rollback()
+        existing = await _find_task_by_idempotency_key(db, user_id, idempotency_key)
+        if existing is not None and existing.request_fingerprint == request_fingerprint:
+            return _build_replay_response(existing)
+        raise IdempotencyKeyConflictException(
+            "相同 Idempotency-Key 的并发请求载荷不一致，拒绝创建新任务"
+        )
+
+
+async def _find_task_by_idempotency_key(
+    db: AsyncSession, user_id: str, idempotency_key: str
+) -> ResearchTask | None:
+    """按 (user_id, idempotency_key) 查找既有任务（DATABASE.md §5.1 唯一约束）。"""
+    stmt = select(ResearchTask).where(
+        ResearchTask.user_id == user_id,
+        ResearchTask.idempotency_key == idempotency_key,
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+def _build_replay_response(task: ResearchTask) -> ResearchCreateResponse:
+    """幂等重放响应：返回该任务当前状态（API.md §8.1），不反映创建时刻。"""
+    is_direct_answer = (task.requirements or {}).get("task_type") == "direct_answer"
+    return ResearchCreateResponse(
+        task_id=task.id,
+        status=task.status,
+        created_at=task.created_at,
+        direct_answer=is_direct_answer,
+        idempotent_replayed=True,
+    )
 
 
 async def _create_research_task(
     db: AsyncSession,
     user_id: str,
     request: ResearchCreateRequest,
+    *,
+    idempotency_key: str | None = None,
+    request_fingerprint: str | None = None,
 ) -> ResearchCreateResponse:
     """研究意图：创建 pending 任务 + planning step。"""
     now = datetime.now(timezone.utc)
@@ -100,6 +205,9 @@ async def _create_research_task(
         user_id=user_id,
         topic=request.topic.strip(),
         requirements=request.requirements.model_dump(),
+        source_strategy=request.source_strategy,
+        idempotency_key=idempotency_key,
+        request_fingerprint=request_fingerprint,
         status="pending",
         current_phase=None,
         created_at=now,
@@ -107,6 +215,16 @@ async def _create_research_task(
     )
     db.add(task)
     await db.flush()  # 获取 task.id
+
+    # 1.1 持久化知识库选择（selection_order 保留用户选择顺序，供 pipeline 检索顺序使用）
+    for order, kb_id in enumerate(request.knowledge_base_ids):
+        db.add(
+            ResearchTaskKnowledgeBase(
+                task_id=task.id,
+                knowledge_base_id=kb_id,
+                selection_order=order,
+            )
+        )
 
     # 2. 创建首个 Planning Step（pending 状态，等待 Celery Worker 拾取）
     planning_step = ResearchStep(
@@ -146,6 +264,9 @@ async def _create_direct_answer_task(
     user_id: str,
     request: ResearchCreateRequest,
     answer_text: str,
+    *,
+    idempotency_key: str | None = None,
+    request_fingerprint: str | None = None,
 ) -> ResearchCreateResponse:
     """非研究意图：创建已完成任务、单章节报告与空 Evidence Graph Step。
 
@@ -160,6 +281,9 @@ async def _create_direct_answer_task(
         user_id=user_id,
         topic=request.topic.strip(),
         requirements=requirements,
+        source_strategy="web",  # 直接回答仅来自模型，不涉及内部知识库
+        idempotency_key=idempotency_key,
+        request_fingerprint=request_fingerprint,
         status="completed",
         current_phase=None,
         created_at=now,

@@ -3,6 +3,7 @@
 提供创建、列表、详情、删除研究任务所需的 Pydantic Schema。
 """
 
+import uuid
 from datetime import datetime
 from typing import Literal
 
@@ -41,13 +42,25 @@ class RequirementsSchema(BaseModel):
 
 
 class ResearchCreateRequest(BaseModel):
-    """创建研究任务请求 — 对齐 API.md §3.1 POST /api/research。"""
+    """创建研究任务请求 — 对齐 API.md §8 与 §3.1。
+
+    source_strategy：knowledge / web / hybrid（API.md §8）；
+    knowledge/hybrid 必须至少选择一个当前可读 KB（1-50 个），web 不接受内部 KB。
+    """
 
     topic: str = Field(
         ..., min_length=1, max_length=500, description="研究主题（≤ 500 字符）"
     )
     requirements: RequirementsSchema = Field(
         ..., description="研究要求配置（task_type / depth / max_sources / language）"
+    )
+    source_strategy: Literal["knowledge", "web", "hybrid"] = Field(
+        "web", description="来源策略：knowledge / web / hybrid"
+    )
+    knowledge_base_ids: list[str] = Field(
+        default_factory=list,
+        max_length=50,
+        description="所选知识库 UUID 列表（knowledge/hybrid 至少 1 个，web 必须为空）",
     )
 
     @field_validator("topic")
@@ -57,6 +70,27 @@ class ResearchCreateRequest(BaseModel):
         if not v.strip():
             raise ValueError("研究主题不能为空")
         return v
+
+    @field_validator("knowledge_base_ids")
+    @classmethod
+    def validate_knowledge_base_ids(cls, v: list[str]) -> list[str]:
+        """每个 knowledge_base_id 必须是合法 UUID（Knowledge 签发稳定 ID）。"""
+        for kb_id in v:
+            try:
+                uuid.UUID(str(kb_id))
+            except (ValueError, AttributeError):
+                raise ValueError(f"knowledge_base_id 非法 UUID: {kb_id}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_source_strategy_kbs(self) -> "ResearchCreateRequest":
+        """来源策略与 KB 选择的组合校验（API.md §8）。"""
+        if self.source_strategy in ("knowledge", "hybrid"):
+            if not self.knowledge_base_ids:
+                raise ValueError("knowledge/hybrid 策略必须至少选择一个知识库")
+        elif self.knowledge_base_ids:
+            raise ValueError("web 策略不接受内部知识库")
+        return self
 
 
 # ── 进度子模型 ──────────────────────────────────────────────────
@@ -172,9 +206,10 @@ class ReportSchema(BaseModel):
 
 
 class ResearchCreateResponse(BaseModel):
-    """创建研究任务响应 — 对齐 API.md §3.1 POST /api/research。
+    """创建研究任务响应 — 对齐 API.md §8.1 POST /api/v1/research/tasks。
 
     direct_answer=true 时，任务已完成并直接返回单章节报告，不再进入 Pipeline。
+    idempotent_replayed=true 表示命中同用户同 Key 同指纹的幂等重放（API.md §8.1）。
     """
 
     task_id: str = Field(..., description="任务 UUID")
@@ -182,6 +217,7 @@ class ResearchCreateResponse(BaseModel):
     created_at: datetime = Field(..., description="创建时间（ISO 8601 UTC）")
     direct_answer: bool = Field(False, description="是否为直接回答（非研究意图）")
     report: ReportSchema | None = Field(None, description="直接回答任务的报告内容")
+    idempotent_replayed: bool = Field(False, description="是否为幂等重放命中（同 Key 同指纹）")
 
 
 class ResearchCancelResponse(BaseModel):

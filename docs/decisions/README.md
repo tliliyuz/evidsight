@@ -74,3 +74,6 @@ ADR 候选
 - [ADR-005：统一身份、服务认证与敏感数据外发策略](ADR-005-unified-identity-service-auth-egress.md)（accepted）
 - [ADR-006：Refresh Token 浏览器传输（HttpOnly Cookie + double-submit CSRF）](ADR-006-refresh-token-cookie-csrf.md)（accepted）
 - [ADR-007：Knowledge 文档版本化生命周期与删除一致性](ADR-007-knowledge-document-lifecycle-delete-consistency.md)（accepted）
+- [ADR-008：Research 任务生命周期、租约与恢复策略](ADR-008-research-task-lifecycle-recovery.md)（accepted）
+- [ADR-009：统一 Evidence Graph 与报告表达](ADR-009-unified-evidence-graph-report.md)（accepted）
+- [ADR-010：内部知识外发与脱敏](ADR-010-internal-knowledge-egress-redaction.md)（accepted）
