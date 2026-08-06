@@ -25,6 +25,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.core.exceptions import SynthesisFailedException
+from app.core.internal_retrieval_client import resolve_retrieval
 from app.core.llm import LLMResult, chat_completion
 from app.core.token_counter import estimate_tokens
 from app.models.evidence_item import EvidenceItem
@@ -136,8 +137,16 @@ def _extract_json_from_text(text: str) -> str:
     return text[brace_start:brace_end + 1]
 
 
-def _format_evidence_items(items: list[EvidenceItem], max_sources: int) -> tuple[str, list[EvidenceItem]]:
+def _format_evidence_items(
+    items: list[EvidenceItem],
+    max_sources: int,
+    resolved: dict[int, str] | None = None,
+) -> tuple[str, list[EvidenceItem]]:
     """将 EvidenceItem[] 格式化为 Prompt 文本，并受 TOKEN_BUDGET_SOFT_LIMIT 约束。
+
+    internal EvidenceItem 无正文（content=None），必须由当前 Step attempt
+    按稳定身份重取（RESEARCH_PIPELINE §8.1 / ADR-003），resolved 提供
+    {evidence_id: 正文} 的内存工作集，不持久化。
 
     处理逻辑：
     1. 按 relevance_score 降序（防御性重排）
@@ -147,6 +156,21 @@ def _format_evidence_items(items: list[EvidenceItem], max_sources: int) -> tuple
     Returns:
         (formatted_text, selected_items)
     """
+    resolved = resolved or {}
+
+    def _item_content(ev: EvidenceItem) -> str:
+        if ev.source_type == "internal":
+            return resolved.get(ev.id) or ""
+        return ev.content or ""
+
+    def _item_title(ev: EvidenceItem) -> str:
+        if ev.source_type == "internal":
+            return ev.document_display_name_snapshot or ev.display_title or "内部来源"
+        source = ev.source
+        if source:
+            return source.title or "无标题"
+        return "无标题"
+
     sorted_items = sorted(
         items,
         key=lambda e: e.relevance_score or 0.0,
@@ -160,13 +184,14 @@ def _format_evidence_items(items: list[EvidenceItem], max_sources: int) -> tuple
         selected = sorted_items[:count_limit]
         parts: list[str] = []
         for i, ev in enumerate(selected, start=0):
-            source = ev.source
-            domain = source.domain if source else "unknown"
-            title = source.title if source else "无标题"
-            content = ev.content[:content_limit] if ev.content else ""
-            parts.append(
-                f"来源标注：[来源 {i}] {domain} — {title}\n内容：{content}"
-            )
+            if ev.source_type == "internal":
+                label = f"内部来源：[来源 {i}] {_item_title(ev)}"
+            else:
+                source = ev.source
+                domain = source.domain if source else "unknown"
+                label = f"来源标注：[来源 {i}] {domain} — {_item_title(ev)}"
+            content = _item_content(ev)[:content_limit]
+            parts.append(f"{label}\n内容：{content}")
 
         formatted = "\n\n".join(parts)
         if estimate_tokens(formatted) <= settings.TOKEN_BUDGET_SOFT_LIMIT:
@@ -187,10 +212,13 @@ def _format_evidence_items(items: list[EvidenceItem], max_sources: int) -> tuple
     # 兜底保留 1 条最短内容
     selected = sorted_items[:1]
     ev = selected[0]
-    source = ev.source
-    domain = source.domain if source else "unknown"
-    title = source.title if source else "无标题"
-    formatted = f"来源标注：[来源 0] {domain} — {title}\n内容：{ev.content[:250] if ev.content else ''}"
+    if ev.source_type == "internal":
+        label = f"内部来源：[来源 0] {_item_title(ev)}"
+    else:
+        source = ev.source
+        domain = source.domain if source else "unknown"
+        label = f"来源标注：[来源 0] {domain} — {_item_title(ev)}"
+    formatted = f"{label}\n内容：{_item_content(ev)[:250]}"
     return formatted, selected
 
 
@@ -370,6 +398,39 @@ async def _load_evidence(
     return list(result.scalars().all())
 
 
+async def _resolve_internal_evidence(
+    task: ResearchTask,
+    items: list[EvidenceItem],
+) -> dict[int, str]:
+    """按稳定身份重取 internal Evidence 当前正文（仅当前 Step 内存）。
+
+    对齐 RESEARCH_PIPELINE §8.1 / ADR-003：Synthesis 的 Step attempt 使用
+    EvidenceResolveRequest 精确重取，构造临时工作集；正文不持久化。
+
+    Returns:
+        dict {evidence_id: minimal_excerpt}；resolve 失败（KB_FORBIDDEN /
+        契约错误 / 瞬时不可用重试耗尽）按客户端错误映射 fail-closed 抛出。
+    """
+    internal = [ev for ev in items if ev.source_type == "internal"]
+    if not internal:
+        return {}
+
+    references = [
+        {
+            "knowledge_base_id": ev.knowledge_base_id,
+            "document_id": ev.document_id,
+            "document_version_id": ev.document_version_id,
+            "segment_id": ev.segment_id,
+        }
+        for ev in internal
+    ]
+    resolved = await resolve_retrieval(user_id=str(task.user_id), references=references)
+    return {
+        ev.id: getattr(ref, "minimal_excerpt", "") or ""
+        for ev, ref in zip(internal, resolved)
+    }
+
+
 # ── LLM 综合 ──────────────────────────────────────────────────
 
 
@@ -501,10 +562,14 @@ async def run_synthesis(
     if not evidence_items:
         raise SynthesisFailedException(detail="没有可供综合的证据")
 
-    # 2. 格式化 Evidence（0-based 索引）
+    # 2. 重取 internal Evidence 当前正文（仅当前 Step 内存，不持久化）
+    resolved = await _resolve_internal_evidence(task, evidence_items)
+
+    # 3. 格式化 Evidence（0-based 索引）
     evidence_items_formatted, selected_items = _format_evidence_items(
         evidence_items,
         max_sources=max_sources,
+        resolved=resolved,
     )
     evidence_count = len(selected_items)
 
@@ -520,7 +585,7 @@ async def run_synthesis(
         "evidence_count": evidence_count,
     })
 
-    # 3. 调用 LLM 综合
+    # 4. 调用 LLM 综合
     notes, prompt_tokens, completion_tokens, retry_count = await _llm_synthesize(
         topic=task.topic,
         task_type=task_type,
@@ -529,8 +594,7 @@ async def run_synthesis(
     )
 
     # 4. 进度事件（聚类完成）
-    await sse_bridge.publish(EVENT_STEP_PROGRESS, {
-        "step_id": step_id,
+    await sse_bridge.publish(EVENT_STEP_PROGRESS, {        "step_id": step_id,
         "phase": "synthesizing",
         "label": f"综合完成，生成 {len(notes.clusters)} 个观点聚类",
         "clusters_count": len(notes.clusters),

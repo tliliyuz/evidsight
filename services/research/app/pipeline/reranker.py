@@ -1,12 +1,22 @@
 """Rerank 阶段 —— 证据粗筛 + 精排。
 
-对齐 RESEARCH_PIPELINE.md §5：
+对齐 RESEARCH_PIPELINE.md §5/§7：
 - Stage 1：BM25 粗筛（jieba 分词 + BM25Okapi，每文档 top-3 segments，最多 45 候选）
 - Stage 2：LLM 精排（DeepSeek API，四维评分 0-10，task_type 加权维度）
 - 输出 Evidence[] 写入 evidence_items 表
 
+来源策略感知（RESEARCH_PIPELINE.md §7 / DATABASE.md §6.2 / ADR-003/ADR-009）：
+- `knowledge` 策略：只消费 Internal Retrieval 候选（search step.output 的
+  internal_candidates），通过 resolve_retrieval 按稳定身份重取当前正文（仅当前
+  Step 内存），产出 source_type='internal' 的 EvidenceItem（无正文、无 web source）；
+- `hybrid` 策略：内部候选与 Web 候选（research_sources）统一精排，产出两类证据；
+- `web` 策略：既有路径（回归）；
+- KB_FORBIDDEN / 契约错误 / 瞬时不可用重试耗尽 → fail-closed，
+  knowledge 策略绝不降级为 Web。
+
 输入来源：
 - FetchedDoc[]：从 research_sources 表读取 fetch_status='success' 的行
+- internal_candidates：从 search step.output 读取（含稳定身份，无正文）
 - SubQuestion[]：从 task 的 planning step output 读取
 """
 
@@ -22,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.exceptions import RerankFailedException
+from app.core.internal_retrieval_client import resolve_retrieval
 from app.core.llm import LLMResult, chat_completion
 from app.core.token_counter import estimate_tokens
 from app.models.evidence_item import EvidenceItem
@@ -99,29 +110,54 @@ class FetchedDoc:
 
 @dataclass
 class Candidate:
-    """BM25 粗筛后的候选片段。"""
-    source_id: int
+    """BM25 粗筛后的候选片段（web / internal 统一结构）。
+
+    - web：source_id/url/title/domain/content 填实际值；
+    - internal：source_id=None，使用稳定 KB/Document/Version/Segment 身份，
+      content 为当前 Step 内存中 resolve 重取的正文，持久化时不写入。
+    """
+    source_id: int | None
     url: str
     title: str
     domain: str
     content: str
     sub_question_index: int
     bm25_score: float
+    source_type: str = "web"
+    # internal 稳定身份（source_type=internal 时使用）
+    knowledge_base_id: str | None = None
+    document_id: str | None = None
+    document_version_id: str | None = None
+    segment_id: str | None = None
+    document_display_name: str | None = None
+    location: dict | None = None
+    source_observed_at: str | None = None
+    scores: list[dict] | None = None
 
 
 @dataclass
 class Evidence:
-    """LLM 精排后的证据条目。"""
-    source_id: int
+    """LLM 精排后的证据条目（web / internal 统一结构）。"""
+    source_id: int | None
     url: str
     title: str
     domain: str
-    content: str
+    content: str  # internal 时仅当前 Step 内存使用，持久化时删除
     relevance_score: float  # 0-1，由 LLM 0-10 分归一化
     bm25_score: float
     sub_question_index: int
     word_count: int
     rationale: str
+    source_type: str = "web"
+    # internal 稳定身份（source_type=internal 时使用）
+    knowledge_base_id: str | None = None
+    document_id: str | None = None
+    document_version_id: str | None = None
+    segment_id: str | None = None
+    document_display_name: str | None = None
+    location: dict | None = None
+    source_observed_at: str | None = None
+    scores: list[dict] | None = None
 
 
 # ── 工具函数 ──────────────────────────────────────────────────
@@ -255,6 +291,146 @@ async def _load_sub_questions(
             return [str(sq) for sq in sqs if sq]
 
     return []
+
+
+# ── Internal 候选读取与解析 ────────────────────────────────────
+
+
+async def _load_internal_candidates(
+    session: AsyncSession,
+    task: ResearchTask,
+) -> list[dict]:
+    """从 Search step.output 读取内部候选（含稳定身份，无正文）。
+
+    对齐 RESEARCH_PIPELINE.md §7：Search 产出的 RetrievalHit 转安全摘要后
+    持久化于 step.output['internal_candidates']；Rerank 不直接复用其 excerpt，
+    而是按稳定身份重新 resolve 当前正文。
+    """
+    stmt = (
+        select(ResearchStep)
+        .where(
+            ResearchStep.task_id == task.id,
+            ResearchStep.step_type == "search",
+            ResearchStep.status == "completed",
+        )
+        .order_by(ResearchStep.completed_at.desc())
+    )
+    result = await session.execute(stmt)
+    search_step: ResearchStep | None = result.scalar_one_or_none()
+
+    if search_step and search_step.output and isinstance(search_step.output, dict):
+        cands = search_step.output.get("internal_candidates")
+        if isinstance(cands, list):
+            return [c for c in cands if isinstance(c, dict)]
+    return []
+
+
+async def _resolve_internal_candidates(
+    task: ResearchTask,
+    candidates: list[dict],
+) -> list[tuple[dict, str]]:
+    """按稳定身份重取内部候选当前正文（仅当前 Step 内存）。
+
+    Returns:
+        list[(candidate_dict, minimal_excerpt)]：与 candidates 顺序一致；
+        resolve 失败（KB_FORBIDDEN / 契约错误 / 瞬时不可用重试耗尽）按客户端
+        错误映射 fail-closed 抛出，调用方不得降级为 Web。
+    """
+    references = [
+        {
+            "knowledge_base_id": c.get("knowledge_base_id"),
+            "document_id": c.get("document_id"),
+            "document_version_id": c.get("document_version_id"),
+            "segment_id": c.get("segment_id"),
+        }
+        for c in candidates
+    ]
+    resolved = await resolve_retrieval(user_id=str(task.user_id), references=references)
+    return list(zip(candidates, resolved))
+
+
+def _internal_to_candidates(
+    pairs: list[tuple[dict, object]],
+    max_candidates: int = 45,
+) -> list[Candidate]:
+    """将 resolve 后的内部候选转为 Candidate（source_type='internal'）。
+
+    - 丢弃 resolve 正文为空的候选（空内容无法精排，且不持久化空证据）；
+    - 保留稳定身份、显示名、位置、观察时间与评分摘要；
+    - 去重按 (kb, document, version, segment) 稳定身份。
+    """
+    seen: set[tuple] = set()
+    candidates: list[Candidate] = []
+    for c, ref in pairs:
+        excerpt = getattr(ref, "minimal_excerpt", "") or ""
+        if not excerpt.strip():
+            continue
+        identity = (
+            c.get("knowledge_base_id"),
+            c.get("document_id"),
+            c.get("document_version_id"),
+            c.get("segment_id"),
+        )
+        if identity in seen:
+            continue
+        seen.add(identity)
+
+        scores = c.get("scores") or []
+        bm25_score = 0.0
+        if scores:
+            try:
+                bm25_score = float(scores[0].get("score") or 0.0)
+            except (TypeError, ValueError):
+                bm25_score = 0.0
+
+        candidates.append(Candidate(
+            source_id=None,
+            url="",
+            title=c.get("document_display_name") or "",
+            domain="",
+            content=excerpt,
+            sub_question_index=int(c.get("sub_question_index") or 1),
+            bm25_score=bm25_score,
+            source_type="internal",
+            knowledge_base_id=c.get("knowledge_base_id"),
+            document_id=c.get("document_id"),
+            document_version_id=c.get("document_version_id"),
+            segment_id=c.get("segment_id"),
+            document_display_name=c.get("document_display_name"),
+            location=c.get("location"),
+            source_observed_at=c.get("source_updated_at"),
+            scores=scores,
+        ))
+        if len(candidates) >= max_candidates:
+            break
+    return candidates
+
+
+# ── 显示/时间摘要工具 ──────────────────────────────────────────
+
+
+def _format_location_summary(location: dict | None) -> str | None:
+    """把内部命中的 location 结构转成可公开的位置摘要（不含内部路径）。"""
+    if not location:
+        return None
+    parts: list[str] = []
+    if location.get("page") is not None:
+        parts.append(f"第 {location['page']} 页")
+    section_path = location.get("section_path")
+    if isinstance(section_path, list) and section_path:
+        parts.append(" > ".join(str(s) for s in section_path))
+    return "；".join(parts) if parts else None
+
+
+def _parse_observed_at(value: str | None):
+    """把 ISO 时间字符串转 datetime（供 source_observed_at 存储）。"""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    except (ValueError, TypeError):
+        return None
 
 
 # ── BM25 粗筛 ─────────────────────────────────────────────────
@@ -466,6 +642,15 @@ async def _llm_rerank(
                     sub_question_index=candidate.sub_question_index,
                     word_count=len(candidate.content),
                     rationale=rating["rationale"],
+                    source_type=candidate.source_type,
+                    knowledge_base_id=candidate.knowledge_base_id,
+                    document_id=candidate.document_id,
+                    document_version_id=candidate.document_version_id,
+                    segment_id=candidate.segment_id,
+                    document_display_name=candidate.document_display_name,
+                    location=candidate.location,
+                    source_observed_at=candidate.source_observed_at,
+                    scores=candidate.scores,
                 ))
 
             # 按 relevance_score 降序
@@ -514,16 +699,56 @@ async def _persist_evidence(
     step: ResearchStep,
     evidence_list: list[Evidence],
 ) -> None:
-    """将 Evidence[] 写入 evidence_items 表（INSERT only，幂等追加）。"""
+    """将 Evidence[] 写入 evidence_items 表（INSERT only，幂等追加）。
+
+    internal 证据只持久化稳定身份与显示快照（DATABASE.md §6.2 / ADR-003）：
+    - content 恒为 NULL（无正文）；
+    - source_id 恒为 NULL（不引用 web source）；
+    - 内部稳定 KB/Document/Version/Segment ID 完整；
+    - validity=available（观察状态）。
+    """
     for ev in evidence_list:
-        item = EvidenceItem(
-            task_id=task.id,
-            source_id=ev.source_id,
-            step_id=step.id,
-            content=ev.content,
-            relevance_score=ev.relevance_score,
-            used_in_sections=None,
-        )
+        if ev.source_type == "internal":
+            score_summary = None
+            if ev.scores:
+                # 取命中时的最佳分数摘要（受控，非当前权限证明）
+                best = ev.scores[0]
+                score_summary = {
+                    "best_score": float(best.get("score") or 0.0),
+                    "score_kind": str(best.get("score_kind") or "semantic"),
+                    "rank": int(best.get("rank") or 0),
+                }
+            item = EvidenceItem(
+                task_id=task.id,
+                source_type="internal",
+                source_id=None,
+                step_id=step.id,
+                content=None,
+                relevance_score=ev.relevance_score,
+                used_in_sections=None,
+                knowledge_base_id=ev.knowledge_base_id,
+                document_id=ev.document_id,
+                document_version_id=ev.document_version_id,
+                segment_id=ev.segment_id,
+                document_display_name_snapshot=ev.document_display_name,
+                display_title=ev.document_display_name or ev.title,
+                location_summary=_format_location_summary(ev.location),
+                source_observed_at=_parse_observed_at(ev.source_observed_at),
+                score_summary=score_summary,
+                validity="available",
+            )
+        else:
+            item = EvidenceItem(
+                task_id=task.id,
+                source_type="web",
+                source_id=ev.source_id,
+                step_id=step.id,
+                content=ev.content,
+                relevance_score=ev.relevance_score,
+                used_in_sections=None,
+                display_title=ev.title or ev.url,
+                canonical_url_snapshot=ev.url,
+            )
         session.add(item)
 
     await session.flush()
@@ -538,14 +763,20 @@ async def run_rerank(
     session: AsyncSession,
     sse_bridge: SSEBridge,
 ) -> dict:
-    """执行 Rerank 阶段。
+    """执行 Rerank 阶段（策略感知）。
 
-    1. 读取 FetchedDoc[] + SubQuestion[]
+    1. 按来源策略加载候选：
+       - `knowledge`：只从 Search step.output 读取内部候选并经 resolve 重取正文；
+       - `web`：从 research_sources 读取成功抓取文档；
+       - `hybrid`：两类候选合并。
     2. BM25 粗筛 → candidates
     3. LLM 精排 → Evidence[]
-    4. 写入 evidence_items
+    4. 写入 evidence_items（internal 无正文，分型持久化）
     5. 更新 task.total_evidence
     6. 发射 SSE 事件
+
+    fail-closed：resolve 抛 KB_FORBIDDEN / 契约错误 / 瞬时不可用重试耗尽时
+    直接上抛，knowledge 策略绝不降级为 Web。
 
     Returns:
         output dict（写入 step.output）
@@ -553,41 +784,72 @@ async def run_rerank(
     task_id = str(task.id)
     step_id = str(step.id)
 
+    strategy = str(getattr(task, "source_strategy", None) or "web")
+
     requirements = task.requirements or {}
     task_type = requirements.get("task_type", "explainer")
     max_sources = int(requirements.get("max_sources", 10))
 
-    logger.info("Rerank 开始: task_id=%s, task_type=%s, max_sources=%d", task_id, task_type, max_sources)
+    logger.info(
+        "Rerank 开始: task_id=%s, task_type=%s, max_sources=%d, strategy=%s",
+        task_id, task_type, max_sources, strategy,
+    )
 
-    # 1. 读取上游数据
-    fetched_docs = await _load_fetched_docs(session, task)
     sub_questions = await _load_sub_questions(session, task)
-
-    if not fetched_docs:
-        raise RerankFailedException(detail="没有成功抓取的文档可供 Rerank")
     if not sub_questions:
         raise RerankFailedException(detail="缺少 Planning 阶段产出的子问题")
 
-    # 2. BM25 粗筛
-    candidates = _bm25_stage(
-        fetched_docs,
-        sub_questions,
-        max_candidates=settings.RERANK_CANDIDATE_MAX,
-        top_k_per_doc=settings.RERANK_BM25_TOP_K_PER_DOC,
-        max_segment_chars=settings.RERANK_BM25_SEGMENT_MAX_CHARS,
-    )
+    # 1. 按来源策略加载候选
+    candidates: list[Candidate] = []
+    internal_count = 0
+    web_count = 0
 
-    logger.info("Rerank BM25 粗筛完成: task_id=%s, candidates=%d", task_id, len(candidates))
+    if strategy in ("knowledge", "hybrid"):
+        internal_raw = await _load_internal_candidates(session, task)
+        if internal_raw:
+            pairs = await _resolve_internal_candidates(task, internal_raw)
+            internal_candidates = _internal_to_candidates(
+                pairs, max_candidates=settings.RERANK_CANDIDATE_MAX,
+            )
+            candidates.extend(internal_candidates)
+            internal_count = len(internal_candidates)
+
+    if strategy in ("web", "hybrid"):
+        fetched_docs = await _load_fetched_docs(session, task)
+        if fetched_docs:
+            web_candidates = _bm25_stage(
+                fetched_docs,
+                sub_questions,
+                max_candidates=settings.RERANK_CANDIDATE_MAX,
+                top_k_per_doc=settings.RERANK_BM25_TOP_K_PER_DOC,
+                max_segment_chars=settings.RERANK_BM25_SEGMENT_MAX_CHARS,
+            )
+            candidates.extend(web_candidates)
+            web_count = len(web_candidates)
+
+    if not candidates:
+        if strategy == "web":
+            raise RerankFailedException(detail="没有成功抓取的文档可供 Rerank")
+        raise RerankFailedException(detail="没有可供精排的内部候选或抓取文档")
+
+    logger.info(
+        "Rerank 候选准备完成: task_id=%s, internal=%d, web=%d, total=%d",
+        task_id, internal_count, web_count, len(candidates),
+    )
 
     await sse_bridge.publish(EVENT_STEP_PROGRESS, {
         "step_id": step_id,
         "phase": "reranking",
-        "label": f"BM25 粗筛完成，{len(candidates)} 个候选进入精排",
+        "label": (
+            f"BM25 粗筛完成，{len(candidates)} 个候选进入精排"
+            if internal_count == 0
+            else f"候选准备完成，{len(candidates)} 个候选进入精排（内部 {internal_count} / 网页 {web_count}）"
+        ),
         "candidates_count": len(candidates),
     })
 
     if not candidates:
-        raise RerankFailedException(detail="BM25 粗筛后候选为空")
+        raise RerankFailedException(detail="候选为空，无法精排")
 
     await sse_bridge.publish(EVENT_STEP_PROGRESS, {
         "step_id": step_id,
@@ -596,7 +858,7 @@ async def run_rerank(
         "candidates_count": len(candidates),
     })
 
-    # 3. LLM 精排
+    # 2. LLM 精排
     evidence_list, prompt_tokens, completion_tokens, retry_count = await _llm_rerank(
         topic=task.topic,
         task_type=task_type,
@@ -604,26 +866,26 @@ async def run_rerank(
         candidates=candidates,
     )
 
-    # 4. 取 top-K
+    # 3. 取 top-K
     top_k = min(max_sources, len(evidence_list))
     selected_evidence = evidence_list[:top_k]
 
-    # 5. 清空旧 Evidence 并持久化新结果，避免重试时累加重复计数
+    # 4. 清空旧 Evidence 并持久化新结果，避免重试时累加重复计数
     await _clear_task_evidence(session, task_id)
     await _persist_evidence(session, task, step, selected_evidence)
 
-    # 6. 更新 task 统计（直接赋值，非累加）
+    # 5. 更新 task 统计（直接赋值，非累加）
     task.total_evidence = len(selected_evidence)
     await session.flush()
 
-    # 7. 质量警告（Evidence < 3 不阻断）
+    # 6. 质量警告（Evidence < 3 不阻断）
     if len(selected_evidence) < 3:
         await sse_bridge.publish(EVENT_TASK_WARNING, {
             "step_id": step_id,
             "error_description": f"精排后 Evidence 数量 {len(selected_evidence)} < 3，可能影响后续综合质量",
         })
 
-    # 8. 聚合统计
+    # 7. 聚合统计
     avg_score = round(
         sum(e.relevance_score for e in selected_evidence) / len(selected_evidence), 3
     ) if selected_evidence else 0.0
@@ -631,7 +893,10 @@ async def run_rerank(
     top_domains: list[str] = []
     seen_domains: set[str] = set()
     for ev in selected_evidence:
-        domain = ev.domain or urlparse(ev.url).netloc or "unknown"
+        if ev.source_type == "internal":
+            domain = "internal"
+        else:
+            domain = ev.domain or urlparse(ev.url).netloc or "unknown"
         if domain not in seen_domains:
             seen_domains.add(domain)
             top_domains.append(domain)
@@ -650,7 +915,14 @@ async def run_rerank(
 
     output = {
         "evidence_count": len(selected_evidence),
-        "bm25_candidates": len(candidates),
+        "internal_evidence_count": sum(
+            1 for e in selected_evidence if e.source_type == "internal"
+        ),
+        "web_evidence_count": sum(
+            1 for e in selected_evidence if e.source_type == "web"
+        ),
+        "candidates_count": len(candidates),
+        "bm25_candidates": web_count,  # 向后兼容：web 策略下为 BM25 候选数
         "avg_score": avg_score,
         "top_domains": top_domains,
         "model": settings.LLM_FLASH_MODEL,

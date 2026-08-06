@@ -38,35 +38,51 @@ logger = logging.getLogger(__name__)
 
 
 class GraphItem:
-    """Evidence Graph 中的单条证据条目（内存结构）。"""
+    """Evidence Graph 中的单条证据条目（内存结构）。
+
+    对齐 DATABASE.md §6.2 / ADR-003：internal 证据无正文（content 为空），
+    只携带稳定身份、显示名与位置摘要；web 证据携带来源 URL/标题/域名。
+    """
 
     def __init__(self, index: int, evidence_item: EvidenceItem):
         self.index = index
         self.evidence_item_id = evidence_item.id
+        self.source_type = evidence_item.source_type or "web"
         self.source_id = evidence_item.source_id
         self.source_url = ""
         self.source_title = ""
         self.domain = ""
+        self.location_summary = evidence_item.location_summary or ""
         self.content = evidence_item.content or ""
         self.relevance_score = float(evidence_item.relevance_score or 0.0)
         self.cluster_theme = ""
         self.consensus_level = ""
         self.used_in_sections: list[str] = []
 
-        source = evidence_item.source
-        if source is not None:
-            self.source_url = source.url or ""
-            self.source_title = source.title or ""
-            self.domain = source.domain or ""
+        if self.source_type == "internal":
+            self.source_title = (
+                evidence_item.document_display_name_snapshot
+                or evidence_item.display_title
+                or "内部来源"
+            )
+            self.domain = "internal"
+        else:
+            source = evidence_item.source
+            if source is not None:
+                self.source_url = source.url or ""
+                self.source_title = source.title or ""
+                self.domain = source.domain or ""
 
     def to_dict(self) -> dict:
         return {
             "index": self.index,
             "evidence_item_id": self.evidence_item_id,
+            "source_type": self.source_type,
             "source_id": self.source_id,
             "source_url": self.source_url,
             "source_title": self.source_title,
             "domain": self.domain,
+            "location_summary": self.location_summary,
             "content": self.content,
             "relevance_score": self.relevance_score,
             "cluster_theme": self.cluster_theme,
@@ -274,28 +290,50 @@ def _build_knowledge_gaps(gaps_raw: Any) -> list[str]:
 
 
 def _aggregate_sources(items: list[GraphItem]) -> list[dict]:
-    """按 source_id 聚合 evidence 贡献数。"""
-    counts: dict[int, int] = {}
-    source_meta: dict[int, GraphItem] = {}
+    """按来源聚合 evidence 贡献数。
+
+    - web：按 source_id 聚合（每个来源 URL）；
+    - internal：按稳定 Document 身份聚合（source_id 为 None），来源 id 使用
+      document_id 派生，避免 None 聚为一类。
+    """
+    counts: dict[tuple, int] = {}
+    source_meta: dict[tuple, GraphItem] = {}
 
     for item in items:
-        counts[item.source_id] = counts.get(item.source_id, 0) + 1
-        if item.source_id not in source_meta:
-            source_meta[item.source_id] = item
+        if item.source_type == "internal":
+            key = ("internal", item.evidence_item_id and f"doc:{item.source_title}")
+        else:
+            key = ("web", item.source_id)
+        counts[key] = counts.get(key, 0) + 1
+        if key not in source_meta:
+            source_meta[key] = item
 
     sources = []
-    for source_id in counts:
-        meta = source_meta[source_id]
-        sources.append({
-            "id": source_id,
-            "url": meta.source_url,
-            "title": meta.source_title,
-            "domain": meta.domain,
-            "evidence_count": counts[source_id],
-        })
+    for key in counts:
+        meta = source_meta[key]
+        if key[0] == "internal":
+            sources.append({
+                "id": None,
+                "source_type": "internal",
+                "url": "",
+                "title": meta.source_title,
+                "domain": "internal",
+                "location_summary": meta.location_summary,
+                "evidence_count": counts[key],
+            })
+        else:
+            sources.append({
+                "id": key[1],
+                "source_type": "web",
+                "url": meta.source_url,
+                "title": meta.source_title,
+                "domain": meta.domain,
+                "location_summary": "",
+                "evidence_count": counts[key],
+            })
 
-    # 按 evidence_count 降序、source_id 升序，保证顺序稳定
-    sources.sort(key=lambda s: (-s["evidence_count"], s["id"]))
+    # 按 evidence_count 降序、来源类型稳定排序
+    sources.sort(key=lambda s: (-s["evidence_count"], str(s["title"])))
     return sources
 
 

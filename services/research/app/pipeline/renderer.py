@@ -65,6 +65,8 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一个专业研究报告撰写专家。请基
 3. Section 末尾列出该节使用的所有来源索引（格式：`[来源N]`，N 为 0-based 编号）
 4. 使用 Markdown 格式，包含标题层级、列表、表格（如需要）
 5. 承认知识缺口——不要为了报告「完整」而编造内容
+6. 证据详情中「内部来源标注」表示企业内部知识来源（只能引用，不得编造正文），
+   「来源标注」表示外部网页来源；报告中两类来源都要标注引用，不得混淆
 
 输出格式：
 {sections_json_schema}
@@ -132,8 +134,9 @@ def _select_template(task_type: str) -> tuple[str, str]:
 def _format_evidence_items(items: list[dict]) -> str:
     """把 Graph items 格式化为 Prompt 文本，受 TOKEN_BUDGET_SOFT_LIMIT 约束。
 
-    策略：按原始顺序尝试截断单条内容长度，再减少条目数，确保 Prompt
-    不超过软上限。
+    internal 证据（source_type='internal'）无正文，只提供显示名、位置与聚类信息；
+    web 证据携带正文。策略：按原始顺序尝试截断单条内容长度，再减少条目数，
+    确保 Prompt 不超过软上限。
     """
     valid_items = [
         item for item in items
@@ -146,17 +149,29 @@ def _format_evidence_items(items: list[dict]) -> str:
         parts: list[str] = []
         for item in valid_items[:count_limit]:
             index = item.get("index")
-            domain = item.get("domain") or "unknown"
-            title = item.get("source_title") or "无标题"
-            content = (item.get("content") or "")[:content_limit]
+            source_type = item.get("source_type") or "web"
             cluster_theme = item.get("cluster_theme") or "未分类"
             consensus_level = item.get("consensus_level") or "未评估"
-            parts.append(
-                f"来源标注：[来源 {index}] {domain} — {title}\n"
-                f"聚类主题：{cluster_theme}\n"
-                f"共识级别：{consensus_level}\n"
-                f"内容：{content}"
-            )
+            if source_type == "internal":
+                title = item.get("source_title") or "内部来源"
+                location = item.get("location_summary") or ""
+                content = ""
+                parts.append(
+                    f"内部来源标注：[来源 {index}] {title}\n"
+                    f"位置：{location}\n"
+                    f"聚类主题：{cluster_theme}\n"
+                    f"共识级别：{consensus_level}"
+                )
+            else:
+                domain = item.get("domain") or "unknown"
+                title = item.get("source_title") or "无标题"
+                content = (item.get("content") or "")[:content_limit]
+                parts.append(
+                    f"来源标注：[来源 {index}] {domain} — {title}\n"
+                    f"聚类主题：{cluster_theme}\n"
+                    f"共识级别：{consensus_level}\n"
+                    f"内容：{content}"
+                )
 
         formatted = "\n\n".join(parts)
         if estimate_tokens(formatted) <= settings.TOKEN_BUDGET_SOFT_LIMIT:
@@ -176,6 +191,13 @@ def _format_evidence_items(items: list[dict]) -> str:
 
     # 兜底保留 1 条最短内容
     item = valid_items[0]
+    if (item.get("source_type") or "web") == "internal":
+        return (
+            f"内部来源标注：[来源 {item.get('index')}] {item.get('source_title') or '内部来源'}\n"
+            f"位置：{item.get('location_summary') or ''}\n"
+            f"聚类主题：{item.get('cluster_theme') or '未分类'}\n"
+            f"共识级别：{item.get('consensus_level') or '未评估'}"
+        )
     return (
         f"来源标注：[来源 {item.get('index')}] {item.get('domain') or 'unknown'} — "
         f"{item.get('source_title') or '无标题'}\n"
@@ -385,7 +407,11 @@ def _extract_citations(
 
     unique_sorted = sorted(set(indices))
     sources = [
-        {"id": index_to_item[idx]["source_id"], "evidence_index": idx}
+        {
+            "id": index_to_item[idx].get("source_id"),
+            "source_type": index_to_item[idx].get("source_type") or "web",
+            "evidence_index": idx,
+        }
         for idx in unique_sorted
     ]
     return sources, has_invalid

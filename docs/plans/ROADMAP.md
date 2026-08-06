@@ -252,6 +252,7 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 
 - [x] 切片 A：#4 数据层、#5 请求契约、#6 幂等创建、#7 Worker 来源策略 fail-closed 守卫（E3114）。
 - [x] 切片 B（Knowledge Search Tool）：Internal Retrieval Consumer 客户端、策略感知 `run_search` 分流、Web Query 域隔离（ADR-010）、内部候选持久化删除 `minimal_excerpt`。
+- [x] 切片 C（Rerank 内部候选接入 + Evidence 分型，2026-08-06）：`evidence_items` 分型数据层（`source_type=internal|web`、内部稳定 ID/显示/位置/时间/评分摘要/validity 列、`content`/`source_id` 可空、内部唯一键，迁移 `c0d1e2f3a4b5`）；Rerank 策略感知（knowledge 经 resolve 重取内部候选精排、hybrid 与 Web 统一精排、产出 internal 无正文证据、resolve 失败 fail-closed）；Synthesis/Evidence Graph/Render 消费 internal 证据（resolve 重取工作集、区分来源、无正文持久化）。
 - 各切片实现与验证结果记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05、2026-08-06 条目）。
 
 
