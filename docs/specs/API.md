@@ -4,7 +4,7 @@
 |:---|:---|
 | 文档状态 | 已确认设计 |
 | 文档版本 | v1.0 |
-| 最后更新 | 2026-08-03 |
+| 最后更新 | 2026-08-06 |
 
 > 本文是外部/内部 HTTP、错误语义和 SSE 的权威规范。产品行为见 [PRD.md](PRD.md)，身份与授权见 [IDENTITY_AND_ACCESS.md](IDENTITY_AND_ACCESS.md)，服务边界见 [ARCHITECTURE.md](ARCHITECTURE.md)。跨服务字段 Schema 由 [`packages/contracts/`](../../packages/contracts/README.md) 定义；本文不复制 ORM、数据库或 Pipeline 内部结构。
 
@@ -51,7 +51,7 @@ M1 的统一身份、服务认证和敏感数据外发决策由已接受的 [ADR
 | `UserSummary` | `id`、`username`、`role`、`status` | `id` 为 Platform User UUID，不是 Knowledge 内部 `users.id`；`role=user|admin`，`status=active|disabled` |
 | `KnowledgeBaseCreate` | `name`、`visibility` | `visibility=private|public` |
 | `KnowledgeBaseResponse` | `id`、`name`、`visibility`、`owner`、`index_status`、时间 | 不返回内部主键、Collection 或路径 |
-| `DocumentResponse` | `id`、`knowledge_base_id`、`display_name`、`status`、时间 | `queued|processing|completed|partial|failed` |
+| `DocumentResponse` | `id`、`knowledge_base_id`、`display_name`、`status`、时间 | `queued|processing|completed|partial|failed|deleting` |
 | `ChatStreamRequest` | `conversation_id`、`knowledge_base_id`、`message` | v1.0 只有单数 KB；消息非空 |
 | `ConversationResponse` | `id`、`knowledge_base_id`、`title`、时间 | 会话只属于一个用户和一个 KB |
 | `ResearchTaskCreate` | `topic`、`task_type`、`source_strategy`、`knowledge_base_ids`、预算摘要 | knowledge/hybrid 为 1—50 个 KB；web 必须为空 |
@@ -131,7 +131,7 @@ READ、owner 和 admin 治理分别判断，权限矩阵引用 PRD §8。
 | `DELETE /api/v1/documents/{document_id}` | owner/admin 治理 | 204 | 异步清理另有状态字段 |
 | `GET /api/v1/documents/{document_id}/locations/{location_id}` | 当前 READ | 200 | 实时鉴权后返回最小片段和定位 |
 
-文档状态至少表达 queued、processing、completed、partial、failed。只有满足 Pipeline 有效来源条件的文档可参与检索。文档版本化生命周期与删除一致性决策见 [ADR-007](../decisions/ADR-007-knowledge-document-lifecycle-delete-consistency.md) 与 [RAG_PIPELINE.md](../../services/knowledge/docs/RAG_PIPELINE.md)。
+文档状态为 `queued|processing|completed|partial|failed|deleting`（6 值，对齐 ADR-007 与 DATABASE.md §5.2；`deleting` 为异步删除过渡态）。只有满足 Pipeline 有效来源条件的文档可参与检索。文档版本化生命周期与删除一致性决策见 [ADR-007](../decisions/ADR-007-knowledge-document-lifecycle-delete-consistency.md) 与 [RAG_PIPELINE.md](../../services/knowledge/docs/RAG_PIPELINE.md)。
 
 ## 7. Chat 与 Conversation API
 
@@ -160,7 +160,7 @@ v1.0 Chat 请求只接受一个 `knowledge_base_id`，Conversation 也只绑定�
 | `DELETE /api/v1/research/tasks/{task_id}` | owner/admin 治理 | 204 |
 | `GET /api/v1/research/tasks/{task_id}/events` | owner/admin 审计 | 200 SSE |
 
-ADR 检查 1–8：否。本切片（M3 A）实现本节已定义的 `POST /api/v1/research/tasks` 幂等创建，契约与幂等机制由本节、DATABASE.md §5.1–5.2 与 ADR-008 唯一确定，属「已有规范唯一确定实现方式」。裁决记录（2026-08-05）：负责人裁决 ① 创建响应沿用 `{"code","message","data"}` 信封（迁移态，见 §8.2）；② KB「当前可读」在 Internal Retrieval 时实时鉴权，创建时仅结构校验；③ 本节新增 `idempotent_replayed` 字段定义。§8.1 的 Worker 来源策略 fail-closed 守卫（E3114）ADR 检查 1–8：否（行为由 RESEARCH_PIPELINE §1.7/§6.1/§12.1/§12.2 与 DATABASE.md §5.1 唯一确定，仅新增任务终态错误码，与既有 E2xxx/E3xxx 迁移期错误码同类）。（2026-08-05）
+ADR 检查 1–8：否。本节的裁决与验证记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05「落地 M3 切片 A」「更新 API.md §8」与 2026-08-06「落地 M3 切片 B」条目）；下方为当前契约事实。
 
 ### 8.1 创建语义
 
@@ -173,22 +173,35 @@ ADR 检查 1–8：否。本切片（M3 A）实现本节已定义的 `POST /api/
 
 `knowledge`/`hybrid` 至少选择一个 KB（1–50 个，合法 UUID）；`web` 不接受 KB。创建时仅做上述结构校验；「当前可读」由 Knowledge 在 `/internal/v1/retrieval/search` 对全部目标 KB 实时鉴权，任一不可访问时该次检索整体失败（DATABASE.md §5.2、ADR-010），创建成功不构成对 KB 后续权限的承诺。
 
-Worker 执行时再次核验来源策略依赖（fail-closed，RESEARCH_PIPELINE §1.7/§6.1/§12.1/§12.2）：`knowledge`/`hybrid` 任务必须持有至少一个知识库选择行（DATABASE.md §5.1 不变量）；不变量被破坏时（历史数据、选择行被删等）任务直接进入终态 `failed`（迁移期错误码 `E3114 KnowledgeBasesMissing`，`recoverable=false`），不得静默按 `web` 路径执行或部分放行。
+Worker 执行时再次核验来源策略依赖（fail-closed，RESEARCH_PIPELINE §1 原则 7/§6.1/§12.1/§12.2）：`knowledge`/`hybrid` 任务必须持有至少一个知识库选择行（DATABASE.md §5.1 不变量）；不变量被破坏时（历史数据、选择行被删等）任务直接进入终态 `failed`（迁移期错误码 `E3114 KnowledgeBasesMissing`，`recoverable=false`），不得静默按 `web` 路径执行或部分放行。
+
+Search 阶段按来源策略分流（RESEARCH_PIPELINE §3/§6.1）：`knowledge` 只走 Internal Retrieval（不调用 Tavily，不创建 Web Source）；`web` 走既有 Tavily 路径；`hybrid` 先执行内部检索再执行 Web 搜索，Web Query 只来自原始 Topic / 公开子问题，内部 excerpt、内部文档标题与内部命名绝不自动进入 Web Query（ADR-010 域隔离）。Internal Retrieval 对全部目标 KB 实时鉴权，任一 KB 无权返回 `KB_FORBIDDEN` 时整次检索失败（迁移期错误码 `E3115 InternalKnowledgeForbidden`，`recoverable=false`，不得降级为 Web）；瞬时不可用重试耗尽返回 `E3116 InternalRetrievalUnavailable`（`recoverable=true`）；响应不符合 Contract 返回 `E3117 InternalRetrievalContract`（`recoverable=false`）。内部命中的 `minimal_excerpt` 只存在于当前 Step 内存，转换后的内部 Evidence 不含任何正文，展开原文必须通过 Knowledge 来源访问 API 实时鉴权。
 
 取消和恢复命令幂等。并发或队列达到上限返回 `429 RS_TASK_CONCURRENCY_LIMIT` 或 `RS_QUEUE_LIMIT`，`retryable=true`。
 
 Task/Phase/Step 枚举由 Research Pipeline 权威定义；API 只暴露状态、进度、时间、可恢复性和安全错误。客户端必须容忍未知非终态枚举。
 
-### 8.2 信封迁移态（2026-08-05 裁决，方案 B）
+### 8.2 信封迁移态
 
-API.md §4 定义的 `{"error":{...}}` 错误结构与本表对应 `ResearchTaskCreate` 扁平 DTO 为已批准目标态，尚未在平台落地；全平台（Knowledge/Research/前端）当前统一使用 `{"code","message","data"}` 成功信封与 `{"code","message","detail"}` 错误信封。
+当前态：`POST /api/v1/research/tasks` 返回 `{"code":"0","message":"...","data":{...}}`，请求体沿用 `topic + requirements + source_strategy + knowledge_base_ids`，错误信封为 `{"code","message","detail"}`。目标态：API.md §4 `{"error":{...}}` 错误结构与 §3.1 扁平 `ResearchTaskCreate`（含预算摘要）。迁移步骤、Consumer 清单、观测与退出门禁记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05「更新 API.md §8」条目）。
 
-- 当前态：`POST /api/v1/research/tasks` 返回 `{"code":"0","message":"...","data":{...}}`；请求体沿用 `topic + requirements + source_strategy + knowledge_base_ids`；错误信封为 `{"code","message","detail"}`；
-- 目标态：API.md §4 `{"error":{...}}` 错误结构、§3.1 扁平 `ResearchTaskCreate`（含预算摘要）；
-- 迁移步骤：本切片先落地 `/api/v1/research/tasks` 幂等创建；后续切片按里程碑迁移其余 Research 端点；最终统一为 API.md §4 信封；
-- Consumer：apps/web 尚无 Research API 调用；legacy `/api/research` 保持原行为（§2 兼容层）；
-- 观测：后端访问日志与幂等创建验收测试覆盖该端点；
-- 退出条件：平台统一落地 API.md §4 信封后删除本迁移记录。
+### 8.3 迁移期错误码映射
+
+Knowledge Internal 返回的新命名空间错误码在 Research 消费端映射为迁移期外部 E 码；信封统一到 §4 目标态前，本表是当前对外语义（对齐文档治理 §5.3）。退出条件：全平台信封统一落地 §4（§8.2）时随迁新码并删除本表与旧 E 码；观测：后端访问日志 `error_code` 分布与错误映射测试。
+
+| 内部返回（Contract / Knowledge） | 迁移期外部 E 码 | 语义 | retryable |
+|:---|:---|:---|:---:|
+| `AUTH_USER_DISABLED` | `E1010` | 用户禁用或不存在 | 否 |
+| `INTERNAL_IDENTITY_UNAVAILABLE` / 网络 / 超时 | `E9002` | 身份事实源不可用，失败关闭 | 是 |
+| `INTERNAL_CONTRACT_*` / `INTERNAL_SERVICE_UNAUTHENTICATED` / `EVIDENCE_SOURCE_UNAVAILABLE` | `E3117` | Internal Retrieval Contract 或响应校验失败 | 否 |
+| `INTERNAL_RETRIEVAL_UNAVAILABLE` / 限流 / 网络 / 超时 | `E3116` | 内部检索瞬时不可用 | 是 |
+| `KB_FORBIDDEN` | `E3115` | 任一目标 KB 无权，整次检索失败 | 否 |
+| DATABASE.md §5.1 不变量破坏（无知识库选择行） | `E3114` | Worker 来源策略 fail-closed | 否 |
+| Idempotency-Key 同 Key 不同指纹 | `E2009` | 幂等冲突 | 否 |
+
+Knowledge 对外 Auth 仍使用的既有 E 码（如 `E5009` Refresh Token 重放）与信封一并随 §4 目标态迁移；全平台收口后删除。
+
+ADR 检查（2026-08-06）：命中第 3、4 项。负责人豁免 ADR——执行 API.md §4 已批准目标态，不形成新方案选择；记录见 [CHANGELOG](../CHANGELOG.md)。
 
 ## 9. Evidence 与 Report API
 

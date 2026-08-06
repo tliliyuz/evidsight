@@ -158,7 +158,7 @@ docker compose config --quiet
 
 ## 项目状态
 
-据见当前处于 **规范基线与 Monorepo 迁移准备阶段**。仓库已完成产品、架构、接口、数据库、Pipeline 和前端设计规范，核心业务服务的生产实现正在迁入中。
+据见当前处于 **M3：Research Service 接入内部知识（进行中）**。M0 规范基线与 Monorepo 迁移、M1 统一身份与权限、M2 Knowledge 稳定化与 Internal Retrieval 均已完成；统一前端、治理与部署验收、v1.0 发布门禁为后续里程碑。当前前端为 M0 迁入的 Vue 基线，M4 将按前端专项规范迁向 React。里程碑状态与验证记录以 [路线图](docs/plans/ROADMAP.md) 为准。
 
 ## 开发说明
 

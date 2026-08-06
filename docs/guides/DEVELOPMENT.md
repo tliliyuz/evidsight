@@ -3,10 +3,10 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 开发基线 |
-| 最后更新 | 2026-08-04 |
-| 当前阶段 | M1：统一身份、权限和基础契约（已完成） |
+| 最后更新 | 2026-08-06 |
+| 当前阶段 | M3：Research Service 接入内部知识（进行中） |
 
-> 本文定义开发入口、Monorepo 目录职责、环境准备、常用命令和交付门禁。产品行为以 [PRD.md](../specs/PRD.md) 为准，服务边界以 [ARCHITECTURE.md](../specs/ARCHITECTURE.md) 为准。M0 结构迁移与 M1 统一身份、权限和基础契约均已完成；M2 起的新功能仍须按 SDD 门禁先执行 ADR 检查、再以验收测试观察正确 RED 后进入生产实现。
+> 本文定义开发入口、Monorepo 目录职责、环境准备、常用命令和交付门禁。产品行为以 [PRD.md](../specs/PRD.md) 为准，服务边界以 [ARCHITECTURE.md](../specs/ARCHITECTURE.md) 为准。M0 结构迁移、M1 统一身份与权限、M2 Knowledge 稳定化与 Internal Retrieval 均已完成；M3 起的新功能仍须按 SDD 门禁先执行 ADR 检查、再以验收测试观察正确 RED 后进入生产实现。
 
 ## 1. 环境要求
 
@@ -14,7 +14,7 @@
 |:---|:---|:---|
 | Python | 3.12+ | Knowledge/Research 服务、契约生成和测试 |
 | uv | 与根 `uv.lock` 兼容 | 根工具与 Python 环境管理 |
-| Node.js | 20+ | React/Vite Web 构建与测试 |
+| Node.js | 20+ | Web 构建与测试（Vite；M4 前 Vue，M4 后 React）|
 | Docker Engine | 24+ | 服务镜像与本地部署 |
 | Docker Compose | v2 | 单机 2C2G 编排基线 |
 | MySQL | 8.0+ | `platform_db`、`knowledge_db`、`research_db` |
@@ -29,8 +29,8 @@
 
 ```text
 evidsight/
-├── AGENT.md                       # Agent 开发门禁与权威文档矩阵
-├── CLAUDE.md                      # 与 AGENT.md 同步的协作入口
+├── AGENTS.md                      # Agent 开发门禁与权威文档矩阵
+├── CLAUDE.md                      # 与 AGENTS.md 同步的协作入口
 ├── README.md                      # 项目入口和当前状态
 ├── pyproject.toml                 # 当前根工具骨架，不是后端服务依赖集合
 ├── uv.lock
@@ -216,7 +216,7 @@ docker compose config --quiet
 - 文档、注释和提交信息使用中文；代码标识符使用英文；
 - Python IO 使用 async，数据库 Session 依赖注入；
 - API 层只校验、鉴权并调用 Service；
-- React 使用 TypeScript、函数组件和统一 API 客户端；
+- Web 使用 Vue 3 + TypeScript、组合式 API 和统一 API 客户端；M4 迁向 React + TypeScript 函数组件（[ADR-004](../decisions/ADR-004-web-framework-transition.md)）；
 - 时间统一存储为 UTC；
 - 日志、Trace、SSE 和错误不得包含密码、Token、服务凭证、完整 Prompt、隐藏推理或内部正文；
 - Chat SSE 与 Research SSE 使用独立解析器和状态机；

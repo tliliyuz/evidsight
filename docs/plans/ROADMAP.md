@@ -4,7 +4,7 @@
 |:---|:---|
 | 文档状态 | 已确认 |
 | 文档版本 | v1.0 |
-| 最后更新 | 2026-08-04 |
+| 最后更新 | 2026-08-06 |
 | 排期方式 | 阶段里程碑与验收门禁，不绑定具体日期 |
 
 > 本文档是据见实施顺序、阶段依赖和发布门禁的权威计划。产品范围与成功指标见 [PRD.md](../specs/PRD.md)，总体服务边界与部署约束见 [ARCHITECTURE.md](../specs/ARCHITECTURE.md)，第一阶段代码布局迁移步骤见 [MONOREPO_MIGRATION_PLAN.md](MONOREPO_MIGRATION_PLAN.md)。字段、状态机、算法和界面细节由对应专项规范定义，本文不复制其定义。
@@ -51,7 +51,7 @@
 | M0 | 已完成 | 规范基线与 Monorepo 迁移 | 两个来源项目进入统一仓库并保持独立构建、测试和数据边界 | 已确认 PRD、总体架构、来源基线 |
 | M1 | 已完成 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
 | M2 | 已完成 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence | M1 的身份与 Contract 基线 |
-| M3 | 未开始 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 |
+| M3 | 进行中 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 |
 | M4 | 未开始 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
 | M5 | 未开始 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的 2C2G 试点部署 | M1—M4 |
 | M6 | 未开始 | v1.0 发布门禁与后续演进 | 全部 P0、成功指标和端到端场景完成发布验收 | M0—M5 |
@@ -85,7 +85,7 @@ M0 的结构迁移与单机运行基线已完成。原 `docs/migration/` 下的�
 ### 必须完成的规范
 
 - `docs/plans/MONOREPO_MIGRATION_PLAN.md`；
-- 根目录 `CLAUDE.md` 与 `AGENT.md` 的 SDD、TDD 和服务边界约束；
+- 根目录 `CLAUDE.md` 与 `AGENTS.md` 的 SDD、TDD 和服务边界约束；
 - 来源基线结果、迁移验收记录和回滚说明。
 
 ### 主要交付物
@@ -127,21 +127,11 @@ M0 的结构迁移与单机运行基线已完成。原 `docs/migration/` 下的�
 
 ### 当前准备门禁
 
-- [x] M0 状态已确认为完成；原 `docs/migration/` 过程记录已由负责人删除且不再构成门禁；
-- [x] 统一身份、权限、服务认证与敏感数据外发规范已形成已确认设计；
-- [x] ADR 检查已记录，并创建 `ADR-005` 候选；
-- [x] `ADR-005` 经负责人评审并明确接受为 `accepted`；
-- [x] 将 IA-001—IA-012、权限矩阵和 Contract 门禁拆分为可执行验收测试场景；
-- [x] 确认首个 M1 切片的受影响模块、测试命令和 RED 预期，并完成 IA-001/IA-002 核心 GREEN；
-- [x] 完成 IA-001-B：Research 退出本地身份所有权，仅保留 Knowledge Access Token 验证与 Platform User UUID 任务归属。
-- [x] 完成 IA-003/IA-011：Knowledge 以 Refresh Token Family 和数据库行锁执行原子轮换，同一旧 Token 至多产生一个有效后继。
-- [x] 完成 IA-004：重放已轮换 Refresh Token 时原子撤销所属 Family，持久化安全审计事件并返回 `E5009`。
-- [x] Service JWT + Identity Status Provider 端点 GREEN。
-- [x] Research 身份状态门禁 GREEN：Research 创建任务前调用 `GET /internal/v1/identity/users/{id}/status` 实时复核用户状态；禁用/不存在用户 → `E1010`、身份库不可用/网络/超时 → `E9002`，失败关闭且不分发 Worker（对齐 TESTING.md IA-012 身份状态契约）。
+- [x] M0 状态确认为完成；原 `docs/migration/` 过程记录已由负责人删除且不再构成门禁。
+- [x] IA-001—IA-012、权限矩阵和 Contract 门禁已拆分为可执行验收测试场景；各切片 RED/GREEN 与六条退出门禁证据见 [CHANGELOG](../CHANGELOG.md)（2026-08-02—08-04 条目）；`ADR-005` 已接受为 `accepted`。
 
-M1 当前处于统一身份纵向切片持续实施阶段。`ADR-005` 已接受，IA-001/IA-002、IA-001-B、IA-003/IA-011、IA-004 与 IA-012 身份状态契约 Research 侧已观察正确 RED 并完成 GREEN；IA-005 禁用用户全链路（Chat/上传/重处理/治理写操作拒绝）API 层验收测试已补齐并 GREEN；IA-010 Service JWT 签名密钥轮换双 Key 窗口验收测试已补齐并 GREEN（窗口内新旧 Token 按 Key ID 均通过、窗口后移除旧 Key 旧 Token 失效）；PRD §8.2 知识库权限矩阵纯函数验收测试已补齐并 GREEN（READ visibility 优先、WRITE ownership+admin 治理、上传 owner-only，共 15 用例）。其余身份、服务认证和敏感数据外发能力仍须逐项遵循 SDD 门禁。
+M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract 依赖 Internal Retrieval，明确划入 M2/M3。
 
-M1 已完成（2026-08-04）：六条退出门禁逐条核对证据齐备——两个服务对相同 JWT Claims、过期和禁用语义的测试结果一致（Knowledge 与 Research `test_security.py`）；禁用用户不能刷新、创建任务、Chat、上传、重处理或治理写操作（`test_disabled_user_access.py` + Research 创建任务身份门禁）；服务间请求无法凭用户输入伪造服务身份或授权结论（两侧 `test_service_security.py` + Internal 校验顺序）；KB READ/WRITE/管理权限矩阵全覆盖（`test_permissions.py` 15 用例）；跨服务 Contract 具备版本、样例、Provider 与 Consumer 测试（`packages/contracts/tests/` + 双方 `tests/contract/`）；密钥、Token、密码和内部异常不进前端响应或普通日志（生产模式屏蔽堆栈 + `TestLoginLogSensitivity` 负向日志测试）。IA-006—IA-009 与 Retrieval/Evidence Contract 依赖 Internal Retrieval，明确划入 M2/M3。
 
 ### 范围内工作
 
@@ -197,10 +187,9 @@ M1 已完成（2026-08-04）：六条退出门禁逐条核对证据齐备——�
 
 ### 当前状态
 
-- [x] 文档生命周期、检索权限和删除一致性 ADR：`ADR-007` 经负责人评审并明确接受为 `accepted`（命中检查项 4、5，2026-08-04）；检索权限语义由 `ADR-002`/`ADR-005` 交叉引用覆盖，不另建重复 ADR。
-- [x] Internal Retrieval 与 Evidence Contract Schema/Fixture 与 Provider/Consumer 验收测试（契约先行）：新增 7 个 Schema（retrieval-request/response、retrieval-hit、evidence-resolve-request/response、evidence-reference、evidence-relation）并扩展 common（Timestamp/ScoreKind/UnitInterval/InternalSourceIdentity/SourceLocation）与 error-response 错误码（KB_FORBIDDEN 等 4 个）；落地 24 valid + 50 invalid Fixture、跨字段语义不变量 `semantics.py`、7 个 Pydantic 参考模型；契约自检 131 项、Research Consumer 73 项、Knowledge Provider 15 项全绿（2026-08-04，Knowledge venv 4.26/Research venv 8.3.5）；Provider 端点级测试由下一项落地。
-- [x] 权限感知的 `/internal/v1/retrieval/search` 与 `/resolve` Provider 端点及实时 READ 校验（含版本化数据层）：按 DATABASE.md §5.3/ADR-007 落地 `document_versions` 表与 Active Version 支撑列并回填存量（62 文档版本 1、1224 chunk 稳定 `segment_uuid`、1064 section 版本归属、0 孤儿），检索/解析只读 Document Active Version，逐 KB 实时 READ 校验（任一无权整次拒绝）、deleting 状态失败关闭、索引未就绪可重试 503、引用不可用整批失败；Provider 端点级验收 23 项、Knowledge 契约 38 项、知识服务全量 1495 项全绿（2026-08-04，docker 容器执行）。入库写路径版本化由下一项落地。
-- [x] 文档入库/重处理/删除/失败恢复版本化写路径与 PRD AC-005、AC-006、AC-010 验证入口：实现 `DocumentStatus` 枚举 6 值对齐（Alembic `c6d7e8f9a0b1`）、`app/ingest/versioning.py` 版本生命周期与原子发布、`app/ingest/tasks.py` Version 驱动 Worker（Version UUID 幂等、阶段 Checkpoint 续跑、增量 staging）、`app/ingest/recovery_tasks.py` Beat 恢复扫描、`document_service` upload/reprocess/delete 版本适配、BM25 Active Version 过滤与 generation 缓存 Key、Internal Retrieval `updating` 有界等待；AC-005/006/010 验证脚本落地（`services/knowledge/scripts/verify_ac005_ingest_success.py` 等，对齐 TESTING.md §7 模板，缺失评估数据报错退出）；容器内 Knowledge 全量 1512 项、Architecture 17 项、前端 build 与 539 项测试全绿（2026-08-05）。迁移 `c6d7e8f9a0b1` 已实跑并验证（`documents.status` 收敛 6 值、存量无损）；修复 `alembic/env.py` dispose 问题；知识库容器重建为版本化代码后，真实环境上传/重处理/删除 smoke 全链路通过（发布原子切换、KB 锁 `updating→ready`、旧版本向量删除、删除级联清理），并实测发现修复 Chroma where `$and` 语法缺陷（见 RAG_PIPELINE §16）。异常演练（AC-004 风格 Worker 中断/租约恢复）与 AC 实际跑分于 2026-08-05 在真实环境执行完成：发现并修复 Service JWT 服务认证部署缺口（compose/.env 从未配置密钥材料，Research 无法签发、Knowledge 无法验证内部检索 Token）——供给 dev RSA 密钥（`deploy/secrets/service-jwt/`，git 忽略），接线 `EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE`/`EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE`/`EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID`，并设 `EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS=300`，重启后 research→knowledge 内部检索真实打通；补齐 `knowledge-beat` 服务（镜像复用 worker、独立 volume），恢复扫描 `scan_stuck_versions` 在部署中每 60s 真实运行；AC-005 固定文档集入库成功率 19/19=100.00%（20 样本 1 次瞬时上传非 201 按规范排除、手动重传成功，门槛 ≥99%）、AC-006 固定评估集 Recall@5=1.0000（10/10 满分，门槛 ≥0.85）、AC-010 来源可追溯率 100%（5/5，门槛 100%）全部通过；异常演练实测 Worker 中断/租约恢复全链路：SIGKILL 中断于 `parsing` 阶段 → 版本冻结 + 锁残留（Redis `version_lock:*` TTL 600s）→ 扫描检测 stuck 但尊重活跃锁不重投（`stuck_versions:1, redispatched:0`）→ 锁过期后重投 `ingest_version`（`redispatched:1`）→ 断点续跑至 `ready`（11 chunks 无重复、恢复后向量可检索、KB 锁释放）；并实测发现修复恢复扫描漏掉 `queued` 状态的实现缺陷（对齐 RAG_PIPELINE §3.4「queued 或超时非终态由扫描恢复」，`SCAN_STATUSES` 含 `queued`，新增验收测试，容器内 Knowledge 全量 1513 项全绿）；AC-005/006 脚本实测发现并修复三个缺陷（`_list_documents` 误按顶层 `data` 迭代、`evaluated` 用 Path 对象比对字符串键、AC-006 recall 未按期望文档去重导致 >1 伪值）。
+- [x] `ADR-007` 已接受为 `accepted`（命中检查项 4、5，2026-08-04）；检索权限语义由 `ADR-002`/`ADR-005` 交叉引用覆盖，不另建重复 ADR。
+- [x] Internal Retrieval/Evidence Contract、权限感知 Provider 端点、版本化写路径与 PRD AC-005/006/010 真机验收均已落地；契约/Provider/全量测试结果与异常演练记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-04、2026-08-05 条目）。
+
 
 ### 范围内工作
 
@@ -257,7 +246,14 @@ M1 已完成（2026-08-04）：六条退出门禁逐条核对证据齐备——�
 - Research Pipeline 迁移后现有 Web 研究行为保持回归通过；
 - 三类来源策略和 Evidence Contract 已在 PRD/API/Contract 中对齐。
 
-进入条件核验（2026-08-05）：三项均按权威文档状态核验通过——① CHANGELOG 2026-08-05 记录 M2 真实环境验收 AC-005/006/010 全通过、Provider 端点级 23 项、Knowledge 全量 1512 项全绿；② Research Worker 在 docker 全栈中运行完整任务闭环（历史记录中 research 全量失败为本机以 `services/research` 为 cwd 运行导致 `env_file=".env"` 未加载根目录 `.env` 的环境误判，非实现回归，mac 开发统一使用 docker 环境）；③ 三类来源策略与 Evidence Contract 已在 API.md §8 与 `packages/contracts/` 中对齐，实现由本阶段（M3）落地。ADR 检查 1–8 命中项 3/4/5/6/7，负责人于 2026-08-05 裁决「创建 ADR（A/B/C 三份）」，对应 [ADR-008](../decisions/ADR-008-research-task-lifecycle-recovery.md)、[ADR-009](../decisions/ADR-009-unified-evidence-graph-report.md)、[ADR-010](../decisions/ADR-010-internal-knowledge-egress-redaction.md)；另裁决 Research API 路径按 API.md 迁移到 `/api/v1/research`。
+进入条件核验（2026-08-05）：三项核验通过（M2 验收记录、Research 全栈运行基线、三类来源策略与 Evidence Contract 对齐），`ADR-008`/`ADR-009`/`ADR-010` 已接受为 `accepted`（命中项与裁决见各 ADR 及 [CHANGELOG](../CHANGELOG.md) 2026-08-05 条目）；另裁决 Research API 路径按 API.md 迁移到 `/api/v1/research`。
+
+### 当前状态
+
+- [x] 切片 A：#4 数据层、#5 请求契约、#6 幂等创建、#7 Worker 来源策略 fail-closed 守卫（E3114）。
+- [x] 切片 B（Knowledge Search Tool）：Internal Retrieval Consumer 客户端、策略感知 `run_search` 分流、Web Query 域隔离（ADR-010）、内部候选持久化删除 `minimal_excerpt`。
+- 各切片实现与验证结果记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05、2026-08-06 条目）。
+
 
 ### 范围内工作
 
@@ -341,7 +337,7 @@ M1 已完成（2026-08-04）：六条退出门禁逐条核对证据齐备——�
 - 统一身份与导航体验；
 - 知识问答、研究创建、运行、历史和报告页面；
 - 报告—引用—Evidence 双向联动；
-- 前端 API 模块、Pinia 状态和两套 SSE 状态机；
+- 前端 API 模块、TanStack Query 服务端状态和两套 SSE 状态机；
 - 页面、组件和关键端到端测试。
 
 ### 退出门禁
