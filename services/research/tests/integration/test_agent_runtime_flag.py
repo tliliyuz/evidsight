@@ -11,12 +11,12 @@ from app.agent.context import AgentContext
 from app.agent.runtime import AgentRuntime
 from app.core.llm import LLMResult, ToolCall
 from app.core.trace_recorder import TraceRecorder
+from app.models.agent_event import AgentEvent
 from app.models.agent_memory_entry import AgentMemoryEntry
 from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import (
     EVENT_AGENT_ACTION,
     EVENT_AGENT_OBSERVATION,
-    EVENT_AGENT_THOUGHT,
     EVENT_CHECKPOINT_SAVED,
     EVENT_STEP_COMPLETED,
     EVENT_TASK_COMPLETED,
@@ -38,8 +38,8 @@ class FakeSSEBridge:
     def __init__(self):
         self.events = []
 
-    async def publish(self, event_type: str, data: dict | None = None) -> None:
-        self.events.append({"event": event_type, "data": data or {}})
+    async def publish(self, event_type: str, data: dict | None = None, event_id: int | None = None) -> None:
+        self.events.append({"event": event_type, "data": data or {}, "event_id": event_id})
 
 
 async def _stub_handler(task, step, session, sse):
@@ -158,12 +158,36 @@ class TestAgentRuntimeFlag:
 
         # 验证 SSE 事件
         event_types = [e["event"] for e in sse.events]
-        assert EVENT_AGENT_THOUGHT in event_types
         assert EVENT_AGENT_ACTION in event_types
         assert EVENT_AGENT_OBSERVATION in event_types
         assert EVENT_STEP_COMPLETED in event_types
         assert EVENT_CHECKPOINT_SAVED in event_types
         assert EVENT_TASK_COMPLETED in event_types
+        # §16 / §17.3-22：模型隐藏推理不进入用户可见 SSE
+        assert "agent.thought" not in event_types
+
+        # 验证 agent_events（切片 F）：追加式业务审计 + SSE 持久游标
+        result = await db_session.execute(
+            sa_select(AgentEvent).where(AgentEvent.task_id == task.id).order_by(AgentEvent.sequence)
+        )
+        agent_events = result.scalars().all()
+        assert len(agent_events) > 0
+        sequences = [e.sequence for e in agent_events]
+        assert sequences == sorted(sequences)
+        assert sequences[0] == 1
+        # 事件类型覆盖 phase 进入与 tool 请求/结果
+        event_types_db = {e.event_type for e in agent_events}
+        assert "phase.enter" in event_types_db
+        assert "tool.request" in event_types_db
+        assert "tool.result" in event_types_db
+        # agent_events 不含隐藏推理/完整 Prompt 等禁止字段
+        for ev in agent_events:
+            for summary in (ev.input_summary or {}, ev.result_summary or {}):
+                assert not {"thought", "reasoning", "reasoning_content", "prompt"} & set(summary)
+        # SSE 发布的事件 id 使用持久 sequence
+        for ev in agent_events:
+            published = [e for e in sse.events if e["event_id"] == ev.sequence]
+            assert len(published) == 1
 
         # 验证 memory_tool 曾被调用且不破坏 phase 推进；参数已脱敏不暴露具体内容
         memory_actions = [

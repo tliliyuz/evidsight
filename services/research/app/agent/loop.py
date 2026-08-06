@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
 from app.agent.exceptions import AgentLoopExhaustedError
+from app.agent.event_recorder import AgentEventRecorder
 from app.agent.memory import ReActEntry, WorkingMemory
 from app.agent.prompts import build_agent_system_prompt, build_phase_instruction
 from app.agent.state import PhaseController
@@ -16,8 +17,11 @@ from app.metrics import emit_agent_loop_iteration
 from app.pipeline.sse_bridge import (
     EVENT_AGENT_ACTION,
     EVENT_AGENT_OBSERVATION,
-    EVENT_AGENT_THOUGHT,
     SSEBridge,
+)
+from app.services.agent_event_service import (
+    EVENT_TYPE_TOOL_REQUEST,
+    EVENT_TYPE_TOOL_RESULT,
 )
 from app.tools.base import Tool, ToolCall, ToolContext, ToolResult
 from app.tools.registry import ToolRegistry
@@ -46,11 +50,13 @@ class AgentLoop:
         working_memory: WorkingMemory,
         sse_bridge: SSEBridge,
         max_iterations: int | None = None,
+        recorder: AgentEventRecorder | None = None,
     ):
         self._phase_controller = phase_controller
         self._working_memory = working_memory
         self._sse = sse_bridge
         self._max_iterations = max_iterations or settings.MAX_AGENT_ITERATIONS
+        self._recorder = recorder
 
     async def run(
         self,
@@ -109,13 +115,9 @@ class AgentLoop:
                 ))
                 continue
 
-            if llm_result.reasoning_content:
-                await self._sse.publish(EVENT_AGENT_THOUGHT, {
-                    "iteration": iteration,
-                    "phase": current_phase,
-                    "thought": llm_result.reasoning_content,
-                })
-
+            # §16 / §17.3-22：模型隐藏推理（reasoning_content）不进入 SSE 或
+            # agent_events 等用户可见字段；ReAct 工作记忆（agent_memory_entries）
+            # 在内部保留供断点续跑，但不外发。
             tool_calls = llm_result.tool_calls or []
             if not tool_calls:
                 # LLM 未返回 Tool 调用，记录 content 为观察后继续
@@ -129,7 +131,7 @@ class AgentLoop:
 
             for tool_call in tool_calls:
                 tool = self._resolve_tool(tool_call.name, available_tools)
-                await self._sse.publish(EVENT_AGENT_ACTION, {
+                action_data = {
                     "iteration": iteration,
                     "phase": current_phase,
                     "tool_call_id": tool_call.id,
@@ -137,7 +139,17 @@ class AgentLoop:
                     "arguments": self._sanitize_arguments(
                         tool_call.name, tool_call.arguments,
                     ),
-                })
+                }
+                if self._recorder is not None:
+                    await self._recorder.record(
+                        event_type=EVENT_TYPE_TOOL_REQUEST,
+                        sse_event=EVENT_AGENT_ACTION,
+                        data=action_data,
+                        tool_name=tool_call.name,
+                        input_summary=action_data,
+                    )
+                else:
+                    await self._sse.publish(EVENT_AGENT_ACTION, action_data)
 
                 if tool is None:
                     observation = f"Tool '{tool_call.name}' 在当前 phase 不可用"
@@ -158,14 +170,32 @@ class AgentLoop:
                 sse_observation = self._sanitize_observation(
                     tool_call.name, observation, result.success,
                 )
-                await self._sse.publish(EVENT_AGENT_OBSERVATION, {
+                observation_data = {
                     "iteration": iteration,
                     "phase": current_phase,
                     "tool_call_id": tool_call.id,
                     "tool_name": tool_call.name,
                     "observation": sse_observation,
                     "success": result.success,
-                })
+                }
+                if self._recorder is not None:
+                    await self._recorder.record(
+                        event_type=EVENT_TYPE_TOOL_RESULT,
+                        sse_event=EVENT_AGENT_OBSERVATION,
+                        data=observation_data,
+                        tool_name=tool_call.name,
+                        step_id=exec_result.step_id,
+                        input_summary={
+                            "iteration": iteration,
+                            "phase": current_phase,
+                            "tool_call_id": tool_call.id,
+                            "tool_name": tool_call.name,
+                        },
+                        result_summary=observation_data,
+                        duration_ms=result.duration_ms,
+                    )
+                else:
+                    await self._sse.publish(EVENT_AGENT_OBSERVATION, observation_data)
 
                 self._working_memory.add(ReActEntry(
                     iteration=iteration,

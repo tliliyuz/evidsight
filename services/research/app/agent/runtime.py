@@ -10,6 +10,7 @@ from sqlalchemy import func, select as sa_select, update as sa_update
 from sqlalchemy.orm import aliased
 
 from app.agent.context import AgentContext
+from app.agent.event_recorder import AgentEventRecorder
 from app.agent.exceptions import LeaseLostError
 from app.agent.loop import AgentLoop, ToolExecutionResult
 from app.agent.memory import ReActEntry, WorkingMemory
@@ -46,6 +47,7 @@ from app.pipeline.sse_bridge import (
     SSEBridge,
 )
 from app.services import agent_memory_service
+from app.services.agent_event_service import EVENT_TYPE_PHASE_ENTER
 from app.services.pipeline_orchestrator import (
     PHASE_ORDER,
     STEP_TYPE_TO_PHASE,
@@ -94,6 +96,7 @@ class AgentRuntime:
         self._working_memory: WorkingMemory | None = None
         self._phase_controller: PhaseController | None = None
         self._loop: AgentLoop | None = None
+        self._recorder: AgentEventRecorder | None = None
 
     @classmethod
     def build_default(
@@ -125,6 +128,12 @@ class AgentRuntime:
                 return
 
             self._agent_context, self._working_memory = await self._load_or_create_context()
+            # agent_events 作为追加式业务审计与 SSE 持久游标（RESEARCH_PIPELINE §15）
+            self._recorder = AgentEventRecorder(
+                task_id=task_id,
+                session=self._session,
+                sse_bridge=self._sse,
+            )
             self._phase_controller = PhaseController(
                 self._agent_context, self._registry
             )
@@ -133,6 +142,7 @@ class AgentRuntime:
                 working_memory=self._working_memory,
                 sse_bridge=self._sse,
                 max_iterations=self._max_iterations,
+                recorder=self._recorder,
             )
 
             tool_context = ToolContext(
@@ -306,10 +316,19 @@ class AgentRuntime:
         await self._session.flush()
 
         if previous_phase != phase_name:
-            await self._sse.publish(EVENT_PHASE_STARTED, {
-                "phase": phase_name,
-                "timestamp": now.isoformat(),
-            })
+            if self._recorder is not None:
+                await self._recorder.record(
+                    event_type=EVENT_TYPE_PHASE_ENTER,
+                    sse_event=EVENT_PHASE_STARTED,
+                    data={"phase": phase_name, "timestamp": now.isoformat()},
+                    step_id=str(step.id),
+                    input_summary={"phase": phase_name},
+                )
+            else:
+                await self._sse.publish(EVENT_PHASE_STARTED, {
+                    "phase": phase_name,
+                    "timestamp": now.isoformat(),
+                })
 
         await self._sse.publish(EVENT_STEP_STARTED, {
             "step_id": str(step.id),
@@ -317,7 +336,6 @@ class AgentRuntime:
             "label": step.label,
             "timestamp": now.isoformat(),
         })
-
     async def _persist_memory_entries(self) -> None:
         """将 WorkingMemory 中待持久化 entries 写入 DB。"""
         if self._working_memory is None:

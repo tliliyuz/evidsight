@@ -13,7 +13,6 @@ from app.core.llm import LLMResult, ToolCall
 from app.pipeline.sse_bridge import (
     EVENT_AGENT_ACTION,
     EVENT_AGENT_OBSERVATION,
-    EVENT_AGENT_THOUGHT,
     SSEBridge,
 )
 from app.tools.base import Tool, ToolContext, ToolResult
@@ -88,7 +87,9 @@ class TestAgentLoop:
         await loop.run(tool_ctx, _callback_factory(agent_ctx))
 
         assert agent_ctx.finished is True
-        sse.publish.assert_any_call(EVENT_AGENT_THOUGHT, {"iteration": 1, "phase": "planning", "thought": "完成"})
+        # §16 / §17.3-22：模型隐藏推理不得进入 SSE 用户可见字段
+        for call in sse.publish.await_args_list:
+            assert call.args[0] != "agent.thought"
         sse.publish.assert_any_call(EVENT_AGENT_ACTION, {"iteration": 1, "phase": "planning", "tool_call_id": "1", "tool_name": "finish_tool", "arguments": {}})
         sse.publish.assert_any_call(EVENT_AGENT_OBSERVATION, {"iteration": 1, "phase": "planning", "tool_call_id": "1", "tool_name": "finish_tool", "observation": "finished", "success": True})
 

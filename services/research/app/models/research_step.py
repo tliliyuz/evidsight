@@ -129,6 +129,8 @@ class ResearchStep(Base):
                                   passive_deletes=True)
     agent_memory_entries = relationship("AgentMemoryEntry", back_populates="step", lazy="selectin",
                                         passive_deletes=True)
+    agent_events = relationship("AgentEvent", back_populates="step", lazy="selectin",
+                                passive_deletes=True)
 
     def __repr__(self):
         return f"<ResearchStep(id={self.id}, type={self.step_type}, status={self.status})>"

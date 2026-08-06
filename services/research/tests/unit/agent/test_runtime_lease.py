@@ -42,7 +42,7 @@ def _now() -> datetime:
 
 
 @pytest.fixture
-def runtime():
+def runtime(monkeypatch):
     task = ResearchTask(
         id="lease-runtime",
         user_id="00000000-0000-4000-8000-000000000001",
@@ -52,6 +52,11 @@ def runtime():
     session = AsyncMock()
     session.flush = AsyncMock()
     session.commit = AsyncMock()
+    # 本组用例不验证 agent_events（切片 F）：mock recorder，避免 mock session 走真实 DB 逻辑
+    monkeypatch.setattr(
+        "app.agent.runtime.AgentEventRecorder",
+        lambda *a, **k: AsyncMock(),
+    )
     sse = AsyncMock()
     trace = TraceRecorder(task_id=task.id, user_id=task.user_id, topic=task.topic)
     registry = ToolRegistry()

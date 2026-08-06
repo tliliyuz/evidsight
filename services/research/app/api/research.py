@@ -13,7 +13,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -184,17 +184,18 @@ _TERMINAL_STATUSES = {"completed", "failed", "canceled", "partially_completed"}
 
 @router.get("/{task_id}/stream")
 async def stream_research_task_events(
+    request: Request,
     task: ResearchTask = Depends(require_task_accessible),
     db: AsyncSession = Depends(get_db),
 ):
     """SSE 事件流 —— 实时推送 Pipeline 进度。
 
-    对齐 API.md §4 GET /api/research/{task_id}/stream。
+    对齐 API.md §13 / RESEARCH_PIPELINE §15。
     Content-Type: text/event-stream，15s 心跳。
 
-    连接时立即推送 task.status.snapshot（当前完整状态），
-    后续增量推送 phase.* / step.* / task.* 事件。
-    终态任务只推送 snapshot 后关闭连接。
+    连接时立即推送 task.status.snapshot（当前完整状态），重连携带 Last-Event-ID
+    时先回放持久游标之后的 Agent Event（事件 ID 为 agent_events.sequence），
+    事件缺口由快照收敛；终态任务只推送 snapshot 后关闭连接。
     """
     # 构建初始快照
     snapshot = await _build_snapshot(task, db)
@@ -216,9 +217,20 @@ async def stream_research_task_events(
             },
         )
 
+    last_event_id = _parse_last_event_id(request.headers.get("Last-Event-ID"))
+    from app.services.agent_event_service import list_events_after
+
+    async def replay_loader(after_seq: int | None):
+        return await list_events_after(db, str(task.id), last_sequence=after_seq)
+
     # 流式生成器
     async def event_stream():
-        async for sse_text in sse_event_stream(str(task.id), snapshot):
+        async for sse_text in sse_event_stream(
+            str(task.id),
+            snapshot,
+            last_event_id=last_event_id,
+            replay_loader=replay_loader,
+        ):
             yield sse_text
 
     return StreamingResponse(
@@ -230,6 +242,16 @@ async def stream_research_task_events(
             "X-Accel-Buffering": "no",  # 禁用 Nginx 缓冲
         },
     )
+
+
+def _parse_last_event_id(raw: str | None) -> int | None:
+    """解析 SSE Last-Event-ID 为持久游标；无法解析时视为无游标。"""
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 @router.get("/{task_id}/state")

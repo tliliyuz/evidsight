@@ -135,6 +135,7 @@ async def test_engine():
         from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase  # noqa: F401
         from app.models.research_step import ResearchStep  # noqa: F401
         from app.models.agent_memory_entry import AgentMemoryEntry  # noqa: F401
+        from app.models.agent_event import AgentEvent  # noqa: F401
         from app.models.research_source import ResearchSource  # noqa: F401
         from app.models.evidence_item import EvidenceItem  # noqa: F401
         from app.models.report_section import ReportSection  # noqa: F401

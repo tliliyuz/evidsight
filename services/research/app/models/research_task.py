@@ -203,6 +203,9 @@ class ResearchTask(Base):
     agent_memory_entries = relationship("AgentMemoryEntry", back_populates="task", lazy="selectin",
                                         order_by="AgentMemoryEntry.created_at",
                                         passive_deletes=True)
+    agent_events = relationship("AgentEvent", back_populates="task", lazy="selectin",
+                                order_by="AgentEvent.sequence",
+                                passive_deletes=True)
 
     def __repr__(self):
         return f"<ResearchTask(id={self.id}, topic={self.topic[:30]!r}, status={self.status})>"

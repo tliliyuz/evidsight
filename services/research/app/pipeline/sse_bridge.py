@@ -18,11 +18,16 @@ import asyncio
 import json
 import logging
 import sys
-from typing import AsyncIterator
+from typing import Any, AsyncIterator, Awaitable, Callable
 
 from app.config import settings
 from app.core.redis_client import get_redis, get_async_redis
 from app.core.sse import format_sse_event, stream_with_heartbeat
+from app.services.agent_event_service import (
+    EVENT_TYPE_PHASE_ENTER,
+    EVENT_TYPE_TOOL_REQUEST,
+    EVENT_TYPE_TOOL_RESULT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -88,19 +93,22 @@ class SSEBridge:
         """当前 seq 序号（只读）。"""
         return self._seq
 
-    async def publish(self, event_type: str, data: dict | None = None) -> None:
+    async def publish(self, event_type: str, data: dict | None = None, event_id: int | None = None) -> None:
         """异步发布事件到 Redis Pub/Sub。
 
         Args:
             event_type: 事件类型（使用 EVENT_* 常量）
-            data: 事件数据字典（不含 seq，seq 自动注入）
+            data: 事件数据字典
+            event_id: 持久 sequence（agent_events 游标）。为 None 时该事件
+                不回放、不携带 SSE `id:`，由快照收敛（RESEARCH_PIPELINE §15）。
         """
-        self._seq += 1
-        payload = {
+        payload: dict[str, Any] = {
             "event": event_type,
             "data": data or {},
-            "seq": self._seq,
         }
+        if event_id is not None:
+            self._seq = event_id
+            payload["seq"] = event_id
         message = json.dumps(payload, ensure_ascii=False)
         try:
             redis_async = await get_async_redis()
@@ -120,25 +128,32 @@ class SSEBridge:
 async def sse_event_stream(
     task_id: str,
     initial_snapshot: dict | None = None,
+    last_event_id: int | None = None,
+    replay_loader: Callable[[int | None], Awaitable[list[Any]]] | None = None,
 ) -> AsyncIterator[str]:
     """异步 SSE 事件流生成器 —— 供 FastAPI StreamingResponse 使用。
 
-    1. 连接时立即推送 task.status.snapshot（如果提供）
-    2. 订阅 Redis rm:sse:{task_id} 频道
-    3. 解析消息 → 组装 SSE 格式 → yield
+    对齐 RESEARCH_PIPELINE §15：SSE 是持久任务订阅，断开不取消 Task。
+
+    1. 连接时立即推送 task.status.snapshot
+    2. 若提供 replay_loader，先回放持久游标（Last-Event-ID）之后的可用
+       Agent Event（回放事件携带持久 sequence 作为 event id）；事件缺口由
+       快照收敛，不依赖 Redis 历史恢复业务事实
+    3. 订阅 Redis rm:sse:{task_id} 频道，转发 live 事件
     4. 客户端断开时自动清理订阅
 
     Args:
         task_id: 研究任务 ID
         initial_snapshot: 初始状态快照数据（None 则跳过 snapshot 推送）
+        last_event_id: SSE 持久游标（Last-Event-ID）；None 表示回放全部
+        replay_loader: 读取游标后 agent_events 的回调（接收 last_sequence）
 
     Yields:
-        SSE 格式字符串（event + data + 心跳）
+        SSE 格式字符串（事件 + 心跳）
     """
     channel = _build_channel(task_id)
 
     async def _event_generator() -> AsyncIterator[str]:
-        """内部事件生成器：snapshot + Redis Pub/Sub 消息。"""
         # 1. 连接时立即推送状态快照
         if initial_snapshot:
             yield format_sse_event(
@@ -146,7 +161,25 @@ async def sse_event_stream(
                 initial_snapshot,
             )
 
-        # 2. 订阅 Redis Pub/Sub
+        # 2. 回放持久游标后的 Agent Event（§15：事件由 DB 事实 + Agent Event 投影）
+        if replay_loader is not None:
+            try:
+                replayed = await replay_loader(last_event_id)
+            except Exception:
+                logger.exception("SSE 游标回放失败: task_id=%s, last_event_id=%s", task_id, last_event_id)
+                replayed = []
+            for event in replayed:
+                try:
+                    event_name, event_data = _agent_event_to_sse(event)
+                except ValueError:
+                    logger.warning(
+                        "跳过不可投影的 agent event: task_id=%s, seq=%s, type=%s",
+                        task_id, getattr(event, "sequence", "?"), getattr(event, "event_type", "?"),
+                    )
+                    continue
+                yield format_sse_event(event_name, event_data, event_id=event.sequence)
+
+        # 3. 订阅 Redis Pub/Sub
         redis_async = await get_async_redis()
         pubsub = await _subscribe_channel(redis_async, channel)
         if pubsub is None:
@@ -156,7 +189,7 @@ async def sse_event_stream(
             return
 
         try:
-            # 3. 循环获取消息
+            # 4. 循环获取消息
             while True:
                 message = await _get_pubsub_message(pubsub, timeout=1.0)
                 if message is None:
@@ -187,9 +220,48 @@ async def sse_event_stream(
         finally:
             await _unsubscribe_channel(pubsub, channel)
 
-    # 4. 用 stream_with_heartbeat 包裹（自动插入心跳帧）
+    # 5. 用 stream_with_heartbeat 包裹（自动插入心跳帧）
     async for formatted in stream_with_heartbeat(_event_generator()):
         yield formatted
+
+
+def _agent_event_to_sse(event: Any) -> tuple[str, dict]:
+    """把持久化的 agent_event 投影回 SSE 事件（对齐 §15 Agent Event 表）。
+
+    Returns:
+        (SSE 事件名, 载荷 dict)
+
+    Raises:
+        ValueError: 事件类型尚无可投影的 SSE 事件。
+    """
+    event_type = getattr(event, "event_type", None)
+    input_summary = event.input_summary or {}
+    result_summary = event.result_summary or {}
+
+    if event_type == EVENT_TYPE_PHASE_ENTER:
+        created = event.created_at
+        return EVENT_PHASE_STARTED, {
+            "phase": input_summary.get("phase"),
+            "timestamp": created.isoformat() if created else None,
+        }
+    if event_type == EVENT_TYPE_TOOL_REQUEST:
+        return EVENT_AGENT_ACTION, {
+            "iteration": input_summary.get("iteration"),
+            "phase": input_summary.get("phase"),
+            "tool_call_id": input_summary.get("tool_call_id"),
+            "tool_name": input_summary.get("tool_name"),
+            "arguments": input_summary.get("arguments", {}),
+        }
+    if event_type == EVENT_TYPE_TOOL_RESULT:
+        return EVENT_AGENT_OBSERVATION, {
+            "iteration": result_summary.get("iteration"),
+            "phase": result_summary.get("phase"),
+            "tool_call_id": result_summary.get("tool_call_id"),
+            "tool_name": result_summary.get("tool_name"),
+            "observation": result_summary.get("observation"),
+            "success": result_summary.get("success"),
+        }
+    raise ValueError(f"无法将事件类型 {event_type} 投影为 SSE")
 
 
 # ── 平台适配的 Pub/Sub 辅助函数 ────────────────────────────

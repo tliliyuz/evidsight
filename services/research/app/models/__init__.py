@@ -8,6 +8,7 @@ ORM 模型包 —— 导入全部模型类，使 Alembic 的 target_metadata 能
 from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
 from app.models.agent_memory_entry import AgentMemoryEntry
+from app.models.agent_event import AgentEvent
 from app.models.research_source import ResearchSource
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
@@ -17,6 +18,7 @@ __all__ = [
     "ResearchTask",
     "ResearchStep",
     "AgentMemoryEntry",
+    "AgentEvent",
     "ResearchSource",
     "EvidenceItem",
     "ReportSection",
