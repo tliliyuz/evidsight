@@ -549,17 +549,22 @@ class TestCancelTask:
         result = await cancel_task(db_session, task)
 
         assert result.task_id == task.id
-        assert result.status == "canceled"
-        assert task.status == "canceled"
-        assert task.completed_at is not None
+        # 取消是请求而非终态（§13.2 / ADR-008）：status 保持当前值
+        assert result.status == "pending"
+        assert result.cancel_requested is True
+        assert task.status == "pending"
+        assert task.cancel_requested_at is not None
+        assert task.completed_at is None
 
     async def test_running任务_取消成功(self, db_session: AsyncSession):
         task = await _seed_task(db_session, user_id=1, status="running")
 
         result = await cancel_task(db_session, task)
 
-        assert result.status == "canceled"
-        assert task.status == "canceled"
+        assert result.status == "running"
+        assert result.cancel_requested is True
+        assert task.status == "running"
+        assert task.cancel_requested_at is not None
 
     async def test_已终态抛出E2003(self, db_session: AsyncSession):
         for status in ["completed", "failed", "partially_completed", "canceled"]:

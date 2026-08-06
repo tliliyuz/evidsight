@@ -462,16 +462,20 @@ class TestCancelResearchAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["code"] == "0"
-        assert data["message"] == "任务已取消"
+        assert data["message"] == "任务已请求取消"
         assert data["data"]["task_id"] == task.id
-        assert data["data"]["status"] == "canceled"
+        # 取消是请求而非终态：status 保持当前值，cancel_requested=true（§13.2）
+        assert data["data"]["status"] == "pending"
+        assert data["data"]["cancel_requested"] is True
 
     async def test_running任务_取消成功返回200(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
         task = await self._seed_task(db_session, status="running", task_id="task-cancel-running")
 
         response = await async_client.post(f"/api/research/{task.id}/cancel", headers=auth_headers)
         assert response.status_code == 200
-        assert response.json()["data"]["status"] == "canceled"
+        data = response.json()["data"]
+        assert data["status"] == "running"
+        assert data["cancel_requested"] is True
 
     async def test_已终态返回409_E2003(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
         for idx, status in enumerate(["completed", "failed", "partially_completed", "canceled"]):

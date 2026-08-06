@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     # Redis broker visibility_timeout：明确配置，避免依赖 Celery 默认 1h
     CELERY_VISIBILITY_TIMEOUT: int = 1800
 
+    # ── 数据库租约协议（RESEARCH_PIPELINE §13.1 / DATABASE.md §8 / ADR-008）──
+    # Worker 领取 research_tasks.lease 的租约时长（秒）。
+    # 约束：续租周期 < 租约时长 / 2；单次不可中断操作超时 < 剩余租约；
+    #       Recovery Scanner 扫描间隔 <= 租约时长。
+    RESEARCH_TASK_LEASE_TTL_SECONDS: int = 300
+
     # ── LLM (DeepSeek) ──
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = "https://api.deepseek.com"

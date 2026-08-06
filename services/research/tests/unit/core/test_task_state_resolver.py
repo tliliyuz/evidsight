@@ -37,6 +37,7 @@ def _make_task(max_sources=10):
     task = MagicMock()
     task.requirements = {"task_type": "analysis", "max_sources": max_sources}
     task.status = "running"
+    task.cancel_requested_at = None
     return task
 
 

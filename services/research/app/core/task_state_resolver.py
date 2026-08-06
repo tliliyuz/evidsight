@@ -84,7 +84,7 @@ class TaskStateResolver:
 
         Returns:
             (new_status: str, error_info: dict | None)
-            - new_status: one of "completed" / "partially_completed" / "failed"
+            - new_status: one of "completed" / "partially_completed" / "failed" / "canceled"
             - error_info: 仅在 status="failed" 时返回，含 error_code / error_message / recoverable
         """
         # 空步骤列表 → 不做推导，返回当前状态
@@ -95,6 +95,8 @@ class TaskStateResolver:
         fatal_result = self._check_fatal(steps)
         if fatal_result:
             return "failed", fatal_result
+
+        cancel_requested = bool(getattr(task, "cancel_requested_at", None))
 
         # 2. 是否携带 phase 信息
         has_phase_info = any(
@@ -107,12 +109,21 @@ class TaskStateResolver:
                 return task.status, None
             if self._all_non_skipped_completed(steps):
                 return "completed", None
-            return self._evaluate_partial_completion(task, evidence_count)
+            return self._evaluate_cancel_or_partial(task, steps, evidence_count, cancel_requested)
 
         # 3. 携带 phase 信息：区分「phase 未开始」「phase 已尝试但未完成」「已完成 phase 的重复 Step」
         completed_phases = self._get_completed_phases(steps)
         if completed_phases == set(PHASE_ORDER):
             return "completed", None
+
+        # 取消请求已生效：Worker 安全停止后即使 phase 未全部尝试也推导终态
+        # （§13.2 取消在外部调用和发布前生效；Resolver 决定 canceled/partially_completed）。
+        if cancel_requested:
+            attempted_phases = self._get_attempted_phases(steps)
+            if attempted_phases != set(PHASE_ORDER):
+                return self._evaluate_cancel_or_partial(
+                    task, steps, evidence_count, cancel_requested,
+                )
 
         attempted_phases = self._get_attempted_phases(steps)
         if attempted_phases != set(PHASE_ORDER):
@@ -125,8 +136,32 @@ class TaskStateResolver:
         if blocking:
             return task.status, None
 
-        # 4. 到达终态但未能完成全部 7 phase → Evidence Threshold 判定
-        return self._evaluate_partial_completion(task, evidence_count)
+        # 4. 到达终态但未能完成全部 7 phase → 取消请求或 Evidence Threshold 判定
+        return self._evaluate_cancel_or_partial(task, steps, evidence_count, cancel_requested)
+
+    def _evaluate_cancel_or_partial(
+        self,
+        task: Any,
+        steps: list[Any],
+        evidence_count: int,
+        cancel_requested: bool = False,
+    ) -> tuple[str, dict | None]:
+        """取消安全停止后的终态推导（RESEARCH_PIPELINE §13.2 / DATABASE.md §8）。
+
+        取消只持久化 cancel_requested_at，Worker 安全停止后由本方法推导：
+        - 未取消时沿用 Evidence Threshold 判定（partially_completed / failed E3103）；
+        - 取消后按 Evidence 完整度决定 partially_completed，否则 canceled。
+        注意：completed 由上游「全部 phase 完成 / 旧路径全部非 SKIPPED 完成」分支先行判定，
+        本方法不再重复判断，避免 skipped phase 任务被误判为 completed。
+        """
+        if not cancel_requested:
+            return self._evaluate_partial_completion(task, evidence_count)
+
+        max_sources = self._get_max_sources(task)
+        min_evidence = max(5, math.ceil(max_sources * 0.4))
+        if evidence_count >= min_evidence:
+            return "partially_completed", None
+        return "canceled", None
 
     # ── 内部方法 ────────────────────────────────────────────────
 

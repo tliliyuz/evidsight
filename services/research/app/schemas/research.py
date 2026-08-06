@@ -221,10 +221,15 @@ class ResearchCreateResponse(BaseModel):
 
 
 class ResearchCancelResponse(BaseModel):
-    """取消研究任务响应 — 对齐 API.md §3.2 POST /api/research/{task_id}/cancel。"""
+    """取消研究任务响应 — 对齐 RESEARCH_PIPELINE §13.2。
+
+    取消是请求而非终态：只持久化 cancel_requested_at，status 保持当前值；
+    Worker 在安全检查点停止后由 TaskStateResolver 推导终态。
+    """
 
     task_id: str = Field(..., description="任务 UUID")
-    status: str = Field(..., description="取消后的状态，固定为 canceled")
+    status: str = Field(..., description="任务当前状态（取消是请求，不直接改写终态）")
+    cancel_requested: bool = Field(True, description="是否已登记取消请求")
 
 
 # ── Retry 相关 Schema（对齐 API.md §3.2）─────────────────────────

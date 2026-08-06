@@ -23,15 +23,22 @@ from app.tasks.recovery import recover_stale_tasks
 
 
 class _SessionContextManager:
-    """把已存在的 db_session 包装成 async_session_factory 的上下文管理器。"""
+    """把已存在的 db_session 包装成 async_session_factory 的上下文管理器。
+
+    Recovery 内部会调用 session.commit()；为避免提交外层测试事务造成跨测试数据泄漏，
+    进入上下文时把 commit 重定向为 flush（恢复逻辑写入仍生效，随测试结束统一回滚）。
+    """
 
     def __init__(self, session):
         self._session = session
+        self._original_commit = session.commit
+        session.commit = session.flush
 
     async def __aenter__(self):
         return self._session
 
     async def __aexit__(self, exc_type, exc, tb):
+        self._session.commit = self._original_commit
         return False
 
 
@@ -134,6 +141,10 @@ class TestRecoverStaleTasks:
             requirements={"task_type": "analysis"},
             status="running",
             started_at=datetime.now(timezone.utc) - timedelta(seconds=10),
+            # 租约未过期（§13.5：按 (status, lease_expires_at) 扫描，非 started_at）
+            lease_owner="worker-1",
+            lease_expires_at=datetime.now(timezone.utc) + timedelta(seconds=300),
+            lease_generation=1,
         )
         db_session.add(task)
         await db_session.flush()
@@ -154,6 +165,7 @@ class TestRecoverStaleTasks:
             requirements={"task_type": "analysis"},
             status="completed",
             started_at=datetime.now(timezone.utc) - timedelta(seconds=300),
+            lease_expires_at=datetime.now(timezone.utc) - timedelta(seconds=30),
         )
         db_session.add(task)
         await db_session.flush()

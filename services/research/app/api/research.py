@@ -132,21 +132,26 @@ async def cancel_research_task(
     task: ResearchTask = Depends(require_task_accessible),
     db: AsyncSession = Depends(get_db),
 ):
-    """取消研究任务（需登录，仅 owner）。
+    """请求取消研究任务（需登录，仅 owner）。
 
-    对齐 API.md §3.2 POST /api/research/{task_id}/cancel。
-    API 层直接 CAS 更新 task.status=canceled；成功后再主动发布 task.canceled
-    SSE 事件，确保客户端订阅 /stream 时能立即收到取消通知。
+    对齐 RESEARCH_PIPELINE §13.2：取消是请求而非终态 —— API 只持久化
+    cancel_requested_at；Worker 在安全检查点停止后由 TaskStateResolver
+    推导 canceled / partially_completed 等终态。此处发布取消请求事件，
+    终态事件由 Worker/Resolver 在安全停止后发布。
     """
     result = await cancel_task(db, task)
 
     sse = SSEBridge(task.id)
     try:
-        await sse.publish(EVENT_TASK_CANCELED, {"task_id": str(task.id), "status": "canceled"})
+        await sse.publish(EVENT_TASK_CANCELED, {
+            "task_id": str(task.id),
+            "status": task.status,
+            "cancel_requested": True,
+        })
     except Exception:
         logger.exception("取消任务后发送 SSE 事件失败: task_id=%s", task.id)
 
-    return {"code": "0", "message": "任务已取消", "data": result.model_dump()}
+    return {"code": "0", "message": "任务已请求取消", "data": result.model_dump()}
 
 
 @router.post("/{task_id}/retry", status_code=202)

@@ -69,6 +69,50 @@ class ResearchTask(Base):
         server_default=sa.text("NULL"),
     )
 
+    # ── 取消请求（DATABASE.md §5.1：取消是请求，不由 API 直接伪造终态）──
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime,
+        default=None,
+        server_default=sa.text("NULL"),
+        comment="用户取消请求时间；Worker 在安全检查点停止后由 Resolver 推导终态",
+    )
+
+    # ── 租约（DATABASE.md §5.1 / §8：条件更新领取与续租，generation 单调递增）──
+    lease_owner: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        default=None,
+        server_default=sa.text("NULL"),
+        comment="当前持有租约的 Worker 标识；终态任务无有效租约",
+    )
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime,
+        default=None,
+        server_default=sa.text("NULL"),
+        comment="租约过期时间；领取与续租使用条件更新",
+    )
+    lease_generation: Mapped[int] = mapped_column(
+        sa.Integer,
+        default=0,
+        server_default=sa.text("0"),
+        nullable=False,
+        comment="租约代数，领取时递增；Step 提交必须匹配当前 generation",
+    )
+
+    # ── 恢复（DATABASE.md §5.1：只保存稳定游标，不保存内部摘录）──
+    recovery_count: Mapped[int] = mapped_column(
+        sa.Integer,
+        default=0,
+        server_default=sa.text("0"),
+        nullable=False,
+        comment="恢复扫描次数，每次 Recovery Scanner 处理递增",
+    )
+    last_completed_step_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        default=None,
+        server_default=sa.text("NULL"),
+        comment="最后完成的 Step 稳定游标，恢复时从此继续",
+    )
+
     # ── Execution Context（断点续跑核心）──
     execution_context: Mapped[dict | None] = mapped_column(
         sa.JSON, default=None, server_default=sa.text("NULL"),
@@ -135,10 +179,12 @@ class ResearchTask(Base):
     # idx_user_created: 覆盖 get_task_list 的 WHERE user_id=? + ORDER BY created_at DESC，避免 filesort
     # idx_user_status_created: 覆盖带 status 筛选的 get_task_list，同样避免 filesort
     # idx_status: 保留，覆盖 startup recovery / evaluation loader 等 status-only 查询
+    # idx_status_lease_expires: Worker 领取与 Recovery Scanner 按 (status, lease_expires_at) 扫描（DATABASE.md §9）
     __table_args__ = (
         sa.Index("idx_status", "status"),
         sa.Index("idx_user_created", "user_id", sa.text("created_at DESC")),
         sa.Index("idx_user_status_created", "user_id", "status", sa.text("created_at DESC")),
+        sa.Index("idx_status_lease_expires", "status", "lease_expires_at"),
         # 创建幂等（DATABASE.md §5.1）：(user_id, idempotency_key) 唯一；
         # idempotency_key 可空，MySQL/SQLite 对 NULL 均允许多行，不阻塞旧任务。
         sa.UniqueConstraint("user_id", "idempotency_key", name="uq_research_tasks_user_idempotency"),

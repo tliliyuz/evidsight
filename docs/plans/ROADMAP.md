@@ -253,6 +253,7 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 - [x] 切片 A：#4 数据层、#5 请求契约、#6 幂等创建、#7 Worker 来源策略 fail-closed 守卫（E3114）。
 - [x] 切片 B（Knowledge Search Tool）：Internal Retrieval Consumer 客户端、策略感知 `run_search` 分流、Web Query 域隔离（ADR-010）、内部候选持久化删除 `minimal_excerpt`。
 - [x] 切片 C（Rerank 内部候选接入 + Evidence 分型，2026-08-06）：`evidence_items` 分型数据层（`source_type=internal|web`、内部稳定 ID/显示/位置/时间/评分摘要/validity 列、`content`/`source_id` 可空、内部唯一键，迁移 `c0d1e2f3a4b5`）；Rerank 策略感知（knowledge 经 resolve 重取内部候选精排、hybrid 与 Web 统一精排、产出 internal 无正文证据、resolve 失败 fail-closed）；Synthesis/Evidence Graph/Render 消费 internal 证据（resolve 重取工作集、区分来源、无正文持久化）。
+- [x] 切片 D（租约+取消+恢复数据层与协议，2026-08-06）：`research_tasks` 新增取消请求列（`cancel_requested_at`）、租约列（`lease_owner`/`lease_expires_at`/`lease_generation`）、恢复列（`recovery_count`/`last_completed_step_id`）与索引 `(status, lease_expires_at)`（迁移 `d1e2f3a4b5c`，真实 MySQL upgrade/downgrade 往返验证）；租约协议原语（条件领取/续租/释放 + `is_step_commit_allowed` generation 条件提交）；取消请求化（`cancel_task` 只写 `cancel_requested_at`，Worker 安全检查点停止后由 TaskStateResolver 推导 `canceled`/`partially_completed` 终态，重复取消幂等）；Recovery Scanner 按 `(status, lease_expires_at)` 扫描、遗留 running Step 置 retrying、清除旧 owner、递增 `recovery_count` 并重投递。验证：research 全量 unit（非 slow）854 通过、1 跳过、0 失败（`test_llm` 环境依赖，与本切片无关）、契约 73 项全绿、Architecture 17 项全绿；新增 `test_task_lease` 15 项、`test_cancel_request` 7 项、`test_recovery_lease` 7 项。
 - 各切片实现与验证结果记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05、2026-08-06 条目）。
 
 

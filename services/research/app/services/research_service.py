@@ -649,17 +649,32 @@ async def cancel_task(
     db: AsyncSession,
     task: ResearchTask,
 ) -> ResearchCancelResponse:
-    """取消研究任务。
+    """请求取消研究任务（仅持久化取消请求，不直接改写终态）。
 
-    对齐 API.md §3.2 POST /api/research/{task_id}/cancel：
+    对齐 RESEARCH_PIPELINE §13.2 / DATABASE.md §8 / ADR-008：
     - 终态校验：completed / failed / partially_completed / canceled 抛 E2003
-    - CAS 更新：仅当 status 为 pending / running 时才可取消
+    - 只写 cancel_requested_at（CAS：仅当 status 为 pending / running 且尚未请求取消）
     - CAS 失败意味着并发状态变更，同样抛 E2003
+    - 取消与完成竞态以报告发布事务开始前的条件检查为界：Worker 在安全检查点
+      停止后由 TaskStateResolver 推导 canceled / partially_completed 等终态
 
     注意：本函数不提交事务，由 API 层依赖注入的 get_db 统一提交。
     """
     if task.status in TERMINAL_STATUSES:
         raise TaskStatusConflictException(detail="任务已处于终态，无法取消")
+
+    # 取消是请求而非终态：幂等（§13.2「重复取消幂等返回当前终态」）。
+    # 若已请求取消，直接返回当前状态，不重复覆盖 cancel_requested_at。
+    if task.cancel_requested_at is not None:
+        logger.info(
+            "任务已请求取消，重复取消幂等返回当前状态: task_id=%s, status=%s",
+            task.id, task.status,
+        )
+        return ResearchCancelResponse(
+            task_id=task.id,
+            status=task.status,
+            cancel_requested=True,
+        )
 
     now = datetime.now(timezone.utc)
     result = await db.execute(
@@ -667,20 +682,22 @@ async def cancel_task(
         .where(
             ResearchTask.id == task.id,
             ResearchTask.status.in_(["pending", "running"]),
+            ResearchTask.cancel_requested_at.is_(None),
         )
-        .values(status="canceled", completed_at=now)
+        .values(cancel_requested_at=now)
     )
     if result.rowcount == 0:
         raise TaskStatusConflictException(detail="任务状态已变更，无法取消")
 
     # 同步内存对象，避免后续读取到旧状态
-    task.status = "canceled"
-    task.completed_at = now
+    task.cancel_requested_at = now
 
-    emit_task_status_transition("canceled")
-
-    logger.info("研究任务已取消: task_id=%s", task.id)
-    return ResearchCancelResponse(task_id=task.id, status="canceled")
+    logger.info("已请求取消研究任务: task_id=%s, cancel_requested_at=%s", task.id, now)
+    return ResearchCancelResponse(
+        task_id=task.id,
+        status=task.status,
+        cancel_requested=True,
+    )
 
 
 # ── 断点续跑（Retry）──────────────────────────────────────────────

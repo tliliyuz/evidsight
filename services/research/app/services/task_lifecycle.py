@@ -1,16 +1,22 @@
-"""任务生命周期共享原语 —— 锁、CAS 状态转换、紧急失败。
+"""任务生命周期共享原语 —— 锁、CAS 状态转换、紧急失败、租约协议。
 
 本模块抽取 PipelineOrchestrator 与 AgentRuntime 共用的低风险原语，
 旧编排器内部方法保持不动，避免测试漂移。
+
+租约协议对齐 RESEARCH_PIPELINE §13.1 / DATABASE.md §8 / ADR-008：
+- Worker 领取与续租使用条件更新（WHERE 匹配当前 owner 与 generation）；
+- Step 提交必须与 Task 的 owner、generation 同事务校验；
+- 失去租约的 Worker 立即停止，不提交业务结果。
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy import or_ as sa_or
 from sqlalchemy import select as sa_select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +38,132 @@ from app.tasks.lock import (
 logger = logging.getLogger(__name__)
 
 PHASE_ORDER: list[str] = list(STEP_TYPE_ENUM)
+
+
+async def claim_task_lease(
+    session: AsyncSession,
+    task_id: str,
+    worker_id: str,
+    ttl_seconds: int | None = None,
+) -> int | None:
+    """Worker 条件领取 Task 租约。
+
+    单条条件更新（DATABASE.md §8）：Task 非终态、未请求取消、租约为空或已过期
+    时，写入 lease_owner / lease_expires_at 并递增 lease_generation。
+
+    Args:
+        session: 异步 DB 会话
+        task_id: 任务 UUID
+        worker_id: Worker 标识（当前执行进程）
+        ttl_seconds: 租约时长（秒），默认读取配置
+
+    Returns:
+        新 lease_generation；领取失败返回 None。
+    """
+    if ttl_seconds is None:
+        ttl_seconds = settings.RESEARCH_TASK_LEASE_TTL_SECONDS
+    now = datetime.now(timezone.utc)
+    result = await session.execute(
+        sa_update(ResearchTask)
+        .where(
+            ResearchTask.id == task_id,
+            ResearchTask.status.in_(["pending", "running"]),
+            ResearchTask.cancel_requested_at.is_(None),
+            sa_or(
+                ResearchTask.lease_expires_at.is_(None),
+                ResearchTask.lease_expires_at < now,
+            ),
+        )
+        .values(
+            lease_owner=worker_id,
+            lease_expires_at=now + timedelta(seconds=ttl_seconds),
+            lease_generation=ResearchTask.lease_generation + 1,
+        )
+    )
+    if result.rowcount == 0:
+        logger.warning("租约领取失败（条件不满足）: task_id=%s, worker=%s", task_id, worker_id)
+        return None
+
+    # 读取递增后的 generation
+    row = await session.execute(
+        sa_select(ResearchTask.lease_generation).where(ResearchTask.id == task_id)
+    )
+    generation = row.scalar_one_or_none()
+    logger.info(
+        "租约领取成功: task_id=%s, worker=%s, generation=%s, ttl=%ss",
+        task_id, worker_id, generation, ttl_seconds,
+    )
+    return generation
+
+
+async def renew_task_lease(
+    session: AsyncSession,
+    task_id: str,
+    worker_id: str,
+    generation: int,
+    ttl_seconds: int | None = None,
+) -> bool:
+    """Worker 续租：仅当前 owner 且 generation 匹配时可续（DATABASE.md §8）。"""
+    if ttl_seconds is None:
+        ttl_seconds = settings.RESEARCH_TASK_LEASE_TTL_SECONDS
+    now = datetime.now(timezone.utc)
+    result = await session.execute(
+        sa_update(ResearchTask)
+        .where(
+            ResearchTask.id == task_id,
+            ResearchTask.lease_owner == worker_id,
+            ResearchTask.lease_generation == generation,
+            ResearchTask.status.in_(["pending", "running"]),
+            ResearchTask.cancel_requested_at.is_(None),
+        )
+        .values(lease_expires_at=now + timedelta(seconds=ttl_seconds))
+    )
+    return result.rowcount > 0
+
+
+async def release_task_lease(
+    session: AsyncSession,
+    task_id: str,
+    worker_id: str,
+) -> bool:
+    """Worker 释放租约：清除 lease_owner / lease_expires_at（仅 owner 匹配时）。"""
+    result = await session.execute(
+        sa_update(ResearchTask)
+        .where(ResearchTask.id == task_id, ResearchTask.lease_owner == worker_id)
+        .values(lease_owner=None, lease_expires_at=None)
+    )
+    return result.rowcount > 0
+
+
+async def is_step_commit_allowed(
+    session: AsyncSession,
+    task_id: str,
+    worker_id: str,
+    generation: int,
+) -> bool:
+    """Step 提交条件校验（DATABASE.md §5.3 / §8）。
+
+    Task 的 lease_owner 与 lease_generation 仍匹配、Task 未终止或取消，
+    才允许写业务结果并标记 Step completed。过期 Worker 的迟到提交返回 False。
+    """
+    row = await session.execute(
+        sa_select(
+            ResearchTask.lease_owner,
+            ResearchTask.lease_generation,
+            ResearchTask.status,
+            ResearchTask.cancel_requested_at,
+        ).where(ResearchTask.id == task_id)
+    )
+    task_row = row.one_or_none()
+    if task_row is None:
+        return False
+    owner, gen, status, cancel_at = task_row
+    return (
+        owner == worker_id
+        and gen == generation
+        and status in ("pending", "running")
+        and cancel_at is None
+    )
 
 
 class TaskLockHandle:
