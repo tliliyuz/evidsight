@@ -96,6 +96,12 @@ class TaskStateResolver:
         if fatal_result:
             return "failed", fatal_result
 
+        # 预算停止不是自动成功（§14）：已有 Evidence 仍需通过完整度硬门槛；
+        # 达标可 partial，否则 failed（E3103，来源量不满足最小阈值）。
+        budget_stopped = bool(getattr(task, "budget_stopped_at", None))
+        if budget_stopped:
+            return self._evaluate_budget_stop(task, evidence_count)
+
         cancel_requested = bool(getattr(task, "cancel_requested_at", None))
 
         # 2. 是否携带 phase 信息
@@ -164,6 +170,32 @@ class TaskStateResolver:
         return "canceled", None
 
     # ── 内部方法 ────────────────────────────────────────────────
+
+    def _evaluate_budget_stop(
+        self,
+        task: Any,
+        evidence_count: int,
+    ) -> tuple[str, dict | None]:
+        """预算停止终态（RESEARCH_PIPELINE §14）。
+
+        预算停止不是自动成功：已有 Evidence 仍需通过完整度硬门槛；
+        达标 → partially_completed，否则 → failed（E3103）。
+        注意：completed 由上游「全部 phase 完成」分支先行判定，本方法只做
+        预算停止的 partial/failed 推导。
+        """
+        max_sources = self._get_max_sources(task)
+        min_evidence = max(5, math.ceil(max_sources * 0.4))
+
+        if evidence_count >= min_evidence:
+            return "partially_completed", None
+        return "failed", {
+            "error_code": "E3103",
+            "error_message": (
+                f"研究预算已停止，来源量不满足最小阈值：已收集 {evidence_count} 条，"
+                f"要求 >= {min_evidence} 条（max_sources={max_sources}）"
+            ),
+            "recoverable": False,
+        }
 
     def _check_fatal(self, steps: list[Any]) -> dict | None:
         """检查是否存在 FATAL 错误。

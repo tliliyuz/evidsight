@@ -113,6 +113,13 @@ class Settings(BaseSettings):
     MAX_AGENT_ITERATIONS: int = 30
     AGENT_WORKING_MEMORY_MAX_ENTRIES: int = 20
 
+    # ── 预算（RESEARCH_PIPELINE §14：服务端默认推导冻结上限，客户端不传）──
+    BUDGET_MAX_SUB_QUESTIONS: int = 5
+    BUDGET_MAX_LLM_TOKENS: int = 100_000
+    BUDGET_MAX_PROVIDER_CALLS: int = 60
+    BUDGET_MAX_COST_USD: float = 1.0
+    BUDGET_DEADLINE_SECONDS: int = 3600
+
     # ── SSE ──
     SSE_HEARTBEAT_INTERVAL: int = 15
 

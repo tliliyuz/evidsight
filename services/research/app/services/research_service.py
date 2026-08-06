@@ -40,6 +40,7 @@ from app.services.intent_classifier import (
     INTENT_DIRECT_ANSWER,
     classify_intent,
 )
+from app.services.budget_service import freeze_budget
 from app.services.pipeline_orchestrator import PHASE_ORDER
 from app.schemas.research import (
     ProgressSchema,
@@ -215,6 +216,14 @@ async def _create_research_task(
     )
     db.add(task)
     await db.flush()  # 获取 task.id
+
+    # 预算冻结（RESEARCH_PIPELINE §14）：创建时服务端默认推导冻结上限并初始化结算用量
+    freeze_budget(
+        task,
+        request.requirements.model_dump(),
+        request.source_strategy,
+    )
+    await db.flush()
 
     # 1.1 持久化知识库选择（selection_order 保留用户选择顺序，供 pipeline 检索顺序使用）
     for order, kb_id in enumerate(request.knowledge_base_ids):

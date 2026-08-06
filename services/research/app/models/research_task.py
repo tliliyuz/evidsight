@@ -113,6 +113,26 @@ class ResearchTask(Base):
         comment="最后完成的 Step 稳定游标，恢复时从此继续",
     )
 
+    # ── 预算（DATABASE.md §5.1 / RESEARCH_PIPELINE §14：服务端默认推导）──
+    budget_frozen: Mapped[dict | None] = mapped_column(
+        sa.JSON,
+        default=None,
+        server_default=sa.text("NULL"),
+        comment="冻结上限快照（schema_version + 各维度上限），创建时服务端默认推导",
+    )
+    budget_usage: Mapped[dict | None] = mapped_column(
+        sa.JSON,
+        default=None,
+        server_default=sa.text("NULL"),
+        comment="结算用量（schema_version + 各维度实际用量），随外部调用累加",
+    )
+    budget_stopped_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime,
+        default=None,
+        server_default=sa.text("NULL"),
+        comment="预算停止时间；预算停止不是自动成功，终态由 Resolver 按证据硬门槛推导",
+    )
+
     # ── Execution Context（断点续跑核心）──
     execution_context: Mapped[dict | None] = mapped_column(
         sa.JSON, default=None, server_default=sa.text("NULL"),

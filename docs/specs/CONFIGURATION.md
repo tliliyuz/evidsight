@@ -101,6 +101,11 @@
 | `RERANK_API_KEY` | Knowledge | string | 能力启用时必填 | secret |
 | `TAVILY_BASE_URL` | Research | URL | `https://api.tavily.com` | public |
 | `TAVILY_API_KEY` | Research | string | 能力启用时必填 | secret |
+| `BUDGET_MAX_SUB_QUESTIONS` | Research | int | `5`（RESEARCH_PIPELINE §14 服务端默认推导上限） | public |
+| `BUDGET_MAX_LLM_TOKENS` | Research | int | `100000` | public |
+| `BUDGET_MAX_PROVIDER_CALLS` | Research | int | `60` | public |
+| `BUDGET_MAX_COST_USD` | Research | float | `1.0` | public |
+| `BUDGET_DEADLINE_SECONDS` | Research | int | `3600`（总时限） | public |
 
 **规划键（目标态，未实现，暂不登记）**
 

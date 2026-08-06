@@ -18,3 +18,14 @@ class LeaseLostError(Exception):
 
     def __init__(self, message: str = "Worker 已失去任务租约"):
         super().__init__(message)
+
+
+class BudgetExhaustedError(Exception):
+    """任务预算停止，停止发起新的外部调用（RESEARCH_PIPELINE §14）。
+
+    预算停止不是自动成功：已有 Evidence 仍需通过完整度硬门槛，
+    终态由 TaskStateResolver 推导 partial/failed。
+    """
+
+    def __init__(self, message: str = "任务预算已用尽，停止新调用"):
+        super().__init__(message)

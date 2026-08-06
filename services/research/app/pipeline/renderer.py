@@ -603,6 +603,18 @@ async def run_render(
     if not items:
         raise RenderFailedException(detail="Evidence Graph 为空，无法渲染报告")
 
+    # §14：预算停止时报告必须披露因预算导致的缺失
+    from app.services.budget_service import budget_disclosure
+
+    disclosure = budget_disclosure(task)
+    if disclosure:
+        gaps = graph.get("knowledge_gaps") or []
+        if isinstance(gaps, list):
+            gaps.append(disclosure)
+        else:
+            gaps = [disclosure]
+        graph["knowledge_gaps"] = gaps
+
     index_to_item: dict[int, dict] = {}
     index_to_evidence_id: dict[int, int] = {}
     for item in items:

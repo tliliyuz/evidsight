@@ -105,6 +105,7 @@ Task 是删除、授权和执行恢复的聚合根。Evidence 属于 Task，不�
 | 控制 | `cancel_requested_at`, `pause_reason` | 取消是请求，不由 API 直接伪造终态 |
 | 租约 | `lease_owner`, `lease_expires_at`, `lease_generation` | 领取和续期使用条件更新；generation 单调递增 |
 | 恢复 | `recovery_count`, `last_completed_step_id` | 只保存稳定游标，不保存内部摘录 |
+| 预算 | `budget_frozen`, `budget_usage`, `budget_stopped_at` | 冻结上限在创建时服务端默认推导并写入 JSON（含 `schema_version`）；结算用量随每次外部调用累加；`budget_stopped_at` 记录预算停止时间。预算停止不是自动成功，终态由 Resolver 按 Evidence 完整度硬门槛推导（RESEARCH_PIPELINE §14） |
 | 错误 | `error_code`, `error_summary` | 安全摘要；不得存堆栈、正文或 Provider 原响应 |
 | 时间 | `created_at`, `started_at`, `completed_at`, `updated_at` | UTC；终态必须有 `completed_at` |
 

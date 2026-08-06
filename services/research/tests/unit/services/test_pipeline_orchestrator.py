@@ -93,6 +93,8 @@ def _make_task(**kwargs) -> MagicMock:
     task.started_at = kwargs.get("started_at", datetime.now(timezone.utc))
     task.completed_at = kwargs.get("completed_at", None)
     task.execution_context = kwargs.get("execution_context", None)
+    task.cancel_requested_at = kwargs.get("cancel_requested_at", None)
+    task.budget_stopped_at = kwargs.get("budget_stopped_at", None)
 
     # 构造 steps 列表，避免 _check_early_termination / _finalize_task 把 MagicMock
     # 当成空列表导致误判（空列表会被视为全部终态并触发 Evidence Threshold 判定）。

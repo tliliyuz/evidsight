@@ -38,6 +38,7 @@ def _make_task(max_sources=10):
     task.requirements = {"task_type": "analysis", "max_sources": max_sources}
     task.status = "running"
     task.cancel_requested_at = None
+    task.budget_stopped_at = None
     return task
 
 

@@ -11,7 +11,7 @@ from sqlalchemy.orm import aliased
 
 from app.agent.context import AgentContext
 from app.agent.event_recorder import AgentEventRecorder
-from app.agent.exceptions import LeaseLostError
+from app.agent.exceptions import BudgetExhaustedError, LeaseLostError
 from app.agent.loop import AgentLoop, ToolExecutionResult
 from app.agent.memory import ReActEntry, WorkingMemory
 from app.agent.state import PhaseController
@@ -44,10 +44,16 @@ from app.pipeline.sse_bridge import (
     EVENT_TASK_COMPLETED,
     EVENT_TASK_FAILED,
     EVENT_TASK_PROGRESS,
+    EVENT_TASK_WARNING,
     SSEBridge,
 )
 from app.services import agent_memory_service
-from app.services.agent_event_service import EVENT_TYPE_PHASE_ENTER
+from app.services.agent_event_service import EVENT_TYPE_BUDGET_STOP, EVENT_TYPE_PHASE_ENTER
+from app.services.budget_service import (
+    budget_stop_reason,
+    can_reserve,
+    settle_budget,
+)
 from app.services.pipeline_orchestrator import (
     PHASE_ORDER,
     STEP_TYPE_TO_PHASE,
@@ -166,6 +172,14 @@ class AgentRuntime:
             # partially_completed 终态，不再按旧 status==canceled 短路。
             await self._finalize_task()
 
+        except BudgetExhaustedError:
+            # 预算停止不是自动成功（§14）：已有 Evidence 仍需通过完整度硬门槛，
+            # 由 _finalize_task 经 TaskStateResolver 推导 partial / failed。
+            logger.warning(
+                "任务预算停止，安全进入终态推导: task_id=%s", task_id,
+            )
+            await self._record_budget_stop()
+            await self._finalize_task()
         except Exception as e:
             logger.exception("Agent Runtime 致命错误: task_id=%s, error=%s", task_id, e)
             await self._handle_fatal_error(e)
@@ -245,7 +259,13 @@ class AgentRuntime:
             )
 
     async def _execute_tool(self, tool: Tool, tool_call: ToolCall) -> ToolExecutionResult:
-        """AgentLoop 的 Tool 执行回调：创建 Step → 执行 Tool → 持久化。"""
+        """AgentLoop 的 Tool 执行回调：创建 Step → 预留预算 → 执行 Tool → 结算 → 持久化。"""
+        # 预算预留（§14）：无法预留则停止新调用
+        if not can_reserve(self._task):
+            raise BudgetExhaustedError(
+                f"任务预算已用尽，停止新调用: task_id={self._task.id}"
+            )
+
         if tool.mapped_phase is None:
             # finish_tool 等无 phase 映射的 Tool，直接执行，不创建 Step
             result = await tool.execute(self._tool_context_with_step(None), **tool_call.arguments)
@@ -271,12 +291,76 @@ class AgentRuntime:
                 duration_ms=int((datetime.now(timezone.utc) - t0).total_seconds() * 1000),
             )
 
+        # 预算结算（§14）：外部调用完成后结算实际用量
+        await self._settle_tool_budget(result)
+
         if result.success:
             await self._complete_step(step, result)
         else:
             await self._fail_step(step, result)
 
         return ToolExecutionResult(result=result, step_id=str(step.id))
+
+    async def _settle_tool_budget(self, result: ToolResult) -> None:
+        """Tool 执行后结算预算用量（§14）；触发停止时记录 budget.stop 事件。"""
+        cost = result.cost or {}
+        delta: dict[str, Any] = {
+            "provider_calls": 1,
+        }
+        if not cost and isinstance(result.output, dict):
+            cost = extract_step_cost(result.output, default_model=settings.LLM_MODEL) or {}
+        if isinstance(cost, dict):
+            if cost.get("input_tokens"):
+                delta["llm_tokens"] = delta.get("llm_tokens", 0) + int(cost["input_tokens"])
+            if cost.get("output_tokens"):
+                delta["llm_tokens"] = delta.get("llm_tokens", 0) + int(cost["output_tokens"])
+            if cost.get("estimated_cost_usd"):
+                delta["cost_usd"] = delta.get("cost_usd", 0.0) + float(cost["estimated_cost_usd"])
+
+        # search/fetch 的非 LLM 成本（估算成本，cost_tracker 简化模型）
+        if isinstance(result.output, dict):
+            for key in ("search_cost_usd", "fetch_cost_usd"):
+                value = result.output.get(key)
+                if isinstance(value, (int, float)):
+                    delta["cost_usd"] = delta.get("cost_usd", 0.0) + float(value)
+
+            # 计数维度（§14：子问题数 / 搜索结果数 / Fetch 数）
+            sub_questions = result.output.get("sub_questions")
+            if isinstance(sub_questions, list):
+                delta["sub_questions"] = len(sub_questions)
+            total_results = result.output.get("total_results")
+            if isinstance(total_results, int):
+                delta["search_results"] = total_results
+            fetched = result.output.get("fetched")
+            if isinstance(fetched, list):
+                delta["fetch"] = len(fetched)
+
+        stopped = settle_budget(self._task, delta)
+        if stopped:
+            logger.warning(
+                "任务预算停止: task_id=%s, reason=%s",
+                self._task.id, budget_stop_reason(self._task),
+            )
+            await self._record_budget_stop()
+
+    async def _record_budget_stop(self) -> None:
+        """记录 budget.stop 事件（§14 / DATABASE.md §5.4 白名单枚举）。"""
+        reason = budget_stop_reason(self._task) or "预算停止"
+        if self._recorder is not None:
+            await self._recorder.record(
+                event_type=EVENT_TYPE_BUDGET_STOP,
+                sse_event=EVENT_TASK_WARNING,
+                data={
+                    "task_id": str(self._task.id),
+                    "reason": reason,
+                },
+                input_summary={"reason": reason},
+            )
+        else:
+            await self._sse.publish(EVENT_TASK_WARNING, {
+                "task_id": str(self._task.id),
+                "reason": reason,
+            })
 
     def _tool_context_with_step(self, step: ResearchStep | None) -> ToolContext:
         """构造包含指定 Step 的 ToolContext。"""
