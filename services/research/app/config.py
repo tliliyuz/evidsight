@@ -147,6 +147,12 @@ class Settings(BaseSettings):
     # 身份状态查询超时（秒）；身份事实源不可用必须失败关闭，不得用旧 active 结果放行
     EVIDSIGHT_IDENTITY_STATUS_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0, le=30)
 
+    # ── Internal Retrieval Consumer（Research → Knowledge，对齐 contracts/README.md §6-7）──
+    # 单次内部检索/解析请求超时（秒）
+    EVIDSIGHT_INTERNAL_RETRIEVAL_TIMEOUT_SECONDS: float = Field(default=10.0, gt=0, le=60)
+    # 可重试错误（INTERNAL_RETRIEVAL_UNAVAILABLE / 限流 / 网络 / 超时）的重试次数上限
+    EVIDSIGHT_INTERNAL_RETRIEVAL_RETRY_MAX: int = Field(default=2, ge=0, le=5)
+
     # ── CORS ──
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 

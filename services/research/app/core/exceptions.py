@@ -460,6 +460,60 @@ class KnowledgeBasesMissingException(AppException):
         )
 
 
+class InternalKnowledgeForbiddenException(AppException):
+    """Internal Retrieval 返回 KB_FORBIDDEN：至少一个目标 KB 当前不可读（fail-closed，ADR-010）。
+
+    对齐 contracts/README.md §10 错误码与 RESEARCH_PIPELINE §12.2：
+    knowledge/hybrid 任务不得用 Web 掩盖授权问题，不允许降级为 Web Search。
+    """
+
+    def __init__(self, detail: str = ""):
+        super().__init__(
+            "E3115", "请求的内部知识库当前不可访问", 403,
+            {
+                "error_type": "InternalKnowledgeForbidden",
+                "error_description": detail or "至少一个目标知识库当前不可读，内部检索失败关闭",
+                "recoverable": False,
+            },
+        )
+
+
+class InternalRetrievalUnavailableException(AppException):
+    """Internal Retrieval 瞬时不可用（INTERNAL_RETRIEVAL_UNAVAILABLE / 限流 / 网络 / 超时）。
+
+    对齐 contracts/README.md §10：retryable=true，重试耗尽后由调用方按来源策略
+    （knowledge → failed/paused；hybrid → 可继续 Web 但最多部分完成）处理。
+    """
+
+    def __init__(self, detail: str = "", retry_after_ms: int = 5000):
+        super().__init__(
+            "E3116", "内部知识检索服务暂不可用", 503,
+            {
+                "error_type": "InternalRetrievalUnavailable",
+                "error_description": detail or "内部知识检索服务暂不可用，请稍后重试",
+                "recoverable": True,
+                "retry_after_ms": retry_after_ms,
+            },
+        )
+
+
+class InternalRetrievalContractException(AppException):
+    """Internal Retrieval 响应不符合契约（INTERNAL_CONTRACT_UNSUPPORTED/INVALID 等）。
+
+    对齐 contracts/README.md §10：fail-closed，不重试；不得用解析失败的结果继续执行。
+    """
+
+    def __init__(self, detail: str = ""):
+        super().__init__(
+            "E3117", "内部知识检索响应不符合契约", 400,
+            {
+                "error_type": "InternalRetrievalContract",
+                "error_description": detail or "内部知识检索响应不符合 Contract，任务失败关闭",
+                "recoverable": False,
+            },
+        )
+
+
 class UnknownInternalException(AppException):
     """未预期的内部错误（兜底错误码，Worker 崩溃/未捕获异常时使用）。"""
 

@@ -1,10 +1,14 @@
-"""Search 阶段 —— Tavily API 多子问题搜索 + URL 去重。
+"""Search 阶段 —— 来源策略感知的多来源搜索。
 
-对齐 RESEARCH_PIPELINE.md §3：
-- 对 Planning 产出的每个 SubQuestion 调用 Tavily Search API
-- 跨子问题 URL 去重（保留首次出现的归属）
-- 子 step 管理（每个子问题独立 ResearchStep）
-- 失败策略：单子问题可降级 SKIPPED / 全部失败 → E3102
+对齐 RESEARCH_PIPELINE.md §3/§5.3/§6.1 与 ADR-010：
+- `web`：既有 Tavily 多子问题搜索 + URL 去重（默认策略，行为不变）；
+- `knowledge`：只调用 Internal Retrieval（不调用 Tavily），产出内部候选，
+  minimal_excerpt 仅当前 Step 内存使用，持久化输出不含正文；
+- `hybrid`：先执行内部检索再执行 Web 搜索，两套查询计划在 Planning 输出即显式分离，
+  Web Query 只来自原始 Topic / 公开子问题，内部 excerpt/文档标题绝不进入 Web Query。
+
+失败策略：任一 KB 无权（KB_FORBIDDEN）→ fail-closed，不允许降级为 Web；
+knowledge 策略内部通道瞬时不可用重试耗尽 → 抛可重试错误，不降级 Web。
 """
 
 import asyncio
@@ -17,11 +21,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core import internal_retrieval_client
 from app.core.cost_tracker import calculate_search_cost_usd
 from app.core.exceptions import SearchFailedException
 from app.models.research_step import ResearchStep
 from app.models.research_source import ResearchSource
 from app.models.research_task import ResearchTask
+from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
 from app.pipeline.sse_bridge import (
     SSEBridge,
     EVENT_STEP_COMPLETED,
@@ -32,6 +38,11 @@ from app.pipeline.sse_bridge import (
 )
 
 logger = logging.getLogger(__name__)
+
+# 来源策略（API.md §8 / RESEARCH_PIPELINE.md §3）
+STRATEGY_KNOWLEDGE = "knowledge"
+STRATEGY_WEB = "web"
+STRATEGY_HYBRID = "hybrid"
 
 # 搜索重试策略（config.py 未设对应项，Phase4 评估后添加）
 _SEARCH_RETRY_MAX = 2
@@ -172,7 +183,233 @@ async def run_search(
     session: AsyncSession,
     sse_bridge: SSEBridge,
 ) -> dict:
-    """执行 Search 阶段。
+    """Search 阶段入口 —— 按来源策略分流。
+
+    - knowledge：只走 Internal Retrieval（不调用 Tavily，不创建 Web source）；
+    - web（默认）：既有 Tavily 路径（_run_web_search）；
+    - hybrid：先内部检索再 Web 搜索，Web Query 域隔离（ADR-010）。
+
+    Returns:
+        output dict（含来源策略与对应来源结果）
+    """
+    strategy = str(getattr(task, "source_strategy", None) or STRATEGY_WEB)
+
+    if strategy == STRATEGY_KNOWLEDGE:
+        return await _run_knowledge_search(task, step, session, sse_bridge)
+
+    if strategy == STRATEGY_HYBRID:
+        return await _run_hybrid_search(task, step, session, sse_bridge)
+
+    return await _run_web_search(task, step, session, sse_bridge)
+
+
+async def _load_kb_ids(session: AsyncSession, task_id: str) -> list[str]:
+    """按 selection_order 加载任务的 KB 选择（DATABASE.md §5.2）。
+
+    Knowledge 是权威鉴权方，Research 只读取稳定 UUID 值副本。
+    """
+    stmt = (
+        select(ResearchTaskKnowledgeBase.knowledge_base_id)
+        .where(ResearchTaskKnowledgeBase.task_id == task_id)
+        .order_by(ResearchTaskKnowledgeBase.selection_order)
+    )
+    result = await session.execute(stmt)
+    return [row[0] for row in result.all()]
+
+
+async def _run_knowledge_search(
+    task: ResearchTask,
+    step: ResearchStep,
+    session: AsyncSession,
+    sse_bridge: SSEBridge,
+) -> dict:
+    """knowledge 策略：对每个子问题调用 Internal Retrieval，产出内部候选。
+
+    对齐 RESEARCH_PIPELINE.md §6.1：
+    - 使用 Research 服务身份 + Platform User ID + 全部目标 KB UUID + Contract 版本；
+    - RetrievalHit 转为内部候选：稳定 KB/Document/Document Version/Segment ID、
+      显示名、位置、评分摘要与时间；minimal_excerpt 仅当前 Step 内存使用；
+    - 任一 KB 无权 → fail-closed，绝不降级为 Web。
+    """
+    task_id = str(task.id)
+    root_step_id = str(step.id)
+    user_id = str(task.user_id)
+
+    sub_questions = await _load_sub_questions(session, task)
+    if not sub_questions:
+        logger.warning("Knowledge Search: 无子问题输入，跳过: task_id=%s", task_id)
+        return {
+            "strategy": STRATEGY_KNOWLEDGE,
+            "total_internal_hits": 0,
+            "internal_candidates": [],
+            "sub_question_results": [],
+            "message": "无子问题输入",
+        }
+
+    kb_ids = await _load_kb_ids(session, task_id)
+    if not kb_ids:
+        # 已被 Worker fail-closed 守卫兜底（E3114）；此处再防御一层，防止路径绕过
+        from app.core.exceptions import KnowledgeBasesMissingException
+        raise KnowledgeBasesMissingException()
+
+    logger.info(
+        "Knowledge Search 开始: task_id=%s, sub_questions=%d, kb_ids=%d",
+        task_id, len(sub_questions), len(kb_ids),
+    )
+
+    internal_candidates: list[dict] = []
+    sub_results: list[dict] = []
+    total_hits = 0
+    all_skipped = True
+
+    for i, sq in enumerate(sub_questions, 1):
+        child_step = await _create_child_step(
+            session, task, step, step_type="search",
+            label=f"内部检索子问题 {i}: {sq[:80]}",
+        )
+        child_step_id = str(child_step.id)
+
+        await sse_bridge.publish(EVENT_STEP_STARTED, {
+            "step_id": child_step_id,
+            "step_type": "search",
+            "label": child_step.label,
+            "parent_step_id": root_step_id,
+        })
+
+        try:
+            result = await internal_retrieval_client.search_retrieval(
+                user_id=user_id,
+                knowledge_base_ids=kb_ids,
+                query=sq,
+            )
+        except (
+            # fail-closed 错误必须立即中止，不允许降级为 Web
+            internal_retrieval_client.InternalKnowledgeForbiddenException,
+            internal_retrieval_client.UserDisabledException,
+            internal_retrieval_client.InternalRetrievalContractException,
+        ):
+            logger.warning(
+                "Knowledge Search fail-closed 错误，整次中止: task_id=%s, sq_index=%d",
+                task_id, i,
+            )
+            raise
+        except Exception as e:
+            logger.warning("Knowledge Search 子问题 %d 失败: %s", i, e)
+            await _finish_child_step(session, child_step, "skipped")
+            await sse_bridge.publish(EVENT_STEP_SKIPPED, {
+                "step_id": child_step_id,
+                "reason": f"子问题 {i} 内部检索失败: {e}",
+            })
+            sub_results.append({
+                "sub_question": sq,
+                "index": i,
+                "status": "skipped",
+                "step_id": child_step_id,
+            })
+            continue
+
+        hits = result.results
+        hit_count = len(hits)
+        total_hits += hit_count
+        if hit_count > 0:
+            all_skipped = False
+
+        await sse_bridge.publish(EVENT_STEP_PROGRESS, {
+            "step_id": child_step_id,
+            "results_found": hit_count,
+        })
+
+        for hit in hits:
+            safe = hit.to_safe_dict()
+            safe["sub_question_index"] = i
+            internal_candidates.append(safe)
+
+        child_output = {
+            "sub_question": sq,
+            "results_found": hit_count,
+        }
+        await _finish_child_step(session, child_step, "completed", child_output)
+        await sse_bridge.publish(EVENT_STEP_COMPLETED, {
+            "step_id": child_step_id,
+            "results_count": hit_count,
+        })
+
+        sub_results.append({
+            "sub_question": sq,
+            "index": i,
+            "results_count": hit_count,
+            "status": "completed" if hit_count > 0 else "skipped",
+            "step_id": child_step_id,
+        })
+
+    if all_skipped and len(sub_results) > 0:
+        # 全部子问题 0 命中：knowledge 策略没有 Web 可降级，直接失败
+        raise SearchFailedException(
+            detail=f"全部 {len(sub_results)} 个子问题内部检索均无结果"
+        )
+
+    output = {
+        "strategy": STRATEGY_KNOWLEDGE,
+        "total_internal_hits": total_hits,
+        "internal_candidates": internal_candidates,
+        "sub_question_results": sub_results,
+    }
+
+    logger.info(
+        "Knowledge Search 完成: task_id=%s, total_hits=%d, candidates=%d",
+        task_id, total_hits, len(internal_candidates),
+    )
+    return output
+
+
+async def _run_hybrid_search(
+    task: ResearchTask,
+    step: ResearchStep,
+    session: AsyncSession,
+    sse_bridge: SSEBridge,
+) -> dict:
+    """hybrid 策略：先执行内部检索，再执行 Web 搜索。
+
+    对齐 RESEARCH_PIPELINE.md §3/§5.3 与 ADR-010：
+    - 两套查询计划在 Planning 输出即显式分离，Web Query 只来自公开子问题；
+    - 内部命中结果、内部标题与内部命名绝不自动进入 Web Query；
+    - 任一 KB 无权 → fail-closed，不允许 Web 掩盖授权问题。
+    """
+    knowledge_output = await _run_knowledge_search(task, step, session, sse_bridge)
+
+    # 内部检索结果只用于候选与报告综合，不拼接进 Web Query
+    internal_titles = {
+        c.get("document_display_name") or ""
+        for c in knowledge_output.get("internal_candidates", [])
+        if c.get("document_display_name")
+    }
+    if internal_titles:
+        logger.info(
+            "Hybrid 内部文档标题不进入 Web Query: task_id=%s, titles=%d",
+            task.id, len(internal_titles),
+        )
+
+    web_output = await _run_web_search(task, step, session, sse_bridge)
+
+    merged: dict = {
+        **web_output,
+        "strategy": STRATEGY_HYBRID,
+        "internal_candidates": knowledge_output.get("internal_candidates", []),
+        "total_internal_hits": knowledge_output.get("total_internal_hits", 0),
+        "knowledge_sub_question_results": knowledge_output.get(
+            "sub_question_results", []
+        ),
+    }
+    return merged
+
+
+async def _run_web_search(
+    task: ResearchTask,
+    step: ResearchStep,
+    session: AsyncSession,
+    sse_bridge: SSEBridge,
+) -> dict:
+    """执行 Web（Tavily）Search 阶段 —— 既有 web 策略行为。
 
     1. 读取 Planning 产出的 SubQuestion[]
     2. 对每个 SubQuestion 调用 Tavily Search API（含重试）
