@@ -14,15 +14,15 @@
 
 **企业知识问答** — 上传文档构建知识库，自然语言提问获得带来源引用的流式回答。系统支持多轮对话，每次回答都关联具体来源位置。
 
-![知识问答界面：选择知识库后提问，获得带引用的流式回答](resource/prototype/07-chat.png)
+![知识问答界面：选择知识库后提问，获得带引用的流式回答](resource/prototype/light/07-chat.png)
 
 **深度研究** — 面对复杂问题时，系统启动多阶段 Agent 执行研究。支持对比型、解释型和影响分析型任务，用户可选择仅使用企业知识、仅使用互联网、或混合使用两类来源。
 
-![创建研究任务：选择任务类型和来源策略](resource/prototype/03-research-create.png)
+![创建研究任务：选择任务类型和来源策略](resource/prototype/light/03-research-create.png)
 
 **证据驱动报告** — 研究完成后生成结构化报告，关键结论关联证据，证据可追溯到原始来源位置。内外来源清晰区分，冲突与不确定性显式展示，不会将矛盾信息伪装为确定事实。
 
-![研究执行过程：展示阶段进度、状态和耗时](resource/prototype/05-research-runtime.png)
+![研究执行过程：展示阶段进度、状态和耗时](resource/prototype/light/05-research-runtime.png)
 
 **权限感知** — 研究和报告不绕过原知识来源的访问权限。内部证据进入报告不会赋予永久访问权，用户打开原文时按当前权限重新校验。
 
@@ -60,7 +60,7 @@
 
 用户登录后进入统一工作台，从同一入口访问知识中心、问答、研究和管理功能：
 
-![统一工作台：知识中心、问答、研究和管理功能的入口](resource/prototype/02-workbench.png)
+![统一工作台：知识中心、问答、研究和管理功能的入口](resource/prototype/light/02-workbench.png)
 
 ## 技术栈
 
@@ -154,7 +154,7 @@ docker compose config --quiet
 
 部署完成后，管理员可以通过管理中心管理用户、知识库和研究任务：
 
-![管理中心：用户、知识库、研究任务的管理和审计](resource/prototype/11-admin-overview.png)
+![管理中心：用户、知识库、研究任务的管理和审计](resource/prototype/light/11-admin-overview.png)
 
 ## 项目状态
 

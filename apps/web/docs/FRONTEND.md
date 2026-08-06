@@ -66,7 +66,7 @@ apps/web/src/
 
 | 路由 | 页面 | 访问规则 | 原型 |
 |---|---|---|---|
-| `/` | 全屏叙事入口 | 匿名可见；已登录可进入工作台 | [01-landing.png](../../../resource/prototype/01-landing.png) |
+| `/` | 全屏叙事入口 | 匿名可见；已登录可进入工作台 | [01-landing.png](../../../resource/prototype/light/01-landing.png) |
 | `/login` | 登录右侧抽屉状态 | 匿名；在入口页上层展示，不使用独立卡片页 | 同上 |
 
 入口页采用全屏叙事流。Header 中品牌位于左侧，产品能力、研究方式、安全与证据及登录入口组成右侧实用导航。登录从右侧滑出；关闭后保留入口页滚动位置。
@@ -75,16 +75,16 @@ apps/web/src/
 
 | 路由 | 页面 | 原型 |
 |---|---|---|
-| `/workbench` | 工作台 | [02-workbench.png](../../../resource/prototype/02-workbench.png) |
-| `/chat` | 据见问答 | [07-chat.png](../../../resource/prototype/07-chat.png) |
-| `/chat/history` | 问答历史 | [08-chat-history.png](../../../resource/prototype/08-chat-history.png) |
-| `/knowledge-bases` | 知识库列表 | [09-knowledge.png](../../../resource/prototype/09-knowledge.png) |
-| `/knowledge-bases/:kbId` | 知识库详情与文档 | [10-knowledge-detail.png](../../../resource/prototype/10-knowledge-detail.png) |
-| `/research/new` | 创建深度研究 | [03-research-create.png](../../../resource/prototype/03-research-create.png) |
-| `/research` | 研究任务列表 | [04-research-tasks.png](../../../resource/prototype/04-research-tasks.png) |
-| `/research/:taskId` | 研究运行态 | [05-research-runtime.png](../../../resource/prototype/05-research-runtime.png) |
-| `/reports/:reportId` | 最终研究报告 | [06-research-report.png](../../../resource/prototype/06-research-report.png) |
-| `/admin` | 管理中心 | [11-admin-overview.png](../../../resource/prototype/11-admin-overview.png) |
+| `/workbench` | 工作台 | [02-workbench.png](../../../resource/prototype/light/02-workbench.png) |
+| `/chat` | 据见问答 | [07-chat.png](../../../resource/prototype/light/07-chat.png) |
+| `/chat/history` | 问答历史 | [08-chat-history.png](../../../resource/prototype/light/08-chat-history.png) |
+| `/knowledge-bases` | 知识库列表 | [09-knowledge.png](../../../resource/prototype/light/09-knowledge.png) |
+| `/knowledge-bases/:kbId` | 知识库详情与文档 | [10-knowledge-detail.png](../../../resource/prototype/light/10-knowledge-detail.png) |
+| `/research/new` | 创建深度研究 | [03-research-create.png](../../../resource/prototype/light/03-research-create.png) |
+| `/research` | 研究任务列表 | [04-research-tasks.png](../../../resource/prototype/light/04-research-tasks.png) |
+| `/research/:taskId` | 研究运行态 | [05-research-runtime.png](../../../resource/prototype/light/05-research-runtime.png) |
+| `/reports/:reportId` | 最终研究报告 | [06-research-report.png](../../../resource/prototype/light/06-research-report.png) |
+| `/admin` | 管理中心 | [11-admin-overview.png](../../../resource/prototype/light/11-admin-overview.png) |
 
 URL 必须承载可恢复的资源标识。筛选、分页、选中章节等需要分享或刷新后保留的状态写入查询参数；临时抽屉、Popover 和确认框保留在页面状态中。
 
@@ -99,7 +99,7 @@ URL 必须承载可恢复的资源标识。筛选、分页、选中章节等需�
 5. 深度研究；
 6. 研究任务。
 
-管理中心入口与账号区域固定在侧边栏底部。账号菜单提供“修改密码”和“退出登录”。修改密码使用右侧抽屉；退出登录使用具名确认框。
+管理中心入口与账号区域固定在侧边栏底部。账号菜单提供“修改密码”、“主题选择”和“退出登录”。修改密码使用右侧抽屉；主题选择使用居中确认卡片；退出登录使用具名确认框。主题选择行为见 §4.4。
 
 管理中心不嵌套普通工作台侧边栏。进入 `/admin` 后切换为独立管理壳层，管理侧边栏成为一级导航，并提供明确的“返回工作台”。
 
@@ -130,13 +130,21 @@ Query Key 必须包含资源范围，例如 `['knowledge-base', kbId]`、`['conv
 
 顶部栏显示正在运行的研究任务数量。该提示只表达持久任务状态，不表达 SSE 是否连接。点击后进入研究任务列表；离开运行态页面不得取消任务。
 
+### 4.4 主题与外观
+
+- 默认主题为浅色：登录抽屉与登录后的工作区默认使用浅色主题；
+- 入口全屏叙事页固定保留品牌深色叙事，不随主题切换；
+- 用户在账号菜单「主题选择」中切换浅色 / 深色主题；选择立即生效并持久化到 `localStorage`（键 `evidsight-theme`），刷新与重新登录后保持；
+- 退出登录不清除主题偏好；主题只改变视觉 Token 映射（见 [UIDESIGN.md](UIDESIGN.md) §4），不改变布局、信息架构或业务行为；
+- 业务组件只消费 `--es-*` Design Token，禁止按主题硬编码颜色；深浅主题任一主题下均须满足 WCAG AA 对比度。
+
 ## 5. 页面设计
 
 ### 5.1 全屏叙事入口与登录
 
-入口页由 Hero、可信能力、研究方式与证据安全模块纵向堆叠。Hero 只包含品牌叙事、主要入口和艺术化线条背景，不放置登录卡片、伪造客户 Logo 或无法证明的社会证明。
+入口页由 Hero、可信能力、研究方式与证据安全模块纵向堆叠。Hero 只包含品牌叙事、主要入口和艺术化线条背景，不放置登录卡片、伪造客户 Logo 或无法证明的社会证明。入口页固定保留深色品牌叙事，不随用户主题选择切换。
 
-登录抽屉包含账号、密码、显示密码、记住登录状态与提交按钮。错误文案不区分“用户不存在”和“密码错误”。提交期间按钮进入忙碌状态并防止重复请求；成功后默认进入 `/workbench`。
+登录抽屉包含账号、密码、显示密码、记住登录状态与提交按钮，默认使用浅色主题。错误文案不区分“用户不存在”和“密码错误”。提交期间按钮进入忙碌状态并防止重复请求；成功后默认进入 `/workbench`。
 
 ### 5.1.1 身份恢复
 
@@ -258,16 +266,16 @@ Query Key 必须包含资源范围，例如 `['knowledge-base', kbId]`、`['conv
 
 | 分区 | 页面职责 | 原型 |
 |---|---|---|
-| 运行概览 | 成员、知识、研究负载、服务健康 | [11-admin-overview.png](../../../resource/prototype/11-admin-overview.png) |
-| 知识库管理 | owner、可见性、容量、索引健康 | [12-admin-knowledge-bases.png](../../../resource/prototype/12-admin-knowledge-bases.png) |
-| 文档管理 | 跨 KB 定位解析、切片、索引和发布异常 | [13-admin-documents.png](../../../resource/prototype/13-admin-documents.png) |
-| Knowledge Trace | 问答与检索 Pipeline 性能诊断 | [14-admin-knowledge-trace.png](../../../resource/prototype/14-admin-knowledge-trace.png) |
-| Research Trace | Task、Phase、Step 性能诊断 | [15-admin-research-trace.png](../../../resource/prototype/15-admin-research-trace.png) |
-| 成本与计费 | Token、Provider 成本与用量账本 | [16-admin-billing.png](../../../resource/prototype/16-admin-billing.png) |
-| 用户管理 | 账号、角色和启停状态 | [17-admin-users.png](../../../resource/prototype/17-admin-users.png) |
-| 角色与权限 | 预设角色和权限说明 | [18-admin-roles.png](../../../resource/prototype/18-admin-roles.png) |
-| 审计日志 | 治理操作记录 | [19-admin-audit.png](../../../resource/prototype/19-admin-audit.png) |
-| 系统设置 | 组织级默认策略 | [20-admin-settings.png](../../../resource/prototype/20-admin-settings.png) |
+| 运行概览 | 成员、知识、研究负载、服务健康 | [11-admin-overview.png](../../../resource/prototype/light/11-admin-overview.png) |
+| 知识库管理 | owner、可见性、容量、索引健康 | [12-admin-knowledge-bases.png](../../../resource/prototype/light/12-admin-knowledge-bases.png) |
+| 文档管理 | 跨 KB 定位解析、切片、索引和发布异常 | [13-admin-documents.png](../../../resource/prototype/light/13-admin-documents.png) |
+| Knowledge Trace | 问答与检索 Pipeline 性能诊断 | [14-admin-knowledge-trace.png](../../../resource/prototype/light/14-admin-knowledge-trace.png) |
+| Research Trace | Task、Phase、Step 性能诊断 | [15-admin-research-trace.png](../../../resource/prototype/light/15-admin-research-trace.png) |
+| 成本与计费 | Token、Provider 成本与用量账本 | [16-admin-billing.png](../../../resource/prototype/light/16-admin-billing.png) |
+| 用户管理 | 账号、角色和启停状态 | [17-admin-users.png](../../../resource/prototype/light/17-admin-users.png) |
+| 角色与权限 | 预设角色和权限说明 | [18-admin-roles.png](../../../resource/prototype/light/18-admin-roles.png) |
+| 审计日志 | 治理操作记录 | [19-admin-audit.png](../../../resource/prototype/light/19-admin-audit.png) |
+| 系统设置 | 组织级默认策略 | [20-admin-settings.png](../../../resource/prototype/light/20-admin-settings.png) |
 
 v1.0 P0 页面为运行概览、知识库管理、文档管理、Knowledge Trace、Research Trace、用户管理和审计日志。完整成本与计费、可配置角色权限和组织级系统设置属于 P1；这些原型在 v1.0 只作为视觉演进基线，不得提供虚假数据、无后端语义的保存按钮或“已上线”提示。若 P0 页面需要展示基础 Token/调用计数，只能使用 API 已定义的安全运行摘要，不提前实现完整计费账本。
 
@@ -408,6 +416,9 @@ Research SSE 只是持久任务的观察通道：
 ## 14. 前端验收门禁
 
 - P0 原型页面均有对应实现入口；P1 原型可保留视觉基线，但不得伪装成已可用功能；
+- 登录抽屉与登录后工作区默认浅色主题；入口叙事页保留品牌深色；
+- 账号菜单「主题选择」可切换浅色/深色主题，切换立即生效并持久化，刷新后恢复；
+- 深浅主题均通过 WCAG AA 对比度，且无按钮、标签或选中态在任一主题下与背景同色；
 - 不出现第二套普通业务壳层或嵌套管理侧边栏；
 - Chat SSE 断开语义与 Research SSE 断开语义严格区分；
 - 报告正文先呈现结论，Trace 只作为末尾附录；

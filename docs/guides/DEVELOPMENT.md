@@ -49,7 +49,7 @@ evidsight/
 │   └── research/                  # Research Service 实现、测试、迁移与专项文档
 ├── apps/
 │   └── web/                       # M0 迁入的 Vue Web 基线与专项文档
-├── resource/prototype/            # 20 张界面原型基线
+├── resource/prototype/            # 界面原型基线：dark/ 与 light/ 各 20 张，light 为默认主题
 ├── deploy/                        # Nginx、Prometheus 与 Grafana 编排资产
 ├── scripts/                       # 全仓测试、配置与 smoke 入口
 ├── tests/architecture/            # 服务边界与 Compose 契约测试
