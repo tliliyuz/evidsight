@@ -28,7 +28,7 @@ class FailingTool(Tool):
 
 
 @pytest.fixture
-def runtime():
+def runtime(monkeypatch):
     task = ResearchTask(
         id="runtime-test-task",
         user_id=1,
@@ -53,6 +53,13 @@ def runtime():
     )
     runtime._agent_context = AgentContext(current_phase="planning")
     runtime._working_memory = WorkingMemory()
+    # 绑定租约（切片 E）：本组用例不验证租约门禁，默认放行提交
+    runtime._lock_handle.worker_id = "worker-1"
+    runtime._lock_handle.lease_generation = 1
+    monkeypatch.setattr(
+        "app.agent.runtime.is_step_commit_allowed",
+        AsyncMock(return_value=True),
+    )
     return runtime
 
 
@@ -94,22 +101,23 @@ class TestRunCancel:
         runtime._task.execution_context = None
 
     @pytest.mark.asyncio
-    async def test_运行中被取消_跳过最终化且不再调用LLM(self, runtime, monkeypatch):
+    async def test_取消请求_停止循环并进入最终化(self, runtime, monkeypatch):
         self._prepare_run(runtime, monkeypatch)
         chat_mock = AsyncMock()
         monkeypatch.setattr("app.agent.loop.chat_completion", chat_mock)
 
-        async def refresh_to_canceled(obj, attrs):
-            obj.status = "canceled"
+        async def refresh_to_cancel(obj, attrs):
+            obj.cancel_requested_at = datetime.now(timezone.utc)
 
-        runtime._session.refresh = AsyncMock(side_effect=refresh_to_canceled)
+        runtime._session.refresh = AsyncMock(side_effect=refresh_to_cancel)
 
         await runtime.run()
 
-        assert runtime._task.status == "canceled"
+        assert runtime._task.cancel_requested_at is not None
         assert runtime._agent_context.finish_reason == "canceled"
-        runtime._finalize_task.assert_not_awaited()
         chat_mock.assert_not_awaited()
+        # 取消只写 cancel_requested_at，安全停止后进入最终化，由 Resolver 推导终态
+        runtime._finalize_task.assert_awaited_once()
         runtime._lock_handle.release.assert_awaited_once()
 
     @pytest.mark.asyncio

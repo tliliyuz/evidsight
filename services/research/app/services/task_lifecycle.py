@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -21,6 +22,7 @@ from sqlalchemy import select as sa_select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.database import async_session_factory
 from app.metrics import emit_task_status_transition
 from app.models.enums import STEP_TYPE_ENUM
 from app.models.research_step import ResearchStep
@@ -38,6 +40,11 @@ from app.tasks.lock import (
 logger = logging.getLogger(__name__)
 
 PHASE_ORDER: list[str] = list(STEP_TYPE_ENUM)
+
+
+def new_worker_id() -> str:
+    """生成当前执行 Worker 的唯一标识（每次执行新建，用于租约领取/续租/提交校验）。"""
+    return f"worker-{uuid.uuid4().hex[:12]}"
 
 
 async def claim_task_lease(
@@ -166,17 +173,91 @@ async def is_step_commit_allowed(
     )
 
 
+async def is_task_ownership_valid(
+    session: AsyncSession,
+    task_id: str,
+    worker_id: str,
+    generation: int,
+) -> bool:
+    """终态推导前的租约所有权校验（DATABASE.md §8 / §17.12）。
+
+    与 is_step_commit_allowed 的区别：Step 提交必须同时满足「未请求取消」，
+    而取消安全停止后的 Resolver 终态推导需要允许 cancel_requested_at 已设置的
+    情况，因此本方法只校验 owner/generation 匹配且任务非终态。
+    """
+    row = await session.execute(
+        sa_select(
+            ResearchTask.lease_owner,
+            ResearchTask.lease_generation,
+            ResearchTask.status,
+        ).where(ResearchTask.id == task_id)
+    )
+    task_row = row.one_or_none()
+    if task_row is None:
+        return False
+    owner, gen, status = task_row
+    return owner == worker_id and gen == generation and status in ("pending", "running")
+
+
 class TaskLockHandle:
-    """任务级幂等锁句柄，负责获取、租约刷新与释放。"""
+    """任务级幂等锁句柄，负责获取、租约刷新与释放，并承载 DB 租约续租/释放。"""
 
     def __init__(self, task_id: str):
         self._task_id = task_id
         self._acquired = False
         self._refresh_task: asyncio.Task | None = None
+        self.worker_id: str | None = None
+        self.lease_generation: int | None = None
+        self._lease_ttl: int | None = None
 
     @property
     def acquired(self) -> bool:
         return self._acquired
+
+    @property
+    def lease_bound(self) -> bool:
+        """是否已绑定领取后的租约标识（worker_id + generation 齐备）。"""
+        return self.worker_id is not None and self.lease_generation is not None
+
+    def bind_lease(self, worker_id: str, generation: int, ttl_seconds: int | None = None) -> None:
+        """绑定领取后的租约标识，供续租与提交校验使用（§13.1）。"""
+        self.worker_id = worker_id
+        self.lease_generation = generation
+        self._lease_ttl = ttl_seconds
+
+    async def renew_lease(self) -> bool:
+        """续租 DB 租约（独立会话，避免与主流程事务冲突；§13.1）。"""
+        if not self.lease_bound:
+            return True
+        try:
+            async with async_session_factory() as session:
+                ok = await renew_task_lease(
+                    session,
+                    self._task_id,
+                    self.worker_id,
+                    self.lease_generation,
+                    ttl_seconds=self._lease_ttl,
+                )
+                await session.commit()
+            return ok
+        except Exception:
+            logger.exception("DB 租约续租异常: task_id=%s", self._task_id)
+            return False
+
+    async def release_lease(self) -> None:
+        """释放 DB 租约（仅 owner 匹配生效；DATABASE.md §8）。"""
+        try:
+            if not self.lease_bound:
+                return
+            async with async_session_factory() as session:
+                await release_task_lease(session, self._task_id, self.worker_id)
+                await session.commit()
+        except Exception:
+            logger.exception("DB 租约释放异常: task_id=%s", self._task_id)
+        finally:
+            self.worker_id = None
+            self.lease_generation = None
+            self._lease_ttl = None
 
     async def acquire(self, ttl: int | None = None) -> bool:
         """获取任务级锁；成功后启动租约刷新。"""
@@ -189,14 +270,15 @@ class TaskLockHandle:
         return locked
 
     async def release(self) -> None:
-        """停止刷新并释放任务级锁。"""
+        """停止刷新，释放 DB 租约与任务级锁。"""
         self._stop_refresh()
+        await self.release_lease()
         if self._acquired:
             await release_task_lock_async(self._task_id)
             self._acquired = False
 
     def _start_refresh(self) -> None:
-        """启动后台协程定期刷新锁 TTL。"""
+        """启动后台协程定期刷新 Redis 锁 TTL 与 DB 租约。"""
         if self._refresh_task is not None:
             return
         interval = settings.CELERY_LOCK_REFRESH_INTERVAL
@@ -209,6 +291,13 @@ class TaskLockHandle:
                     if not refreshed:
                         logger.warning(
                             "任务级锁续期失败（锁已不存在），停止刷新: task_id=%s",
+                            self._task_id,
+                        )
+                        break
+                    # DB 租约续租失败意味着租约已失效，停止刷新（§13.1 失去租约即停止）
+                    if self.lease_bound and not await self.renew_lease():
+                        logger.warning(
+                            "DB 租约续租失败（租约已失效），停止刷新: task_id=%s",
                             self._task_id,
                         )
                         break
@@ -300,6 +389,26 @@ async def start_research_task(
             "任务状态不支持启动: task_id=%s, status=%s", task_id, current_status
         )
         return False
+
+    # 领取 DB 租约（§13.1 / DATABASE.md §8）：pending 与崩溃恢复路径统一在此领取
+    # 新 generation。条件更新失败（并发 Worker / 扫描器已持有有效租约）说明已被接管，
+    # 放弃启动并释放锁，避免双 Worker 同时执行。
+    worker_id = new_worker_id()
+    generation = await claim_task_lease(session, task_id, worker_id)
+    if generation is None:
+        logger.warning(
+            "租约领取失败（条件不满足），放弃启动: task_id=%s, worker=%s",
+            task_id, worker_id,
+        )
+        await lock_handle.release()
+        return False
+    lock_handle.bind_lease(worker_id, generation)
+    await session.commit()
+    await session.refresh(task)
+    logger.info(
+        "Worker 已领取租约: task_id=%s, worker=%s, generation=%s",
+        task_id, worker_id, generation,
+    )
 
     # 修正旧任务 total_steps
     if task.total_steps != len(PHASE_ORDER):

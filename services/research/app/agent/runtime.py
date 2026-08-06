@@ -10,6 +10,7 @@ from sqlalchemy import func, select as sa_select, update as sa_update
 from sqlalchemy.orm import aliased
 
 from app.agent.context import AgentContext
+from app.agent.exceptions import LeaseLostError
 from app.agent.loop import AgentLoop, ToolExecutionResult
 from app.agent.memory import ReActEntry, WorkingMemory
 from app.agent.state import PhaseController
@@ -38,6 +39,7 @@ from app.pipeline.sse_bridge import (
     EVENT_STEP_COMPLETED,
     EVENT_STEP_FAILED,
     EVENT_STEP_STARTED,
+    EVENT_TASK_CANCELED,
     EVENT_TASK_COMPLETED,
     EVENT_TASK_FAILED,
     EVENT_TASK_PROGRESS,
@@ -52,6 +54,8 @@ from app.services.pipeline_orchestrator import (
 from app.services.task_lifecycle import (
     TaskLockHandle,
     emergency_fail_task,
+    is_step_commit_allowed,
+    is_task_ownership_valid,
     load_task_steps,
     start_research_task,
 )
@@ -147,12 +151,9 @@ class AgentRuntime:
             # 捕获 loop 中非 tool 分支（LLM 失败 / 无 tool call）产生的 entries
             await self._persist_memory_entries()
 
-            # 任务已被用户取消：canceled 终态与 completed_at 已由 Cancel API 写入，
-            # 跳过最终化，避免误发终态 SSE 事件与状态转换指标
-            if self._task.status == "canceled":
-                logger.info("任务已取消，跳过最终化: task_id=%s", task_id)
-                return
-
+            # 任务取消：取消接口只写 cancel_requested_at（§13.2），Worker 在迭代检查点
+            # 安全停止后，由 _finalize_task 经 TaskStateResolver 推导 canceled /
+            # partially_completed 终态，不再按旧 status==canceled 短路。
             await self._finalize_task()
 
         except Exception as e:
@@ -179,13 +180,59 @@ class AgentRuntime:
         return agent_context, working_memory
 
     async def _is_task_canceled(self) -> bool:
-        """重载任务状态，检测用户取消（AgentLoop 每轮迭代开始前调用）。
+        """循环迭代检查点：检测用户取消请求（§13.2）。
 
-        每个 Step 完成后的 commit 会开启新事务，因此至少能在 phase 边界
-        读到最新状态，与旧版 PipelineOrchestrator 的 Phase 间取消检测粒度一致。
+        取消接口只写 cancel_requested_at，由本检查点在每轮迭代开始前生效；
+        安全停止后 _finalize_task 经 TaskStateResolver 推导 canceled 等终态。
         """
-        await self._session.refresh(self._task, ["status"])
-        return self._task.status == "canceled"
+        await self._session.refresh(
+            self._task, ["status", "cancel_requested_at"],
+        )
+        return (
+            self._task.cancel_requested_at is not None
+            or self._task.status == "canceled"
+        )
+
+    async def _assert_lease(self) -> None:
+        """Step 提交前校验租约（§13.1 / §17.12）。
+
+        失去租约（owner/generation 不匹配、任务终止或已取消）的 Worker 立即停止，
+        不提交业务结果；取消请求同样拒绝后续业务提交。
+        """
+        worker_id = self._lock_handle.worker_id
+        generation = self._lock_handle.lease_generation
+        if worker_id is None or generation is None:
+            raise LeaseLostError(
+                f"Worker 未领取任务租约，禁止提交业务结果: task_id={self._task.id}"
+            )
+        allowed = await is_step_commit_allowed(
+            self._session, str(self._task.id), worker_id, generation,
+        )
+        if not allowed:
+            raise LeaseLostError(
+                f"Worker 已失去任务租约或任务终止/取消，停止提交: task_id={self._task.id}"
+            )
+
+    async def _assert_ownership(self) -> None:
+        """终态推导前校验仍持有租约所有权（§13.1 / §17.12）。
+
+        与 Step 提交门禁不同：取消已请求时允许推导终态（Resolver 判定 canceled /
+        partially_completed），因此只校验 owner/generation 匹配且任务非终态。
+        """
+        worker_id = self._lock_handle.worker_id
+        generation = self._lock_handle.lease_generation
+        if worker_id is None or generation is None:
+            raise LeaseLostError(
+                f"Worker 未领取任务租约，禁止推导终态: task_id={self._task.id}"
+            )
+        allowed = await is_task_ownership_valid(
+            self._session, str(self._task.id), worker_id, generation,
+        )
+        if not allowed:
+            raise LeaseLostError(
+                f"Worker 已失去任务租约，禁止推导终态（交给 Recovery Scanner 接管）: "
+                f"task_id={self._task.id}"
+            )
 
     async def _execute_tool(self, tool: Tool, tool_call: ToolCall) -> ToolExecutionResult:
         """AgentLoop 的 Tool 执行回调：创建 Step → 执行 Tool → 持久化。"""
@@ -281,6 +328,8 @@ class AgentRuntime:
 
     async def _complete_step(self, step: ResearchStep, result: ToolResult) -> None:
         """Step 成功完成：写入 output、trace、SSE、checkpoint。"""
+        # 租约门禁：失去租约的 Worker 不提交业务结果（§13.1 / §17.12）
+        await self._assert_lease()
         now = datetime.now(timezone.utc)
         duration_ms = self._step_duration_ms(step, now)
 
@@ -345,6 +394,8 @@ class AgentRuntime:
 
     async def _fail_step(self, step: ResearchStep, result: ToolResult) -> None:
         """Step 失败：记录状态、SSE，不终止运行（除非后续被判定为 fatal）。"""
+        # 租约门禁：失去租约的 Worker 不写入失败状态，交由 Recovery Scanner 接管
+        await self._assert_lease()
         now = datetime.now(timezone.utc)
         duration_ms = self._step_duration_ms(step, now)
 
@@ -433,6 +484,8 @@ class AgentRuntime:
     async def _finalize_task(self) -> None:
         """全部 phase 完成后推导最终 Task State 并 CAS 写入。"""
         task_id = str(self._task.id)
+        # 终态推导前校验仍持有租约所有权，防止被恢复 Worker 接管的旧 Worker 覆盖终态
+        await self._assert_ownership()
         steps = await load_task_steps(self._session, task_id)
         evidence_count = self._task.total_evidence or 0
 
@@ -517,6 +570,12 @@ class AgentRuntime:
                 "recoverable": error_info.get("recoverable", False) if error_info else False,
                 "last_checkpoint": self._get_last_checkpoint(execution_context),
             })
+        elif new_status == "canceled":
+            await self._sse.publish(EVENT_TASK_CANCELED, {
+                "task_id": task_id,
+                "status": "canceled",
+                "cancel_requested": True,
+            })
 
         logger.info(
             "Agent Runtime 完成: task_id=%s, status=%s, steps=%d, evidence=%d",
@@ -526,6 +585,15 @@ class AgentRuntime:
     async def _handle_fatal_error(self, error: Exception) -> None:
         """处理未捕获致命错误：CAS 更新 task 为 failed。"""
         task_id = str(self._task.id)
+
+        # 失去租约：不写终态，由 Recovery Scanner 在租约过期后接管（§13.1 / §17.12）
+        if isinstance(error, LeaseLostError):
+            logger.warning(
+                "Worker 已失去租约，停止且不写入终态（交给 Recovery Scanner 接管）: "
+                "task_id=%s, error=%s", task_id, error,
+            )
+            return
+
         error_code = getattr(error, "error_code", None) or "E3999"
         error_msg = get_safe_error_message(error)
         error_type = get_error_type(error)
