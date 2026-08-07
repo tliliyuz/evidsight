@@ -106,6 +106,7 @@ class FetchedDoc:
     title: str
     domain: str
     content: str
+    fetched_at: datetime | None = None
 
 
 @dataclass
@@ -132,6 +133,7 @@ class Candidate:
     document_display_name: str | None = None
     location: dict | None = None
     source_observed_at: str | None = None
+    fetched_at: datetime | None = None
     scores: list[dict] | None = None
 
 
@@ -157,6 +159,7 @@ class Evidence:
     document_display_name: str | None = None
     location: dict | None = None
     source_observed_at: str | None = None
+    fetched_at: datetime | None = None
     scores: list[dict] | None = None
 
 
@@ -259,6 +262,7 @@ async def _load_fetched_docs(
             title=source.title or "",
             domain=source.domain or "",
             content=source.content,
+            fetched_at=source.fetched_at,
         ))
 
     return docs
@@ -498,6 +502,7 @@ def _bm25_stage(
                 content=content,
                 sub_question_index=segment_best_sq.get(seg_idx, 0),
                 bm25_score=score,
+                fetched_at=doc.fetched_at,
             ))
 
         if len(candidates) >= max_candidates:
@@ -650,6 +655,7 @@ async def _llm_rerank(
                     document_display_name=candidate.document_display_name,
                     location=candidate.location,
                     source_observed_at=candidate.source_observed_at,
+                    fetched_at=candidate.fetched_at,
                     scores=candidate.scores,
                 ))
 
@@ -748,6 +754,7 @@ async def _persist_evidence(
                 used_in_sections=None,
                 display_title=ev.title or ev.url,
                 canonical_url_snapshot=ev.url,
+                fetched_at_snapshot=ev.fetched_at,
             )
         session.add(item)
 

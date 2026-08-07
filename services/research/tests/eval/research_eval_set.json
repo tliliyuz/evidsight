@@ -1,0 +1,8 @@
+[
+  {"id": 1, "topic": "比较 2025-2026 年最受关注的三种大语言模型推理优化技术（投机解码、KV Cache 压缩、模型量化）的优缺点，并给出不同场景下的选型建议。", "task_type": "comparison"},
+  {"id": 2, "topic": "解释 RAG 的核心原理与主要架构变体，以及不同变体在准确性、成本和延迟上的取舍。", "task_type": "explainer"},
+  {"id": 3, "topic": "分析 AI Agent 框架（LangGraph / CrewAI / AutoGen）的市场格局、核心差异与适用场景。", "task_type": "analysis"},
+  {"id": 4, "topic": "对比欧盟 AI Act、中国《生成式人工智能服务管理暂行办法》与美国 AI 行政令三方监管框架的异同与合规影响。", "task_type": "comparison"},
+  {"id": 5, "topic": "解释中国《生成式人工智能服务管理暂行办法》的核心要求，包括备案、算法安全评估与内容安全责任。", "task_type": "explainer"},
+  {"id": 6, "topic": "分析全球 AI 版权诉讼（如新闻机构与模型厂商）的主要争议焦点、代表性判例趋势与行业影响。", "task_type": "analysis"}
+]

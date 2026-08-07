@@ -107,16 +107,16 @@ cd services/research && python -m pytest tests/contract
 
 | 指标 | 验证入口 |
 |:---|:---|
-| AC-001 | Claim—Evidence 关系自动检查 + 试点评审 |
+| AC-001 | Claim—Evidence 关系自动检查 + 试点评审（Research 入口 `services/research/scripts/verify_ac001_claim_evidence.py`，门槛 ≥ 90%） |
 | AC-002 | 权限矩阵、安全审查和来源二次鉴权 |
-| AC-003 | 冻结评估集的 Research Task 统计 |
-| AC-004 | Worker 中断和租约恢复演练 |
+| AC-003 | 冻结评估集的 Research Task 统计（`services/research/scripts/verify_ac003_task_success.py`，门槛 ≥ 95%，排除用户主动取消） |
+| AC-004 | Worker 中断和租约恢复演练（`services/research/scripts/verify_ac004_recovery_drill.py`，门槛 ≥ 95%） |
 | AC-005 | 固定文档集入库统计 |
 | AC-006 | 固定 Knowledge 评估集 Recall@5 |
 | AC-007 | 候选版本全量回归 |
 | AC-008 | 同题人工与 EvidSight 对照 |
 | AC-009 | 统一五级问卷和回访 |
-| AC-010 | 报告 Evidence 自动检查 |
+| AC-010 | 报告 Evidence 自动检查（Research 入口 `services/research/scripts/verify_ac010_traceability.py`，门槛 100%；Knowledge 入口 `services/knowledge/scripts/verify_ac010_traceability.py`） |
 
 实际结果必须记录评估集版本、提交、镜像、日期、资源、命令、样本数和失败明细。
 
