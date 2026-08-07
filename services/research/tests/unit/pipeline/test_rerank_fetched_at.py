@@ -31,10 +31,7 @@ def _make_llm_result(ratings: list[dict]) -> LLMResult:
 
 
 def _valid_ratings(count: int) -> list[dict]:
-    return [
-        {"segment_index": i, "score": 8.0, "rationale": "ok"}
-        for i in range(count)
-    ]
+    return [{"segment_index": i, "score": 8.0, "rationale": "ok"} for i in range(count)]
 
 
 async def _seed_task(db_session) -> tuple[ResearchTask, ResearchStep]:
@@ -79,20 +76,24 @@ class TestWebEvidenceFetchedAt:
         """Rerank 后 web Evidence 的 fetched_at_snapshot 等于 research_sources.fetched_at。"""
         task, rerank_step = await _seed_task(db_session)
         fetch_time = datetime(2026, 1, 1, 0, 0, 5, tzinfo=timezone.utc)
-        db_session.add(ResearchSource(
-            task_id=task.id,
-            url="https://example.com/a",
-            title="外部网页A",
-            domain="example.com",
-            content="正文内容只有一段，用于单候选精排。",
-            fetch_status="success",
-            fetched_at=fetch_time,
-        ))
+        db_session.add(
+            ResearchSource(
+                task_id=task.id,
+                url="https://example.com/a",
+                title="外部网页A",
+                domain="example.com",
+                content="正文内容只有一段，用于单候选精排。",
+                fetch_status="success",
+                fetched_at=fetch_time,
+            )
+        )
         await db_session.flush()
 
         sse = AsyncMock()
-        with patch("app.pipeline.reranker.chat_completion",
-                   return_value=_make_llm_result(_valid_ratings(1))):
+        with patch(
+            "app.pipeline.reranker.chat_completion",
+            return_value=_make_llm_result(_valid_ratings(1)),
+        ):
             await run_rerank(task, rerank_step, db_session, sse)
 
         result = await db_session.execute(

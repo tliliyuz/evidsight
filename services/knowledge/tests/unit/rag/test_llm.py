@@ -23,6 +23,7 @@ from app.core.exceptions import LLMCallFailedException, LLMRateLimitExceededExce
 def reset_llm_singleton():
     """每次测试前后重置 LLM 客户端单例，确保测试隔离（对齐 M5 模块级单例改动）"""
     import app.core.llm as llm_module
+
     llm_module._llm_client = None
     yield
     llm_module._llm_client = None
@@ -112,16 +113,20 @@ class TestStreamChatCompletion:
         # 模拟流式响应
         mock_chunks = [
             MagicMock(
-                choices=[MagicMock(
-                    delta=MagicMock(content="你好", reasoning_content=""),
-                    finish_reason=None,
-                )]
+                choices=[
+                    MagicMock(
+                        delta=MagicMock(content="你好", reasoning_content=""),
+                        finish_reason=None,
+                    )
+                ]
             ),
             MagicMock(
-                choices=[MagicMock(
-                    delta=MagicMock(content="世界", reasoning_content="思考"),
-                    finish_reason="stop",
-                )]
+                choices=[
+                    MagicMock(
+                        delta=MagicMock(content="世界", reasoning_content="思考"),
+                        finish_reason="stop",
+                    )
+                ]
             ),
             MagicMock(choices=[]),  # 空 chunk
         ]
@@ -143,9 +148,7 @@ class TestStreamChatCompletion:
     @pytest.mark.asyncio
     async def test_deep_thinking参数(self, mock_llm_client, sample_messages):
         """deep_thinking=true 应设置 thinking type=enabled"""
-        mock_llm_client.chat.completions.create = AsyncMock(
-            return_value=AsyncIteratorMock([])
-        )
+        mock_llm_client.chat.completions.create = AsyncMock(return_value=AsyncIteratorMock([]))
 
         async for _ in stream_chat_completion(sample_messages, deep_thinking=True):
             pass
@@ -156,9 +159,7 @@ class TestStreamChatCompletion:
     @pytest.mark.asyncio
     async def test_deep_thinking关闭(self, mock_llm_client, sample_messages):
         """deep_thinking=false 应设置 thinking type=disabled 且不传 reasoning_effort"""
-        mock_llm_client.chat.completions.create = AsyncMock(
-            return_value=AsyncIteratorMock([])
-        )
+        mock_llm_client.chat.completions.create = AsyncMock(return_value=AsyncIteratorMock([]))
 
         async for _ in stream_chat_completion(sample_messages, deep_thinking=False):
             pass
@@ -170,9 +171,7 @@ class TestStreamChatCompletion:
     @pytest.mark.asyncio
     async def test_reasoning_effort参数(self, mock_llm_client, sample_messages):
         """deep_thinking=true 时 reasoning_effort 应传递给 API"""
-        mock_llm_client.chat.completions.create = AsyncMock(
-            return_value=AsyncIteratorMock([])
-        )
+        mock_llm_client.chat.completions.create = AsyncMock(return_value=AsyncIteratorMock([]))
 
         async for _ in stream_chat_completion(
             sample_messages,
@@ -263,9 +262,7 @@ class TestChatCompletion:
     @pytest.mark.asyncio
     async def test_其他异常(self, mock_llm_client, sample_messages):
         """其他异常应抛出 LLMCallFailedException"""
-        mock_llm_client.chat.completions.create = AsyncMock(
-            side_effect=Exception("API error")
-        )
+        mock_llm_client.chat.completions.create = AsyncMock(side_effect=Exception("API error"))
 
         with pytest.raises(LLMCallFailedException):
             await chat_completion(sample_messages)
@@ -286,7 +283,9 @@ class TestChatCompletion:
         assert call_args.kwargs["reasoning_effort"] == "high"
 
     @pytest.mark.asyncio
-    async def test_非流式deep_thinking关闭不传reasoning_effort(self, mock_llm_client, sample_messages):
+    async def test_非流式deep_thinking关闭不传reasoning_effort(
+        self, mock_llm_client, sample_messages
+    ):
         """非流式 deep_thinking=false 不应传 reasoning_effort"""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=MagicMock(content="回答", reasoning_content=""))]

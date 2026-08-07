@@ -32,6 +32,7 @@ class RetrievalResult:
     embedding 从向量检索阶段透传，用于粗排（ADR-024）余弦相似度计算。
     BM25 检索结果的 embedding 为 None，粗排时分配中性分数不过滤。
     """
+
     doc_id: int
     chunk_index: int
     content: str
@@ -48,6 +49,7 @@ class RetrievalResult:
 @dataclass
 class RetrievalOutput:
     """检索输出聚合"""
+
     results: list[RetrievalResult] = field(default_factory=list)
     total: int = 0
     stats: dict = field(default_factory=dict)  # 检索性能统计（bm25 等）
@@ -146,7 +148,9 @@ class VectorRetriever:
         result_docs = documents[0] if documents and documents[0] else [None] * len(result_ids)
         result_dists = distances[0] if distances and distances[0] else [0.0] * len(result_ids)
         result_metas = metadatas[0] if metadatas and metadatas[0] else [{}] * len(result_ids)
-        result_embeddings = embeddings[0] if embeddings and len(embeddings[0]) > 0 else [None] * len(result_ids)
+        result_embeddings = (
+            embeddings[0] if embeddings and len(embeddings[0]) > 0 else [None] * len(result_ids)
+        )
 
         results: list[RetrievalResult] = []
         for i, chunk_id in enumerate(result_ids):
@@ -167,16 +171,18 @@ class VectorRetriever:
             # 提取 chunk embedding（ADR-024 粗排层复用）
             chunk_embedding = result_embeddings[i] if result_embeddings[i] is not None else None
 
-            results.append(RetrievalResult(
-                doc_id=doc_id,
-                chunk_index=chunk_index,
-                content=result_docs[i] or "",
-                score=score,
-                page=page,
-                section_title=section_title,
-                section_path=section_path,
-                embedding=chunk_embedding,
-            ))
+            results.append(
+                RetrievalResult(
+                    doc_id=doc_id,
+                    chunk_index=chunk_index,
+                    content=result_docs[i] or "",
+                    score=score,
+                    page=page,
+                    section_title=section_title,
+                    section_path=section_path,
+                    embedding=chunk_embedding,
+                )
+            )
 
         logger.info("向量检索完成: %d 条结果", len(results))
         return RetrievalOutput(results=results, total=len(results))

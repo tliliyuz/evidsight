@@ -9,7 +9,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.exceptions import AdminSelfModifyException, PasswordSameAsCurrentException, UserNotFoundException
+from app.core.exceptions import (
+    AdminSelfModifyException,
+    PasswordSameAsCurrentException,
+    UserNotFoundException,
+)
 from app.core.security import hash_password, verify_password
 from app.core.utils import escape_like
 from app.core.uuid_helpers import validate_uuid_format
@@ -96,33 +100,25 @@ async def get_stats(db: AsyncSession) -> AdminStatsResponse:
     """
     from app.services.trace_service import get_trace_stats
 
-    user_count = (await db.execute(
-        select(func.count()).select_from(User)
-    )).scalar() or 0
+    user_count = (await db.execute(select(func.count()).select_from(User))).scalar() or 0
 
-    kb_count = (await db.execute(
-        select(func.count()).select_from(KnowledgeBase)
-    )).scalar() or 0
+    kb_count = (await db.execute(select(func.count()).select_from(KnowledgeBase))).scalar() or 0
 
-    doc_count = (await db.execute(
-        select(func.count()).select_from(Document)
-    )).scalar() or 0
+    doc_count = (await db.execute(select(func.count()).select_from(Document))).scalar() or 0
 
-    chunk_count_result = (await db.execute(
-        select(func.coalesce(func.sum(Document.chunk_count), 0))
-    )).scalar()
+    chunk_count_result = (
+        await db.execute(select(func.coalesce(func.sum(Document.chunk_count), 0)))
+    ).scalar()
 
-    conversation_count = (await db.execute(
-        select(func.count()).select_from(Conversation)
-    )).scalar() or 0
+    conversation_count = (
+        await db.execute(select(func.count()).select_from(Conversation))
+    ).scalar() or 0
 
-    message_count = (await db.execute(
-        select(func.count()).select_from(Message)
-    )).scalar() or 0
+    message_count = (await db.execute(select(func.count()).select_from(Message))).scalar() or 0
 
-    storage_bytes = (await db.execute(
-        select(func.coalesce(func.sum(Document.file_size), 0))
-    )).scalar()
+    storage_bytes = (
+        await db.execute(select(func.coalesce(func.sum(Document.file_size), 0)))
+    ).scalar()
 
     # ECharts 图表数据：默认取最近 7 天，按天聚合
     trace_stats = await get_trace_stats(db, days=7, group_by="day")
@@ -182,8 +178,7 @@ async def list_all_kbs(
 
     # 分页数据
     q = (
-        base_q
-        .order_by(KnowledgeBase.created_at.desc())
+        base_q.order_by(KnowledgeBase.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
@@ -191,23 +186,23 @@ async def list_all_kbs(
 
     items = []
     for kb, username, platform_user_id in rows:
-        items.append(AdminKBItem(
-            uuid=kb.uuid,
-            name=kb.name,
-            description=kb.description,
-            visibility=kb.visibility,
-            owner_user_id=platform_user_id,
-            username=username,
-            status=kb.status,
-            doc_count=kb.doc_count,
-            chunk_count=kb.chunk_count,
-            created_at=kb.created_at,
-            updated_at=kb.updated_at,
-        ))
+        items.append(
+            AdminKBItem(
+                uuid=kb.uuid,
+                name=kb.name,
+                description=kb.description,
+                visibility=kb.visibility,
+                owner_user_id=platform_user_id,
+                username=username,
+                status=kb.status,
+                doc_count=kb.doc_count,
+                chunk_count=kb.chunk_count,
+                created_at=kb.created_at,
+                updated_at=kb.updated_at,
+            )
+        )
 
-    return AdminKBListResponse(
-        total=total, page=page, page_size=page_size, items=items
-    )
+    return AdminKBListResponse(total=total, page=page, page_size=page_size, items=items)
 
 
 async def list_all_documents(
@@ -266,37 +261,32 @@ async def list_all_documents(
     order_clause = sort_col.desc() if order == "desc" else sort_col.asc()
 
     # 分页数据
-    q = (
-        base_q
-        .order_by(order_clause)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
+    q = base_q.order_by(order_clause).offset((page - 1) * page_size).limit(page_size)
     rows = (await db.execute(q)).all()
 
     items = []
     for doc, kb_name, kb_uuid_val, kb_visibility, owner_id, owner_username in rows:
-        items.append(AdminDocItem(
-            uuid=doc.uuid,
-            kb_uuid=kb_uuid_val,
-            kb_name=kb_name,
-            kb_visibility=kb_visibility,
-            owner_id=owner_id,
-            owner_username=owner_username,
-            filename=doc.filename,
-            file_type=doc.file_type,
-            file_size=doc.file_size,
-            status=doc.status.value if hasattr(doc.status, 'value') else doc.status,
-            current_stage=doc.current_stage,
-            chunk_count=doc.chunk_count,
-            error_message=doc.error_msg,
-            created_at=doc.created_at,
-            updated_at=doc.updated_at,
-        ))
+        items.append(
+            AdminDocItem(
+                uuid=doc.uuid,
+                kb_uuid=kb_uuid_val,
+                kb_name=kb_name,
+                kb_visibility=kb_visibility,
+                owner_id=owner_id,
+                owner_username=owner_username,
+                filename=doc.filename,
+                file_type=doc.file_type,
+                file_size=doc.file_size,
+                status=doc.status.value if hasattr(doc.status, "value") else doc.status,
+                current_stage=doc.current_stage,
+                chunk_count=doc.chunk_count,
+                error_message=doc.error_msg,
+                created_at=doc.created_at,
+                updated_at=doc.updated_at,
+            )
+        )
 
-    return AdminDocListResponse(
-        total=total, page=page, page_size=page_size, items=items
-    )
+    return AdminDocListResponse(total=total, page=page, page_size=page_size, items=items)
 
 
 # ==================== 用户管理 — 对齐 API.md §7.7 ====================
@@ -310,9 +300,7 @@ async def resolve_user_id(db: AsyncSession, platform_user_id: str) -> int:
     """
     if not validate_uuid_format(platform_user_id):
         raise UserNotFoundException(platform_user_id)
-    result = await db.execute(
-        select(User.id).where(User.platform_user_id == platform_user_id)
-    )
+    result = await db.execute(select(User.id).where(User.platform_user_id == platform_user_id))
     row = result.scalar_one_or_none()
     if row is None:
         raise UserNotFoundException(platform_user_id)
@@ -354,12 +342,7 @@ async def list_users(
     total = (await db.execute(count_q)).scalar() or 0
 
     # 分页数据
-    q = (
-        base_q
-        .order_by(User.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
+    q = base_q.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     users = (await db.execute(q)).scalars().all()
 
     items = []
@@ -370,25 +353,25 @@ async def list_users(
         conversation_count = await _get_user_conversation_count(db, user.id)
 
         # 最后活跃时间（从 traces 表聚合）
-        last_active_at = (await db.execute(
-            select(func.max(Trace.created_at)).where(Trace.user_id == user.id)
-        )).scalar()
+        last_active_at = (
+            await db.execute(select(func.max(Trace.created_at)).where(Trace.user_id == user.id))
+        ).scalar()
 
-        items.append(AdminUserItem(
-            id=user.platform_user_id,
-            username=user.username,
-            role=user.role,
-            status=user.status,
-            kb_count=kb_count,
-            doc_count=doc_count,
-            conversation_count=conversation_count,
-            last_active_at=last_active_at,
-            created_at=user.created_at,
-        ))
+        items.append(
+            AdminUserItem(
+                id=user.platform_user_id,
+                username=user.username,
+                role=user.role,
+                status=user.status,
+                kb_count=kb_count,
+                doc_count=doc_count,
+                conversation_count=conversation_count,
+                last_active_at=last_active_at,
+                created_at=user.created_at,
+            )
+        )
 
-    return AdminUserListResponse(
-        total=total, page=page, page_size=page_size, items=items
-    )
+    return AdminUserListResponse(total=total, page=page, page_size=page_size, items=items)
 
 
 async def get_user_detail(
@@ -412,13 +395,15 @@ async def get_user_detail(
     message_count = await _get_user_message_count(db, user_id)
 
     # Token 聚合（从 traces 表 JSON_EXTRACT）
-    token_stats = (await db.execute(
-        select(
-            func.coalesce(func.sum(func.JSON_EXTRACT(Trace.generate, "$.input_tokens")), 0),
-            func.coalesce(func.sum(func.JSON_EXTRACT(Trace.generate, "$.output_tokens")), 0),
-            func.max(Trace.created_at),
-        ).where(Trace.user_id == user_id)
-    )).one()
+    token_stats = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(func.JSON_EXTRACT(Trace.generate, "$.input_tokens")), 0),
+                func.coalesce(func.sum(func.JSON_EXTRACT(Trace.generate, "$.output_tokens")), 0),
+                func.max(Trace.created_at),
+            ).where(Trace.user_id == user_id)
+        )
+    ).one()
     total_input_tokens = int(token_stats[0] or 0)
     total_output_tokens = int(token_stats[1] or 0)
     last_active_at = token_stats[2]
@@ -458,7 +443,9 @@ async def change_user_status(
     if user is None:
         raise UserNotFoundException(user_id)
     if user.status == new_status:
-        return AdminUserStatusResponse(id=user.platform_user_id, username=user.username, status=user.status)
+        return AdminUserStatusResponse(
+            id=user.platform_user_id, username=user.username, status=user.status
+        )
 
     user.status = new_status
     user.status_version = (user.status_version or 0) + 1
@@ -467,10 +454,13 @@ async def change_user_status(
     # 禁用时吊销全部 refresh_token
     if new_status == "disabled":
         from app.services.auth_service import revoke_all_user_tokens
+
         await revoke_all_user_tokens(db, user_id)
 
     logger.info("用户状态变更: user_id=%d, new_status=%s", user_id, new_status)
-    return AdminUserStatusResponse(id=user.platform_user_id, username=user.username, status=user.status)
+    return AdminUserStatusResponse(
+        id=user.platform_user_id, username=user.username, status=user.status
+    )
 
 
 async def reset_user_password(
@@ -495,6 +485,7 @@ async def reset_user_password(
 
     # 吊销全部 refresh_token（密码已变更，强制重新登录）
     from app.services.auth_service import revoke_all_user_tokens
+
     await revoke_all_user_tokens(db, user_id)
 
     logger.info("管理员重置用户密码: user_id=%d", user_id)

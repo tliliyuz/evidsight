@@ -93,20 +93,30 @@ async def create_task(
     # 仅 web 策略保留意图识别（可直接回答非研究主题）。
     if request.source_strategy != "web":
         return await _create_research_task(
-            db, user_id, request,
-            idempotency_key=idempotency_key, request_fingerprint=request_fingerprint,
+            db,
+            user_id,
+            request,
+            idempotency_key=idempotency_key,
+            request_fingerprint=request_fingerprint,
         )
 
     intent_result = await classify_intent(request.topic)
     if intent_result.intent == INTENT_DIRECT_ANSWER:
         return await _create_direct_answer_task(
-            db, user_id, request, intent_result.direct_answer,
-            idempotency_key=idempotency_key, request_fingerprint=request_fingerprint,
+            db,
+            user_id,
+            request,
+            intent_result.direct_answer,
+            idempotency_key=idempotency_key,
+            request_fingerprint=request_fingerprint,
         )
 
     return await _create_research_task(
-        db, user_id, request,
-        idempotency_key=idempotency_key, request_fingerprint=request_fingerprint,
+        db,
+        user_id,
+        request,
+        idempotency_key=idempotency_key,
+        request_fingerprint=request_fingerprint,
     )
 
 
@@ -145,15 +155,16 @@ async def create_task_idempotent(
     existing = await _find_task_by_idempotency_key(db, user_id, idempotency_key)
     if existing is not None:
         if existing.request_fingerprint != request_fingerprint:
-            raise IdempotencyKeyConflictException(
-                "相同 Idempotency-Key 的请求载荷与首次创建不一致"
-            )
+            raise IdempotencyKeyConflictException("相同 Idempotency-Key 的请求载荷与首次创建不一致")
         return _build_replay_response(existing)
 
     try:
         return await create_task(
-            db, user_id, request,
-            idempotency_key=idempotency_key, request_fingerprint=request_fingerprint,
+            db,
+            user_id,
+            request,
+            idempotency_key=idempotency_key,
+            request_fingerprint=request_fingerprint,
         )
     except IntegrityError:
         # 并发竞争：另一请求已创建同一 (user_id, idempotency_key)，按重放收敛
@@ -255,7 +266,10 @@ async def _create_research_task(
 
     logger.info(
         "研究任务已创建: task_id=%s, user_id=%s, topic=%s, task_type=%s",
-        task.id, user_id, request.topic[:50], request.requirements.task_type,
+        task.id,
+        user_id,
+        request.topic[:50],
+        request.requirements.task_type,
     )
 
     emit_task_status_transition("pending")
@@ -337,7 +351,9 @@ async def _create_direct_answer_task(
 
     logger.info(
         "直接回答任务已创建: task_id=%s, user_id=%s, topic=%s",
-        task.id, user_id, request.topic[:50],
+        task.id,
+        user_id,
+        request.topic[:50],
     )
 
     emit_task_status_transition("completed")
@@ -539,9 +555,8 @@ async def get_report(
     section_ids = [s.id for s in sorted_sections]
     section_evidence_map: dict[int, list[int]] = {sid: [] for sid in section_ids}
     if section_ids:
-        stmt = (
-            select(SectionEvidence.section_id, SectionEvidence.evidence_id)
-            .where(SectionEvidence.section_id.in_(section_ids))
+        stmt = select(SectionEvidence.section_id, SectionEvidence.evidence_id).where(
+            SectionEvidence.section_id.in_(section_ids)
         )
         result = await db.execute(stmt)
         for section_id, evidence_id in result.all():
@@ -553,7 +568,9 @@ async def get_report(
         evidence_ids.extend(ids)
     evidence_source_ids: dict[int, int] = {}
     if evidence_ids:
-        stmt = select(EvidenceItem.id, EvidenceItem.source_id).where(EvidenceItem.id.in_(evidence_ids))
+        stmt = select(EvidenceItem.id, EvidenceItem.source_id).where(
+            EvidenceItem.id.in_(evidence_ids)
+        )
         result = await db.execute(stmt)
         for eid, source_id in result.all():
             evidence_source_ids[eid] = source_id
@@ -567,28 +584,34 @@ async def get_report(
             if idx is None or idx in seen_indices:
                 continue
             seen_indices.add(idx)
-            section_sources.append(ReportSectionSourceSchema(
-                id=evidence_source_ids.get(evidence_id, 0),
-                evidence_index=idx,
-            ))
+            section_sources.append(
+                ReportSectionSourceSchema(
+                    id=evidence_source_ids.get(evidence_id, 0),
+                    evidence_index=idx,
+                )
+            )
         section_sources.sort(key=lambda x: x.evidence_index)
-        report_sections.append(ReportSectionSchema(
-            heading=section.heading,
-            content=section.content,
-            sources=section_sources,
-        ))
+        report_sections.append(
+            ReportSectionSchema(
+                heading=section.heading,
+                content=section.content,
+                sources=section_sources,
+            )
+        )
 
     # 组装报告来源
     report_sources: list[ReportSourceSchema] = []
     for src in evidence_graph.get("sources") or []:
         if not isinstance(src, dict):
             continue
-        report_sources.append(ReportSourceSchema(
-            id=src.get("id") or 0,
-            url=src.get("url") or "",
-            title=src.get("title") or "",
-            domain=src.get("domain") or "",
-        ))
+        report_sources.append(
+            ReportSourceSchema(
+                id=src.get("id") or 0,
+                url=src.get("url") or "",
+                title=src.get("title") or "",
+                domain=src.get("domain") or "",
+            )
+        )
 
     # 报告生成时间
     generated_at = eg_step.completed_at
@@ -649,9 +672,9 @@ def _build_progress(task: ResearchTask) -> ProgressSchema:
 # ── 取消任务 ────────────────────────────────────────────────────
 
 
-TERMINAL_STATUSES: frozenset[str] = frozenset({
-    "completed", "failed", "partially_completed", "canceled"
-})
+TERMINAL_STATUSES: frozenset[str] = frozenset(
+    {"completed", "failed", "partially_completed", "canceled"}
+)
 
 
 async def cancel_task(
@@ -677,7 +700,8 @@ async def cancel_task(
     if task.cancel_requested_at is not None:
         logger.info(
             "任务已请求取消，重复取消幂等返回当前状态: task_id=%s, status=%s",
-            task.id, task.status,
+            task.id,
+            task.status,
         )
         return ResearchCancelResponse(
             task_id=task.id,
@@ -713,9 +737,13 @@ async def cancel_task(
 
 
 # retry 允许的源状态：只有这些状态的任务才可断点续跑
-RETRY_ALLOWED_STATUSES: frozenset[str] = frozenset({
-    "failed", "partially_completed", "canceled",
-})
+RETRY_ALLOWED_STATUSES: frozenset[str] = frozenset(
+    {
+        "failed",
+        "partially_completed",
+        "canceled",
+    }
+)
 
 # step_type → phase 名称映射（与 pipeline_orchestrator.STEP_TYPE_TO_PHASE 互逆）
 _STEP_TYPE_TO_PHASE: dict[str, str] = {
@@ -780,7 +808,8 @@ async def retry_task(
     if running_result.rowcount > 0:
         logger.info(
             "重试前清理残留 running Step: task_id=%s, count=%d",
-            task.id, running_result.rowcount,
+            task.id,
+            running_result.rowcount,
         )
 
     # 2b. 将子 Step（parent_step_id 非空）中仍非终态的标记为 skipped
@@ -797,7 +826,8 @@ async def retry_task(
     if child_cleanup_result.rowcount > 0:
         logger.info(
             "重试前清理残留子 Step: task_id=%s, count=%d",
-            task.id, child_cleanup_result.rowcount,
+            task.id,
+            child_cleanup_result.rowcount,
         )
 
     # 2c. 重置因崩溃遗留幂等锁被跳过的主 Step：skipped → pending
@@ -805,8 +835,7 @@ async def retry_task(
     #     必须恢复为 pending，否则 retry 后 Rerank/Synthesis 仍会被跳过。
     lock_skip_reason = "幂等锁已被占用（可能重复入队）"
     skip_steps_result = await db.execute(
-        select(ResearchStep)
-        .where(
+        select(ResearchStep).where(
             ResearchStep.task_id == task.id,
             ResearchStep.status == "skipped",
             ResearchStep.parent_step_id == None,
@@ -823,7 +852,8 @@ async def retry_task(
     if reset_skip_count > 0:
         logger.info(
             "重试前重置锁跳过主 Step: task_id=%s, count=%d",
-            task.id, reset_skip_count,
+            task.id,
+            reset_skip_count,
         )
 
     # 2d. 重置主 Step（parent_step_id 为空）：failed → pending
@@ -841,7 +871,8 @@ async def retry_task(
     if reset_count > 0:
         logger.info(
             "重试前重置主 Step: task_id=%s, count=%d",
-            task.id, reset_count,
+            task.id,
+            reset_count,
         )
 
     # 3. CAS 更新 task status → pending
@@ -890,7 +921,10 @@ async def retry_task(
 
     logger.info(
         "断点续跑已启动: task_id=%s, last_phase=%s, next_step_type=%s, reset_failed=%d",
-        task.id, last_phase, next_step_type, reset_count,
+        task.id,
+        last_phase,
+        next_step_type,
+        reset_count,
     )
 
     return ResearchRetryResponse(

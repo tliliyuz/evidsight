@@ -8,6 +8,7 @@
 触发策略（v2）：仅检查明确歧义信号词，不使用短问题阈值。
 详细设计见 ARCHITECTURE.md §5.1.5。
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,6 +26,7 @@ from app.config import settings
 
 # ===== 辅助 fixture =====
 
+
 def _make_history(messages: list[tuple[str, str]]) -> list[dict[str, str]]:
     """快捷构造 history 列表。
 
@@ -38,6 +40,7 @@ def _make_history(messages: list[tuple[str, str]]) -> list[dict[str, str]]:
 
 
 # ===== 触发判断 needs_rewrite() =====
+
 
 class TestNeedsRewrite:
     """触发判断测试（U8.20–U8.33）
@@ -57,47 +60,57 @@ class TestNeedsRewrite:
 
     def test_U821_有历史_含代词_触发(self):
         """有历史 + 含「它」→ 触发 rewrite"""
-        history = _make_history([
-            ("user", "代码评审的标准是什么？"),
-            ("assistant", "代码评审需要至少2人参加……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "代码评审的标准是什么？"),
+                ("assistant", "代码评审需要至少2人参加……"),
+            ]
+        )
         result = needs_rewrite("它需要几个人参加？", history=history)
         assert result is True
 
     def test_U822_有历史_短问题但无信号词_跳过(self):
         """有历史但问题无歧义信号词 → 不触发（短问题本身不是触发条件）"""
-        history = _make_history([
-            ("user", "代码评审的标准是什么？"),
-            ("assistant", "代码评审标准包括……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "代码评审的标准是什么？"),
+                ("assistant", "代码评审标准包括……"),
+            ]
+        )
         # "不通过的话怎么办？" — 无任何歧义信号词，不应触发
         result = needs_rewrite("不通过的话怎么办？", history=history)
         assert result is False
 
     def test_U823_有历史_指示词触发(self):
         """有历史 + 含「这个」→ 触发 rewrite"""
-        history = _make_history([
-            ("user", "怎么配置 VPN？"),
-            ("assistant", "VPN 配置需要……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "怎么配置 VPN？"),
+                ("assistant", "VPN 配置需要……"),
+            ]
+        )
         result = needs_rewrite("这个怎么处理？", history=history)
         assert result is True
 
     def test_U824_有历史_多重歧义信号触发(self):
         """有历史 + 含「那」+「呢」→ 触发 rewrite（任一信号即触发）"""
-        history = _make_history([
-            ("user", "年假怎么申请？"),
-            ("assistant", "年假需要在 OA 系统提交……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "年假怎么申请？"),
+                ("assistant", "年假需要在 OA 系统提交……"),
+            ]
+        )
         result = needs_rewrite("那请假呢？", history=history)
         assert result is True
 
     def test_U825_有历史_独立完整问题_跳过(self):
         """有历史但问题无歧义信号词 → 不触发"""
-        history = _make_history([
-            ("user", "年假怎么申请？"),
-            ("assistant", "年假需要在 OA 系统提交……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "年假怎么申请？"),
+                ("assistant", "年假需要在 OA 系统提交……"),
+            ]
+        )
         # 无歧义信号词
         question = "新员工入职流程具体包含哪些步骤？"
         result = needs_rewrite(question, history=history)
@@ -105,10 +118,12 @@ class TestNeedsRewrite:
 
     def test_U826_有历史_含关键词完整问题_跳过(self):
         """虽有 context_dependent 标记但无歧义信号词 → 不用 rewrite"""
-        history = _make_history([
-            ("user", "公司 VPN 怎么配置？"),
-            ("assistant", "VPN 需要下载客户端……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "公司 VPN 怎么配置？"),
+                ("assistant", "VPN 需要下载客户端……"),
+            ]
+        )
         # "刚才说的" 已加入 AMBIGUOUS_SIGNALS，但完整问题是「刚才说的 VPN，忘记密码怎么办？」
         # 含「刚才」→ 触发（"刚才" 在信号列表中）
         # 注意：此行为与 v1 不同 —— v2 中 "刚才" 是信号词
@@ -117,10 +132,12 @@ class TestNeedsRewrite:
 
     def test_U827_有历史_含呢字_触发(self):
         """含「呢」→ 触发 rewrite（呢 为歧义信号词，与问题长度无关）"""
-        history = _make_history([
-            ("user", "培训费用是多少？"),
-            ("assistant", "培训费用为每人 500 元……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "培训费用是多少？"),
+                ("assistant", "培训费用为每人 500 元……"),
+            ]
+        )
         # "具体多少钱呢？" 含「呢」→ 触发
         result = needs_rewrite("具体多少钱呢？", history=history)
         assert result is True
@@ -129,55 +146,67 @@ class TestNeedsRewrite:
 
     def test_U828_有历史_含他们_触发(self):
         """有历史 + 含「他们」→ 触发 rewrite"""
-        history = _make_history([
-            ("user", "项目组有哪些成员？"),
-            ("assistant", "项目组包括张三、李四、王五……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "项目组有哪些成员？"),
+                ("assistant", "项目组包括张三、李四、王五……"),
+            ]
+        )
         result = needs_rewrite("他们的分工是什么？", history=history)
         assert result is True
 
     def test_U829_有历史_含这些_触发(self):
         """有历史 + 含「这些」→ 触发 rewrite"""
-        history = _make_history([
-            ("user", "报销需要哪些材料？"),
-            ("assistant", "需要发票、审批单、出差报告……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "报销需要哪些材料？"),
+                ("assistant", "需要发票、审批单、出差报告……"),
+            ]
+        )
         result = needs_rewrite("这些材料有模板吗？", history=history)
         assert result is True
 
     def test_U830_有历史_含那些_触发(self):
         """有历史 + 含「那些」→ 触发 rewrite"""
-        history = _make_history([
-            ("user", "公司有哪些福利？"),
-            ("assistant", "五险一金、餐补、交通补贴……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "公司有哪些福利？"),
+                ("assistant", "五险一金、餐补、交通补贴……"),
+            ]
+        )
         result = needs_rewrite("那些福利需要申请吗？", history=history)
         assert result is True
 
     def test_U831_有历史_含上面_触发(self):
         """有历史 + 含「上面」→ 触发 rewrite"""
-        history = _make_history([
-            ("user", "考勤制度是怎样的？"),
-            ("assistant", "考勤制度规定每天 9:00-18:00……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "考勤制度是怎样的？"),
+                ("assistant", "考勤制度规定每天 9:00-18:00……"),
+            ]
+        )
         result = needs_rewrite("上面提到的迟到怎么处理？", history=history)
         assert result is True
 
     def test_U832_有历史_含前面说的_触发(self):
         """有历史 + 含「前面说的」→ 触发 rewrite"""
-        history = _make_history([
-            ("user", "公司的培训政策是怎样的？"),
-            ("assistant", "培训分为内部和外部……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "公司的培训政策是怎样的？"),
+                ("assistant", "培训分为内部和外部……"),
+            ]
+        )
         result = needs_rewrite("前面说的内部培训费用谁出？", history=history)
         assert result is True
 
     def test_U833_有历史_含刚才_触发(self):
         """有历史 + 含「刚才」→ 触发 rewrite"""
-        history = _make_history([
-            ("user", "怎么连接公司 VPN？"),
-            ("assistant", "需要下载客户端并配置……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "怎么连接公司 VPN？"),
+                ("assistant", "需要下载客户端并配置……"),
+            ]
+        )
         result = needs_rewrite("刚才说的客户端在哪里下载？", history=history)
         assert result is True
 
@@ -186,27 +215,34 @@ class TestNeedsRewrite:
     @pytest.mark.parametrize("signal_word", AMBIGUOUS_SIGNALS)
     def test_参数化_所有信号词触发(self, signal_word):
         """每个歧义信号词单独验证：有历史 + 含信号词 → 触发 rewrite"""
-        history = _make_history([
-            ("user", "公司 VPN 怎么配置？"),
-            ("assistant", "VPN 需要下载客户端……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "公司 VPN 怎么配置？"),
+                ("assistant", "VPN 需要下载客户端……"),
+            ]
+        )
         question = f"请问{signal_word}怎么处理？"
         result = needs_rewrite(question, history=history)
         assert result is True, f"信号词 '{signal_word}' 应触发 rewrite，但返回了 False"
 
-    @pytest.mark.parametrize("question", [
-        "新员工入职流程具体包含哪些步骤？",
-        "病假需要提供医院证明吗？",
-        "年假怎么申请？",
-        "公司 VPN 密码忘了怎么办",
-        "报销需要哪些材料？",
-    ])
+    @pytest.mark.parametrize(
+        "question",
+        [
+            "新员工入职流程具体包含哪些步骤？",
+            "病假需要提供医院证明吗？",
+            "年假怎么申请？",
+            "公司 VPN 密码忘了怎么办",
+            "报销需要哪些材料？",
+        ],
+    )
     def test_无信号词的完整问题不触发(self, question):
         """不含任何歧义信号词的独立完整问题 → 不触发 rewrite"""
-        history = _make_history([
-            ("user", "公司有哪些福利？"),
-            ("assistant", "五险一金、餐补、交通补贴……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "公司有哪些福利？"),
+                ("assistant", "五险一金、餐补、交通补贴……"),
+            ]
+        )
         result = needs_rewrite(question, history=history)
         assert result is False, f"'{question}' 含歧义信号词，不应触发 rewrite"
 
@@ -218,16 +254,19 @@ class TestNeedsRewrite:
 
 # ===== Rewrite 正确性 =====
 
+
 class TestRewriteQueryCorrectness:
     """Rewrite 正确性测试（U8.30–U8.33）"""
 
     @pytest.mark.asyncio
     async def test_U830_代词消解(self):
         """含「它」→ LLM 改写后含上下文实体"""
-        history = _make_history([
-            ("user", "代码评审的标准是什么？"),
-            ("assistant", "代码评审需要至少 2 位资深工程师参与，评审不通过需修改后重新提交。"),
-        ])
+        history = _make_history(
+            [
+                ("user", "代码评审的标准是什么？"),
+                ("assistant", "代码评审需要至少 2 位资深工程师参与，评审不通过需修改后重新提交。"),
+            ]
+        )
         mock_result = MagicMock()
         mock_result.content = "代码评审需要几个人参加？"
         mock_result.prompt_tokens = 87
@@ -247,10 +286,12 @@ class TestRewriteQueryCorrectness:
     @pytest.mark.asyncio
     async def test_U831_省略补全(self):
         """省略主语「不通过」→ LLM 改写后补全为完整上下文"""
-        history = _make_history([
-            ("user", "代码评审的标准是什么？"),
-            ("assistant", "代码评审不通过需要修改后重新提交。"),
-        ])
+        history = _make_history(
+            [
+                ("user", "代码评审的标准是什么？"),
+                ("assistant", "代码评审不通过需要修改后重新提交。"),
+            ]
+        )
         mock_result = MagicMock()
         mock_result.content = "代码评审不通过怎么办？"
         mock_result.prompt_tokens = 80
@@ -266,10 +307,12 @@ class TestRewriteQueryCorrectness:
     @pytest.mark.asyncio
     async def test_U832_指代消解(self):
         """上下文依赖「金额限制」→ LLM 改写后含「报销制度」"""
-        history = _make_history([
-            ("user", "介绍一下公司的报销制度"),
-            ("assistant", "公司报销制度包括差旅、培训等，差旅费金额限制为每人每天 300 元……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "介绍一下公司的报销制度"),
+                ("assistant", "公司报销制度包括差旅、培训等，差旅费金额限制为每人每天 300 元……"),
+            ]
+        )
         mock_result = MagicMock()
         mock_result.content = "报销制度的金额限制是多少？"
         mock_result.prompt_tokens = 90
@@ -285,14 +328,16 @@ class TestRewriteQueryCorrectness:
     @pytest.mark.asyncio
     async def test_U833_recent_4_truncation(self):
         """6 条消息（3 轮）→ 传入 LLM 的 history 仅含最近 4 条（2 轮）"""
-        history = _make_history([
-            ("user", "第一轮问题1"),        # T-3 user (应被截掉)
-            ("assistant", "第一轮回答1"),    # T-3 assistant (应被截掉)
-            ("user", "第二轮的完整问题文本内容"),   # T-2 user (保留)
-            ("assistant", "第二轮的回答内容"),     # T-2 assistant (保留)
-            ("user", "代码评审的标准是什么？"),      # T-1 user (保留)
-            ("assistant", "代码评审需要至少 2 位资深工程师参与。"),  # T-1 assistant (保留)
-        ])
+        history = _make_history(
+            [
+                ("user", "第一轮问题1"),  # T-3 user (应被截掉)
+                ("assistant", "第一轮回答1"),  # T-3 assistant (应被截掉)
+                ("user", "第二轮的完整问题文本内容"),  # T-2 user (保留)
+                ("assistant", "第二轮的回答内容"),  # T-2 assistant (保留)
+                ("user", "代码评审的标准是什么？"),  # T-1 user (保留)
+                ("assistant", "代码评审需要至少 2 位资深工程师参与。"),  # T-1 assistant (保留)
+            ]
+        )
         mock_result = MagicMock()
         mock_result.content = "代码评审需要几个人参加？"
         mock_result.prompt_tokens = 50
@@ -337,10 +382,12 @@ class TestRewriteQueryCorrectness:
     @pytest.mark.asyncio
     async def test_完整问题经LLM返回不变(self):
         """完整问题经 rewrite_query → LLM 返回相同问题，结果正确"""
-        history = _make_history([
-            ("user", "年假怎么申请？"),
-            ("assistant", "年假需要在 OA 系统提交……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "年假怎么申请？"),
+                ("assistant", "年假需要在 OA 系统提交……"),
+            ]
+        )
         mock_result = MagicMock()
         mock_result.content = "新员工入职流程具体包含哪些步骤？"
         mock_result.prompt_tokens = 60
@@ -348,9 +395,7 @@ class TestRewriteQueryCorrectness:
 
         with patch("app.rag.query_rewriter.chat_completion", new_callable=AsyncMock) as mock_llm:
             mock_llm.return_value = mock_result
-            result = await rewrite_query(
-                "新员工入职流程具体包含哪些步骤？", history=history
-            )
+            result = await rewrite_query("新员工入职流程具体包含哪些步骤？", history=history)
 
         mock_llm.assert_called_once()
         assert result.rewritten == "新员工入职流程具体包含哪些步骤？"
@@ -360,16 +405,19 @@ class TestRewriteQueryCorrectness:
 
 # ===== 降级行为 =====
 
+
 class TestRewriteQueryDegradation:
     """降级测试（U8.40–U8.43）"""
 
     @pytest.mark.asyncio
     async def test_U840_LLM_失败降级(self):
         """LLM 抛异常 → 返回原始 question，不抛异常"""
-        history = _make_history([
-            ("user", "代码评审的标准是什么？"),
-            ("assistant", "代码评审需要……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "代码评审的标准是什么？"),
+                ("assistant", "代码评审需要……"),
+            ]
+        )
         original = "它需要几个人参加？"
 
         with patch("app.rag.query_rewriter.chat_completion", new_callable=AsyncMock) as mock_llm:
@@ -385,10 +433,12 @@ class TestRewriteQueryDegradation:
     @pytest.mark.asyncio
     async def test_U841_LLM_空字符串降级(self):
         """LLM 返回空字符串 → 降级返回原始 question"""
-        history = _make_history([
-            ("user", "代码评审的标准是什么？"),
-            ("assistant", "代码评审需要……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "代码评审的标准是什么？"),
+                ("assistant", "代码评审需要……"),
+            ]
+        )
         original = "它需要几个人参加？"
         mock_result = MagicMock()
         mock_result.content = ""
@@ -404,10 +454,12 @@ class TestRewriteQueryDegradation:
     @pytest.mark.asyncio
     async def test_U842_LLM_解释性文本处理(self):
         """LLM 返回带引号/前缀文本 → strip 处理后 ≥2 字即采用"""
-        history = _make_history([
-            ("user", "代码评审的标准是什么？"),
-            ("assistant", "代码评审需要……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "代码评审的标准是什么？"),
+                ("assistant", "代码评审需要……"),
+            ]
+        )
         mock_result = MagicMock()
         # 中文双引号包裹
         mock_result.content = "“代码评审需要几个人参加？”"
@@ -426,10 +478,12 @@ class TestRewriteQueryDegradation:
     @pytest.mark.asyncio
     async def test_U843_LLM_单字符降级(self):
         """LLM 返回单字符「。」→ < 2 字，降级返回原始 question"""
-        history = _make_history([
-            ("user", "代码评审的标准是什么？"),
-            ("assistant", "代码评审需要……"),
-        ])
+        history = _make_history(
+            [
+                ("user", "代码评审的标准是什么？"),
+                ("assistant", "代码评审需要……"),
+            ]
+        )
         original = "它需要几个人参加？"
         mock_result = MagicMock()
         mock_result.content = "。"
@@ -445,15 +499,26 @@ class TestRewriteQueryDegradation:
 
 # ===== 常量验证 =====
 
+
 class TestRewriteConstants:
     """常量正确性验证"""
 
     def test_歧义信号词完整性(self):
         """验证歧义信号词列表包含所有设计指定的词"""
         expected = [
-            "它", "这个", "那个", "该", "此", "呢", "那",
-            "他们", "这些", "那些",
-            "上面", "前面说的", "刚才",
+            "它",
+            "这个",
+            "那个",
+            "该",
+            "此",
+            "呢",
+            "那",
+            "他们",
+            "这些",
+            "那些",
+            "上面",
+            "前面说的",
+            "刚才",
         ]
         assert AMBIGUOUS_SIGNALS == expected
 

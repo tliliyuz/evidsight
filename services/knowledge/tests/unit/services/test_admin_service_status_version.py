@@ -1,4 +1,5 @@
 """change_user_status 递增 status_version（DATABASE.md §4.1 语义）"""
+
 import pytest
 from unittest.mock import AsyncMock
 
@@ -10,8 +11,12 @@ from app.services.admin_service import change_user_status
 async def test_disable_increments_status_version():
     db = AsyncMock()
     user = User(
-        id=1, platform_user_id="550e8400-e29b-41d4-a716-446655440001",
-        username="u", password_hash="x", role="user", status="active",
+        id=1,
+        platform_user_id="550e8400-e29b-41d4-a716-446655440001",
+        username="u",
+        password_hash="x",
+        role="user",
+        status="active",
         status_version=0,
     )
     db.get = AsyncMock(return_value=user)
@@ -30,8 +35,12 @@ async def test_disable_increments_status_version():
 async def test_noop_status_does_not_increment():
     db = AsyncMock()
     user = User(
-        id=1, platform_user_id="550e8400-e29b-41d4-a716-446655440001",
-        username="u", password_hash="x", role="user", status="active",
+        id=1,
+        platform_user_id="550e8400-e29b-41d4-a716-446655440001",
+        username="u",
+        password_hash="x",
+        role="user",
+        status="active",
         status_version=3,
     )
     db.get = AsyncMock(return_value=user)

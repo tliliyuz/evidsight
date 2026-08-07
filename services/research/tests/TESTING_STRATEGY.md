@@ -523,7 +523,7 @@ class TestTargetMethodName:
     def test_正常情况_返回值类型正确(self):
         """测试名 = 场景 + 预期行为。"""
         result = target_method(input_value)
-        assert result == expected_concrete_value   # ✅ 强断言
+        assert result == expected_concrete_value  # ✅ 强断言
 
     def test_边界条件_输入为空列表返回空列表(self):
         result = target_method([])
@@ -552,20 +552,25 @@ assert result[0]["id"] == 1
 if error_case:
     assert exception_raised
 
+
 # ✅ 正确：独立分支测试
 def test_错误分支_场景A(self): ...
 def test_正常分支_场景A(self): ...
 
+
 # ❌ 禁止：测试私有方法
 def test__internal_helper(self): ...
 
+
 # ✅ 正确：通过公共 API 间接覆盖
 def test_公共方法_场景触发内部逻辑(self): ...
+
 
 # ❌ 禁止：全量 Mock 仅验证管道
 def test_pipeline_calls_abc_then_def(self):
     mock_a.assert_called()
     mock_b.assert_called()
+
 
 # ✅ 正确：Mock 在边界，保留真实逻辑
 def test_服务层_真实DB访问_外部LLM_API被Mock(self): ...
@@ -575,20 +580,19 @@ def test_服务层_真实DB访问_外部LLM_API被Mock(self): ...
 
 ```python
 @pytest.mark.unit
-async def test_纯函数逻辑_无IO依赖(self):
-    ...
+async def test_纯函数逻辑_无IO依赖(self): ...
+
 
 @pytest.mark.integration
-async def test_完整请求链路_含DB读写(self):
-    ...
+async def test_完整请求链路_含DB读写(self): ...
+
 
 @pytest.mark.slow
-async def test_LLM完整调用_30秒超时(self):
-    ...
+async def test_LLM完整调用_30秒超时(self): ...
+
 
 @pytest.mark.regression
-async def test_端到端_注册登录刷新退出(self):
-    ...
+async def test_端到端_注册登录刷新退出(self): ...
 ```
 
 ### 8.5 pytest.raises 使用规范

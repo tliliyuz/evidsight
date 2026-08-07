@@ -17,6 +17,7 @@ from app.rag.parser import (
 
 # === 辅助工具 ===
 
+
 def _make_fitz_page(text: str, tables: list | None = None) -> MagicMock:
     """创建 mock fitz 页面对象"""
     page = MagicMock()
@@ -62,15 +63,13 @@ class TestParseResult:
 
     def test_failure_rate_全部成功_返回0(self):
         result = ParseResult(
-            pages=[ParsedPage(1, "a"), ParsedPage(2, "b")],
-            total_pages=2, failed_pages=0
+            pages=[ParsedPage(1, "a"), ParsedPage(2, "b")], total_pages=2, failed_pages=0
         )
         assert result.failure_rate == 0.0
 
     def test_failure_rate_全部失败_返回1(self):
         result = ParseResult(
-            pages=[ParsedPage(1, "", success=False)],
-            total_pages=1, failed_pages=1
+            pages=[ParsedPage(1, "", success=False)], total_pages=1, failed_pages=1
         )
         assert result.failure_rate == 1.0
 
@@ -80,7 +79,8 @@ class TestParseResult:
                 ParsedPage(1, "ok"),
                 ParsedPage(2, "", success=False),
             ],
-            total_pages=2, failed_pages=1
+            total_pages=2,
+            failed_pages=1,
         )
         assert result.failure_rate == 0.5
 
@@ -95,14 +95,14 @@ class TestParseResult:
                 ParsedPage(2, "", success=False),
                 ParsedPage(3, "第三页"),
             ],
-            total_pages=3, failed_pages=1
+            total_pages=3,
+            failed_pages=1,
         )
         assert result.full_text == "第一页\n\n第三页"
 
     def test_full_text_全部失败_返回空串(self):
         result = ParseResult(
-            pages=[ParsedPage(1, "", success=False, error="err")],
-            total_pages=1, failed_pages=1
+            pages=[ParsedPage(1, "", success=False, error="err")], total_pages=1, failed_pages=1
         )
         assert result.full_text == ""
 
@@ -113,7 +113,8 @@ class TestParseResult:
                 ParsedPage(2, "", success=False, error="第2页错误"),
                 ParsedPage(3, "", success=False, error="第3页错误"),
             ],
-            total_pages=3, failed_pages=2
+            total_pages=3,
+            failed_pages=2,
         )
         warnings = result.warnings
         assert len(warnings) == 2
@@ -121,10 +122,7 @@ class TestParseResult:
         assert "第3页: 第3页错误" in warnings
 
     def test_warnings_无失败_返回空列表(self):
-        result = ParseResult(
-            pages=[ParsedPage(1, "ok")],
-            total_pages=1, failed_pages=0
-        )
+        result = ParseResult(pages=[ParsedPage(1, "ok")], total_pages=1, failed_pages=0)
         assert result.warnings == []
 
 
@@ -329,9 +327,7 @@ class TestParsePdf:
         mock_doc = _make_fitz_doc([page_table_only])
 
         plumber_page = MagicMock()
-        plumber_page.extract_tables.return_value = [
-            [["A", "B"], ["1", "2"]]
-        ]
+        plumber_page.extract_tables.return_value = [[["A", "B"], ["1", "2"]]]
 
         mock_plumber = MagicMock()
         mock_plumber.pages = [plumber_page]
@@ -470,7 +466,7 @@ class TestFaultToleranceThresholds:
     """容错阈值场景测试（对齐 ARCHITECTURE.md §4.7）— Mock pymupdf"""
 
     def test_5页PDF_1页失败_正好20pct(self):
-        pages = [_make_fitz_page(f"第{i+1}页") for i in range(4)]
+        pages = [_make_fitz_page(f"第{i + 1}页") for i in range(4)]
         pages.append(_make_fitz_page(""))  # 第 5 页无文本
         mock_doc = _make_fitz_doc(pages)
 

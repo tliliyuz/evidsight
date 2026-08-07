@@ -1,4 +1,5 @@
 """契约测试共享配置：加载 loader 并暴露 Schema/Fixture 目录与加载函数。"""
+
 import sys
 from pathlib import Path
 

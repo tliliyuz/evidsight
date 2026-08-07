@@ -6,7 +6,17 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Enum, ForeignKey, Index, Integer, String, UniqueConstraint, func, text
+from sqlalchemy import (
+    BigInteger,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.mysql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,22 +33,31 @@ class DocumentVersion(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     uuid: Mapped[str] = mapped_column(
-        String(36), nullable=False, unique=True,
-        comment="对外标识 / Worker 幂等键"
+        String(36), nullable=False, unique=True, comment="对外标识 / Worker 幂等键"
     )
     document_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("documents.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        BigInteger,
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
         comment="所属文档",
     )
     version: Mapped[int] = mapped_column(
-        Integer, nullable=False,
+        Integer,
+        nullable=False,
         comment="同一 Document 内递增且唯一",
     )
     status: Mapped[str] = mapped_column(
         Enum(
-            "queued", "parsing", "chunking", "embedding", "indexing", "verifying",
-            "ready", "ready_with_warnings", "failed",
+            "queued",
+            "parsing",
+            "chunking",
+            "embedding",
+            "indexing",
+            "verifying",
+            "ready",
+            "ready_with_warnings",
+            "failed",
             name="document_version_status",
         ),
         default="queued",

@@ -32,6 +32,7 @@ from app.schemas.auth import TokenResponse
 
 # ==================== 辅助函数 ====================
 
+
 def _make_user(user_id=1, username="testuser", role="user"):
     user = MagicMock(spec=User)
     user.id = user_id
@@ -78,6 +79,7 @@ def _make_mock_execute(scalar_result=None):
 
 # ==================== Security 层测试 ====================
 
+
 class TestRefreshTokenSecurity:
     """create_refresh_token / decode_refresh_token / hash_token 测试"""
 
@@ -99,9 +101,8 @@ class TestRefreshTokenSecurity:
     def test_decode_access_token被拒绝(self):
         """access_token 不应被接受为 refresh_token"""
         from app.core.security import create_access_token
-        access = create_access_token(
-            "550e8400-e29b-41d4-a716-446655440000", "user"
-        )
+
+        access = create_access_token("550e8400-e29b-41d4-a716-446655440000", "user")
         with pytest.raises(Exception):
             decode_refresh_token(access)
 
@@ -131,6 +132,7 @@ class TestRefreshTokenSecurity:
 
 
 # ==================== Service 层测试 ====================
+
 
 class TestLoginRefreshToken:
     """login() 返回值含 refresh_token 测试"""
@@ -199,10 +201,12 @@ class TestRefreshRotation:
 
         mock_db = AsyncMock()
         mock_db.add = MagicMock()
-        mock_db.execute = AsyncMock(side_effect=[
-            _make_mock_execute(rt),  # 查 refresh_tokens
-            _make_mock_execute(user),
-        ])
+        mock_db.execute = AsyncMock(
+            side_effect=[
+                _make_mock_execute(rt),  # 查 refresh_tokens
+                _make_mock_execute(user),
+            ]
+        )
         mock_db.get = AsyncMock(return_value=_make_family())
 
         result = await refresh(mock_db, token_str)
@@ -377,6 +381,7 @@ class TestChangePassword:
 
 
 # ==================== API 层测试 ====================
+
 
 class TestRefreshAPI:
     """POST /api/auth/refresh 接口测试"""

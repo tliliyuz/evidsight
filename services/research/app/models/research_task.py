@@ -24,15 +24,11 @@ class ResearchTask(Base):
 
     __tablename__ = "research_tasks"
 
-    id: Mapped[str] = mapped_column(
-        sa.String(36), primary_key=True, default=new_uuid
-    )
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=new_uuid)
     user_id: Mapped[str] = mapped_column(sa.String(36), nullable=False)
 
     # ── 输入 ──
-    topic: Mapped[str] = mapped_column(
-        sa.String(500), nullable=False, comment="用户输入的研究主题"
-    )
+    topic: Mapped[str] = mapped_column(sa.String(500), nullable=False, comment="用户输入的研究主题")
     requirements: Mapped[dict] = mapped_column(
         sa.JSON, nullable=False, comment="研究要求（task_type, depth, max_sources, language...）"
     )
@@ -46,11 +42,15 @@ class ResearchTask(Base):
 
     # ── 幂等（API.md §8：创建必须使用 Idempotency-Key）──
     idempotency_key: Mapped[str | None] = mapped_column(
-        sa.String(128), default=None, server_default=sa.text("NULL"),
+        sa.String(128),
+        default=None,
+        server_default=sa.text("NULL"),
         comment="幂等键，(user_id, idempotency_key) 唯一",
     )
     request_fingerprint: Mapped[str | None] = mapped_column(
-        sa.String(64), default=None, server_default=sa.text("NULL"),
+        sa.String(64),
+        default=None,
+        server_default=sa.text("NULL"),
         comment="请求内容指纹；同 Key 不同指纹拒绝",
     )
 
@@ -135,38 +135,56 @@ class ResearchTask(Base):
 
     # ── Execution Context（断点续跑核心）──
     execution_context: Mapped[dict | None] = mapped_column(
-        sa.JSON, default=None, server_default=sa.text("NULL"),
+        sa.JSON,
+        default=None,
+        server_default=sa.text("NULL"),
     )
 
     # ── 统计 ──
     total_steps: Mapped[int] = mapped_column(
-        sa.Integer, default=0, server_default=sa.text("0"),
+        sa.Integer,
+        default=0,
+        server_default=sa.text("0"),
     )
     completed_steps: Mapped[int] = mapped_column(
-        sa.Integer, default=0, server_default=sa.text("0"),
+        sa.Integer,
+        default=0,
+        server_default=sa.text("0"),
     )
     total_sources: Mapped[int] = mapped_column(
-        sa.Integer, default=0, server_default=sa.text("0"),
+        sa.Integer,
+        default=0,
+        server_default=sa.text("0"),
     )
     total_evidence: Mapped[int] = mapped_column(
-        sa.Integer, default=0, server_default=sa.text("0"),
+        sa.Integer,
+        default=0,
+        server_default=sa.text("0"),
     )
 
     # ── Trace 追踪数据 ──
     trace: Mapped[dict | None] = mapped_column(
-        sa.JSON, default=None, server_default=sa.text("NULL"),
+        sa.JSON,
+        default=None,
+        server_default=sa.text("NULL"),
         comment="Pipeline 七阶段 Trace JSON（TraceRecorder.finish() 产出），对齐 DATABASE.md §2.2",
     )
 
     # ── 错误 ──
     error_code: Mapped[str | None] = mapped_column(
-        sa.String(50), default=None, server_default=sa.text("NULL"),
+        sa.String(50),
+        default=None,
+        server_default=sa.text("NULL"),
     )
     error_message: Mapped[str | None] = mapped_column(
-        sa.Text, default=None, server_default=sa.text("NULL"),
+        sa.Text,
+        default=None,
+        server_default=sa.text("NULL"),
     )
     recoverable: Mapped[bool | None] = mapped_column(
-        sa.Boolean, default=None, server_default=sa.text("NULL"),
+        sa.Boolean,
+        default=None,
+        server_default=sa.text("NULL"),
         comment="是否可以断点续跑（NULL = 未失败）",
     )
 
@@ -207,25 +225,42 @@ class ResearchTask(Base):
         sa.Index("idx_status_lease_expires", "status", "lease_expires_at"),
         # 创建幂等（DATABASE.md §5.1）：(user_id, idempotency_key) 唯一；
         # idempotency_key 可空，MySQL/SQLite 对 NULL 均允许多行，不阻塞旧任务。
-        sa.UniqueConstraint("user_id", "idempotency_key", name="uq_research_tasks_user_idempotency"),
+        sa.UniqueConstraint(
+            "user_id", "idempotency_key", name="uq_research_tasks_user_idempotency"
+        ),
     )
 
     # ── 关联 ──
-    steps = relationship("ResearchStep", back_populates="task", lazy="selectin",
-                         order_by="ResearchStep.started_at",
-                         passive_deletes=True)
-    sources = relationship("ResearchSource", back_populates="task", lazy="selectin",
-                           passive_deletes=True)
-    evidence_items = relationship("EvidenceItem", back_populates="task", lazy="selectin",
-                                  passive_deletes=True)
-    report_sections = relationship("ReportSection", back_populates="task", lazy="selectin",
-                                   passive_deletes=True)
-    agent_memory_entries = relationship("AgentMemoryEntry", back_populates="task", lazy="selectin",
-                                        order_by="AgentMemoryEntry.created_at",
-                                        passive_deletes=True)
-    agent_events = relationship("AgentEvent", back_populates="task", lazy="selectin",
-                                order_by="AgentEvent.sequence",
-                                passive_deletes=True)
+    steps = relationship(
+        "ResearchStep",
+        back_populates="task",
+        lazy="selectin",
+        order_by="ResearchStep.started_at",
+        passive_deletes=True,
+    )
+    sources = relationship(
+        "ResearchSource", back_populates="task", lazy="selectin", passive_deletes=True
+    )
+    evidence_items = relationship(
+        "EvidenceItem", back_populates="task", lazy="selectin", passive_deletes=True
+    )
+    report_sections = relationship(
+        "ReportSection", back_populates="task", lazy="selectin", passive_deletes=True
+    )
+    agent_memory_entries = relationship(
+        "AgentMemoryEntry",
+        back_populates="task",
+        lazy="selectin",
+        order_by="AgentMemoryEntry.created_at",
+        passive_deletes=True,
+    )
+    agent_events = relationship(
+        "AgentEvent",
+        back_populates="task",
+        lazy="selectin",
+        order_by="AgentEvent.sequence",
+        passive_deletes=True,
+    )
 
     def __repr__(self):
         return f"<ResearchTask(id={self.id}, topic={self.topic[:30]!r}, status={self.status})>"

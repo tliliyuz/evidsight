@@ -176,6 +176,7 @@ class TestResearchCreateResponse:
 
     def test_合法响应(self):
         from datetime import datetime, timezone
+
         resp = ResearchCreateResponse(
             task_id="550e8400-e29b-41d4-a716-446655440000",
             status="pending",
@@ -195,6 +196,7 @@ class TestResearchTaskListItem:
 
     def test_合法列表项(self):
         from datetime import datetime, timezone
+
         item = ResearchTaskListItem(
             task_id="uuid-1",
             topic="研究主题",
@@ -224,6 +226,7 @@ class TestResearchTaskListResponse:
 
     def test_含数据列表(self):
         from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
         item = ResearchTaskListItem(
             task_id="uuid-1",
@@ -250,6 +253,7 @@ class TestResearchTaskResponse:
 
     def test_完整详情响应(self):
         from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
         resp = ResearchTaskResponse(
             task_id="uuid-1",
@@ -270,6 +274,7 @@ class TestResearchTaskResponse:
 
     def test_失败任务含错误信息(self):
         from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
         resp = ResearchTaskResponse(
             task_id="uuid-1",
@@ -287,6 +292,7 @@ class TestResearchTaskResponse:
 
     def test_错误消息含SQL时被清洗(self):
         from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
         resp = ResearchTaskResponse(
             task_id="uuid-1",
@@ -303,6 +309,7 @@ class TestResearchTaskResponse:
 
     def test_错误消息为JSON时提取友好message(self):
         from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
         raw = '{"code": "E3110", "message": "LLM 认证失败"}'
         resp = ResearchTaskResponse(

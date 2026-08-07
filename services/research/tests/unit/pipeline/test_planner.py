@@ -1,4 +1,5 @@
 """Planner 单元测试 — 验证 LLM 调用、JSON 解析、输出校验、重试逻辑。"""
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -217,14 +218,17 @@ def _make_step(**overrides) -> ResearchStep:
 
 def _valid_planning_json() -> str:
     """返回有效的 Planning JSON 输出。"""
-    return json.dumps({
-        "sub_questions": [
-            "量子计算对现有加密算法的具体威胁有哪些",
-            "后量子密码学标准化进展如何",
-            "各国量子安全迁移策略对比分析",
-        ],
-        "rationale": "从威胁、应对、策略三个维度拆解",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "sub_questions": [
+                "量子计算对现有加密算法的具体威胁有哪些",
+                "后量子密码学标准化进展如何",
+                "各国量子安全迁移策略对比分析",
+            ],
+            "rationale": "从威胁、应对、策略三个维度拆解",
+        },
+        ensure_ascii=False,
+    )
 
 
 class TestRunPlanningSuccess:
@@ -242,7 +246,10 @@ class TestRunPlanningSuccess:
             mock_llm.return_value = _make_llm_result(_valid_planning_json())
 
             output = await run_planning(
-                self.task, self.step, AsyncMock(), self.sse_bridge,
+                self.task,
+                self.step,
+                AsyncMock(),
+                self.sse_bridge,
             )
 
             assert len(output["sub_questions"]) == 3
@@ -304,8 +311,7 @@ class TestRunPlanningSuccess:
 
             # 应发射 progress 事件（含 sub_questions_generated）
             publish_calls = [
-                c for c in self.sse_bridge.publish.await_args_list
-                if "step.progress" in str(c)
+                c for c in self.sse_bridge.publish.await_args_list if "step.progress" in str(c)
             ]
             assert len(publish_calls) >= 1
 
@@ -330,7 +336,10 @@ class TestRunPlanningRetry:
             ]
 
             output = await run_planning(
-                self.task, self.step, AsyncMock(), self.sse_bridge,
+                self.task,
+                self.step,
+                AsyncMock(),
+                self.sse_bridge,
             )
 
             assert mock_llm.call_count == 2
@@ -346,7 +355,10 @@ class TestRunPlanningRetry:
             ]
 
             output = await run_planning(
-                self.task, self.step, AsyncMock(), self.sse_bridge,
+                self.task,
+                self.step,
+                AsyncMock(),
+                self.sse_bridge,
             )
 
             assert mock_llm.call_count == 2
@@ -356,13 +368,14 @@ class TestRunPlanningRetry:
     async def test_3次重试耗尽_抛出E3101(self):
         with patch("app.pipeline.planner.chat_completion") as mock_llm:
             # 每次都返回无效 JSON
-            mock_llm.return_value = _make_llm_result(
-                '{"sub_questions": ["只有一个"]}'
-            )
+            mock_llm.return_value = _make_llm_result('{"sub_questions": ["只有一个"]}')
 
             with pytest.raises(PlanningFailedException) as exc_info:
                 await run_planning(
-                    self.task, self.step, AsyncMock(), self.sse_bridge,
+                    self.task,
+                    self.step,
+                    AsyncMock(),
+                    self.sse_bridge,
                 )
 
             assert exc_info.value.error_code == "E3101"
@@ -377,7 +390,10 @@ class TestRunPlanningRetry:
             ]
 
             await run_planning(
-                self.task, self.step, AsyncMock(), self.sse_bridge,
+                self.task,
+                self.step,
+                AsyncMock(),
+                self.sse_bridge,
             )
 
             # 第二次调用的 messages 应包含反馈

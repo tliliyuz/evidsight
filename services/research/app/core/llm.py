@@ -37,6 +37,7 @@ _llm_client: AsyncOpenAI | None = None
 @dataclass
 class LLMChunk:
     """LLM 流式输出的单个 chunk"""
+
     content: str = ""
     reasoning_content: str = ""
     finish_reason: str | None = None
@@ -46,6 +47,7 @@ class LLMChunk:
 @dataclass
 class LLMResult:
     """LLM 非流式调用结果"""
+
     content: str
     reasoning_content: str
     prompt_tokens: int
@@ -84,7 +86,12 @@ def _classify_llm_error(error_msg: str) -> type:
         return LLMTimeoutException
     if "rate_limit" in msg_lower or "429" in msg_lower or "too many requests" in msg_lower:
         return LLMRateLimitException
-    if "auth" in msg_lower or "401" in msg_lower or "403" in msg_lower or "unauthorized" in msg_lower:
+    if (
+        "auth" in msg_lower
+        or "401" in msg_lower
+        or "403" in msg_lower
+        or "unauthorized" in msg_lower
+    ):
         return LLMAuthFailedException
     return LLMUnknownException
 
@@ -175,7 +182,9 @@ async def stream_chat_completion(
         try:
             logger.info(
                 "调用 LLM (流式): model=%s, deep_thinking=%s, tools=%s",
-                llm_model, deep_thinking, len(tools) if tools else 0,
+                llm_model,
+                deep_thinking,
+                len(tools) if tools else 0,
             )
             t0 = time.perf_counter()
             t_first = None
@@ -212,8 +221,16 @@ async def stream_chat_completion(
                         entry["id"] = dtc_id
                     function = getattr(dtc, "function", None) or {}
                     if function:
-                        name = function.get("name") if isinstance(function, dict) else getattr(function, "name", None)
-                        arguments = function.get("arguments") if isinstance(function, dict) else getattr(function, "arguments", None)
+                        name = (
+                            function.get("name")
+                            if isinstance(function, dict)
+                            else getattr(function, "name", None)
+                        )
+                        arguments = (
+                            function.get("arguments")
+                            if isinstance(function, dict)
+                            else getattr(function, "arguments", None)
+                        )
                         if name:
                             entry["function"]["name"] = name
                         if arguments:
@@ -270,9 +287,21 @@ def _parse_tool_calls(raw_tool_calls: Any) -> list[ToolCall] | None:
         try:
             tc_id = getattr(tc, "id", None) or ""
             function = getattr(tc, "function", None) or {}
-            name = function.get("name") if isinstance(function, dict) else getattr(function, "name", None)
-            arguments_str = function.get("arguments") if isinstance(function, dict) else getattr(function, "arguments", "{}")
-            arguments = json.loads(arguments_str) if isinstance(arguments_str, str) else (arguments_str or {})
+            name = (
+                function.get("name")
+                if isinstance(function, dict)
+                else getattr(function, "name", None)
+            )
+            arguments_str = (
+                function.get("arguments")
+                if isinstance(function, dict)
+                else getattr(function, "arguments", "{}")
+            )
+            arguments = (
+                json.loads(arguments_str)
+                if isinstance(arguments_str, str)
+                else (arguments_str or {})
+            )
             parsed.append(ToolCall(id=str(tc_id), name=str(name), arguments=arguments))
         except Exception:
             logger.warning("解析 tool_call 失败，跳过: %s", tc)
@@ -358,7 +387,9 @@ async def chat_completion(
 
             logger.info(
                 "LLM_PERF(非流式) api=%.3fs prompt_tok=%d completion_tok=%d tool_calls=%d",
-                t_api - t0, prompt_tokens, completion_tokens,
+                t_api - t0,
+                prompt_tokens,
+                completion_tokens,
                 len(tool_calls) if tool_calls else 0,
             )
 

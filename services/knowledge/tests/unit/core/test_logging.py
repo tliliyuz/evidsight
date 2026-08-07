@@ -28,8 +28,13 @@ class TestJSONFormatter:
     def test_输出有效JSON(self):
         formatter = JSONFormatter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=1, msg="测试消息", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=1,
+            msg="测试消息",
+            args=(),
+            exc_info=None,
         )
         output = formatter.format(record)
         data = json.loads(output)
@@ -40,8 +45,13 @@ class TestJSONFormatter:
     def test_包含时间戳(self):
         formatter = JSONFormatter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=1, msg="msg", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=1,
+            msg="msg",
+            args=(),
+            exc_info=None,
         )
         output = formatter.format(record)
         data = json.loads(output)
@@ -52,8 +62,13 @@ class TestJSONFormatter:
     def test_包含request_id和user_id(self):
         formatter = JSONFormatter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=1, msg="msg", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=1,
+            msg="msg",
+            args=(),
+            exc_info=None,
         )
         # 模拟 RequestIDFilter 注入
         record.request_id = "abc123"
@@ -69,10 +84,16 @@ class TestJSONFormatter:
             raise ValueError("测试异常")
         except ValueError:
             import sys
+
             exc_info = sys.exc_info()
         record = logging.LogRecord(
-            name="test", level=logging.ERROR, pathname="",
-            lineno=1, msg="出错了", args=(), exc_info=exc_info,
+            name="test",
+            level=logging.ERROR,
+            pathname="",
+            lineno=1,
+            msg="出错了",
+            args=(),
+            exc_info=exc_info,
         )
         output = formatter.format(record)
         data = json.loads(output)
@@ -83,8 +104,13 @@ class TestJSONFormatter:
     def test_extra字段序列化(self):
         formatter = JSONFormatter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=1, msg="msg", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=1,
+            msg="msg",
+            args=(),
+            exc_info=None,
         )
         record.custom_field = "自定义值"
         output = formatter.format(record)
@@ -95,8 +121,13 @@ class TestJSONFormatter:
     def test_中文消息正确序列化(self):
         formatter = JSONFormatter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=1, msg="中文日志消息", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=1,
+            msg="中文日志消息",
+            args=(),
+            exc_info=None,
         )
         output = formatter.format(record)
         data = json.loads(output)
@@ -109,8 +140,13 @@ class TestRequestIDFilter:
     def test_注入request_id(self):
         f = RequestIDFilter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=1, msg="msg", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=1,
+            msg="msg",
+            args=(),
+            exc_info=None,
         )
         token = request_id_var.set("req-123")
         try:
@@ -122,8 +158,13 @@ class TestRequestIDFilter:
     def test_注入user_id(self):
         f = RequestIDFilter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=1, msg="msg", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=1,
+            msg="msg",
+            args=(),
+            exc_info=None,
         )
         token = user_id_var.set(99)
         try:
@@ -135,8 +176,13 @@ class TestRequestIDFilter:
     def test_无上下文时默认值(self):
         f = RequestIDFilter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=1, msg="msg", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=1,
+            msg="msg",
+            args=(),
+            exc_info=None,
         )
         f.filter(record)
         assert record.request_id == ""
@@ -202,8 +248,8 @@ class TestLogJSONIntegration:
 
         for line in lines:
             data = json.loads(line)  # 合法 JSON
-            assert "timestamp" in data   # 含 timestamp
-            assert "level" in data       # 含 level
+            assert "timestamp" in data  # 含 timestamp
+            assert "level" in data  # 含 level
             assert "request_id" in data  # 含 request_id
             assert data["request_id"] == "integ-req-001"
             assert data["user_id"] == 7

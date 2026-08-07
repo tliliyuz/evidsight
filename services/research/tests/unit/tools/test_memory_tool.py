@@ -55,12 +55,22 @@ class TestMemoryTool:
 
     async def test_read_返回最近条目摘要(self, tool_context):
         tool = MemoryTool()
-        tool_context.working_memory.add(ReActEntry(
-            iteration=1, phase="planning", tool_name="plan_tool", observation="plan done",
-        ))
-        tool_context.working_memory.add(ReActEntry(
-            iteration=2, phase="search", tool_name="search_tool", observation="search done",
-        ))
+        tool_context.working_memory.add(
+            ReActEntry(
+                iteration=1,
+                phase="planning",
+                tool_name="plan_tool",
+                observation="plan done",
+            )
+        )
+        tool_context.working_memory.add(
+            ReActEntry(
+                iteration=2,
+                phase="search",
+                tool_name="search_tool",
+                observation="search done",
+            )
+        )
 
         result = await tool.execute(tool_context, operation="read", limit=1)
 
@@ -73,9 +83,13 @@ class TestMemoryTool:
     async def test_read_默认limit5(self, tool_context):
         tool = MemoryTool()
         for i in range(6):
-            tool_context.working_memory.add(ReActEntry(
-                iteration=i + 1, phase="search", tool_name="search_tool",
-            ))
+            tool_context.working_memory.add(
+                ReActEntry(
+                    iteration=i + 1,
+                    phase="search",
+                    tool_name="search_tool",
+                )
+            )
 
         result = await tool.execute(tool_context, operation="read")
 
@@ -90,8 +104,12 @@ class TestMemoryTool:
 
     async def test_summary_返回统计(self, tool_context):
         tool = MemoryTool()
-        tool_context.working_memory.add(ReActEntry(iteration=1, phase="planning", tool_name="plan_tool"))
-        tool_context.working_memory.add(ReActEntry(iteration=2, phase="search", tool_name="search_tool"))
+        tool_context.working_memory.add(
+            ReActEntry(iteration=1, phase="planning", tool_name="plan_tool")
+        )
+        tool_context.working_memory.add(
+            ReActEntry(iteration=2, phase="search", tool_name="search_tool")
+        )
 
         result = await tool.execute(tool_context, operation="summary")
 

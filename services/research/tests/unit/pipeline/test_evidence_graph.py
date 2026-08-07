@@ -1,4 +1,5 @@
 """Evidence Graph Build 阶段单元测试 —— 结构化认知资产组装。"""
+
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -198,7 +199,9 @@ class TestEvidenceGraphSuccess:
         assert output["source_count"] == 2
         assert isinstance(output["duration_ms"], int)
 
-        progress_calls = [c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_PROGRESS]
+        progress_calls = [
+            c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_PROGRESS
+        ]
         assert len(progress_calls) == 2
         assert progress_calls[0].args[1]["label"] == "正在构建来源图谱..."
         assert progress_calls[1].args[1]["item_count"] == 2
@@ -275,21 +278,27 @@ class TestEvidenceGraphSuccess:
         )
 
         # 让 source-0 再贡献一条 evidence
-        source0 = (await db_session.execute(
-            select(ResearchSource).where(
-                ResearchSource.task_id == task.id,
-                ResearchSource.domain == "example.com",
+        source0 = (
+            await db_session.execute(
+                select(ResearchSource).where(
+                    ResearchSource.task_id == task.id,
+                    ResearchSource.domain == "example.com",
+                )
             )
-        )).scalar_one()
+        ).scalar_one()
         extra_ev = EvidenceItem(
             task_id=task.id,
             source_id=source0.id,
-            step_id=(await db_session.execute(
-                select(ResearchStep).where(
-                    ResearchStep.task_id == task.id,
-                    ResearchStep.step_type == "rerank",
+            step_id=(
+                await db_session.execute(
+                    select(ResearchStep).where(
+                        ResearchStep.task_id == task.id,
+                        ResearchStep.step_type == "rerank",
+                    )
                 )
-            )).scalar_one().id,
+            )
+            .scalar_one()
+            .id,
             content="额外的证据片段，同样来自 example.com。",
             relevance_score=0.88,
         )
@@ -405,12 +414,14 @@ class TestEvidenceGraphFailure:
         )
 
         # 清空 synthesis output
-        synthesis_step = (await db_session.execute(
-            select(ResearchStep).where(
-                ResearchStep.task_id == task.id,
-                ResearchStep.step_type == "synthesis",
+        synthesis_step = (
+            await db_session.execute(
+                select(ResearchStep).where(
+                    ResearchStep.task_id == task.id,
+                    ResearchStep.step_type == "synthesis",
+                )
             )
-        )).scalar_one()
+        ).scalar_one()
         synthesis_step.output = None
         await db_session.flush()
 
@@ -497,7 +508,8 @@ class TestEvidenceGraphConsistency:
         items = output["graph"]["items"]
         # 查询实际 EvidenceItem.id（自增，通常 ≥1）
         result = await db_session.execute(
-            select(EvidenceItem).where(EvidenceItem.task_id == task.id)
+            select(EvidenceItem)
+            .where(EvidenceItem.task_id == task.id)
             .order_by(
                 sa.case((EvidenceItem.relevance_score == None, 1), else_=0),
                 EvidenceItem.relevance_score.desc(),
@@ -533,9 +545,11 @@ class TestEvidenceGraphConsistency:
         )
 
         # 将 source 的 title / domain 置空，模拟 source 字段缺失
-        source = (await db_session.execute(
-            select(ResearchSource).where(ResearchSource.task_id == task.id)
-        )).scalar_one()
+        source = (
+            await db_session.execute(
+                select(ResearchSource).where(ResearchSource.task_id == task.id)
+            )
+        ).scalar_one()
         source.title = None
         source.domain = None
         await db_session.flush()

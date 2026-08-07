@@ -56,10 +56,14 @@ def _make_kb_list(total=3, page=1, page_size=20, items=None) -> AdminKBListRespo
         items = [
             AdminKBItem(
                 uuid=f"kb-uuid-{i:04d}-0000-0000-000000000000",
-                name=f"KB_{i}", description=f"描述{i}",
+                name=f"KB_{i}",
+                description=f"描述{i}",
                 visibility="private" if i % 2 == 0 else "public",
-                owner_user_id=_platform_uuid(i), username=f"user_{i}",
-                status="active", doc_count=5, chunk_count=100,
+                owner_user_id=_platform_uuid(i),
+                username=f"user_{i}",
+                status="active",
+                doc_count=5,
+                chunk_count=100,
                 created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
                 updated_at=datetime(2026, 6, 10, tzinfo=timezone.utc),
             )
@@ -75,10 +79,16 @@ def _make_doc_list(total=2, page=1, page_size=20, items=None) -> AdminDocListRes
             AdminDocItem(
                 uuid="doc-uuid-0001-0000-0000-000000000000",
                 kb_uuid="kb-uuid-0001-0000-0000-000000000000",
-                kb_name="KB_1", kb_visibility="private",
-                owner_id=_platform_uuid(1), owner_username="owner1",
-                filename="文档A.pdf", file_type="pdf", file_size=102400,
-                status="completed", current_stage=None, chunk_count=10,
+                kb_name="KB_1",
+                kb_visibility="private",
+                owner_id=_platform_uuid(1),
+                owner_username="owner1",
+                filename="文档A.pdf",
+                file_type="pdf",
+                file_size=102400,
+                status="completed",
+                current_stage=None,
+                chunk_count=10,
                 error_message=None,
                 created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
                 updated_at=datetime(2026, 6, 10, tzinfo=timezone.utc),
@@ -86,10 +96,16 @@ def _make_doc_list(total=2, page=1, page_size=20, items=None) -> AdminDocListRes
             AdminDocItem(
                 uuid="doc-uuid-0002-0000-0000-000000000000",
                 kb_uuid="kb-uuid-0002-0000-0000-000000000000",
-                kb_name="KB_2", kb_visibility="public",
-                owner_id=_platform_uuid(2), owner_username="owner2",
-                filename="文档B.md", file_type="md", file_size=51200,
-                status="uploaded", current_stage=None, chunk_count=0,
+                kb_name="KB_2",
+                kb_visibility="public",
+                owner_id=_platform_uuid(2),
+                owner_username="owner2",
+                filename="文档B.md",
+                file_type="md",
+                file_size=51200,
+                status="uploaded",
+                current_stage=None,
+                chunk_count=0,
                 error_message=None,
                 created_at=datetime(2026, 6, 2, tzinfo=timezone.utc),
                 updated_at=datetime(2026, 6, 9, tzinfo=timezone.utc),
@@ -213,16 +229,18 @@ class TestAdminKBListAPI:
             items = [
                 AdminKBItem(
                     uuid="kb-uuid-0001-0000-0000-000000000000",
-                    name="私有KB", visibility="private",
-                    owner_user_id=_platform_uuid(10), username="user1", status="active",
-                    doc_count=0, chunk_count=0,
+                    name="私有KB",
+                    visibility="private",
+                    owner_user_id=_platform_uuid(10),
+                    username="user1",
+                    status="active",
+                    doc_count=0,
+                    chunk_count=0,
                     created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
                     updated_at=datetime(2026, 6, 10, tzinfo=timezone.utc),
                 )
             ]
-            mock_svc.return_value = AdminKBListResponse(
-                total=1, page=1, page_size=20, items=items
-            )
+            mock_svc.return_value = AdminKBListResponse(total=1, page=1, page_size=20, items=items)
 
             response = await async_client.get(
                 "/api/admin/knowledge-bases?visibility=private",
@@ -241,9 +259,7 @@ class TestAdminKBListAPI:
     async def test_admin获取KB列表_组合筛选(self, async_client, admin_auth_headers):
         """多条件组合筛选：user_id + status + visibility + search"""
         with patch("app.api.admin.list_all_kbs", new_callable=AsyncMock) as mock_svc:
-            mock_svc.return_value = AdminKBListResponse(
-                total=0, page=1, page_size=20, items=[]
-            )
+            mock_svc.return_value = AdminKBListResponse(total=0, page=1, page_size=20, items=[])
 
             response = await async_client.get(
                 "/api/admin/knowledge-bases?user_id=5&status=active&visibility=public&search=报销",
@@ -345,17 +361,20 @@ class TestAdminDocListAPI:
                 AdminDocItem(
                     uuid="doc-uuid-0003-0000-0000-000000000000",
                     kb_uuid="kb-uuid-0001-0000-0000-000000000000",
-                    kb_name="KB_1", kb_visibility="private",
-                    owner_id=_platform_uuid(1), owner_username="owner1",
-                    filename="失败文档.pdf", file_type="pdf", file_size=100,
-                    status="partial_failed", chunk_count=0,
+                    kb_name="KB_1",
+                    kb_visibility="private",
+                    owner_id=_platform_uuid(1),
+                    owner_username="owner1",
+                    filename="失败文档.pdf",
+                    file_type="pdf",
+                    file_size=100,
+                    status="partial_failed",
+                    chunk_count=0,
                     created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
                     updated_at=datetime(2026, 6, 10, tzinfo=timezone.utc),
                 )
             ]
-            mock_svc.return_value = AdminDocListResponse(
-                total=1, page=1, page_size=20, items=items
-            )
+            mock_svc.return_value = AdminDocListResponse(total=1, page=1, page_size=20, items=items)
 
             response = await async_client.get(
                 "/api/admin/documents?status=partial_failed",
@@ -405,12 +424,13 @@ class TestAdminDocListAPI:
     @pytest.mark.asyncio
     async def test_admin获取文档列表_组合筛选(self, async_client, admin_auth_headers):
         """按 kb_id + status + filename 组合筛选"""
-        with patch("app.api.admin.list_all_documents", new_callable=AsyncMock) as mock_svc, \
-             patch("app.api.admin.resolve_uuid_to_id",
-                   new_callable=AsyncMock, return_value=1) as mock_resolve:
-            mock_svc.return_value = AdminDocListResponse(
-                total=0, page=1, page_size=20, items=[]
-            )
+        with (
+            patch("app.api.admin.list_all_documents", new_callable=AsyncMock) as mock_svc,
+            patch(
+                "app.api.admin.resolve_uuid_to_id", new_callable=AsyncMock, return_value=1
+            ) as mock_resolve,
+        ):
+            mock_svc.return_value = AdminDocListResponse(total=0, page=1, page_size=20, items=[])
 
             response = await async_client.get(
                 "/api/admin/documents?kb_id=aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa&status=completed&filename=报销",
@@ -462,9 +482,11 @@ class TestAdminPermissionMatrix:
     async def test_admin用户可访问(self, async_client, admin_auth_headers, endpoint):
         """admin 用户可以访问所有 admin 端点（前提是 service 返回数据）"""
         # 不同端点需要 mock 不同的 service 函数
-        with patch("app.api.admin.get_stats", new_callable=AsyncMock) as mock_stats, \
-             patch("app.api.admin.list_all_kbs", new_callable=AsyncMock) as mock_kbs, \
-             patch("app.api.admin.list_all_documents", new_callable=AsyncMock) as mock_docs:
+        with (
+            patch("app.api.admin.get_stats", new_callable=AsyncMock) as mock_stats,
+            patch("app.api.admin.list_all_kbs", new_callable=AsyncMock) as mock_kbs,
+            patch("app.api.admin.list_all_documents", new_callable=AsyncMock) as mock_docs,
+        ):
             mock_stats.return_value = _make_stats()
             mock_kbs.return_value = _make_kb_list(total=0, items=[])
             mock_docs.return_value = _make_doc_list(total=0, items=[])
@@ -613,8 +635,13 @@ def _make_user_list(total=2, page=1, page_size=20) -> AdminUserListResponse:
     """构造用户列表响应（id 为 Platform User UUID）"""
     items = [
         AdminUserItem(
-            id=_platform_uuid(i), username=f"user_{i}", role="user", status="active",
-            kb_count=2, doc_count=10, conversation_count=5,
+            id=_platform_uuid(i),
+            username=f"user_{i}",
+            role="user",
+            status="active",
+            kb_count=2,
+            doc_count=10,
+            conversation_count=5,
             last_active_at=datetime(2026, 6, 12, tzinfo=timezone.utc),
             created_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
         )
@@ -626,9 +653,16 @@ def _make_user_list(total=2, page=1, page_size=20) -> AdminUserListResponse:
 def _make_user_detail(user_id=3) -> AdminUserDetailResponse:
     """构造用户详情响应（id 为 Platform User UUID）"""
     return AdminUserDetailResponse(
-        id=_platform_uuid(user_id), username="zhangsan", role="user", status="active",
-        kb_count=2, doc_count=15, conversation_count=28, message_count=156,
-        total_input_tokens=524000, total_output_tokens=128000,
+        id=_platform_uuid(user_id),
+        username="zhangsan",
+        role="user",
+        status="active",
+        kb_count=2,
+        doc_count=15,
+        conversation_count=28,
+        message_count=156,
+        total_input_tokens=524000,
+        total_output_tokens=128000,
         last_active_at=datetime(2026, 6, 12, tzinfo=timezone.utc),
         created_at=datetime(2026, 5, 6, tzinfo=timezone.utc),
     )
@@ -646,7 +680,8 @@ class TestAdminUserListAPI:
         with patch("app.api.admin.list_users", new_callable=AsyncMock) as mock_svc:
             mock_svc.return_value = _make_user_list()
             response = await async_client.get(
-                "/api/admin/users", headers=admin_auth_headers,
+                "/api/admin/users",
+                headers=admin_auth_headers,
             )
         assert response.status_code == 200
         body = response.json()
@@ -678,7 +713,8 @@ class TestAdminUserListAPI:
     async def test_普通用户获取用户列表被拒绝(self, async_client, auth_headers):
         """普通用户访问 /api/admin/users 返回 403"""
         response = await async_client.get(
-            "/api/admin/users", headers=auth_headers,
+            "/api/admin/users",
+            headers=auth_headers,
         )
         assert response.status_code == 403
         assert response.json()["code"] == "E5005"
@@ -693,7 +729,8 @@ class TestAdminUserDetailAPI:
         with patch("app.api.admin.get_user_detail", new_callable=AsyncMock) as mock_svc:
             mock_svc.return_value = _make_user_detail(user_id=3)
             response = await async_client.get(
-                f"/api/admin/users/{_platform_uuid(3)}", headers=admin_auth_headers,
+                f"/api/admin/users/{_platform_uuid(3)}",
+                headers=admin_auth_headers,
             )
         assert response.status_code == 200
         data = response.json()["data"]
@@ -707,10 +744,12 @@ class TestAdminUserDetailAPI:
     async def test_用户不存在返回404(self, async_client, admin_auth_headers):
         """查询不存在的用户返回 E7002"""
         from app.core.exceptions import UserNotFoundException
+
         with patch("app.api.admin.get_user_detail", new_callable=AsyncMock) as mock_svc:
             mock_svc.side_effect = UserNotFoundException(999)
             response = await async_client.get(
-                f"/api/admin/users/{_platform_uuid(999)}", headers=admin_auth_headers,
+                f"/api/admin/users/{_platform_uuid(999)}",
+                headers=admin_auth_headers,
             )
         assert response.status_code == 404
         assert response.json()["code"] == "E7002"
@@ -719,7 +758,8 @@ class TestAdminUserDetailAPI:
     async def test_普通用户获取详情被拒绝(self, async_client, auth_headers):
         """普通用户访问 /api/admin/users/{uuid} 返回 403"""
         response = await async_client.get(
-            f"/api/admin/users/{_platform_uuid(3)}", headers=auth_headers,
+            f"/api/admin/users/{_platform_uuid(3)}",
+            headers=auth_headers,
         )
         assert response.status_code == 403
 
@@ -731,7 +771,9 @@ class TestAdminUserStatusAPI:
     async def test_禁用用户成功(self, async_client, admin_auth_headers):
         """admin 禁用用户成功；响应 id 为 Platform User UUID"""
         with patch("app.api.admin.change_user_status", new_callable=AsyncMock) as mock_svc:
-            mock_svc.return_value = AdminUserStatusResponse(id=_platform_uuid(3), username="zhangsan", status="disabled")
+            mock_svc.return_value = AdminUserStatusResponse(
+                id=_platform_uuid(3), username="zhangsan", status="disabled"
+            )
             response = await async_client.put(
                 f"/api/admin/users/{_platform_uuid(3)}/status",
                 json={"status": "disabled"},
@@ -745,7 +787,9 @@ class TestAdminUserStatusAPI:
     async def test_启用用户成功(self, async_client, admin_auth_headers):
         """admin 启用用户成功"""
         with patch("app.api.admin.change_user_status", new_callable=AsyncMock) as mock_svc:
-            mock_svc.return_value = AdminUserStatusResponse(id=_platform_uuid(3), username="zhangsan", status="active")
+            mock_svc.return_value = AdminUserStatusResponse(
+                id=_platform_uuid(3), username="zhangsan", status="active"
+            )
             response = await async_client.put(
                 f"/api/admin/users/{_platform_uuid(3)}/status",
                 json={"status": "active"},
@@ -761,7 +805,9 @@ class TestAdminUserStatusAPI:
 
         resolve_user_id 由 mock_db 返回 MagicMock，需 patch 回内部 id 以命中自禁检查。
         """
-        with patch("app.api.admin.resolve_user_id", new_callable=AsyncMock, return_value=2) as mock_resolve:
+        with patch(
+            "app.api.admin.resolve_user_id", new_callable=AsyncMock, return_value=2
+        ) as mock_resolve:
             response = await async_client.put(
                 f"/api/admin/users/{_platform_uuid(2)}/status",
                 json={"status": "disabled"},
@@ -779,7 +825,9 @@ class TestAdminUserResetPasswordAPI:
     async def test_重置密码成功(self, async_client, admin_auth_headers):
         """admin 重置用户密码成功；响应 id 为 Platform User UUID"""
         with patch("app.api.admin.reset_user_password", new_callable=AsyncMock) as mock_svc:
-            mock_svc.return_value = AdminUserResetPasswordResponse(id=_platform_uuid(3), username="zhangsan")
+            mock_svc.return_value = AdminUserResetPasswordResponse(
+                id=_platform_uuid(3), username="zhangsan"
+            )
             response = await async_client.post(
                 f"/api/admin/users/{_platform_uuid(3)}/reset-password",
                 json={"new_password": "NewPass123!"},
@@ -803,6 +851,7 @@ class TestAdminUserResetPasswordAPI:
     async def test_用户不存在返回404(self, async_client, admin_auth_headers):
         """重置不存在用户的密码返回 E7002"""
         from app.core.exceptions import UserNotFoundException
+
         with patch("app.api.admin.reset_user_password", new_callable=AsyncMock) as mock_svc:
             mock_svc.side_effect = UserNotFoundException(999)
             response = await async_client.post(
@@ -817,6 +866,7 @@ class TestAdminUserResetPasswordAPI:
     async def test_新密码与原密码相同返回400(self, async_client, admin_auth_headers):
         """新密码与原密码相同时返回 E7004"""
         from app.core.exceptions import PasswordSameAsCurrentException
+
         with patch("app.api.admin.reset_user_password", new_callable=AsyncMock) as mock_svc:
             mock_svc.side_effect = PasswordSameAsCurrentException()
             response = await async_client.post(

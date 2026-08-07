@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SSECheckResult:
     """单个问题的回归检查结果"""
+
     question_id: int
     question: str
     difficulty: str
@@ -73,6 +74,7 @@ class SSECheckResult:
 @dataclass
 class RegressionSummary:
     """回归测试汇总"""
+
     total: int = 0
     passed: int = 0
     failed: int = 0
@@ -94,6 +96,7 @@ class RegressionSummary:
 
 class SSEEvent:
     """单条 SSE 事件"""
+
     __slots__ = ("event", "data")
     event: str
     data: dict[str, Any] | None
@@ -228,8 +231,9 @@ class RegressionRunner:
         except Exception as e:
             return [], f"未知错误: {e}"
 
-    def _check_question(self, item: dict[str, Any], events: list[SSEEvent],
-                        error: str | None) -> SSECheckResult:
+    def _check_question(
+        self, item: dict[str, Any], events: list[SSEEvent], error: str | None
+    ) -> SSECheckResult:
         """对单题结果执行全部检查项。
 
         对齐 TESTING.md §7.3 回归检查项：
@@ -319,9 +323,7 @@ class RegressionRunner:
             )
         elif is_out_of_scope and not result.answer_contains_not_found:
             # out-of-scope 应提示"未找到"
-            result.failure_reasons.append(
-                "超出知识库范围但答案未包含'未找到相关信息'"
-            )
+            result.failure_reasons.append("超出知识库范围但答案未包含'未找到相关信息'")
 
         # ================================================================
         # 检查项 3: SSE 格式正确（TESTING.md §7.3 第 4 项）
@@ -354,11 +356,11 @@ class RegressionRunner:
         """
         summary = RegressionSummary(total=len(EVAL_TEST_SET))
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"  回归测试 — kb_uuid={self.kb_uuid}")
         print(f"  服务地址: {self.base_url}")
         print(f"  测试集: {len(EVAL_TEST_SET)} 题")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
         for i, item in enumerate(EVAL_TEST_SET, 1):
             qid = item["id"]
@@ -413,9 +415,9 @@ class RegressionRunner:
 
 def print_regression_report(summary: RegressionSummary) -> None:
     """打印回归测试报告"""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("  回归测试报告")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     total = summary.total
     pass_rate = summary.passed / total * 100 if total > 0 else 0
@@ -437,14 +439,14 @@ def print_regression_report(summary: RegressionSummary) -> None:
     failed_results = [r for r in summary.results if not r.passed]
     if failed_results:
         print(f"  失败详情 ({len(failed_results)} 题):")
-        print(f"  {'-'*66}")
+        print(f"  {'-' * 66}")
         for r in failed_results:
             print(f"  Q{r.question_id} [{r.difficulty}] {r.question[:50]}...")
             for reason in r.failure_reasons:
                 print(f"    → {reason}")
             if r.answer_text:
                 # 显示 LLM 回答片段用于诊断
-                snippet = r.answer_text[:120].replace('\n', ' ')
+                snippet = r.answer_text[:120].replace("\n", " ")
                 nf_mark = " [含'未找到']" if r.answer_contains_not_found else ""
                 print(f"    💬 回答{nf_mark}: {snippet}...")
         print()
@@ -490,19 +492,27 @@ def main() -> None:
         description="DocMind 回归测试 — 端到端问答质量验证",
     )
     parser.add_argument(
-        "--kb-uuid", type=str, required=True,
+        "--kb-uuid",
+        type=str,
+        required=True,
         help="目标知识库 UUID",
     )
     parser.add_argument(
-        "--base-url", type=str, default="http://localhost:8000",
+        "--base-url",
+        type=str,
+        default="http://localhost:8000",
         help="服务地址（默认 http://localhost:8000）",
     )
     parser.add_argument(
-        "--token", type=str, required=True,
+        "--token",
+        type=str,
+        required=True,
         help="JWT access_token（可通过 /api/auth/login 获取）",
     )
     parser.add_argument(
-        "--timeout", type=int, default=60,
+        "--timeout",
+        type=int,
+        default=60,
         help="单题超时秒数（默认 60）",
     )
     args = parser.parse_args()
@@ -512,12 +522,14 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    asyncio.run(main_async(
-        kb_uuid=args.kb_uuid,
-        base_url=args.base_url,
-        token=args.token,
-        timeout=args.timeout,
-    ))
+    asyncio.run(
+        main_async(
+            kb_uuid=args.kb_uuid,
+            base_url=args.base_url,
+            token=args.token,
+            timeout=args.timeout,
+        )
+    )
 
 
 if __name__ == "__main__":

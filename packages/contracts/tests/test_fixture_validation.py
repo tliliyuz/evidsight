@@ -1,4 +1,5 @@
 """Fixture 校验：有效 Fixture 全部通过 Schema（含语义不变量），无效 Fixture 被 Schema 或语义不变量拒绝。"""
+
 import pytest
 
 from conftest import FIXTURES_DIR
@@ -9,9 +10,7 @@ from evidsight_contracts.loader import list_fixtures, load_fixture, validator_fo
 def _schemas_with_fixtures() -> list[str]:
     """从 fixtures/v1/valid/ 目录派生已有 valid fixture 的 Schema 名（新 Schema 自动纳入）。"""
     base = FIXTURES_DIR / "valid"
-    return sorted(
-        p.name for p in base.iterdir() if p.is_dir() and any(p.glob("*.json"))
-    )
+    return sorted(p.name for p in base.iterdir() if p.is_dir() and any(p.glob("*.json")))
 
 
 @pytest.mark.parametrize(

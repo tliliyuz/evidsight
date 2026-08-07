@@ -4,6 +4,7 @@
 GREEN 目标：端点返回 200 + IdentityStatusResponse；错误路径返回契约错误信封。
 错误信封通过 error-response.schema.json 校验。
 """
+
 import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
@@ -25,10 +26,14 @@ def _make_service_keypair(tmp_path):
         serialization.PrivateFormat.PKCS8,
         serialization.NoEncryption(),
     ).decode()
-    public_pem = key.public_key().public_bytes(
-        serialization.Encoding.PEM,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode()
+    public_pem = (
+        key.public_key()
+        .public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode()
+    )
     keys_file = tmp_path / "public_keys.json"
     keys_file.write_text(json.dumps({"test-kid": public_pem}), encoding="utf-8")
     return private_pem
@@ -62,7 +67,8 @@ def _headers(token: str) -> dict:
 def service_auth(tmp_path, monkeypatch):
     private_pem = _make_service_keypair(tmp_path)
     monkeypatch.setattr(
-        settings, "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
+        settings,
+        "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
         str(tmp_path / "public_keys.json"),
     )
     return private_pem
@@ -85,12 +91,19 @@ class TestIdentityStatusProvider:
         assert validate_uuid_format(self.PLATFORM_UUID)
 
     @pytest.mark.asyncio
-    async def test_active_user_returns_200_schema_compliant(self, async_client, mock_db, service_auth):
+    async def test_active_user_returns_200_schema_compliant(
+        self, async_client, mock_db, service_auth
+    ):
         """GREEN：active 用户 → 200 + IdentityStatusResponse，且不含用户资料字段。"""
         from app.models.user import User
+
         user = User(
-            id=1, platform_user_id=self.PLATFORM_UUID,
-            username="u", password_hash="x", role="user", status="active",
+            id=1,
+            platform_user_id=self.PLATFORM_UUID,
+            username="u",
+            password_hash="x",
+            role="user",
+            status="active",
             status_version=1,
         )
         result = AsyncMock()
@@ -141,9 +154,14 @@ class TestIdentityStatusProvider:
     @pytest.mark.asyncio
     async def test_disabled_user_returns_403(self, async_client, mock_db, service_auth):
         from app.models.user import User
+
         user = User(
-            id=1, platform_user_id=self.PLATFORM_UUID,
-            username="u", password_hash="x", role="user", status="disabled",
+            id=1,
+            platform_user_id=self.PLATFORM_UUID,
+            username="u",
+            password_hash="x",
+            role="user",
+            status="disabled",
             status_version=2,
         )
         result = AsyncMock()

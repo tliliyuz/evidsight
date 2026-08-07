@@ -39,19 +39,22 @@ from tests.eval.eval_ragas import (
 # 辅助函数
 # ============================================================================
 
+
 def _make_retrieval_output(doc_ids=None, count=5):
     """构造标准检索结果"""
     if doc_ids is None:
         doc_ids = [1, 1, 2, 3, 4]
     results = []
     for i in range(min(count, len(doc_ids))):
-        results.append(RetrievalResult(
-            doc_id=doc_ids[i],
-            chunk_index=i,
-            content=f"chunk {i} 的测试内容",
-            score=0.9 - i * 0.05,
-            page=1,
-        ))
+        results.append(
+            RetrievalResult(
+                doc_id=doc_ids[i],
+                chunk_index=i,
+                content=f"chunk {i} 的测试内容",
+                score=0.9 - i * 0.05,
+                page=1,
+            )
+        )
     return RetrievalOutput(results=results, total=len(results))
 
 
@@ -89,6 +92,7 @@ def _make_pipeline_result(answer_contexts=True):
 # 自定义上下文指标计算
 # ============================================================================
 
+
 class TestComputeContextPrecisionDoc:
     """compute_context_precision_doc — 文档级上下文精度计算（诊断列）"""
 
@@ -124,7 +128,9 @@ class TestComputeContextPrecisionDoc:
 
     def test_top_k截断(self):
         """仅评估 top-K 范围内的结果"""
-        results = [RetrievalResult(doc_id=2, chunk_index=i, content="c", score=0.9) for i in range(10)]
+        results = [
+            RetrievalResult(doc_id=2, chunk_index=i, content="c", score=0.9) for i in range(10)
+        ]
         # 期望 doc 1 不在 top-5 中
         precision = compute_context_precision_doc(results, {1}, k=5)
         assert precision == 0.0
@@ -159,6 +165,7 @@ class TestComputeContextRecall:
 # RagasEvaluator 初始化
 # ============================================================================
 
+
 class TestRagasEvaluatorInit:
     """RagasEvaluator — 初始化配置"""
 
@@ -166,12 +173,14 @@ class TestRagasEvaluatorInit:
         """未指定 model 时使用 flash 模型"""
         evaluator = RagasEvaluator(kb_id=1)
         from app.config import settings
+
         assert evaluator._answer_model == settings.LLM_FLASH_MODEL
 
     def test_pro模型选择(self):
         """指定 pro 模型"""
         evaluator = RagasEvaluator(kb_id=1, llm_model="pro")
         from app.config import settings
+
         assert evaluator._answer_model == settings.LLM_MODEL
 
     def test_自定义指标列表(self):
@@ -189,6 +198,7 @@ class TestRagasEvaluatorInit:
 # RagasEvaluator 核心流程（Mock ragas）
 # ============================================================================
 
+
 class TestRagasEvaluatorCore:
     """RagasEvaluator — 核心评估流程（Mock 外部依赖）"""
 
@@ -199,9 +209,7 @@ class TestRagasEvaluatorCore:
 
         # Mock KnowledgePipeline
         mock_pipeline = MagicMock()
-        mock_pipeline.execute_knowledge = AsyncMock(
-            return_value=_make_pipeline_result()
-        )
+        mock_pipeline.execute_knowledge = AsyncMock(return_value=_make_pipeline_result())
         evaluator._pipeline = mock_pipeline
 
         # Mock chat_completion
@@ -210,14 +218,16 @@ class TestRagasEvaluatorCore:
             new_callable=AsyncMock,
         ) as mock_llm:
             from app.core.llm import LLMResult
+
             mock_llm.return_value = LLMResult(
-                content="这是测试答案", reasoning_content="",
-                prompt_tokens=100, completion_tokens=50, total_tokens=150,
+                content="这是测试答案",
+                reasoning_content="",
+                prompt_tokens=100,
+                completion_tokens=50,
+                total_tokens=150,
             )
 
-            answer, contexts, reranked = await evaluator.capture_answer_and_contexts(
-                "测试问题？"
-            )
+            answer, contexts, reranked = await evaluator.capture_answer_and_contexts("测试问题？")
 
         assert answer == "这是测试答案"
         assert len(contexts) == 5
@@ -261,9 +271,7 @@ class TestRagasEvaluatorCore:
 
         # Mock pipeline
         mock_pipeline = MagicMock()
-        mock_pipeline.execute_knowledge = AsyncMock(
-            return_value=_make_pipeline_result()
-        )
+        mock_pipeline.execute_knowledge = AsyncMock(return_value=_make_pipeline_result())
         evaluator._pipeline = mock_pipeline
 
         # Mock chat_completion 和 ragas
@@ -272,17 +280,24 @@ class TestRagasEvaluatorCore:
             new_callable=AsyncMock,
         ) as mock_llm:
             from app.core.llm import LLMResult
+
             mock_llm.return_value = LLMResult(
-                content="测试答案", reasoning_content="",
-                prompt_tokens=100, completion_tokens=50, total_tokens=150,
+                content="测试答案",
+                reasoning_content="",
+                prompt_tokens=100,
+                completion_tokens=50,
+                total_tokens=150,
             )
 
             # Mock ragas 指标（避免实际加载 ragas 库）
             with patch.object(
-                evaluator, "_init_ragas", new_callable=AsyncMock,
+                evaluator,
+                "_init_ragas",
+                new_callable=AsyncMock,
             ):
                 with patch.object(
-                    evaluator, "_score_ragas_metrics",
+                    evaluator,
+                    "_score_ragas_metrics",
                     new_callable=AsyncMock,
                 ) as mock_score:
                     mock_score.return_value = {
@@ -294,7 +309,9 @@ class TestRagasEvaluatorCore:
                     # Mock load_doc_map：避免真实查库覆盖上方预置的 doc_map,
                     # 同时防止真实连接残留在全局连接池（跨 event loop 污染后续测试）
                     with patch.object(
-                        evaluator, "load_doc_map", new_callable=AsyncMock,
+                        evaluator,
+                        "load_doc_map",
+                        new_callable=AsyncMock,
                     ):
                         summary = await evaluator.evaluate_all()
 
@@ -319,9 +336,7 @@ class TestRagasEvaluatorCore:
         evaluator._filename_to_doc_id = {"入职指南.md": 1}
 
         mock_pipeline = MagicMock()
-        mock_pipeline.execute_knowledge = AsyncMock(
-            side_effect=Exception("LLM 调用超时")
-        )
+        mock_pipeline.execute_knowledge = AsyncMock(side_effect=Exception("LLM 调用超时"))
         evaluator._pipeline = mock_pipeline
 
         with patch.object(evaluator, "load_doc_map", new_callable=AsyncMock):
@@ -364,7 +379,8 @@ class TestRagasEvaluatorCore:
         # 本用例只验证 AR=0.0 的标记与汇总统计逻辑
         reranked = _make_retrieval_output()
         with patch.object(
-            evaluator, "capture_answer_and_contexts",
+            evaluator,
+            "capture_answer_and_contexts",
             new_callable=AsyncMock,
             return_value=("测试答案", [], reranked),
         ):
@@ -376,11 +392,17 @@ class TestRagasEvaluatorCore:
                         # 第 2、5 题模拟 judge 误判 noncommittal 导致 AR=0.0
                         call_count["n"] += 1
                         ar = 0.0 if call_count["n"] in (2, 5) else 0.72
-                        return {"faithfulness": 0.85, "answer_relevancy": ar, "context_precision": 0.80}
+                        return {
+                            "faithfulness": 0.85,
+                            "answer_relevancy": ar,
+                            "context_precision": 0.80,
+                        }
 
                     with patch.object(
-                        evaluator, "_score_ragas_metrics",
-                        new_callable=AsyncMock, side_effect=_fake_score,
+                        evaluator,
+                        "_score_ragas_metrics",
+                        new_callable=AsyncMock,
+                        side_effect=_fake_score,
                     ):
                         summary = await evaluator.evaluate_all()
 
@@ -401,6 +423,7 @@ class TestRagasEvaluatorCore:
 # 报告输出
 # ============================================================================
 
+
 class TestReportOutput:
     """报告输出 — 控制台 / JSON / Markdown"""
 
@@ -417,19 +440,29 @@ class TestReportOutput:
             context_recall_mean=0.80,
             per_question=[
                 RagasQuestionResult(
-                    question_id=1, question="Q1", difficulty="easy",
-                    question_type="精确查询", answer="答案1",
+                    question_id=1,
+                    question="Q1",
+                    difficulty="easy",
+                    question_type="精确查询",
+                    answer="答案1",
                     contexts=["c1", "c2"],
-                    faithfulness=0.90, answer_relevancy=0.75,
-                    context_precision=1.0, context_precision_doc=0.80,
+                    faithfulness=0.90,
+                    answer_relevancy=0.75,
+                    context_precision=1.0,
+                    context_precision_doc=0.80,
                     context_recall=1.0,
                 ),
                 RagasQuestionResult(
-                    question_id=2, question="Q2", difficulty="medium",
-                    question_type="语义匹配", answer="答案2",
+                    question_id=2,
+                    question="Q2",
+                    difficulty="medium",
+                    question_type="语义匹配",
+                    answer="答案2",
                     contexts=["c3"],
-                    faithfulness=0.80, answer_relevancy=0.69,
-                    context_precision=0.80, context_precision_doc=0.60,
+                    faithfulness=0.80,
+                    answer_relevancy=0.69,
+                    context_precision=0.80,
+                    context_precision_doc=0.60,
                     context_recall=0.60,
                 ),
             ],
@@ -485,6 +518,7 @@ class TestReportOutput:
 # ============================================================================
 # TARGETS 阈值
 # ============================================================================
+
 
 class TestTargets:
     """评估目标阈值定义"""

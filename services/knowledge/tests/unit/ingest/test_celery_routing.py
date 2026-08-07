@@ -42,7 +42,6 @@ def test_every_business_task_is_routed():
     unmapped = [
         name
         for name in celery_app.tasks
-        if not name.startswith("celery.")
-        and not _matches_any_route(name, routes)
+        if not name.startswith("celery.") and not _matches_any_route(name, routes)
     ]
     assert unmapped == [], f"以下业务任务未被 task_routes 覆盖: {unmapped}"

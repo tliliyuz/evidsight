@@ -20,7 +20,7 @@ from app.core.exceptions import (
 # MySQL UUID() 生成 v1，不能用仅 v4 的正则
 
 _UUID_PATTERN = re.compile(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
 
@@ -72,9 +72,7 @@ async def resolve_uuid_to_id(
         exc_cls = _get_not_found_exception(model_class)
         raise exc_cls(uuid_str)
 
-    result = await db.execute(
-        select(model_class.id).where(model_class.uuid == uuid_str)
-    )
+    result = await db.execute(select(model_class.id).where(model_class.uuid == uuid_str))
     row = result.scalar_one_or_none()
     if row is None:
         exc_cls = _get_not_found_exception(model_class)
@@ -104,9 +102,7 @@ async def get_by_uuid(
         exc_cls = _get_not_found_exception(model_class)
         raise exc_cls(uuid_str)
 
-    result = await db.execute(
-        select(model_class).where(model_class.uuid == uuid_str)
-    )
+    result = await db.execute(select(model_class).where(model_class.uuid == uuid_str))
     instance = result.scalar_one_or_none()
     if instance is None:
         exc_cls = _get_not_found_exception(model_class)
@@ -123,7 +119,5 @@ async def resolve_user_uuid(db: AsyncSession, user_id: int) -> str:
     """
     from app.models.user import User
 
-    result = await db.execute(
-        select(User.platform_user_id).where(User.id == user_id)
-    )
+    result = await db.execute(select(User.platform_user_id).where(User.id == user_id))
     return result.scalar_one_or_none()

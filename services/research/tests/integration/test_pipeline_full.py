@@ -6,6 +6,7 @@
 - SSE 事件序列完整（含 task.created / phase.* / step.* / checkpoint.saved / task.completed）
 - Report 正确产出（report_sections + section_evidence + evidence_items.used_in_sections）
 """
+
 import json
 from contextlib import ExitStack
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -23,7 +24,12 @@ from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
 from app.pipeline.reranker import Evidence
 from app.pipeline.sse_bridge import SSEBridge
-from app.pipeline.synthesizer import ConflictPosition, SynthesisCluster, SynthesisConflict, SynthesisNotes
+from app.pipeline.synthesizer import (
+    ConflictPosition,
+    SynthesisCluster,
+    SynthesisConflict,
+    SynthesisNotes,
+)
 from app.services.pipeline_orchestrator import PipelineOrchestrator, build_default_phase_handlers
 
 
@@ -32,7 +38,9 @@ from app.services.pipeline_orchestrator import PipelineOrchestrator, build_defau
 # ═══════════════════════════════════════════════════════════════
 
 
-def _make_llm_result(content: str, prompt_tokens: int = 100, completion_tokens: int = 50) -> LLMResult:
+def _make_llm_result(
+    content: str, prompt_tokens: int = 100, completion_tokens: int = 50
+) -> LLMResult:
     """构造 LLMResult。"""
     return LLMResult(
         content=content,
@@ -45,14 +53,17 @@ def _make_llm_result(content: str, prompt_tokens: int = 100, completion_tokens: 
 
 def _valid_planning_json() -> str:
     """返回有效的 Planning 输出 JSON（需满足 3-5 个子问题校验）。"""
-    return json.dumps({
-        "sub_questions": [
-            "量子计算对 RSA/ECC 的具体威胁",
-            "NIST 后量子密码标准化最新进展",
-            "中国在量子安全通信领域的政策与布局",
-        ],
-        "rationale": "从技术威胁、标准应对、政策布局三维度拆解",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "sub_questions": [
+                "量子计算对 RSA/ECC 的具体威胁",
+                "NIST 后量子密码标准化最新进展",
+                "中国在量子安全通信领域的政策与布局",
+            ],
+            "rationale": "从技术威胁、标准应对、政策布局三维度拆解",
+        },
+        ensure_ascii=False,
+    )
 
 
 async def _seed_task(db_session) -> ResearchTask:
@@ -96,6 +107,7 @@ async def _seed_task(db_session) -> ResearchTask:
 
 def _build_tavily_side_effect():
     """构造 Search 阶段 Tavily Mock side_effect。"""
+
     async def _side_effect(query: str, api_key: str) -> dict:
         # 根据查询内容返回不同 URL，便于后续去重验证
         if "RSA" in query or "ECC" in query:
@@ -112,23 +124,27 @@ def _build_tavily_side_effect():
                 for i in range(1, 3)
             ],
         }
+
     return _side_effect
 
 
 def _build_fetch_side_effect():
     """构造 Fetch 阶段 HTTP Mock side_effect。"""
+
     async def _side_effect(url: str) -> dict:
         return {
             "status": "success",
             "content": f"# {url.split('/')[-1]} 标题\n\n这是关于 {url} 的正文，"
-                       f"包含量子计算和网络安全相关信息，用于测试报告生成。",
+            f"包含量子计算和网络安全相关信息，用于测试报告生成。",
             "content_length": 180,
         }
+
     return _side_effect
 
 
 def _build_rerank_side_effect(db_session, task_id: str):
     """构造 Rerank 阶段 Mock side_effect：基于真实 DB 中的 ResearchSource 生成 Evidence。"""
+
     async def _side_effect(topic: str, task_type: str, sub_questions: list[str], candidates: list):
         result = await db_session.execute(
             select(ResearchSource).where(
@@ -139,26 +155,32 @@ def _build_rerank_side_effect(db_session, task_id: str):
         sources = list(result.scalars().all())
         evidence_list = []
         for i, source in enumerate(sources):
-            evidence_list.append(Evidence(
-                source_id=source.id,
-                url=source.url,
-                title=source.title or "",
-                domain=source.domain or "",
-                content=source.content or "",
-                relevance_score=round(0.9 - i * 0.05, 3),
-                bm25_score=1.0,
-                sub_question_index=0,
-                word_count=len(source.content or ""),
-                rationale="与问题高度相关",
-            ))
+            evidence_list.append(
+                Evidence(
+                    source_id=source.id,
+                    url=source.url,
+                    title=source.title or "",
+                    domain=source.domain or "",
+                    content=source.content or "",
+                    relevance_score=round(0.9 - i * 0.05, 3),
+                    bm25_score=1.0,
+                    sub_question_index=0,
+                    word_count=len(source.content or ""),
+                    rationale="与问题高度相关",
+                )
+            )
         evidence_list.sort(key=lambda e: e.relevance_score, reverse=True)
         return evidence_list, 500, 200, 0
+
     return _side_effect
 
 
 def _build_synthesis_side_effect():
     """构造 Synthesis 阶段 Mock side_effect。"""
-    async def _side_effect(topic: str, task_type: str, evidence_items_formatted: str, evidence_count: int):
+
+    async def _side_effect(
+        topic: str, task_type: str, evidence_items_formatted: str, evidence_count: int
+    ):
         notes = SynthesisNotes(
             clusters=[
                 SynthesisCluster(
@@ -187,29 +209,35 @@ def _build_synthesis_side_effect():
             overall_assessment="证据质量较高，但缺少具体量化数据。",
         )
         return notes, 1000, 500, 0
+
     return _side_effect
 
 
 def _build_render_side_effect():
     """构造 Render 阶段 Mock side_effect：返回包含 [来源N] 引用的报告。"""
+
     async def _side_effect(messages: list[dict[str, str]]) -> tuple[str, LLMResult, int]:
-        raw_text = json.dumps({
-            "sections": [
-                {
-                    "heading": "1. 概述",
-                    "content": "量子计算对 RSA 构成威胁[来源0]，NIST 推进后量子密码标准化[来源1]。",
-                },
-                {
-                    "heading": "2. 威胁分析",
-                    "content": "Shor 算法可分解大整数[来源0]，威胁现有公钥体系[来源2]。",
-                },
-                {
-                    "heading": "3. 应对策略",
-                    "content": "推进后量子密码迁移是当务之急[来源1]，需制定分阶段路线图[来源2]。",
-                },
-            ],
-        }, ensure_ascii=False)
+        raw_text = json.dumps(
+            {
+                "sections": [
+                    {
+                        "heading": "1. 概述",
+                        "content": "量子计算对 RSA 构成威胁[来源0]，NIST 推进后量子密码标准化[来源1]。",
+                    },
+                    {
+                        "heading": "2. 威胁分析",
+                        "content": "Shor 算法可分解大整数[来源0]，威胁现有公钥体系[来源2]。",
+                    },
+                    {
+                        "heading": "3. 应对策略",
+                        "content": "推进后量子密码迁移是当务之急[来源1]，需制定分阶段路线图[来源2]。",
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        )
         return raw_text, _make_llm_result(raw_text, prompt_tokens=2000, completion_tokens=1500), 0
+
     return _side_effect
 
 
@@ -240,12 +268,23 @@ class TestPipelineFullFlow:
         handlers = build_default_phase_handlers()
 
         patches = [
-            patch("app.pipeline.planner.chat_completion", return_value=_make_llm_result(_valid_planning_json())),
+            patch(
+                "app.pipeline.planner.chat_completion",
+                return_value=_make_llm_result(_valid_planning_json()),
+            ),
             patch("app.pipeline.searcher._call_tavily", side_effect=_build_tavily_side_effect()),
             patch("app.pipeline.fetcher._fetch_one_url", side_effect=_build_fetch_side_effect()),
-            patch("app.pipeline.reranker._llm_rerank", side_effect=_build_rerank_side_effect(db_session, task_id)),
-            patch("app.pipeline.synthesizer._llm_synthesize", side_effect=_build_synthesis_side_effect()),
-            patch("app.pipeline.renderer._call_llm_render", side_effect=_build_render_side_effect()),
+            patch(
+                "app.pipeline.reranker._llm_rerank",
+                side_effect=_build_rerank_side_effect(db_session, task_id),
+            ),
+            patch(
+                "app.pipeline.synthesizer._llm_synthesize",
+                side_effect=_build_synthesis_side_effect(),
+            ),
+            patch(
+                "app.pipeline.renderer._call_llm_render", side_effect=_build_render_side_effect()
+            ),
             patch("app.tasks.lock.acquire_step_lock_async", return_value=True),
             patch("app.tasks.lock.release_step_lock_async", new_callable=AsyncMock),
         ]
@@ -297,7 +336,13 @@ class TestPipelineFullFlow:
         }
         phase_status = {s.step_type: s.status for s in steps if s.label in phase_labels}
         expected_phases = [
-            "planning", "search", "fetch", "rerank", "synthesis", "evidence_graph", "render",
+            "planning",
+            "search",
+            "fetch",
+            "rerank",
+            "synthesis",
+            "evidence_graph",
+            "render",
         ]
         for phase in expected_phases:
             assert phase_status.get(phase) == "completed", f"Phase {phase} 未完成: {phase_status}"
@@ -321,7 +366,9 @@ class TestPipelineFullFlow:
 
         # ── Render 数据链路 ──
         sections_result = await db_session.execute(
-            select(ReportSection).where(ReportSection.task_id == task_id).order_by(ReportSection.sort_order)
+            select(ReportSection)
+            .where(ReportSection.task_id == task_id)
+            .order_by(ReportSection.sort_order)
         )
         report_sections = list(sections_result.scalars().all())
         assert len(report_sections) == 3
@@ -350,16 +397,37 @@ class TestPipelineFullFlow:
 
         # 关键事件类型至少出现一次
         required_events = {
-            "task.created", "task.progress", "task.completed",
-            "phase.started", "phase.completed",
-            "step.started", "step.completed", "checkpoint.saved",
+            "task.created",
+            "task.progress",
+            "task.completed",
+            "phase.started",
+            "phase.completed",
+            "step.started",
+            "step.completed",
+            "checkpoint.saved",
         }
         assert required_events.issubset(set(event_types))
 
         # 每个 Phase 都发射了 phase.started 和 phase.completed
-        for phase in ["planning", "searching", "fetching", "reranking", "synthesizing", "building_evidence_graph", "rendering"]:
-            started = [e for e in published_events if e[0] == "phase.started" and e[1].get("phase") == phase]
-            completed = [e for e in published_events if e[0] == "phase.completed" and e[1].get("phase") == phase]
+        for phase in [
+            "planning",
+            "searching",
+            "fetching",
+            "reranking",
+            "synthesizing",
+            "building_evidence_graph",
+            "rendering",
+        ]:
+            started = [
+                e
+                for e in published_events
+                if e[0] == "phase.started" and e[1].get("phase") == phase
+            ]
+            completed = [
+                e
+                for e in published_events
+                if e[0] == "phase.completed" and e[1].get("phase") == phase
+            ]
             assert len(started) == 1, f"Phase {phase} 缺少 phase.started"
             assert len(completed) == 1, f"Phase {phase} 缺少 phase.completed"
 

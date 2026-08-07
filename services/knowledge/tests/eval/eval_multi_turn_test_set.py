@@ -42,10 +42,10 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "审批流程需要多长时间？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← 关键：第 2 轮必须仍有 sources
+                    "has_sources": True,  # ← 关键：第 2 轮必须仍有 sources
                     "min_chunks": 1,
                     "expected_docs": ["报销制度.md"],
-                    "context_dependent": True,     # ← 依赖 Turn 1 的"报销"上下文
+                    "context_dependent": True,  # ← 依赖 Turn 1 的"报销"上下文
                 },
             },
             {
@@ -53,15 +53,14 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "金额限制具体是多少？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← 关键：第 3 轮 RAG 不能退化
+                    "has_sources": True,  # ← 关键：第 3 轮 RAG 不能退化
                     "min_chunks": 1,
                     "expected_docs": ["报销制度.md"],
-                    "context_dependent": True,     # ← 依赖前两轮的"报销审批"上下文
+                    "context_dependent": True,  # ← 依赖前两轮的"报销审批"上下文
                 },
             },
         ],
     },
-
     # ========================================================================
     # Session 2: 多主题切换（验证历史不干扰本轮检索）
     # ========================================================================
@@ -87,10 +86,10 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "入职需要准备哪些材料？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← 关键：切换到入职，检索不能沿用 VPN
+                    "has_sources": True,  # ← 关键：切换到入职，检索不能沿用 VPN
                     "min_chunks": 1,
                     "expected_docs": ["入职指南.md"],
-                    "context_dependent": False,    # ← 独立问题，不应依赖前轮
+                    "context_dependent": False,  # ← 独立问题，不应依赖前轮
                 },
             },
             {
@@ -98,10 +97,10 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "那请假呢，病假怎么申请？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← 关键：再次切换主题
+                    "has_sources": True,  # ← 关键：再次切换主题
                     "min_chunks": 1,
                     "expected_docs": ["请假与考勤制度.md"],
-                    "context_dependent": False,    # ← 独立问题（"那"是口语转折）
+                    "context_dependent": False,  # ← 独立问题（"那"是口语转折）
                 },
             },
             {
@@ -109,15 +108,14 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "刚才说的 VPN，忘记密码怎么办？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← 关键：回到 VPN 主题
+                    "has_sources": True,  # ← 关键：回到 VPN 主题
                     "min_chunks": 1,
                     "expected_docs": ["VPN配置指南.md"],
-                    "context_dependent": True,     # ← "刚才说的 VPN"依赖 Turn 1
+                    "context_dependent": True,  # ← "刚才说的 VPN"依赖 Turn 1
                 },
             },
         ],
     },
-
     # ========================================================================
     # Session 3: 跨文档追问（从一个文档自然过渡到另一个）
     # ========================================================================
@@ -143,10 +141,10 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "那手里的固定资产怎么处理？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← 关键：离开职流程→固定资产
+                    "has_sources": True,  # ← 关键：离开职流程→固定资产
                     "min_chunks": 1,
                     "expected_docs": ["固定资产管理办法.md", "离职交接流程.md"],
-                    "context_dependent": True,     # ← "那"承接离职上下文
+                    "context_dependent": True,  # ← "那"承接离职上下文
                 },
             },
             {
@@ -154,15 +152,14 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "未报销的费用也要在离职前结清吗？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← 关键：扩展到报销文档
+                    "has_sources": True,  # ← 关键：扩展到报销文档
                     "min_chunks": 1,
                     "expected_docs": ["报销制度.md", "离职交接流程.md"],
-                    "context_dependent": True,     # ← "离职前"依赖 Turn 1
+                    "context_dependent": True,  # ← "离职前"依赖 Turn 1
                 },
             },
         ],
     },
-
     # ========================================================================
     # Session 4: 指代消解（代词/省略依赖前轮）
     # ========================================================================
@@ -188,10 +185,10 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "它需要几个人参加？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← "它"指代"代码评审"
+                    "has_sources": True,  # ← "它"指代"代码评审"
                     "min_chunks": 1,
                     "expected_docs": ["代码评审标准.md"],
-                    "context_dependent": True,     # ← 强烈依赖 Turn 1 消解"它"
+                    "context_dependent": True,  # ← 强烈依赖 Turn 1 消解"它"
                 },
             },
             {
@@ -199,15 +196,14 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "不通过的话怎么办？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← "不通过"指代码评审不通过
+                    "has_sources": True,  # ← "不通过"指代码评审不通过
                     "min_chunks": 1,
                     "expected_docs": ["代码评审标准.md"],
-                    "context_dependent": True,     # ← 依赖 Turn 1+2 的上下文
+                    "context_dependent": True,  # ← 依赖 Turn 1+2 的上下文
                 },
             },
         ],
     },
-
     # ========================================================================
     # Session 5: 长对话 RAG 保活（10 轮 +，验证截断后检索不退化）
     # ========================================================================
@@ -316,7 +312,7 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "微信上能传工作文件吗？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← 关键：即使历史很长，仍应检索
+                    "has_sources": True,  # ← 关键：即使历史很长，仍应检索
                     "min_chunks": 1,
                     "expected_docs": ["邮箱与通讯工具使用规范.md"],
                     "context_dependent": False,
@@ -327,7 +323,7 @@ MULTI_TURN_TEST_SET: list[dict[str, Any]] = [
                 "question": "发生火灾往哪里跑？",
                 "expected": {
                     "has_answer": True,
-                    "has_sources": True,           # ← 关键：第 10 轮 RAG 不能退化
+                    "has_sources": True,  # ← 关键：第 10 轮 RAG 不能退化
                     "min_chunks": 1,
                     "expected_docs": ["突发事件应急预案.md"],
                     "context_dependent": False,

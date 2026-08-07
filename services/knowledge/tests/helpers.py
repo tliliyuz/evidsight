@@ -17,8 +17,15 @@ MOCK_DIM = 1024  # DashScope text-embedding-v3 默认维度
 # ==================== DB / Session（test_tasks / test_bm25 共用） ====================
 
 
-def make_mock_doc(status=DocumentStatus.QUEUED, current_stage=None, last_success_batch=0,
-                  file_path="/tmp/test.pdf", file_type="pdf", kb_id=1, doc_id=1):
+def make_mock_doc(
+    status=DocumentStatus.QUEUED,
+    current_stage=None,
+    last_success_batch=0,
+    file_path="/tmp/test.pdf",
+    file_type="pdf",
+    kb_id=1,
+    doc_id=1,
+):
     """构造 mock Document 对象"""
     doc = MagicMock()
     doc.id = doc_id
@@ -54,6 +61,7 @@ def make_mock_chunks(count: int = 5, doc_id: int = 1):
 def make_mock_embed_result(count: int = 1, dim: int = MOCK_DIM):
     """构造 EmbedResult（真实 dataclass，含 1024 维向量）"""
     from app.rag.embedder import EmbedResult
+
     return EmbedResult(
         embeddings=[[0.1] * dim for _ in range(count)],
         token_counts=[5] * count,
@@ -93,7 +101,9 @@ def mock_async_session_ctx(db):
 # ==================== Embedding API（test_embedder / test_retriever 共用） ====================
 
 
-def make_mock_embed_response(embeddings_count: int = 2, total_tokens: int = 10, dim: int = MOCK_DIM):
+def make_mock_embed_response(
+    embeddings_count: int = 2, total_tokens: int = 10, dim: int = MOCK_DIM
+):
     """构造 DashScope Embedding API 成功响应 dict"""
     return {
         "output": {
@@ -131,10 +141,12 @@ def make_mock_chroma_results(ids=None, documents=None, distances=None, metadatas
     if distances is None:
         distances = [[0.2, 0.5]]
     if metadatas is None:
-        metadatas = [[
-            {"kb_id": 1, "doc_id": 1, "chunk_index": 0},
-            {"kb_id": 1, "doc_id": 1, "chunk_index": 1},
-        ]]
+        metadatas = [
+            [
+                {"kb_id": 1, "doc_id": 1, "chunk_index": 0},
+                {"kb_id": 1, "doc_id": 1, "chunk_index": 1},
+            ]
+        ]
     return {
         "ids": ids,
         "documents": documents,

@@ -30,12 +30,21 @@ class TestConstantsConstraints:
     def test_幂等锁_TTL_为正数(self):
         assert settings.IDEMPOTENCY_LOCK_TTL > 0
 
-    @pytest.mark.parametrize("key", [
-        "RRF_K", "RERANK_TOP_K", "PROMPT_MAX_CONTEXT_TOKENS",
-        "PROMPT_MAX_CHUNKS", "CHUNK_SIZE", "CHUNK_OVERLAP",
-        "BM25_TOP_K", "VECTOR_TOP_K", "SSE_HEARTBEAT_INTERVAL",
-        "IDEMPOTENCY_LOCK_TTL",
-    ])
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "RRF_K",
+            "RERANK_TOP_K",
+            "PROMPT_MAX_CONTEXT_TOKENS",
+            "PROMPT_MAX_CHUNKS",
+            "CHUNK_SIZE",
+            "CHUNK_OVERLAP",
+            "BM25_TOP_K",
+            "VECTOR_TOP_K",
+            "SSE_HEARTBEAT_INTERVAL",
+            "IDEMPOTENCY_LOCK_TTL",
+        ],
+    )
     def test_核心配置项均为正数(self, key):
         assert getattr(settings, key) > 0
 

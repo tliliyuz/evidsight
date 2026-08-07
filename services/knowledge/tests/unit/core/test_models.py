@@ -1,4 +1,5 @@
 """用户模型测试 — U4.1 / U4.2 / U4.3"""
+
 from uuid import uuid4
 
 import pytest

@@ -13,36 +13,33 @@ class Conversation(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     uuid: Mapped[str] = mapped_column(
-        String(36), nullable=False, unique=True,
+        String(36),
+        nullable=False,
+        unique=True,
         server_default=text("(UUID())"),
-        comment="外部暴露标识符（UUID），API/URL 使用"
+        comment="外部暴露标识符（UUID），API/URL 使用",
     )
     user_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False, index=True
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     kb_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("knowledge_bases.id", ondelete="SET NULL"),
-        comment="关联的知识库"
+        BigInteger, ForeignKey("knowledge_bases.id", ondelete="SET NULL"), comment="关联的知识库"
     )
     original_kb_id: Mapped[int | None] = mapped_column(
-        BigInteger, nullable=True,
-        comment="KB 删除前的原始 kb_id，用于孤儿会话检测。有意不使用 ForeignKey，因为关联 KB 可能已被物理删除"
+        BigInteger,
+        nullable=True,
+        comment="KB 删除前的原始 kb_id，用于孤儿会话检测。有意不使用 ForeignKey，因为关联 KB 可能已被物理删除",
     )
     original_kb_name: Mapped[str | None] = mapped_column(
-        String(128), nullable=True,
-        comment="KB 删除前的原始名称，用于孤儿会话 Banner 展示"
+        String(128), nullable=True, comment="KB 删除前的原始名称，用于孤儿会话 Banner 展示"
     )
     original_kb_uuid: Mapped[str | None] = mapped_column(
-        String(36), nullable=True,
-        comment="KB 删除前的原始 UUID，用于孤儿会话审计追踪"
+        String(36), nullable=True, comment="KB 删除前的原始 UUID，用于孤儿会话审计追踪"
     )
     title: Mapped[str] = mapped_column(
         String(256), default="新对话", server_default=text("'新对话'")
     )
-    message_count: Mapped[int] = mapped_column(
-        Integer, default=0, server_default=text("0")
-    )
+    message_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, server_default=func.current_timestamp()
     )
@@ -60,9 +57,7 @@ class Conversation(Base):
 
     user = relationship("User", back_populates="conversations")
     knowledge_base = relationship("KnowledgeBase", back_populates="conversations")
-    messages = relationship(
-        "Message", back_populates="conversation", passive_deletes=True
-    )
+    messages = relationship("Message", back_populates="conversation", passive_deletes=True)
 
     @property
     def kb_uuid(self) -> str | None:

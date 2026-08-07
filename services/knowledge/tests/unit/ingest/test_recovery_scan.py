@@ -67,10 +67,12 @@ class TestScanStuckVersions:
         async_session = MagicMock(side_effect=cm_list)
 
         with patch("app.ingest.recovery_tasks.async_session", async_session):
-            with patch("app.ingest.recovery_tasks.acquire_version_lock_async",
-                       AsyncMock(return_value=True)) as mock_acquire:
-                with patch("app.ingest.recovery_tasks.release_version_lock_async",
-                           AsyncMock()) as mock_release:
+            with patch(
+                "app.ingest.recovery_tasks.acquire_version_lock_async", AsyncMock(return_value=True)
+            ) as mock_acquire:
+                with patch(
+                    "app.ingest.recovery_tasks.release_version_lock_async", AsyncMock()
+                ) as mock_release:
                     with patch("app.ingest.recovery_tasks.ingest_version") as mock_task:
                         result = await _scan_stuck_versions_async()
 
@@ -87,8 +89,10 @@ class TestScanStuckVersions:
         async_session = MagicMock(side_effect=cm_list)
 
         with patch("app.ingest.recovery_tasks.async_session", async_session):
-            with patch("app.ingest.recovery_tasks.acquire_version_lock_async",
-                       AsyncMock(return_value=False)):
+            with patch(
+                "app.ingest.recovery_tasks.acquire_version_lock_async",
+                AsyncMock(return_value=False),
+            ):
                 with patch("app.ingest.recovery_tasks.ingest_version") as mock_task:
                     result = await _scan_stuck_versions_async()
 

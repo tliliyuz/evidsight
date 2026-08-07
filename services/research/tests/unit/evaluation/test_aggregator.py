@@ -33,28 +33,32 @@ class TestEvaluateTask:
         with patch("app.evaluation.aggregator.load_task", new=AsyncMock(return_value=mock_task)):
             with patch(
                 "app.evaluation.aggregator.load_step_output",
-                new=AsyncMock(side_effect=[
-                    {
-                        "sub_question_results": [
-                            {"sub_question": "Q1", "results_count": 5},
-                            {"sub_question": "Q2", "results_count": 5},
-                            {"sub_question": "Q3", "results_count": 5},
-                        ]
-                    },
-                    {
-                        "fetched": [
-                            {"url": "https://a.com", "status": "success"},
-                            {"url": "https://b.com", "status": "success"},
-                        ]
-                    },
-                ]),
+                new=AsyncMock(
+                    side_effect=[
+                        {
+                            "sub_question_results": [
+                                {"sub_question": "Q1", "results_count": 5},
+                                {"sub_question": "Q2", "results_count": 5},
+                                {"sub_question": "Q3", "results_count": 5},
+                            ]
+                        },
+                        {
+                            "fetched": [
+                                {"url": "https://a.com", "status": "success"},
+                                {"url": "https://b.com", "status": "success"},
+                            ]
+                        },
+                    ]
+                ),
             ):
                 with patch(
                     "app.evaluation.aggregator.load_evidence_items",
-                    new=AsyncMock(return_value=[
-                        {"relevance_score": Decimal("0.8")},
-                        {"relevance_score": Decimal("0.7")},
-                    ]),
+                    new=AsyncMock(
+                        return_value=[
+                            {"relevance_score": Decimal("0.8")},
+                            {"relevance_score": Decimal("0.7")},
+                        ]
+                    ),
                 ):
                     session = MagicMock()
                     report = await evaluate_task(session, "task-uuid-1", targets=TARGETS)
@@ -71,20 +75,22 @@ class TestEvaluateTask:
         with patch("app.evaluation.aggregator.load_task", new=AsyncMock(return_value=mock_task)):
             with patch(
                 "app.evaluation.aggregator.load_step_output",
-                new=AsyncMock(side_effect=[
-                    {
-                        "sub_question_results": [
-                            {"sub_question": "Q1", "results_count": 5},
-                            {"sub_question": "Q2", "results_count": 0},
-                            {"sub_question": "Q3", "results_count": 0},
-                        ]
-                    },
-                    {
-                        "fetched": [
-                            {"url": "https://a.com", "status": "success"},
-                        ]
-                    },
-                ]),
+                new=AsyncMock(
+                    side_effect=[
+                        {
+                            "sub_question_results": [
+                                {"sub_question": "Q1", "results_count": 5},
+                                {"sub_question": "Q2", "results_count": 0},
+                                {"sub_question": "Q3", "results_count": 0},
+                            ]
+                        },
+                        {
+                            "fetched": [
+                                {"url": "https://a.com", "status": "success"},
+                            ]
+                        },
+                    ]
+                ),
             ):
                 with patch(
                     "app.evaluation.aggregator.load_evidence_items",
@@ -207,13 +213,22 @@ class TestAggregateReports:
                 status="completed",
                 task_type="analysis",
                 evaluated_at=datetime.now(timezone.utc),
-                search=SearchMetrics(sub_question_count=2, total_results=10,
-                                     avg_results_per_sub_question=5.0,
-                                     coverage_rate=1.0, recall_at_k=1.0),
+                search=SearchMetrics(
+                    sub_question_count=2,
+                    total_results=10,
+                    avg_results_per_sub_question=5.0,
+                    coverage_rate=1.0,
+                    recall_at_k=1.0,
+                ),
                 fetch=FetchMetrics(successful=4, failed=1, success_rate=0.8),
-                rerank=RerankMetrics(evidence_count=2, mean_score=0.8,
-                                     median_score=0.8, min_score=0.8,
-                                     max_score=0.8, high_quality_ratio=1.0),
+                rerank=RerankMetrics(
+                    evidence_count=2,
+                    mean_score=0.8,
+                    median_score=0.8,
+                    min_score=0.8,
+                    max_score=0.8,
+                    high_quality_ratio=1.0,
+                ),
                 overall_pass=True,
             ),
         ]

@@ -55,7 +55,9 @@ async def check_user_status(platform_user_id: str) -> None:
 
     logger.info(
         "复核用户状态: platform_user_id=%s, url=%s, request_id=%s",
-        platform_user_id, url, request_id,
+        platform_user_id,
+        url,
+        request_id,
     )
 
     try:
@@ -75,6 +77,7 @@ async def check_user_status(platform_user_id: str) -> None:
 
     logger.warning(
         "身份状态校验返回异常状态码: status=%s, body=%s",
-        response.status_code, response.text[:200],
+        response.status_code,
+        response.text[:200],
     )
     raise ServiceUnavailableException("身份状态校验失败，请稍后重试")

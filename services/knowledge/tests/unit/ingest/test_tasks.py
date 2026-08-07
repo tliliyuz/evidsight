@@ -88,8 +88,11 @@ def _make_stateful_store():
                 doc_id = cond["doc_id"]
             elif "version" in cond and isinstance(cond["version"], int):
                 version = cond["version"]
-        return [cid for (d, v, cid) in added
-                if (doc_id is None or d == doc_id) and (version is None or v == version)]
+        return [
+            cid
+            for (d, v, cid) in added
+            if (doc_id is None or d == doc_id) and (version is None or v == version)
+        ]
 
     store.add = AsyncMock(side_effect=_add)
     store.get_ids = AsyncMock(side_effect=_get_ids)
@@ -146,9 +149,13 @@ def _make_chunking_result(chunk_count: int = 3):
     return ChunkingResult(
         sections=[
             SectionResult(
-                title="第一章", path="第一章", level=1,
-                start_offset=0, end_offset=100,
-                start_chunk_index=0, end_chunk_index=chunk_count - 1,
+                title="第一章",
+                path="第一章",
+                level=1,
+                start_offset=0,
+                end_offset=100,
+                start_chunk_index=0,
+                end_chunk_index=chunk_count - 1,
             )
         ],
         chunks=[
@@ -192,8 +199,10 @@ class TestCompatBridge:
         db = _make_db(doc, version, kb)
 
         with patch("app.ingest.tasks.async_session", return_value=_session_ctx(db)):
-            with patch("app.ingest.tasks._ingest_version_async",
-                       AsyncMock(return_value={"status": "locked", "version_id": 99})) as mock_ingest:
+            with patch(
+                "app.ingest.tasks._ingest_version_async",
+                AsyncMock(return_value={"status": "locked", "version_id": 99}),
+            ) as mock_ingest:
                 result = await _ingest_document_async(1)
 
         assert result == {"status": "locked", "version_id": 99}
@@ -208,8 +217,7 @@ class TestCompatBridge:
         db = _make_db(doc, version, kb)
 
         with patch("app.ingest.tasks.async_session", return_value=_session_ctx(db)):
-            with patch("app.ingest.tasks._ingest_version_async",
-                       AsyncMock()) as mock_ingest:
+            with patch("app.ingest.tasks._ingest_version_async", AsyncMock()) as mock_ingest:
                 result = await _ingest_document_async(1)
 
         assert result == {"status": "no_pending_version", "doc_id": 1}
@@ -320,17 +328,26 @@ class TestVersionBatchCheckpoint:
                 with patch("app.ingest.tasks.release_version_lock_async"):
                     mock_embed = AsyncMock(return_value=make_mock_embed_result(2))
                     with patch("app.ingest.tasks.embed_chunks", mock_embed):
-                        with patch("app.ingest.tasks.get_vector_store", return_value=_make_stateful_store()):
-                            with patch("app.ingest.tasks.read_staging_artifact",
-                                      AsyncMock(return_value=partial_rows)):
+                        with patch(
+                            "app.ingest.tasks.get_vector_store", return_value=_make_stateful_store()
+                        ):
+                            with patch(
+                                "app.ingest.tasks.read_staging_artifact",
+                                AsyncMock(return_value=partial_rows),
+                            ):
                                 with patch("app.ingest.tasks.settings") as mock_settings:
                                     mock_settings.EMBED_BATCH_SIZE = 2
                                     mock_settings.CHROMA_BATCH_SIZE = 20
-                                    with patch("app.ingest.tasks.write_staging_artifact",
-                                              AsyncMock(return_value="uploads/staging/1/ver-uuid-1.json")):
-                                        with patch("app.ingest.versioning.invalidate_bm25_cache_async",
-                                                   AsyncMock()):
+                                    with patch(
+                                        "app.ingest.tasks.write_staging_artifact",
+                                        AsyncMock(return_value="uploads/staging/1/ver-uuid-1.json"),
+                                    ):
+                                        with patch(
+                                            "app.ingest.versioning.invalidate_bm25_cache_async",
+                                            AsyncMock(),
+                                        ):
                                             from app.ingest.tasks import _ingest_version_async
+
                                             result = await _ingest_version_async(99)
 
         assert result["status"] == "completed"
@@ -375,17 +392,35 @@ class TestCleanStageWiring:
         with patch("app.ingest.tasks.async_session", return_value=_session_ctx(db)):
             with patch("app.ingest.tasks.acquire_version_lock_async", return_value=True):
                 with patch("app.ingest.tasks.release_version_lock_async"):
-                    with patch("app.ingest.tasks.parse_document", return_value=self._noisy_parse_result()):
-                        with patch("app.ingest.tasks.clean_parse_result", wraps=_real_clean) as mock_clean:
-                            with patch("app.ingest.tasks.chunk_document", side_effect=_capture_chunk):
-                                with patch("app.ingest.tasks.embed_chunks",
-                                          AsyncMock(return_value=make_mock_embed_result(2))):
-                                    with patch("app.ingest.tasks.get_vector_store", return_value=_make_stateful_store()):
-                                        with patch("app.ingest.tasks.write_staging_artifact",
-                                                  AsyncMock(return_value="uploads/staging/1/ver-uuid-1.json")):
-                                            with patch("app.ingest.versioning.invalidate_bm25_cache_async",
-                                                       AsyncMock()):
+                    with patch(
+                        "app.ingest.tasks.parse_document", return_value=self._noisy_parse_result()
+                    ):
+                        with patch(
+                            "app.ingest.tasks.clean_parse_result", wraps=_real_clean
+                        ) as mock_clean:
+                            with patch(
+                                "app.ingest.tasks.chunk_document", side_effect=_capture_chunk
+                            ):
+                                with patch(
+                                    "app.ingest.tasks.embed_chunks",
+                                    AsyncMock(return_value=make_mock_embed_result(2)),
+                                ):
+                                    with patch(
+                                        "app.ingest.tasks.get_vector_store",
+                                        return_value=_make_stateful_store(),
+                                    ):
+                                        with patch(
+                                            "app.ingest.tasks.write_staging_artifact",
+                                            AsyncMock(
+                                                return_value="uploads/staging/1/ver-uuid-1.json"
+                                            ),
+                                        ):
+                                            with patch(
+                                                "app.ingest.versioning.invalidate_bm25_cache_async",
+                                                AsyncMock(),
+                                            ):
                                                 from app.ingest.tasks import _ingest_version_async
+
                                                 result = await _ingest_version_async(99)
 
         assert result["status"] == "completed"
@@ -412,17 +447,33 @@ class TestCleanStageWiring:
         with patch("app.ingest.tasks.async_session", return_value=_session_ctx(db)):
             with patch("app.ingest.tasks.acquire_version_lock_async", return_value=True):
                 with patch("app.ingest.tasks.release_version_lock_async"):
-                    with patch("app.ingest.tasks.parse_document", return_value=self._noisy_parse_result()):
+                    with patch(
+                        "app.ingest.tasks.parse_document", return_value=self._noisy_parse_result()
+                    ):
                         with patch("app.ingest.tasks.settings.CLEAN_ENABLED", False):
-                            with patch("app.ingest.tasks.chunk_document", side_effect=_capture_chunk):
-                                with patch("app.ingest.tasks.embed_chunks",
-                                          AsyncMock(return_value=make_mock_embed_result(2))):
-                                    with patch("app.ingest.tasks.get_vector_store", return_value=_make_stateful_store()):
-                                        with patch("app.ingest.tasks.write_staging_artifact",
-                                                  AsyncMock(return_value="uploads/staging/1/ver-uuid-1.json")):
-                                            with patch("app.ingest.versioning.invalidate_bm25_cache_async",
-                                                       AsyncMock()):
+                            with patch(
+                                "app.ingest.tasks.chunk_document", side_effect=_capture_chunk
+                            ):
+                                with patch(
+                                    "app.ingest.tasks.embed_chunks",
+                                    AsyncMock(return_value=make_mock_embed_result(2)),
+                                ):
+                                    with patch(
+                                        "app.ingest.tasks.get_vector_store",
+                                        return_value=_make_stateful_store(),
+                                    ):
+                                        with patch(
+                                            "app.ingest.tasks.write_staging_artifact",
+                                            AsyncMock(
+                                                return_value="uploads/staging/1/ver-uuid-1.json"
+                                            ),
+                                        ):
+                                            with patch(
+                                                "app.ingest.versioning.invalidate_bm25_cache_async",
+                                                AsyncMock(),
+                                            ):
                                                 from app.ingest.tasks import _ingest_version_async
+
                                                 result = await _ingest_version_async(99)
 
         assert result["status"] == "completed"

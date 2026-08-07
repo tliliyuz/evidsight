@@ -11,10 +11,7 @@ class FinishTool:
     """结束 Agent Loop 的 Tool。"""
 
     name: str = "finish_tool"
-    description: str = (
-        "显式结束当前 Agent 运行。"
-        "当当前 phase 的目标已达成或需要提前终止时调用。"
-    )
+    description: str = "显式结束当前 Agent 运行。当当前 phase 的目标已达成或需要提前终止时调用。"
     parameters_schema: dict[str, Any] = {
         "type": "object",
         "properties": {

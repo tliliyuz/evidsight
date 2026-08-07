@@ -4,6 +4,7 @@
 与 Schema/Fixture 漂移。结构性拒绝由权威 jsonschema 测试（test_fixture_validation.py）
 覆盖；pydantic 默认存在类型强转，不在此与 JSON Schema 严格类型做逐一比对。
 """
+
 import pytest
 
 from evidsight_contracts.loader import list_fixtures, load_fixture
@@ -30,11 +31,7 @@ MODELS = {
 
 @pytest.mark.parametrize(
     "schema_name, fixture_name",
-    [
-        (name, fixture)
-        for name in MODELS
-        for fixture in list_fixtures(name, "valid")
-    ],
+    [(name, fixture) for name in MODELS for fixture in list_fixtures(name, "valid")],
 )
 def test_reference_model_parses_valid_fixture(schema_name, fixture_name):
     """有效 Fixture 能被对应参考模型解析。"""

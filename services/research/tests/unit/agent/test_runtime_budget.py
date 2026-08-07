@@ -26,14 +26,23 @@ class OkTool(Tool):
     parameters_schema = {"type": "object", "properties": {}}
 
     async def execute(self, ctx: ToolContext, **params):
-        return type("R", (), {
-            "success": True,
-            "output": {"total_results": 5, "prompt_tokens": 100, "completion_tokens": 50, "model": "test"},
-            "observation": "ok",
-            "error_message": None,
-            "cost": None,
-            "duration_ms": 10,
-        })()
+        return type(
+            "R",
+            (),
+            {
+                "success": True,
+                "output": {
+                    "total_results": 5,
+                    "prompt_tokens": 100,
+                    "completion_tokens": 50,
+                    "model": "test",
+                },
+                "observation": "ok",
+                "error_message": None,
+                "cost": None,
+                "duration_ms": 10,
+            },
+        )()
 
 
 @pytest.fixture

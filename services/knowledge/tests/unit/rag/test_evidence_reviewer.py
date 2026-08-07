@@ -73,7 +73,7 @@ class TestEvidenceReviewerDecision:
         stats_map = {
             1: FilterStats(total_sentences=2, assertive_count=2, referential_count=0),
             2: FilterStats(total_sentences=3, assertive_count=0, referential_count=3),  # rejected
-            3: FilterStats(total_sentences=1, assertive_count=0, referential_count=1),   # rejected
+            3: FilterStats(total_sentences=1, assertive_count=0, referential_count=1),  # rejected
         }
         result = review_evidence(output, stats_map)
         assert result.decision == "ALLOW"

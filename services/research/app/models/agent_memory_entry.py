@@ -20,9 +20,7 @@ class AgentMemoryEntry(Base):
 
     __tablename__ = "agent_memory_entries"
 
-    id: Mapped[str] = mapped_column(
-        sa.String(36), primary_key=True, default=new_uuid
-    )
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=new_uuid)
     task_id: Mapped[str] = mapped_column(
         sa.String(36),
         sa.ForeignKey("research_tasks.id", ondelete="CASCADE"),
@@ -36,19 +34,13 @@ class AgentMemoryEntry(Base):
         comment="关联 ResearchStep.id",
     )
 
-    iteration: Mapped[int] = mapped_column(
-        sa.Integer, nullable=False, comment="Agent Loop 轮次"
-    )
-    phase: Mapped[str] = mapped_column(
-        sa.String(50), nullable=False, comment="所属 phase"
-    )
+    iteration: Mapped[int] = mapped_column(sa.Integer, nullable=False, comment="Agent Loop 轮次")
+    phase: Mapped[str] = mapped_column(sa.String(50), nullable=False, comment="所属 phase")
     entry_type: Mapped[str] = mapped_column(
         sa.Enum(*MEMORY_ENTRY_TYPE_ENUM, name="agent_memory_entry_type"),
         nullable=False,
     )
-    content: Mapped[dict] = mapped_column(
-        sa.JSON, nullable=False, comment="ReActEntry 完整字段"
-    )
+    content: Mapped[dict] = mapped_column(sa.JSON, nullable=False, comment="ReActEntry 完整字段")
 
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime,

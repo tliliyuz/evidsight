@@ -40,11 +40,7 @@ class AgentContext:
             return cls()
 
         valid_phases = set(STEP_TYPE_ENUM)
-        completed = {
-            str(p)
-            for p in data.get("completed_phases", [])
-            if p in valid_phases
-        }
+        completed = {str(p) for p in data.get("completed_phases", []) if p in valid_phases}
         return cls(
             current_phase=data.get("current_phase"),
             completed_phases=completed,

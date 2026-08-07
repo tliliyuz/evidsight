@@ -139,7 +139,9 @@ def _filter_indices(indices: list[Any], item_count: int, field_name: str) -> lis
         else:
             logger.warning(
                 "%s 越界或非整数索引被过滤: %r（有效范围 0-%d）",
-                field_name, idx, item_count - 1,
+                field_name,
+                idx,
+                item_count - 1,
             )
     return valid
 
@@ -169,7 +171,9 @@ async def _load_synthesis_output(
         raise EvidenceGraphBuildFailedException(detail="缺少已完成的 Synthesis Step 或其 output")
 
     if not isinstance(step.output, dict):
-        raise EvidenceGraphBuildFailedException(detail="Synthesis Step output 格式异常，应为 JSON 对象")
+        raise EvidenceGraphBuildFailedException(
+            detail="Synthesis Step output 格式异常，应为 JSON 对象"
+        )
 
     return step.output
 
@@ -239,12 +243,14 @@ def _apply_clusters(items: list[GraphItem], clusters_raw: list[Any]) -> list[Gra
 
         # evidence_indices = 去重排序后的合并列表
         merged = sorted(set(supporting + conflicting))
-        graph_clusters.append(GraphCluster(
-            theme=theme,
-            summary=summary,
-            consensus_level=consensus_level,
-            evidence_indices=merged,
-        ))
+        graph_clusters.append(
+            GraphCluster(
+                theme=theme,
+                summary=summary,
+                consensus_level=consensus_level,
+                evidence_indices=merged,
+            )
+        )
 
     return graph_clusters
 
@@ -256,15 +262,17 @@ def _build_conflicts(conflicts_raw: Any, item_count: int) -> list[dict]:
     for i, c in enumerate(conflicts):
         if not isinstance(c, dict):
             continue
-        result.append({
-            "topic": _to_str(c.get("topic"), ""),
-            "position_a": _normalize_conflict_position(
-                c.get("position_a"), item_count, f"conflicts[{i}].position_a"
-            ),
-            "position_b": _normalize_conflict_position(
-                c.get("position_b"), item_count, f"conflicts[{i}].position_b"
-            ),
-        })
+        result.append(
+            {
+                "topic": _to_str(c.get("topic"), ""),
+                "position_a": _normalize_conflict_position(
+                    c.get("position_a"), item_count, f"conflicts[{i}].position_a"
+                ),
+                "position_b": _normalize_conflict_position(
+                    c.get("position_b"), item_count, f"conflicts[{i}].position_b"
+                ),
+            }
+        )
     return result
 
 
@@ -312,25 +320,29 @@ def _aggregate_sources(items: list[GraphItem]) -> list[dict]:
     for key in counts:
         meta = source_meta[key]
         if key[0] == "internal":
-            sources.append({
-                "id": None,
-                "source_type": "internal",
-                "url": "",
-                "title": meta.source_title,
-                "domain": "internal",
-                "location_summary": meta.location_summary,
-                "evidence_count": counts[key],
-            })
+            sources.append(
+                {
+                    "id": None,
+                    "source_type": "internal",
+                    "url": "",
+                    "title": meta.source_title,
+                    "domain": "internal",
+                    "location_summary": meta.location_summary,
+                    "evidence_count": counts[key],
+                }
+            )
         else:
-            sources.append({
-                "id": key[1],
-                "source_type": "web",
-                "url": meta.source_url,
-                "title": meta.source_title,
-                "domain": meta.domain,
-                "location_summary": "",
-                "evidence_count": counts[key],
-            })
+            sources.append(
+                {
+                    "id": key[1],
+                    "source_type": "web",
+                    "url": meta.source_url,
+                    "title": meta.source_title,
+                    "domain": meta.domain,
+                    "location_summary": "",
+                    "evidence_count": counts[key],
+                }
+            )
 
     # 按 evidence_count 降序、来源类型稳定排序
     sources.sort(key=lambda s: (-s["evidence_count"], str(s["title"])))
@@ -369,11 +381,14 @@ async def run_evidence_graph(
 
     logger.info("Evidence Graph Build 开始: task_id=%s, max_sources=%d", task_id, max_sources)
 
-    await sse.publish(EVENT_STEP_PROGRESS, {
-        "step_id": step_id,
-        "phase": "building_evidence_graph",
-        "label": "正在构建来源图谱...",
-    })
+    await sse.publish(
+        EVENT_STEP_PROGRESS,
+        {
+            "step_id": step_id,
+            "phase": "building_evidence_graph",
+            "label": "正在构建来源图谱...",
+        },
+    )
 
     # 1. 读取 Synthesis output
     synthesis_output = await _load_synthesis_output(session, task)
@@ -407,14 +422,17 @@ async def run_evidence_graph(
         duration_ms = int(delta.total_seconds() * 1000)
 
     # 8. 发布进度事件
-    await sse.publish(EVENT_STEP_PROGRESS, {
-        "step_id": step_id,
-        "phase": "building_evidence_graph",
-        "label": f"来源图谱构建完成：{len(items)} 条来源，{len(clusters)} 个聚类",
-        "item_count": len(items),
-        "cluster_count": len(clusters),
-        "source_count": len(sources),
-    })
+    await sse.publish(
+        EVENT_STEP_PROGRESS,
+        {
+            "step_id": step_id,
+            "phase": "building_evidence_graph",
+            "label": f"来源图谱构建完成：{len(items)} 条来源，{len(clusters)} 个聚类",
+            "item_count": len(items),
+            "cluster_count": len(clusters),
+            "source_count": len(sources),
+        },
+    )
 
     # 9. 组装 Graph
     graph = {
@@ -438,7 +456,11 @@ async def run_evidence_graph(
 
     logger.info(
         "Evidence Graph Build 完成: task_id=%s, items=%d, clusters=%d, conflicts=%d, sources=%d",
-        task_id, len(items), len(clusters), len(conflicts), len(sources),
+        task_id,
+        len(items),
+        len(clusters),
+        len(conflicts),
+        len(sources),
     )
 
     return output

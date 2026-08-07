@@ -23,7 +23,9 @@ class TestAgentMemoryEntryModel:
         db_session.add(task)
         await db_session.flush()
 
-        step = ResearchStep(id="mem-step-1", task_id=task.id, step_type="planning", status="running")
+        step = ResearchStep(
+            id="mem-step-1", task_id=task.id, step_type="planning", status="running"
+        )
         db_session.add(step)
         await db_session.flush()
 

@@ -66,7 +66,9 @@ def _get_worker_loop() -> asyncio.AbstractEventLoop:
     return _worker_loop
 
 
-@celery_app.task(bind=True, max_retries=3, soft_time_limit=600, autoretry_for=(Exception,), retry_backoff=True)
+@celery_app.task(
+    bind=True, max_retries=3, soft_time_limit=600, autoretry_for=(Exception,), retry_backoff=True
+)
 def ingest_version(self, version_id: int) -> dict:
     """版本化入库主流水线（Celery 同步入口 → 异步执行）。
 
@@ -76,7 +78,9 @@ def ingest_version(self, version_id: int) -> dict:
     return _get_worker_loop().run_until_complete(_ingest_version_async(version_id))
 
 
-@celery_app.task(bind=True, max_retries=3, soft_time_limit=600, autoretry_for=(Exception,), retry_backoff=True)
+@celery_app.task(
+    bind=True, max_retries=3, soft_time_limit=600, autoretry_for=(Exception,), retry_backoff=True
+)
 def ingest_document(self, doc_id: int) -> dict:
     """兼容桥接：查找文档最新 pending version → 投递 ingest_version。
 
@@ -88,6 +92,7 @@ def ingest_document(self, doc_id: int) -> dict:
 
 class _LoadDocStatus:
     """_load_doc 返回状态常量"""
+
     OK = "ok"
     NOT_FOUND = "not_found"
     DELETING = "deleting"
@@ -96,6 +101,7 @@ class _LoadDocStatus:
 @dataclass
 class _LoadDocResult:
     """_load_doc 返回值：区分文档不存在、已标记删除、正常加载三种情况"""
+
     doc: Document | None
     status: str  # _LoadDocStatus
 
@@ -230,7 +236,9 @@ async def _run_parse_embed_publish(version_id: int) -> dict:
         async with async_session() as db:
             version = await db.get(DocumentVersion, version_id)
             doc = await db.get(Document, version.document_id)
-            await _mark_version_failed(db, version, doc, "EMPTY_DOC", "文档无有效内容，解析后全文为空")
+            await _mark_version_failed(
+                db, version, doc, "EMPTY_DOC", "文档无有效内容，解析后全文为空"
+            )
         return {"status": "failed", "version_id": version_id}
 
     if parse_result.failure_rate > settings.PARSE_FAILURE_FAILED:
@@ -238,7 +246,10 @@ async def _run_parse_embed_publish(version_id: int) -> dict:
             version = await db.get(DocumentVersion, version_id)
             doc = await db.get(Document, version.document_id)
             await _mark_version_failed(
-                db, version, doc, "PARSE_FAILED",
+                db,
+                version,
+                doc,
+                "PARSE_FAILED",
                 _build_error_msg(parse_result, settings.PARSE_FAILURE_FAILED),
             )
         return {"status": "failed", "version_id": version_id}
@@ -249,7 +260,9 @@ async def _run_parse_embed_publish(version_id: int) -> dict:
         async with async_session() as db:
             version = await db.get(DocumentVersion, version_id)
             doc = await db.get(Document, version.document_id)
-            await _mark_version_failed(db, version, doc, "EMPTY_CHUNKS", "文档分块结果为空，无有效文本内容")
+            await _mark_version_failed(
+                db, version, doc, "EMPTY_CHUNKS", "文档分块结果为空，无有效文本内容"
+            )
         return {"status": "failed", "version_id": version_id}
 
     # 5. 写入 chunks（携带 document_version_id + segment_uuid + 版本作用域 chroma_id）
@@ -269,14 +282,20 @@ async def _run_parse_embed_publish(version_id: int) -> dict:
         chunk_rows = await _load_version_chunk_rows(db, version.document_id, version.id)
         if not chunk_rows:
             doc = await db.get(Document, version.document_id)
-            await _mark_version_failed(db, version, doc, "CHUNKS_MISSING", "分块数据丢失，无法继续 Embedding")
+            await _mark_version_failed(
+                db, version, doc, "CHUNKS_MISSING", "分块数据丢失，无法继续 Embedding"
+            )
             return {"status": "failed", "version_id": version_id}
         warning_summary = parse_result.warnings[:5] if parse_result.failed_pages > 0 else None
 
     # 7. Embedding → staging → 校验 → 发布
-    return await _embed_and_publish(version_id, chunk_rows, resume_batch=0,
-                                    declared_count=chunking_result.total_chunks,
-                                    warning_summary=warning_summary)
+    return await _embed_and_publish(
+        version_id,
+        chunk_rows,
+        resume_batch=0,
+        declared_count=chunking_result.total_chunks,
+        warning_summary=warning_summary,
+    )
 
 
 async def _run_embed_resume(version_id: int) -> dict:
@@ -286,14 +305,17 @@ async def _run_embed_resume(version_id: int) -> dict:
         doc = await db.get(Document, version.document_id)
         chunk_rows = await _load_version_chunk_rows(db, doc.id, version.id)
         if not chunk_rows:
-            await _mark_version_failed(db, version, doc, "CHUNKS_MISSING", "分块数据丢失，无法继续 Embedding")
+            await _mark_version_failed(
+                db, version, doc, "CHUNKS_MISSING", "分块数据丢失，无法继续 Embedding"
+            )
             return {"status": "failed", "version_id": version_id}
         resume_batch = version.last_success_batch or 0
         declared_count = version.expected_segment_count or len(chunk_rows)
         warning_summary = version.warning_summary
 
-    return await _embed_and_publish(version_id, chunk_rows, resume_batch,
-                                    declared_count, warning_summary)
+    return await _embed_and_publish(
+        version_id, chunk_rows, resume_batch, declared_count, warning_summary
+    )
 
 
 async def _run_publish_from_staging(version_id: int) -> dict:
@@ -302,7 +324,9 @@ async def _run_publish_from_staging(version_id: int) -> dict:
         version = await db.get(DocumentVersion, version_id)
         doc = await db.get(Document, version.document_id)
         if not version.staging_artifact_key:
-            await _mark_version_failed(db, version, doc, "STAGING_MISSING", "staging 产物缺失，无法发布")
+            await _mark_version_failed(
+                db, version, doc, "STAGING_MISSING", "staging 产物缺失，无法发布"
+            )
             return {"status": "failed", "version_id": version_id}
         artifact_key = version.staging_artifact_key
 
@@ -312,7 +336,9 @@ async def _run_publish_from_staging(version_id: int) -> dict:
         async with async_session() as db:
             version = await db.get(DocumentVersion, version_id)
             doc = await db.get(Document, version.document_id)
-            await _mark_version_failed(db, version, doc, "STAGING_READ_FAILED", f"staging 产物读取失败: {e}")
+            await _mark_version_failed(
+                db, version, doc, "STAGING_READ_FAILED", f"staging 产物读取失败: {e}"
+            )
         return {"status": "failed", "version_id": version_id}
 
     # 与 MySQL chunk rows 比对校验
@@ -396,27 +422,27 @@ async def _embed_and_publish(
         for batch_no in range(resume_batch, total_batches):
             batch_start = batch_no * batch_size
             batch_end = min(batch_start + batch_size, len(chunk_rows))
-            batch_texts = [
-                chunk_rows[i]["content"] for i in range(batch_start, batch_end)
-            ]
+            batch_texts = [chunk_rows[i]["content"] for i in range(batch_start, batch_end)]
             embed_result = await embed_chunks(batch_texts)
 
             for i in range(len(batch_texts)):
                 row_idx = batch_start + i
                 row = chunk_rows[row_idx]
                 meta = row.get("metadata") or {}
-                staging_rows.append({
-                    "segment_uuid": row["segment_uuid"],
-                    "chunk_index": row["chunk_index"],
-                    "content": row["content"],
-                    "embedding": embed_result.embeddings[i],
-                    "metadata": {
-                        "page": meta.get("page"),
-                        "section_title": row.get("section_title", ""),
-                        "section_path": row.get("section_path", ""),
-                        "section_id": row.get("section_id"),
-                    },
-                })
+                staging_rows.append(
+                    {
+                        "segment_uuid": row["segment_uuid"],
+                        "chunk_index": row["chunk_index"],
+                        "content": row["content"],
+                        "embedding": embed_result.embeddings[i],
+                        "metadata": {
+                            "page": meta.get("page"),
+                            "section_title": row.get("section_title", ""),
+                            "section_path": row.get("section_path", ""),
+                            "section_id": row.get("section_id"),
+                        },
+                    }
+                )
                 token_map[row["id"]] = embed_result.token_counts[i]
 
             # 批次级 checkpoint + 增量写 staging 产物
@@ -435,7 +461,9 @@ async def _embed_and_publish(
         async with async_session() as db:
             version = await db.get(DocumentVersion, version_id)
             doc = await db.get(Document, version.document_id)
-            await _mark_version_failed(db, version, doc, "EMBED_FAILED", f"Embedding 向量化失败: {e}")
+            await _mark_version_failed(
+                db, version, doc, "EMBED_FAILED", f"Embedding 向量化失败: {e}"
+            )
         return {"status": "failed", "version_id": version_id, "error": str(e)}
 
     # 4. 发布前校验（对齐 RAG_PIPELINE.md §4.2）
@@ -472,8 +500,11 @@ async def _embed_and_publish(
         kb.chunk_count = await count_active_version_chunks(db, kb.id)
         await db.commit()
 
-    return {"status": map_document_status(version.status).value, "version_id": version_id,
-            "chunks": len(chunk_rows)}
+    return {
+        "status": map_document_status(version.status).value,
+        "version_id": version_id,
+        "chunks": len(chunk_rows),
+    }
 
 
 async def _load_version_chunk_rows(db, doc_id: int, version_id: int) -> list[dict[str, Any]]:
@@ -490,18 +521,20 @@ async def _load_version_chunk_rows(db, doc_id: int, version_id: int) -> list[dic
     rows: list[dict[str, Any]] = []
     for c in chunks_db:
         meta = c.metadata_ or {}
-        rows.append({
-            "id": c.id,
-            "chunk_index": c.chunk_index,
-            "content": c.content,
-            "chroma_id": c.chroma_id,
-            "section_id": c.section_id,
-            "segment_uuid": c.segment_uuid,
-            "section_title": meta.get("section_title", ""),
-            "section_path": meta.get("section_path", ""),
-            "page": meta.get("page"),
-            "metadata": meta,
-        })
+        rows.append(
+            {
+                "id": c.id,
+                "chunk_index": c.chunk_index,
+                "content": c.content,
+                "chroma_id": c.chroma_id,
+                "section_id": c.section_id,
+                "segment_uuid": c.segment_uuid,
+                "section_title": meta.get("section_title", ""),
+                "section_path": meta.get("section_path", ""),
+                "page": meta.get("page"),
+                "metadata": meta,
+            }
+        )
     return rows
 
 
@@ -564,8 +597,9 @@ async def _replace_sections_and_chunks(
         db.add(chunk)
 
 
-async def _mark_version_failed(db, version: DocumentVersion, doc: Document,
-                               error_code: str, error_summary: str) -> None:
+async def _mark_version_failed(
+    db, version: DocumentVersion, doc: Document, error_code: str, error_summary: str
+) -> None:
     """不可恢复错误 → version failed + doc failed（error_code/error_summary 安全摘要）。"""
     version.status = "failed"
     version.error_code = error_code

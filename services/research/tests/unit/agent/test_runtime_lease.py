@@ -139,9 +139,7 @@ class TestRunCancelCheckpoint:
     """取消请求在迭代检查点生效，安全停止后进入最终化推导终态（§13.2）。"""
 
     def _prepare_run(self, runtime, monkeypatch):
-        monkeypatch.setattr(
-            "app.agent.runtime.start_research_task", AsyncMock(return_value=True)
-        )
+        monkeypatch.setattr("app.agent.runtime.start_research_task", AsyncMock(return_value=True))
         monkeypatch.setattr(
             "app.agent.runtime.agent_memory_service.build_working_memory",
             AsyncMock(return_value=WorkingMemory()),

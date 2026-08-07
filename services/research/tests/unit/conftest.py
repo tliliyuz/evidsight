@@ -2,6 +2,7 @@
 
 仅作用于 tests/unit/ 目录（不覆盖 tests/contract/，后者必须保持独立运行）。
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,7 +23,10 @@ def _identity_gate_ok(monkeypatch):
         return None
 
     monkeypatch.setattr(
-        research_service, "check_user_status", AsyncMock(side_effect=_ok), raising=False,
+        research_service,
+        "check_user_status",
+        AsyncMock(side_effect=_ok),
+        raising=False,
     )
 
 

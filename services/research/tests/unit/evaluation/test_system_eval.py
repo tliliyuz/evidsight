@@ -17,19 +17,23 @@ class TestEvaluateSystemReliability:
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
                 "app.evaluation.system_eval.load_task_terminal_status_counts",
-                AsyncMock(return_value={
-                    "completed": 45,
-                    "partially_completed": 5,
-                    "failed": 3,
-                    "canceled": 2,
-                }),
+                AsyncMock(
+                    return_value={
+                        "completed": 45,
+                        "partially_completed": 5,
+                        "failed": 3,
+                        "canceled": 2,
+                    }
+                ),
             )
             mp.setattr(
                 "app.evaluation.system_eval.load_llm_step_status_counts",
-                AsyncMock(return_value={
-                    "completed": 200,
-                    "failed": 1,
-                }),
+                AsyncMock(
+                    return_value={
+                        "completed": 200,
+                        "failed": 1,
+                    }
+                ),
             )
 
             metrics = await evaluate_system_reliability(mock_session)
@@ -50,19 +54,23 @@ class TestEvaluateSystemReliability:
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
                 "app.evaluation.system_eval.load_task_terminal_status_counts",
-                AsyncMock(return_value={
-                    "completed": 0,
-                    "partially_completed": 0,
-                    "failed": 10,
-                    "canceled": 1,
-                }),
+                AsyncMock(
+                    return_value={
+                        "completed": 0,
+                        "partially_completed": 0,
+                        "failed": 10,
+                        "canceled": 1,
+                    }
+                ),
             )
             mp.setattr(
                 "app.evaluation.system_eval.load_llm_step_status_counts",
-                AsyncMock(return_value={
-                    "completed": 0,
-                    "failed": 0,
-                }),
+                AsyncMock(
+                    return_value={
+                        "completed": 0,
+                        "failed": 0,
+                    }
+                ),
             )
 
             metrics = await evaluate_system_reliability(mock_session)
@@ -75,19 +83,23 @@ class TestEvaluateSystemReliability:
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
                 "app.evaluation.system_eval.load_task_terminal_status_counts",
-                AsyncMock(return_value={
-                    "completed": 0,
-                    "partially_completed": 0,
-                    "failed": 0,
-                    "canceled": 0,
-                }),
+                AsyncMock(
+                    return_value={
+                        "completed": 0,
+                        "partially_completed": 0,
+                        "failed": 0,
+                        "canceled": 0,
+                    }
+                ),
             )
             mp.setattr(
                 "app.evaluation.system_eval.load_llm_step_status_counts",
-                AsyncMock(return_value={
-                    "completed": 0,
-                    "failed": 0,
-                }),
+                AsyncMock(
+                    return_value={
+                        "completed": 0,
+                        "failed": 0,
+                    }
+                ),
             )
 
             metrics = await evaluate_system_reliability(mock_session)

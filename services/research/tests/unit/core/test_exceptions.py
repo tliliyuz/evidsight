@@ -396,7 +396,9 @@ class TestRateLimitExceededException:
 class TestAppException:
     def test_基类构造_全部字段正确(self):
         exc = AppException(
-            code="E9999", message="测试异常", status_code=418,
+            code="E9999",
+            message="测试异常",
+            status_code=418,
             detail={"error_type": "TestError", "error_description": "用于测试"},
         )
         assert exc.error_code == "E9999"
@@ -410,7 +412,9 @@ class TestAppException:
 
     def test_HTTPException_detail三元组序列化(self):
         exc = AppException(
-            code="E9997", message="msg", status_code=400,
+            code="E9997",
+            message="msg",
+            status_code=400,
             detail={"error_type": "T", "error_description": "D"},
         )
         # 父类 HTTPException.detail 被设为 {"code", "message", "detail"} 三元组

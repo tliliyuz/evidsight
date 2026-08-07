@@ -138,7 +138,7 @@ async def _validate_and_prepare(
             raise ConversationNotFoundException(real_conv_id)
         if conv.user_id != user_id:
             raise ConversationAccessDeniedException()
-        is_first_turn = (conv.message_count == 0)  # 在插入用户消息前判定
+        is_first_turn = conv.message_count == 0  # 在插入用户消息前判定
         # 加载历史消息（在保存用户消息之前！避免当前消息被重复注入）
         history_messages = await load_history(db, conv.id)
     else:
@@ -172,7 +172,9 @@ async def _validate_and_prepare(
     intent_result = await classify_intent(question)
     intent = intent_result.intent
     t_intent = time.perf_counter()
-    logger.info("INTENT question=%s intent=%s method=%s", question[:50], intent.value, intent_result.method)
+    logger.info(
+        "INTENT question=%s intent=%s method=%s", question[:50], intent.value, intent_result.method
+    )
 
     # Trace: 记录意图识别阶段
     if recorder:
@@ -186,7 +188,7 @@ async def _validate_and_prepare(
     if intent == Intent.META:
         raise MetaQuestionException(question, conv, is_first_turn)
 
-    skip_retrieval = (intent == Intent.CASUAL)
+    skip_retrieval = intent == Intent.CASUAL
 
     # 检索+上下文构建管线（已解耦至 KnowledgePipeline）
     if skip_retrieval:
@@ -243,14 +245,21 @@ async def chat(
     # Trace: 提前创建 recorder，传入 _validate_and_prepare 记录各阶段数据
     # conversation_id / kb_id 此时为 UUID 字符串，_validate_and_prepare 内部转换为 integer
     recorder = TraceRecorder(
-        trace_id=trace_id, user_id=user_id,
-        conversation_id=None, kb_id=None, question=question,
+        trace_id=trace_id,
+        user_id=user_id,
+        conversation_id=None,
+        kb_id=None,
+        question=question,
     )
 
     try:
         conv, is_first_turn, pipeline_result = await _validate_and_prepare(
-            db=db, user_id=user_id, role=role,
-            conversation_id=conversation_id, kb_id=kb_id, question=question,
+            db=db,
+            user_id=user_id,
+            role=role,
+            conversation_id=conversation_id,
+            kb_id=kb_id,
+            question=question,
             recorder=recorder,
         )
     except MetaQuestionException as e:
@@ -260,10 +269,14 @@ async def chat(
         recorder.conversation_id = e.conv.id
         recorder.kb_id = e.conv.kb_id
         return StreamingResponse(
-            stream_with_heartbeat(_generate_meta_response(
-                conv=e.conv, is_first_turn=e.is_first_turn, question=question,
-                recorder=recorder,
-            )),
+            stream_with_heartbeat(
+                _generate_meta_response(
+                    conv=e.conv,
+                    is_first_turn=e.is_first_turn,
+                    question=question,
+                    recorder=recorder,
+                )
+            ),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -276,10 +289,14 @@ async def chat(
         recorder.conversation_id = conv.id
         recorder.kb_id = conv.kb_id
         return StreamingResponse(
-            stream_with_heartbeat(_generate_reject_response(
-                conv=conv, is_first_turn=is_first_turn, question=question,
-                recorder=recorder,
-            )),
+            stream_with_heartbeat(
+                _generate_reject_response(
+                    conv=conv,
+                    is_first_turn=is_first_turn,
+                    question=question,
+                    recorder=recorder,
+                )
+            ),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -294,17 +311,19 @@ async def chat(
     task_id = str(uuid4())
 
     return StreamingResponse(
-        stream_with_heartbeat(_generate_sse_stream(
-            conv=conv,
-            task_id=task_id,
-            question=question,
-            deep_thinking=deep_thinking,
-            is_first_turn=is_first_turn,
-            prompt_result=pipeline_result.prompt_result,
-            reranked_output=pipeline_result.reranked_output,
-            doc_map=pipeline_result.doc_map,
-            recorder=recorder,
-        )),
+        stream_with_heartbeat(
+            _generate_sse_stream(
+                conv=conv,
+                task_id=task_id,
+                question=question,
+                deep_thinking=deep_thinking,
+                is_first_turn=is_first_turn,
+                prompt_result=pipeline_result.prompt_result,
+                reranked_output=pipeline_result.reranked_output,
+                doc_map=pipeline_result.doc_map,
+                recorder=recorder,
+            )
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -313,9 +332,7 @@ async def chat(
     )
 
 
-async def get_selectable_kbs(
-    db: AsyncSession, user_id: int
-) -> SelectableKBResponse:
+async def get_selectable_kbs(db: AsyncSession, user_id: int) -> SelectableKBResponse:
     """获取当前用户可用于问答的知识库列表，按所有权分组。
 
     对齐 API.md §3 GET /api/knowledge-bases/selectable：

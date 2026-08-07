@@ -130,7 +130,8 @@ class TestUpdateVersion:
         version.last_success_batch = None
 
         await versioning.update_version(
-            db, version,
+            db,
+            version,
             status="embedding",
             last_success_batch=2,
             expected_segment_count=10,
@@ -226,8 +227,9 @@ class TestPublishVersion:
         db.commit = AsyncMock(side_effect=_record_commit)
 
         with patch.object(versioning.local_storage, "delete", AsyncMock()) as mock_fs_delete:
-            with patch("app.ingest.versioning.invalidate_bm25_cache_async",
-                       AsyncMock()) as mock_invalidate:
+            with patch(
+                "app.ingest.versioning.invalidate_bm25_cache_async", AsyncMock()
+            ) as mock_invalidate:
                 await versioning.publish_version(db, kb, doc, version, store, rows)
 
         # 1. KB 短时锁：进入 updating，最终恢复 ready

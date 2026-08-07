@@ -18,75 +18,97 @@ class Trace(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     trace_id: Mapped[str] = mapped_column(
-        String(64), nullable=False, unique=True,
+        String(64),
+        nullable=False,
+        unique=True,
         comment="UUID 追踪 ID",
     )
     user_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False,
+        BigInteger,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
         comment="用户 ID",
     )
     conversation_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True,
+        BigInteger,
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
         comment="会话 ID（可为空）",
     )
     kb_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("knowledge_bases.id", ondelete="SET NULL"), nullable=True,
+        BigInteger,
+        ForeignKey("knowledge_bases.id", ondelete="SET NULL"),
+        nullable=True,
         comment="知识库 ID",
     )
     question: Mapped[str | None] = mapped_column(
-        Text, nullable=True,
+        Text,
+        nullable=True,
         comment="用户问题",
     )
     status: Mapped[str] = mapped_column(
-        String(32), nullable=False,
+        String(32),
+        nullable=False,
         comment="状态：success / error / partial",
     )
     intent_type: Mapped[str | None] = mapped_column(
-        String(32), nullable=True,
+        String(32),
+        nullable=True,
         comment="顶层字段：KNOWLEDGE / CASUAL / META",
     )
     intent_method: Mapped[str | None] = mapped_column(
-        String(32), nullable=True,
+        String(32),
+        nullable=True,
         comment="顶层字段：regex / llm_flash / llm_pro",
     )
     response_mode: Mapped[str | None] = mapped_column(
-        String(32), nullable=True,
+        String(32),
+        nullable=True,
         comment="顶层字段：RAG / DIRECT_LLM / META / CASUAL / FALLBACK",
     )
     total_duration_ms: Mapped[int | None] = mapped_column(
-        Integer, nullable=True,
+        Integer,
+        nullable=True,
         comment="总耗时（毫秒）",
     )
     intent: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True,
+        JSON,
+        nullable=True,
         comment="意图识别阶段详情",
     )
     rewrite: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True,
+        JSON,
+        nullable=True,
         comment="问题重写阶段详情",
     )
     retrieve: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True,
+        JSON,
+        nullable=True,
         comment="检索阶段详情（细粒度拆分：vector/bm25/fusion/match_sentence）",
     )
     rerank: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True,
+        JSON,
+        nullable=True,
         comment="Rerank 阶段详情",
     )
     generate: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True,
+        JSON,
+        nullable=True,
         comment="LLM 生成阶段详情（不存 output）",
     )
     evidence_review: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True,
+        JSON,
+        nullable=True,
         comment="证据审查阶段详情（chunk 分类 + REJECT 决策 + post-LLM 审计结果）",
     )
     error_message: Mapped[str | None] = mapped_column(
-        Text, nullable=True,
+        Text,
+        nullable=True,
         comment="错误信息（status=error 时）",
     )
     created_at: Mapped[datetime] = mapped_column(
-        UTCDateTime, server_default=func.current_timestamp(),
+        UTCDateTime,
+        server_default=func.current_timestamp(),
         comment="创建时间（UTC）",
     )
 

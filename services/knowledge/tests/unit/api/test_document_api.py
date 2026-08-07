@@ -1,4 +1,5 @@
 """文档 API 接口测试 — 覆盖上传/批量上传/列表/详情/分块/删除/重新处理 + 错误码"""
+
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
@@ -64,22 +65,45 @@ def _uuid_to_id_side_effect(db, model_class, uuid_str):
     return _map[uuid_str]
 
 
-def _make_upload_response(doc_uuid=DOC_UUID, kb_uuid=KB_UUID, filename="test.pdf",
-                           file_type="pdf", file_size=1024, status=DocumentStatus.QUEUED):
+def _make_upload_response(
+    doc_uuid=DOC_UUID,
+    kb_uuid=KB_UUID,
+    filename="test.pdf",
+    file_type="pdf",
+    file_size=1024,
+    status=DocumentStatus.QUEUED,
+):
     return DocumentUploadResponse(
-        uuid=doc_uuid, kb_uuid=kb_uuid, filename=filename,
-        file_type=file_type, file_size=file_size, status=status,
+        uuid=doc_uuid,
+        kb_uuid=kb_uuid,
+        filename=filename,
+        file_type=file_type,
+        file_size=file_size,
+        status=status,
     )
 
 
-def _make_doc_response(doc_uuid=DOC_UUID, kb_uuid=KB_UUID, filename="test.pdf", file_type="pdf",
-                        file_size=1024, status=DocumentStatus.COMPLETED,
-                        chunk_count=10, error_msg=None):
+def _make_doc_response(
+    doc_uuid=DOC_UUID,
+    kb_uuid=KB_UUID,
+    filename="test.pdf",
+    file_type="pdf",
+    file_size=1024,
+    status=DocumentStatus.COMPLETED,
+    chunk_count=10,
+    error_msg=None,
+):
     return DocumentResponse(
-        uuid=doc_uuid, kb_uuid=kb_uuid, filename=filename, file_type=file_type,
-        file_size=file_size, status=status, chunk_count=chunk_count,
+        uuid=doc_uuid,
+        kb_uuid=kb_uuid,
+        filename=filename,
+        file_type=file_type,
+        file_size=file_size,
+        status=status,
+        chunk_count=chunk_count,
         error_msg=error_msg,
-        created_at=datetime.now(timezone.utc), updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
 
 
@@ -97,11 +121,15 @@ def _make_reprocess_data(doc_uuid=DOC_UUID, status=DocumentStatus.QUEUED):
     return DocumentReprocessResponse(doc_uuid=doc_uuid, status=status)
 
 
-def _make_chunk_response(chunk_id=1, chunk_index=0, preview="测试内容",
-                          token_count=50, metadata=None):
+def _make_chunk_response(
+    chunk_id=1, chunk_index=0, preview="测试内容", token_count=50, metadata=None
+):
     return DocumentChunkResponse(
-        id=chunk_id, chunk_index=chunk_index, preview=preview,
-        token_count=token_count, metadata=metadata,
+        id=chunk_id,
+        chunk_index=chunk_index,
+        preview=preview,
+        token_count=token_count,
+        metadata=metadata,
     )
 
 
@@ -113,14 +141,18 @@ def _make_chunk_list_data(total=1, page=1, page_size=20, items=None):
 
 # ==================== POST /{kb_id}/documents — 文档上传 ====================
 
+
 class TestUploadDocument:
     """POST /api/knowledge-bases/{kb_id}/documents — 文档上传（multipart）"""
 
     @pytest.mark.asyncio
     async def test_upload_success(self, async_client, auth_headers):
         """A3.1: 正常上传 PDF"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_upload_response(filename="入职指南.pdf")
 
@@ -144,8 +176,11 @@ class TestUploadDocument:
     @pytest.mark.asyncio
     async def test_upload_duplicate_filename(self, async_client, auth_headers):
         """A3.2: 同名文件上传 → 409 E2013"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = DocumentNameExistsException(
                     "文档 '入职指南.pdf' 已存在（kb_id=1），使用 force=true 可覆盖"
@@ -165,8 +200,11 @@ class TestUploadDocument:
     @pytest.mark.asyncio
     async def test_upload_force_override(self, async_client, auth_headers):
         """A3.3: force=true 覆盖终态文档 → 201"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_upload_response(
                     doc_uuid=DOC_UUID_2, filename="入职指南.pdf", status=DocumentStatus.QUEUED
@@ -187,8 +225,11 @@ class TestUploadDocument:
     @pytest.mark.asyncio
     async def test_upload_force_override_conflict(self, async_client, auth_headers):
         """force=true 但旧文档仍在处理中 → 409 E2012"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = ForceOverrideConflictException(
                     "文档 '入职指南.pdf' 正在处理中（状态：parsing），无法覆盖"
@@ -209,8 +250,11 @@ class TestUploadDocument:
     @pytest.mark.asyncio
     async def test_upload_document_processing(self, async_client, auth_headers):
         """文档处理中时上传同名文件（非 force）→ 409 E2011"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = DocumentProcessingError(
                     "文档 '入职指南.pdf' 正在处理中（状态：parsing），请等待处理完成"
@@ -230,8 +274,11 @@ class TestUploadDocument:
     @pytest.mark.asyncio
     async def test_upload_unsupported_format(self, async_client, auth_headers):
         """A3.4: 不支持的文件格式 → 415 E2002"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = UnsupportedFileFormatException("exe")
 
@@ -249,8 +296,11 @@ class TestUploadDocument:
     @pytest.mark.asyncio
     async def test_upload_file_too_large(self, async_client, auth_headers):
         """A3.5: 文件大小超限 → 400 E2003"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = FileSizeExceededException()
 
@@ -268,8 +318,11 @@ class TestUploadDocument:
     @pytest.mark.asyncio
     async def test_upload_kb_not_found(self, async_client, auth_headers):
         """知识库不存在 → 404 E1001"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = KnowledgeBaseNotFoundException(999)
 
@@ -287,8 +340,11 @@ class TestUploadDocument:
     @pytest.mark.asyncio
     async def test_upload_permission_denied(self, async_client, auth_headers):
         """非 owner 且非 admin 上传 → 403 E5005"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -317,8 +373,11 @@ class TestUploadDocument:
     @pytest.mark.asyncio
     async def test_upload_admin_denied(self, async_client, admin_auth_headers):
         """admin 不能上传到非自己创建的知识库（上传仅 owner）"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -335,12 +394,13 @@ class TestUploadDocument:
     async def test_upload_md_and_txt_accepted(self, async_client, auth_headers):
         """.md 和 .txt 格式也被接受"""
         for ext in ("md", "txt"):
-            with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                       side_effect=_uuid_to_id_side_effect):
+            with patch(
+                "app.api.document.resolve_uuid_to_id",
+                new_callable=AsyncMock,
+                side_effect=_uuid_to_id_side_effect,
+            ):
                 with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
-                    mock.return_value = _make_upload_response(
-                        filename=f"doc.{ext}", file_type=ext
-                    )
+                    mock.return_value = _make_upload_response(filename=f"doc.{ext}", file_type=ext)
 
                     response = await async_client.post(
                         f"/api/knowledge-bases/{KB_UUID}/documents",
@@ -353,19 +413,27 @@ class TestUploadDocument:
 
 # ==================== POST /{kb_id}/documents/batch-upload — 批量上传 ====================
 
+
 class TestBatchUploadDocuments:
     """POST /api/knowledge-bases/{kb_id}/documents/batch-upload"""
 
     @pytest.mark.asyncio
     async def test_batch_upload_all_success(self, async_client, auth_headers):
         """批量上传全部成功"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.batch_upload_documents", new_callable=AsyncMock) as mock:
                 mock.return_value = DocumentBatchUploadResponse(
                     success=[
-                        DocumentBatchUploadItem(uuid=DOC_UUID, filename="a.pdf", status=DocumentStatus.QUEUED),
-                        DocumentBatchUploadItem(uuid=DOC_UUID_2, filename="b.md", status=DocumentStatus.QUEUED),
+                        DocumentBatchUploadItem(
+                            uuid=DOC_UUID, filename="a.pdf", status=DocumentStatus.QUEUED
+                        ),
+                        DocumentBatchUploadItem(
+                            uuid=DOC_UUID_2, filename="b.md", status=DocumentStatus.QUEUED
+                        ),
                     ],
                     failed=[],
                 )
@@ -390,12 +458,17 @@ class TestBatchUploadDocuments:
     @pytest.mark.asyncio
     async def test_batch_upload_partial_failure(self, async_client, auth_headers):
         """批量上传部分失败"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.batch_upload_documents", new_callable=AsyncMock) as mock:
                 mock.return_value = DocumentBatchUploadResponse(
                     success=[
-                        DocumentBatchUploadItem(uuid=DOC_UUID, filename="a.pdf", status=DocumentStatus.QUEUED),
+                        DocumentBatchUploadItem(
+                            uuid=DOC_UUID, filename="a.pdf", status=DocumentStatus.QUEUED
+                        ),
                     ],
                     failed=[
                         DocumentBatchUploadFailedItem(
@@ -428,8 +501,11 @@ class TestBatchUploadDocuments:
     @pytest.mark.asyncio
     async def test_batch_upload_kb_not_found(self, async_client, auth_headers):
         """知识库不存在"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.batch_upload_documents", new_callable=AsyncMock) as mock:
                 mock.side_effect = KnowledgeBaseNotFoundException(999)
 
@@ -455,19 +531,28 @@ class TestBatchUploadDocuments:
 
 # ==================== GET /{kb_id}/documents — 文档列表 ====================
 
+
 class TestListDocuments:
     """GET /api/knowledge-bases/{kb_id}/documents — 文档列表"""
 
     @pytest.mark.asyncio
     async def test_list_success(self, async_client, auth_headers):
         """A3.6: 正常获取文档列表"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
-                mock.return_value = _make_list_data(total=2, items=[
-                    _make_doc_response(doc_uuid=DOC_UUID, filename="入职指南.pdf"),
-                    _make_doc_response(doc_uuid=DOC_UUID_2, filename="报销制度.md", file_type="md"),
-                ])
+                mock.return_value = _make_list_data(
+                    total=2,
+                    items=[
+                        _make_doc_response(doc_uuid=DOC_UUID, filename="入职指南.pdf"),
+                        _make_doc_response(
+                            doc_uuid=DOC_UUID_2, filename="报销制度.md", file_type="md"
+                        ),
+                    ],
+                )
 
                 response = await async_client.get(
                     f"/api/knowledge-bases/{KB_UUID}/documents",
@@ -487,12 +572,18 @@ class TestListDocuments:
     @pytest.mark.asyncio
     async def test_list_with_status_filter(self, async_client, auth_headers):
         """A3.7: 按状态筛选文档列表"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
-                mock.return_value = _make_list_data(total=1, items=[
-                    _make_doc_response(status=DocumentStatus.COMPLETED),
-                ])
+                mock.return_value = _make_list_data(
+                    total=1,
+                    items=[
+                        _make_doc_response(status=DocumentStatus.COMPLETED),
+                    ],
+                )
 
                 response = await async_client.get(
                     f"/api/knowledge-bases/{KB_UUID}/documents?status=completed",
@@ -506,12 +597,18 @@ class TestListDocuments:
     @pytest.mark.asyncio
     async def test_list_with_filename_filter(self, async_client, auth_headers):
         """按文件名模糊搜索"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
-                mock.return_value = _make_list_data(total=1, items=[
-                    _make_doc_response(filename="入职指南.pdf"),
-                ])
+                mock.return_value = _make_list_data(
+                    total=1,
+                    items=[
+                        _make_doc_response(filename="入职指南.pdf"),
+                    ],
+                )
 
                 response = await async_client.get(
                     f"/api/knowledge-bases/{KB_UUID}/documents?filename=入职",
@@ -524,8 +621,11 @@ class TestListDocuments:
     @pytest.mark.asyncio
     async def test_list_with_sorting(self, async_client, auth_headers):
         """按指定字段排序"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_list_data()
 
@@ -539,8 +639,11 @@ class TestListDocuments:
     @pytest.mark.asyncio
     async def test_list_with_pagination(self, async_client, auth_headers):
         """分页参数"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_list_data(total=50, page=2, page_size=10, items=[])
 
@@ -557,8 +660,11 @@ class TestListDocuments:
     @pytest.mark.asyncio
     async def test_list_empty(self, async_client, auth_headers):
         """空知识库（无文档）"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_list_data(total=0, items=[])
 
@@ -574,8 +680,11 @@ class TestListDocuments:
     @pytest.mark.asyncio
     async def test_list_kb_not_found(self, async_client, auth_headers):
         """知识库不存在"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
                 mock.side_effect = KnowledgeBaseNotFoundException(999)
 
@@ -590,8 +699,11 @@ class TestListDocuments:
     @pytest.mark.asyncio
     async def test_list_permission_denied(self, async_client, auth_headers):
         """非 owner 且非 admin 查看 → 403"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -632,18 +744,24 @@ class TestListDocuments:
 
 # ==================== GET /{kb_id}/documents/{doc_id} — 文档详情 ====================
 
+
 class TestGetDocument:
     """GET /api/knowledge-bases/{kb_id}/documents/{doc_id} — 文档详情"""
 
     @pytest.mark.asyncio
     async def test_get_success(self, async_client, auth_headers):
         """A3.8: 获取文档详情，含 chunk_count"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_doc_response(
-                    doc_uuid=DOC_UUID, filename="入职指南.pdf",
-                    chunk_count=24, status=DocumentStatus.COMPLETED,
+                    doc_uuid=DOC_UUID,
+                    filename="入职指南.pdf",
+                    chunk_count=24,
+                    status=DocumentStatus.COMPLETED,
                 )
 
                 response = await async_client.get(
@@ -664,8 +782,11 @@ class TestGetDocument:
     @pytest.mark.asyncio
     async def test_get_not_found(self, async_client, auth_headers):
         """文档不存在 → 404 E2001"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = DocumentNotFoundException(999)
 
@@ -682,8 +803,11 @@ class TestGetDocument:
     @pytest.mark.asyncio
     async def test_get_kb_not_found(self, async_client, auth_headers):
         """知识库不存在"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = KnowledgeBaseNotFoundException(999)
 
@@ -698,8 +822,11 @@ class TestGetDocument:
     @pytest.mark.asyncio
     async def test_get_permission_denied(self, async_client, auth_headers):
         """非 owner 且非 admin 查看 → 403"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -720,20 +847,27 @@ class TestGetDocument:
 
 # ==================== GET /{kb_id}/documents/{doc_id}/chunks — 分块列表 ====================
 
+
 class TestGetDocumentChunks:
     """GET /api/knowledge-bases/{kb_id}/documents/{doc_id}/chunks — 分块列表"""
 
     @pytest.mark.asyncio
     async def test_chunks_success(self, async_client, auth_headers):
         """正常获取分块列表"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document_chunks", new_callable=AsyncMock) as mock:
-                mock.return_value = _make_chunk_list_data(total=3, items=[
-                    _make_chunk_response(chunk_id=1, chunk_index=0, preview="第一段内容..."),
-                    _make_chunk_response(chunk_id=2, chunk_index=1, preview="第二段内容..."),
-                    _make_chunk_response(chunk_id=3, chunk_index=2, preview="第三段内容..."),
-                ])
+                mock.return_value = _make_chunk_list_data(
+                    total=3,
+                    items=[
+                        _make_chunk_response(chunk_id=1, chunk_index=0, preview="第一段内容..."),
+                        _make_chunk_response(chunk_id=2, chunk_index=1, preview="第二段内容..."),
+                        _make_chunk_response(chunk_id=3, chunk_index=2, preview="第三段内容..."),
+                    ],
+                )
 
                 response = await async_client.get(
                     f"/api/knowledge-bases/{KB_UUID}/documents/{DOC_UUID}/chunks",
@@ -752,8 +886,11 @@ class TestGetDocumentChunks:
     @pytest.mark.asyncio
     async def test_chunks_empty(self, async_client, auth_headers):
         """文档无分块"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document_chunks", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_chunk_list_data(total=0, items=[])
 
@@ -770,8 +907,11 @@ class TestGetDocumentChunks:
     @pytest.mark.asyncio
     async def test_chunks_with_pagination(self, async_client, auth_headers):
         """分块分页"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document_chunks", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_chunk_list_data(
                     total=150, page=2, page_size=20, items=[_make_chunk_response()]
@@ -790,8 +930,11 @@ class TestGetDocumentChunks:
     @pytest.mark.asyncio
     async def test_chunks_doc_not_found(self, async_client, auth_headers):
         """文档不存在"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document_chunks", new_callable=AsyncMock) as mock:
                 mock.side_effect = DocumentNotFoundException(999)
 
@@ -806,11 +949,14 @@ class TestGetDocumentChunks:
     @pytest.mark.asyncio
     async def test_chunks_no_auth(self, async_client):
         """未登录"""
-        response = await async_client.get(f"/api/knowledge-bases/{KB_UUID}/documents/{DOC_UUID}/chunks")
+        response = await async_client.get(
+            f"/api/knowledge-bases/{KB_UUID}/documents/{DOC_UUID}/chunks"
+        )
         assert response.status_code == 401
 
 
 # ==================== POST /{kb_id}/documents/{doc_id}/reprocess — 重新处理 ====================
+
 
 class TestReprocessDocument:
     """POST /api/knowledge-bases/{kb_id}/documents/{doc_id}/reprocess — 重新处理"""
@@ -818,10 +964,15 @@ class TestReprocessDocument:
     @pytest.mark.asyncio
     async def test_reprocess_success(self, async_client, auth_headers):
         """A3.10: 重新处理终态文档 → 200（创建新版本返回 queued）"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.reprocess_document", new_callable=AsyncMock) as mock:
-                mock.return_value = _make_reprocess_data(doc_uuid=DOC_UUID, status=DocumentStatus.QUEUED)
+                mock.return_value = _make_reprocess_data(
+                    doc_uuid=DOC_UUID, status=DocumentStatus.QUEUED
+                )
 
                 response = await async_client.post(
                     f"/api/knowledge-bases/{KB_UUID}/documents/{DOC_UUID}/reprocess",
@@ -838,8 +989,11 @@ class TestReprocessDocument:
     @pytest.mark.asyncio
     async def test_reprocess_invalid_status(self, async_client, auth_headers):
         """进行中状态（queued/processing）不允许 reprocess → 400 E2010"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.reprocess_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = ReprocessFailedException(
                     "文档 5 当前状态为 queued，仅终态（completed/partial/failed）允许重新处理"
@@ -858,8 +1012,11 @@ class TestReprocessDocument:
     @pytest.mark.asyncio
     async def test_reprocess_doc_not_found(self, async_client, auth_headers):
         """文档不存在"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.reprocess_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = DocumentNotFoundException(999)
 
@@ -874,8 +1031,11 @@ class TestReprocessDocument:
     @pytest.mark.asyncio
     async def test_reprocess_permission_denied(self, async_client, auth_headers):
         """非 owner 且非 admin → 403"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.reprocess_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -898,16 +1058,22 @@ class TestReprocessDocument:
 
 # ==================== DELETE /{kb_id}/documents/{doc_id} — 文档删除 ====================
 
+
 class TestDeleteDocument:
     """DELETE /api/knowledge-bases/{kb_id}/documents/{doc_id} — 文档删除"""
 
     @pytest.mark.asyncio
     async def test_delete_success(self, async_client, auth_headers):
         """A3.9: 删除文档 → 202，异步清理"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.delete_document", new_callable=AsyncMock) as mock:
-                mock.return_value = _make_delete_data(doc_uuid=DOC_UUID, status=DocumentStatus.DELETING)
+                mock.return_value = _make_delete_data(
+                    doc_uuid=DOC_UUID, status=DocumentStatus.DELETING
+                )
 
                 response = await async_client.delete(
                     f"/api/knowledge-bases/{KB_UUID}/documents/{DOC_UUID}",
@@ -924,8 +1090,11 @@ class TestDeleteDocument:
     @pytest.mark.asyncio
     async def test_delete_already_deleting(self, async_client, auth_headers):
         """文档已在删除中 → 409 E2011"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.delete_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = DocumentProcessingError("文档 5 正在删除中")
 
@@ -942,8 +1111,11 @@ class TestDeleteDocument:
     @pytest.mark.asyncio
     async def test_delete_not_found(self, async_client, auth_headers):
         """文档不存在 → 404 E2001"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.delete_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = DocumentNotFoundException(999)
 
@@ -960,8 +1132,11 @@ class TestDeleteDocument:
     @pytest.mark.asyncio
     async def test_delete_permission_denied(self, async_client, auth_headers):
         """非 owner 且非 admin 删除 → 403"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.delete_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -995,8 +1170,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_owner_can_upload(self, async_client, auth_headers):
         """owner 可上传文档"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_upload_response(filename="owner_doc.pdf")
 
@@ -1011,8 +1189,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_admin_cannot_upload(self, async_client, admin_auth_headers):
         """admin 不能上传到他人知识库（上传仅 owner）"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -1028,8 +1209,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_other_user_cannot_upload(self, async_client, other_user_auth_headers):
         """非 owner 普通用户不能上传"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.upload_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -1046,8 +1230,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_owner_can_list(self, async_client, auth_headers):
         """owner 可查看文档列表"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_list_data()
 
@@ -1061,8 +1248,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_admin_can_list(self, async_client, admin_auth_headers):
         """admin 可查看任意 KB 文档列表（private KB 审计）"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_list_data()
 
@@ -1076,8 +1266,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_other_user_cannot_list(self, async_client, other_user_auth_headers):
         """非 owner 普通用户不能查看他人 private KB 文档列表"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.list_documents", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -1093,8 +1286,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_owner_can_get(self, async_client, auth_headers):
         """owner 可查看文档详情"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_doc_response()
 
@@ -1108,8 +1304,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_admin_can_get(self, async_client, admin_auth_headers):
         """admin 可查看任意 KB 文档详情（private KB 审计）"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_doc_response()
 
@@ -1123,8 +1322,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_other_user_cannot_get(self, async_client, other_user_auth_headers):
         """非 owner 普通用户不能查看他人 private KB 文档详情"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -1140,8 +1342,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_owner_can_get_chunks(self, async_client, auth_headers):
         """owner 可查看文档分块"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document_chunks", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_chunk_list_data()
 
@@ -1155,8 +1360,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_admin_can_get_chunks(self, async_client, admin_auth_headers):
         """admin 可查看任意 KB 文档分块（private KB 审计）"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document_chunks", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_chunk_list_data()
 
@@ -1170,8 +1378,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_other_user_cannot_get_chunks(self, async_client, other_user_auth_headers):
         """非 owner 普通用户不能查看他人 private KB 文档分块"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.get_document_chunks", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -1187,8 +1398,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_owner_can_delete(self, async_client, auth_headers):
         """owner 可删除文档"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.delete_document", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_delete_data()
 
@@ -1202,8 +1416,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_admin_can_delete(self, async_client, admin_auth_headers):
         """admin 可删除任意 KB 文档（违规清理）"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.delete_document", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_delete_data()
 
@@ -1217,8 +1434,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_other_user_cannot_delete(self, async_client, other_user_auth_headers):
         """非 owner 普通用户不能删除他人文档"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.delete_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -1234,8 +1454,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_owner_can_reprocess(self, async_client, auth_headers):
         """owner 可重新处理文档"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.reprocess_document", new_callable=AsyncMock) as mock:
                 mock.return_value = _make_reprocess_data()
 
@@ -1249,8 +1472,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_admin_cannot_reprocess(self, async_client, admin_auth_headers):
         """admin 不能重新处理他人文档（reprocess 仅 owner）"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.reprocess_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 
@@ -1265,8 +1491,11 @@ class TestDocumentPermissionMatrix:
     @pytest.mark.asyncio
     async def test_other_user_cannot_reprocess(self, async_client, other_user_auth_headers):
         """非 owner 普通用户不能重新处理他人文档"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock,
-                   side_effect=_uuid_to_id_side_effect):
+        with patch(
+            "app.api.document.resolve_uuid_to_id",
+            new_callable=AsyncMock,
+            side_effect=_uuid_to_id_side_effect,
+        ):
             with patch("app.api.document.reprocess_document", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
 

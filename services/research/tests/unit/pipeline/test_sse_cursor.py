@@ -78,9 +78,14 @@ async def _collect(agen, count: int, timeout: float = 5.0) -> list[str]:
 
 
 async def _seed_events(db_session: AsyncSession) -> str:
-    db_session.add(ResearchTask(
-        id="cursor-task-1", user_id="user-1", topic="t", requirements={"max_sources": 10},
-    ))
+    db_session.add(
+        ResearchTask(
+            id="cursor-task-1",
+            user_id="user-1",
+            topic="t",
+            requirements={"max_sources": 10},
+        )
+    )
     await db_session.flush()
     recorder = AgentEventRecorder("cursor-task-1", db_session, RecordingSSE())
     await recorder.record(
@@ -178,10 +183,12 @@ class TestSSEPersistentCursor:
         async def loader(after):
             return await list_events_after(db_session, task_id, last_sequence=after)
 
-        fake_redis._pubsub._messages.append(json.dumps(
-            {"event": "step.started", "data": {"step_id": "s1"}, "seq": 4},
-            ensure_ascii=False,
-        ))
+        fake_redis._pubsub._messages.append(
+            json.dumps(
+                {"event": "step.started", "data": {"step_id": "s1"}, "seq": 4},
+                ensure_ascii=False,
+            )
+        )
         stream = sse_event_stream(
             task_id,
             initial_snapshot={"status": "running"},

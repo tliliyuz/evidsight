@@ -1,4 +1,5 @@
 """Schema 自检：每个 JSON Schema 必须通过 JSON Schema 2020-12 Meta-Schema 校验。"""
+
 import json
 
 import pytest

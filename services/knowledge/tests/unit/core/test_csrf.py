@@ -27,6 +27,7 @@ from app.core.csrf import (
 
 # ==================== 辅助函数 ====================
 
+
 def _cookies_of(response):
     """从 Response.raw_headers 解析全部 Set-Cookie（Starlette 0.46 无 response.cookies）。"""
     cookies = SimpleCookie()
@@ -64,6 +65,7 @@ def _build_request(cookies=None, headers=None):
 
 # ==================== token 生成 ====================
 
+
 class TestGenerateCsrfToken:
     """generate_csrf_token 基础行为"""
 
@@ -77,6 +79,7 @@ class TestGenerateCsrfToken:
 
 
 # ==================== verify_csrf 依赖 ====================
+
 
 class TestVerifyCsrf:
     """verify_csrf FastAPI 依赖校验行为（统一安全认证错误 E5004）"""
@@ -146,7 +149,9 @@ class TestVerifyCsrf:
 
     @pytest.mark.asyncio
     async def test_Origin不在白名单返回E5004(self, monkeypatch):
-        monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS", "https://app.example.com")
+        monkeypatch.setattr(
+            settings, "EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS", "https://app.example.com"
+        )
         token = generate_csrf_token()
         request = _build_request(
             cookies={"evidsight_csrf": token},
@@ -161,7 +166,9 @@ class TestVerifyCsrf:
 
     @pytest.mark.asyncio
     async def test_白名单非空但Origin缺失返回E5004(self, monkeypatch):
-        monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS", "https://app.example.com")
+        monkeypatch.setattr(
+            settings, "EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS", "https://app.example.com"
+        )
         token = generate_csrf_token()
         request = _build_request(
             cookies={"evidsight_csrf": token},
@@ -200,12 +207,15 @@ class TestVerifyCsrf:
 
 # ==================== Cookie helper ====================
 
+
 class TestCookieHelpers:
     """set_refresh_cookie / set_csrf_cookie / clear_auth_cookies 属性断言"""
 
     def test_set_refresh_cookie属性(self, monkeypatch):
         # `__Host-` 前缀强制 Path=/（RFC 6265bis §5.5），否则浏览器拒绝 Cookie
-        monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME", "__Host-evidsight_refresh")
+        monkeypatch.setattr(
+            settings, "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME", "__Host-evidsight_refresh"
+        )
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_PATH", "/")
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE", True)
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SAMESITE", "lax")
@@ -247,7 +257,9 @@ class TestCookieHelpers:
         assert morsel["samesite"] == "lax"
 
     def test_clear_auth_cookies清除两个Cookie(self, monkeypatch):
-        monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME", "__Host-evidsight_refresh")
+        monkeypatch.setattr(
+            settings, "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME", "__Host-evidsight_refresh"
+        )
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_PATH", "/")
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_CSRF_COOKIE_NAME", "evidsight_csrf")
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE", True)

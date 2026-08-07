@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     WORKER_TIMEOUT_GRACE_SECONDS: int = 5
     # 启动恢复阈值：running 任务超过该时间无活跃 Worker 心跳/锁，则重新投递
     STALE_TASK_RECOVERY_SECONDS: int = 60
-    STARTUP_RECOVERY_ENABLED: bool = True    # 启动时自动恢复过时 running 任务
+    STARTUP_RECOVERY_ENABLED: bool = True  # 启动时自动恢复过时 running 任务
     # Redis broker visibility_timeout：明确配置，避免依赖 Celery 默认 1h
     CELERY_VISIBILITY_TIMEOUT: int = 1800
 
@@ -133,9 +133,9 @@ class Settings(BaseSettings):
     # ── 限流（Phase 4 激活，代码提前就位）──
     RATE_LIMIT_ENABLED: bool = False  # Phase 4 压测后启用
     RATE_LIMIT_WINDOW_SECONDS: int = 60
-    RATE_LIMIT_RESEARCH_PER_MINUTE: int = 5    # 创建研究任务 5次/分钟
-    RATE_LIMIT_LOGIN_PER_MINUTE: int = 10      # 登录/注册 10次/分钟
-    RATE_LIMIT_DEFAULT_PER_MINUTE: int = 120   # 全局默认 120次/分钟
+    RATE_LIMIT_RESEARCH_PER_MINUTE: int = 5  # 创建研究任务 5次/分钟
+    RATE_LIMIT_LOGIN_PER_MINUTE: int = 10  # 登录/注册 10次/分钟
+    RATE_LIMIT_DEFAULT_PER_MINUTE: int = 120  # 全局默认 120次/分钟
 
     # ── JWT ──
     JWT_SECRET_KEY: str = ""
@@ -150,7 +150,9 @@ class Settings(BaseSettings):
     EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER: str = "evidsight-platform"
     EVIDSIGHT_PLATFORM_SERVICE_JWT_ALGORITHM: str = "RS256"
     EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE: str = "knowledge-internal"
-    EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: int = Field(default=60, ge=10, le=300)  # 范围 10—300
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: int = Field(
+        default=60, ge=10, le=300
+    )  # 范围 10—300
     EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID: str = ""  # 必填
     EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE: str = ""  # path, secret；必填
 

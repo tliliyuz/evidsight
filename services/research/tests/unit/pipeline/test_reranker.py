@@ -1,4 +1,5 @@
 """Rerank 阶段单元测试 — BM25 粗筛 + LLM 精排 + Evidence 持久化。"""
+
 import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -164,9 +165,7 @@ class TestRerankSuccess:
         # 验证 output
         assert output["evidence_count"] == 3
         assert output["bm25_candidates"] == 4
-        assert output["avg_score"] == round(
-            sum(r["score"] / 10.0 for r in ratings[:3]) / 3, 3
-        )
+        assert output["avg_score"] == round(sum(r["score"] / 10.0 for r in ratings[:3]) / 3, 3)
         assert output["prompt_tokens"] == 500
         assert output["completion_tokens"] == 200
         assert output["model"] == settings.LLM_FLASH_MODEL
@@ -177,8 +176,12 @@ class TestRerankSuccess:
         assert task.total_evidence == 3
 
         # 验证 SSE 进度事件携带 label
-        progress_calls = [c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_PROGRESS]
-        completed_calls = [c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_COMPLETED]
+        progress_calls = [
+            c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_PROGRESS
+        ]
+        completed_calls = [
+            c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_COMPLETED
+        ]
         assert len(progress_calls) == 2
         assert "BM25 粗筛完成" in progress_calls[0].args[1]["label"]
         assert "LLM 精排" in progress_calls[1].args[1]["label"]
@@ -193,8 +196,7 @@ class TestRerankSuccess:
             captured_messages.append(kwargs.get("messages"))
             # 2 docs × 2 paragraphs = 4 candidates，返回 4 个评分
             ratings = [
-                {"segment_index": i, "score": 7.5 - i * 0.5, "rationale": "ok"}
-                for i in range(4)
+                {"segment_index": i, "score": 7.5 - i * 0.5, "rationale": "ok"} for i in range(4)
             ]
             return _make_llm_result(ratings)
 
@@ -232,8 +234,7 @@ class TestRerankSuccess:
 
         # 验证 warning 事件
         warning_calls = [
-            call for call in sse.publish.await_args_list
-            if call.args[0] == "task.warning"
+            call for call in sse.publish.await_args_list if call.args[0] == "task.warning"
         ]
         assert len(warning_calls) == 1
         assert "Evidence 数量" in warning_calls[0].args[1]["error_description"]
@@ -252,17 +253,21 @@ class TestRerankFailure:
         """所有 source 抓取失败时，BM25 候选为空 → E3105。"""
         task, rerank_step = await _seed_rerank_task(
             db_session,
-            sources_data=[{
-                "url": "https://example.com/fail",
-                "title": "失败源",
-                "domain": "example.com",
-                "content": "",
-            }],
+            sources_data=[
+                {
+                    "url": "https://example.com/fail",
+                    "title": "失败源",
+                    "domain": "example.com",
+                    "content": "",
+                }
+            ],
         )
         # 覆盖 fetch_status 为失败
-        source = (await db_session.execute(
-            select(ResearchSource).where(ResearchSource.task_id == task.id)
-        )).scalar_one()
+        source = (
+            await db_session.execute(
+                select(ResearchSource).where(ResearchSource.task_id == task.id)
+            )
+        ).scalar_one()
         source.fetch_status = "timeout"
         source.content = None
         await db_session.flush()
@@ -280,12 +285,14 @@ class TestRerankFailure:
         """Planning 未产出子问题 → Rerank 无法评分。"""
         task, rerank_step = await _seed_rerank_task(db_session)
         # 清空 planning output 中的子问题
-        planning_step = (await db_session.execute(
-            select(ResearchStep).where(
-                ResearchStep.task_id == task.id,
-                ResearchStep.step_type == "planning",
+        planning_step = (
+            await db_session.execute(
+                select(ResearchStep).where(
+                    ResearchStep.task_id == task.id,
+                    ResearchStep.step_type == "planning",
+                )
             )
-        )).scalar_one()
+        ).scalar_one()
         planning_step.output = {"sub_questions": []}
         await db_session.flush()
 

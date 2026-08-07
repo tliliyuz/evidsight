@@ -1,4 +1,5 @@
 """SSE 端点测试 — stream 连接、状态快照、心跳格式。"""
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -46,7 +47,9 @@ class TestSSEStateEndpoint:
     """GET /api/research/{task_id}/state — REST 状态快照。"""
 
     @pytest.mark.asyncio
-    async def test_正常返回状态快照(self, async_client: AsyncClient, auth_headers: dict, db_session):
+    async def test_正常返回状态快照(
+        self, async_client: AsyncClient, auth_headers: dict, db_session
+    ):
         await _seed_task_for_sse(db_session)
 
         response = await async_client.get(
@@ -82,7 +85,9 @@ class TestSSEStateEndpoint:
         assert response.json()["code"] == "E2001"
 
     @pytest.mark.asyncio
-    async def test_无权访问_返回403(self, async_client: AsyncClient, auth_headers: dict, db_session):
+    async def test_无权访问_返回403(
+        self, async_client: AsyncClient, auth_headers: dict, db_session
+    ):
         task = ResearchTask(
             id="sse-task-uuid-other",
             user_id="550e8400-e29b-41d4-a716-446655440002",
@@ -108,7 +113,9 @@ class TestSSEStateEndpoint:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_失败任务含错误信息(self, async_client: AsyncClient, auth_headers: dict, db_session):
+    async def test_失败任务含错误信息(
+        self, async_client: AsyncClient, auth_headers: dict, db_session
+    ):
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
@@ -120,8 +127,10 @@ class TestSSEStateEndpoint:
         await db_session.flush()
 
         # 通过 eager-load 重新获取 task，确保关系已加载
-        stmt = select(ResearchTask).where(ResearchTask.id == task.id).options(
-            selectinload(ResearchTask.steps)
+        stmt = (
+            select(ResearchTask)
+            .where(ResearchTask.id == task.id)
+            .options(selectinload(ResearchTask.steps))
         )
         result = await db_session.execute(stmt)
         task_reloaded = result.scalar_one()
@@ -147,7 +156,9 @@ class TestSSEStreamEndpoint:
     """GET /api/research/{task_id}/stream — SSE 事件流。"""
 
     @pytest.mark.asyncio
-    async def test_SSE连接成功_返回text_event_stream(self, async_client: AsyncClient, auth_headers: dict, db_session):
+    async def test_SSE连接成功_返回text_event_stream(
+        self, async_client: AsyncClient, auth_headers: dict, db_session
+    ):
         """SSE 流连接验证 → 需要 Redis Pub/Sub，单元测试环境跳过。
 
         此测试需真实 Redis 运行，将在 tests/integration/ 中覆盖（Phase4）。
@@ -162,7 +173,9 @@ class TestSSEStreamEndpoint:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_终态任务SSE只推送snapshot后关闭(self, async_client: AsyncClient, auth_headers: dict, db_session):
+    async def test_终态任务SSE只推送snapshot后关闭(
+        self, async_client: AsyncClient, auth_headers: dict, db_session
+    ):
         task = await _seed_task_for_sse(db_session)
         task.status = "completed"
         await db_session.flush()
@@ -184,7 +197,9 @@ class TestSseSnapshotStructure:
     """快照数据结构完整性与进度校验。"""
 
     @pytest.mark.asyncio
-    async def test_快照包含所有必要字段(self, async_client: AsyncClient, auth_headers: dict, db_session):
+    async def test_快照包含所有必要字段(
+        self, async_client: AsyncClient, auth_headers: dict, db_session
+    ):
         await _seed_task_for_sse(db_session)
 
         response = await async_client.get(
@@ -216,7 +231,9 @@ class TestSseSnapshotStructure:
         assert "total_evidence" in stats
 
     @pytest.mark.asyncio
-    async def test_进度计算正确_通过API(self, async_client: AsyncClient, auth_headers: dict, db_session):
+    async def test_进度计算正确_通过API(
+        self, async_client: AsyncClient, auth_headers: dict, db_session
+    ):
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
 
@@ -226,8 +243,10 @@ class TestSseSnapshotStructure:
         await db_session.flush()
 
         # 通过 selectinload 重新加载 task，避免 MissingGreenlet
-        stmt = select(ResearchTask).where(ResearchTask.id == task.id).options(
-            selectinload(ResearchTask.steps)
+        stmt = (
+            select(ResearchTask)
+            .where(ResearchTask.id == task.id)
+            .options(selectinload(ResearchTask.steps))
         )
         await db_session.execute(stmt)
 

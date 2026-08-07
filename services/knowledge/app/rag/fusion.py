@@ -113,7 +113,9 @@ def _do_rrf_fusion(
 
     logger.info(
         "RRF 融合完成: %d 路输入, %d 条融合结果 (k=%d)",
-        len(outputs), len(results), k,
+        len(outputs),
+        len(results),
+        k,
     )
 
     return RetrievalOutput(results=results, total=len(results), fusion_method="rrf")

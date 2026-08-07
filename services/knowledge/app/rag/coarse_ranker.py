@@ -95,7 +95,9 @@ class CoarseRanker:
                 sim = self._threshold
                 logger.debug(
                     "CoarseRank: 候选 #%d (doc_id=%d) 无 embedding，分配中性分数 %.3f",
-                    i, candidate.doc_id, sim,
+                    i,
+                    candidate.doc_id,
+                    sim,
                 )
 
             scored.append((sim, i))
@@ -119,7 +121,9 @@ class CoarseRanker:
             fallback_count = min(len(candidates), self._top_k)
             logger.warning(
                 "CoarseRank: 全部 %d 条候选低于阈值 %.3f，降级返回原始前 %d 条",
-                len(candidates), self._threshold, fallback_count,
+                len(candidates),
+                self._threshold,
+                fallback_count,
             )
             return candidates[:fallback_count]
 
@@ -127,11 +131,14 @@ class CoarseRanker:
         passed.sort(key=lambda x: x[0], reverse=True)
 
         # top_k 截断
-        top_indices = [idx for _, idx in passed[:self._top_k]]
+        top_indices = [idx for _, idx in passed[: self._top_k]]
 
         logger.info(
             "CoarseRank: %d 条输入 → %d 条通过阈值 → top_%d → %d 条输出",
-            len(candidates), len(passed), self._top_k, len(top_indices),
+            len(candidates),
+            len(passed),
+            self._top_k,
+            len(top_indices),
         )
 
         return [candidates[idx] for idx in top_indices]

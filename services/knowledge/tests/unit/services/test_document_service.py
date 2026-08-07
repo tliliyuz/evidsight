@@ -67,11 +67,15 @@ def _make_scalars_all_result(rows):
     return result
 
 
-def _make_kb(kb_id=1, user_id=1, status="active",
-             kb_uuid="kb-uuid-0001"):
+def _make_kb(kb_id=1, user_id=1, status="active", kb_uuid="kb-uuid-0001"):
     kb = KnowledgeBase(
-        id=kb_id, name="测试KB", user_id=user_id, status=status,
-        visibility="private", chunk_count=0, doc_count=0,
+        id=kb_id,
+        name="测试KB",
+        user_id=user_id,
+        status=status,
+        visibility="private",
+        chunk_count=0,
+        doc_count=0,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
@@ -80,12 +84,25 @@ def _make_kb(kb_id=1, user_id=1, status="active",
     return kb
 
 
-def _make_doc(doc_id=1, kb_id=1, filename="test.pdf", status="completed",
-              file_type="pdf", chunk_count=10, file_size=1000,
-              doc_uuid="doc-uuid-0001", kb_uuid="kb-uuid-0001"):
+def _make_doc(
+    doc_id=1,
+    kb_id=1,
+    filename="test.pdf",
+    status="completed",
+    file_type="pdf",
+    chunk_count=10,
+    file_size=1000,
+    doc_uuid="doc-uuid-0001",
+    kb_uuid="kb-uuid-0001",
+):
     doc = Document(
-        id=doc_id, kb_id=kb_id, filename=filename, file_type=file_type,
-        status=status, chunk_count=chunk_count, file_size=file_size,
+        id=doc_id,
+        kb_id=kb_id,
+        filename=filename,
+        file_type=file_type,
+        status=status,
+        chunk_count=chunk_count,
+        file_size=file_size,
         file_path=f"uploads/{kb_id}/{doc_id}/test.pdf",
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -282,8 +299,8 @@ class TestListDocuments:
         mock_db.execute = AsyncMock()
         mock_db.execute.side_effect = [
             _make_scalar_one_or_none_result(kb),  # check_kb_active → get_kb: 查 KB
-            _make_scalar_result(1),                # COUNT total
-            _make_scalars_all_result([doc]),       # data rows
+            _make_scalar_result(1),  # COUNT total
+            _make_scalars_all_result([doc]),  # data rows
         ]
 
         result = await list_documents(mock_db, kb_id=1, user_id=1, role="user")
@@ -319,7 +336,10 @@ class TestListDocuments:
         ]
 
         result = await list_documents(
-            mock_db, kb_id=1, user_id=1, role="user",
+            mock_db,
+            kb_id=1,
+            user_id=1,
+            role="user",
             status="completed",
         )
         assert result.total == 1
@@ -337,7 +357,10 @@ class TestListDocuments:
         ]
 
         result = await list_documents(
-            mock_db, kb_id=1, user_id=1, role="user",
+            mock_db,
+            kb_id=1,
+            user_id=1,
+            role="user",
             filename="入职",
         )
         assert result.total == 1
@@ -387,14 +410,21 @@ class TestGetDocumentChunks:
     async def test_正常获取分块(self, mock_db):
         kb = _make_kb()
         doc = _make_doc(doc_id=5)
-        chunk = Chunk(id=1, doc_id=5, kb_id=1, chroma_id="c1",
-                      content="测试分块内容", chunk_index=0, token_count=50)
+        chunk = Chunk(
+            id=1,
+            doc_id=5,
+            kb_id=1,
+            chroma_id="c1",
+            content="测试分块内容",
+            chunk_index=0,
+            token_count=50,
+        )
         mock_db.execute = AsyncMock()
         mock_db.execute.side_effect = [
-            _make_scalar_one_or_none_result(kb),   # check_kb_active → get_kb: 查 KB
-            _make_scalar_one_or_none_result(doc),   # get_document
-            _make_scalar_result(1),                  # COUNT chunks
-            _make_scalars_all_result([chunk]),       # chunk rows
+            _make_scalar_one_or_none_result(kb),  # check_kb_active → get_kb: 查 KB
+            _make_scalar_one_or_none_result(doc),  # get_document
+            _make_scalar_result(1),  # COUNT chunks
+            _make_scalars_all_result([chunk]),  # chunk rows
         ]
 
         result = await get_document_chunks(mock_db, doc_id=5, kb_id=1, user_id=1, role="user")
@@ -431,8 +461,8 @@ class TestDeleteDocument:
         doc = _make_doc(doc_id=5, status="completed")
         mock_db.execute = AsyncMock()
         mock_db.execute.side_effect = [
-            _make_scalar_one_or_none_result(kb),   # check_kb_active → get_kb: 查 KB
-            _make_scalar_one_or_none_result(doc),   # query doc
+            _make_scalar_one_or_none_result(kb),  # check_kb_active → get_kb: 查 KB
+            _make_scalar_one_or_none_result(doc),  # query doc
         ]
         mock_db.flush = AsyncMock()
         mock_db.commit = AsyncMock()
@@ -486,8 +516,8 @@ class TestReprocessDocument:
         doc = _make_doc(doc_id=5, status="failed")
         mock_db.execute = AsyncMock()
         mock_db.execute.side_effect = [
-            _make_scalar_one_or_none_result(kb),   # check_kb_active → get_kb: 查 KB
-            _make_scalar_one_or_none_result(doc),   # query doc
+            _make_scalar_one_or_none_result(kb),  # check_kb_active → get_kb: 查 KB
+            _make_scalar_one_or_none_result(doc),  # query doc
         ]
         mock_db.flush = AsyncMock()
         mock_db.commit = AsyncMock()
@@ -499,9 +529,14 @@ class TestReprocessDocument:
             return version
 
         with patch("app.services.document_service.ingest_version_task") as mock_task:
-            with patch("app.services.document_service.create_document_version",
-                       new_callable=AsyncMock, side_effect=_fake_create) as mock_create:
-                result = await reprocess_document(mock_db, doc_id=5, kb_id=1, user_id=1, role="user")
+            with patch(
+                "app.services.document_service.create_document_version",
+                new_callable=AsyncMock,
+                side_effect=_fake_create,
+            ) as mock_create:
+                result = await reprocess_document(
+                    mock_db, doc_id=5, kb_id=1, user_id=1, role="user"
+                )
 
         assert result.doc_uuid == "doc-uuid-0001"
         assert result.status == "queued"  # 创建新版本后 doc 重置为 queued
@@ -536,7 +571,7 @@ class TestUploadDocument:
         kb = _make_kb(kb_id=1, user_id=99)  # owner 是 99，不是当前用户
         mock_db.execute = AsyncMock()
         mock_db.execute.side_effect = [
-            _make_scalar_one_or_none_result(kb),    # check_kb_active → get_kb: 查 KB
+            _make_scalar_one_or_none_result(kb),  # check_kb_active → get_kb: 查 KB
         ]
 
         f = _make_upload_file("doc.pdf", 1000)
@@ -592,9 +627,7 @@ class TestBatchUploadCountLimit:
         ]
 
         with pytest.raises(BatchUploadCountExceededException) as exc:
-            await batch_upload_documents(
-                mock_db, kb_id=1, user_id=1, role="user", files=too_many
-            )
+            await batch_upload_documents(mock_db, kb_id=1, user_id=1, role="user", files=too_many)
         assert exc.value.error_code == "E2014"
         assert str(settings.BATCH_UPLOAD_MAX_COUNT) in exc.value.error_detail
 
@@ -610,13 +643,16 @@ class TestBatchUploadCountLimit:
         ]
 
         exact_limit = [
-            _make_upload_file(f"doc_{i}.pdf", 1000)
-            for i in range(settings.BATCH_UPLOAD_MAX_COUNT)
+            _make_upload_file(f"doc_{i}.pdf", 1000) for i in range(settings.BATCH_UPLOAD_MAX_COUNT)
         ]
 
         # 不抛 BatchUploadCountExceededException（后续 upload_document 因缺少 mock 会抛异常，但不属于本测试范围）
-        with patch("app.services.document_service.upload_document", new_callable=AsyncMock) as mock_upload:
-            mock_upload.return_value = MagicMock(uuid="test-uuid", filename="test.pdf", status="queued")
+        with patch(
+            "app.services.document_service.upload_document", new_callable=AsyncMock
+        ) as mock_upload:
+            mock_upload.return_value = MagicMock(
+                uuid="test-uuid", filename="test.pdf", status="queued"
+            )
             result = await batch_upload_documents(
                 mock_db, kb_id=1, user_id=1, role="user", files=exact_limit
             )

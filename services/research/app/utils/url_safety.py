@@ -16,16 +16,16 @@ _ALLOWED_PROTOCOLS = {"http", "https"}
 
 # 内网/危险 IP 段（CIDR）
 _PRIVATE_NETWORKS = [
-    ipaddress.ip_network("127.0.0.0/8"),       # 回环
-    ipaddress.ip_network("10.0.0.0/8"),         # A 类私有
-    ipaddress.ip_network("172.16.0.0/12"),      # B 类私有
-    ipaddress.ip_network("192.168.0.0/16"),     # C 类私有
-    ipaddress.ip_network("169.254.0.0/16"),     # 链路本地
-    ipaddress.ip_network("0.0.0.0/8"),           # 当前网络
-    ipaddress.ip_network("::1/128"),             # IPv6 回环
-    ipaddress.ip_network("fc00::/7"),            # IPv6 唯一本地
-    ipaddress.ip_network("fe80::/10"),           # IPv6 链路本地
-    ipaddress.ip_network("ff00::/8"),            # IPv6 组播
+    ipaddress.ip_network("127.0.0.0/8"),  # 回环
+    ipaddress.ip_network("10.0.0.0/8"),  # A 类私有
+    ipaddress.ip_network("172.16.0.0/12"),  # B 类私有
+    ipaddress.ip_network("192.168.0.0/16"),  # C 类私有
+    ipaddress.ip_network("169.254.0.0/16"),  # 链路本地
+    ipaddress.ip_network("0.0.0.0/8"),  # 当前网络
+    ipaddress.ip_network("::1/128"),  # IPv6 回环
+    ipaddress.ip_network("fc00::/7"),  # IPv6 唯一本地
+    ipaddress.ip_network("fe80::/10"),  # IPv6 链路本地
+    ipaddress.ip_network("ff00::/8"),  # IPv6 组播
 ]
 
 
@@ -70,9 +70,7 @@ async def check_url_safety(url: str) -> str | None:
         loop = asyncio.get_running_loop()
         addrinfo = await loop.run_in_executor(
             None,
-            lambda: socket.getaddrinfo(
-                hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
-            ),
+            lambda: socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM),
         )
         ips = {info[4][0] for info in addrinfo}
     except socket.gaierror:

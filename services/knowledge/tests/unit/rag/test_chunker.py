@@ -202,9 +202,9 @@ class TestChunkDocument:
     def test_按段落分隔符优先分块(self):
         """\n\n 优先级最高，段落边界处应优先切分"""
         # 构造 3 段，每段 ~400 字符，总计 ~1200 字符
-        para_a = "这是第一段内容。" * 40   # ~320 chars
-        para_b = "这是第二段内容。" * 40   # ~320 chars
-        para_c = "这是第三段内容。" * 40   # ~320 chars
+        para_a = "这是第一段内容。" * 40  # ~320 chars
+        para_b = "这是第二段内容。" * 40  # ~320 chars
+        para_c = "这是第三段内容。" * 40  # ~320 chars
         text = "\n\n".join([para_a, para_b, para_c])
 
         result = chunk_document(text)
@@ -225,9 +225,7 @@ class TestChunkDocument:
         # RecursiveCharacterTextSplitter 优先按 。切分，每块应含完整句号
         # 注意：超大块可能被更低优先级分隔符递归切分（如字符级），非末尾块不一定以 。结尾
         for chunk in result.chunks:
-            assert "。" in chunk.content, (
-                f"块 {chunk.chunk_index} 不含中文句号，分割可能未按标点"
-            )
+            assert "。" in chunk.content, f"块 {chunk.chunk_index} 不含中文句号，分割可能未按标点"
 
     def test_换行符处断句(self):
         """\n 优先级高于标点"""
@@ -279,7 +277,7 @@ class TestChunkDocument:
             # 取 current 尾部 30 字符在 next 头部搜索
             overlap_candidate = result.chunks[i].content[-30:]
             assert overlap_candidate in result.chunks[i + 1].content, (
-                f"块 {i} 和块 {i+1} 之间未检测到重叠"
+                f"块 {i} 和块 {i + 1} 之间未检测到重叠"
             )
 
     # === 页码追踪 ===
@@ -322,12 +320,12 @@ class TestChunkDocument:
         assert len(result.chunks[0].content) == settings.CHUNK_SIZE
 
     def test_含英文标点的文本(self):
-        text = ("This is a test sentence. Another sentence here. " * 50)
+        text = "This is a test sentence. Another sentence here. " * 50
         result = chunk_document(text)
         assert result.total_chunks >= 1
 
     def test_混合中英文标点(self):
-        text = ("中文内容。English follows. 继续中文！Next English! " * 50)
+        text = "中文内容。English follows. 继续中文！Next English! " * 50
         result = chunk_document(text)
         assert result.total_chunks >= 1
 
@@ -505,13 +503,18 @@ class TestChunkDocumentWithSections:
         assert chunk.section_path is None
 
     def test_markdown文档产出section范围与chunk归属(self):
-        text = """# 第一章
+        text = (
+            """# 第一章
 
-第一章正文。""" + ("内容填充。" * 80) + """
+第一章正文。"""
+            + ("内容填充。" * 80)
+            + """
 
 ## 第二节
 
-第二节正文。""" + ("细节补充。" * 80)
+第二节正文。"""
+            + ("细节补充。" * 80)
+        )
         result = chunk_document(text, chunk_size=120, chunk_overlap=20)
 
         assert len(result.sections) == 2
@@ -520,14 +523,8 @@ class TestChunkDocumentWithSections:
         assert result.sections[1].title == "第二节"
         assert result.sections[1].path == "第一章 > 第二节"
 
-        first_section_chunks = [
-            chunk for chunk in result.chunks
-            if chunk.section_index == 0
-        ]
-        second_section_chunks = [
-            chunk for chunk in result.chunks
-            if chunk.section_index == 1
-        ]
+        first_section_chunks = [chunk for chunk in result.chunks if chunk.section_index == 0]
+        second_section_chunks = [chunk for chunk in result.chunks if chunk.section_index == 1]
         assert len(first_section_chunks) >= 1
         assert len(second_section_chunks) >= 1
         assert result.sections[0].start_chunk_index == first_section_chunks[0].chunk_index
@@ -536,11 +533,16 @@ class TestChunkDocumentWithSections:
         assert result.sections[1].end_chunk_index == second_section_chunks[-1].chunk_index
 
     def test_首个标题前前言生成synthetic_section(self):
-        text = """前言内容。""" + ("说明。" * 60) + """
+        text = (
+            """前言内容。"""
+            + ("说明。" * 60)
+            + """
 
 # 正文
 
-正文内容。""" + ("更多内容。" * 60)
+正文内容。"""
+            + ("更多内容。" * 60)
+        )
         result = chunk_document(text, chunk_size=120, chunk_overlap=20)
 
         assert len(result.sections) == 2

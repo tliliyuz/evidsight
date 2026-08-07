@@ -1,4 +1,5 @@
 """Service JWT 验证单测 — 对齐 CONFIGURATION.md §3、API.md §11.1"""
+
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -19,10 +20,14 @@ def _generate_keypair(kid="test-kid"):
         serialization.PrivateFormat.PKCS8,
         serialization.NoEncryption(),
     ).decode()
-    public_pem = key.public_key().public_bytes(
-        serialization.Encoding.PEM,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode()
+    public_pem = (
+        key.public_key()
+        .public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode()
+    )
     return {"kid": kid, "private_pem": private_pem, "public_pem": public_pem}
 
 
@@ -41,8 +46,18 @@ def _make_keypair(tmp_path, kid="test-kid"):
     return kp
 
 
-def _sign(private_pem, kid, *, issuer=None, audience=None, sub="research-service",
-          token_type="service", ttl=60, iat=None, exp=None):
+def _sign(
+    private_pem,
+    kid,
+    *,
+    issuer=None,
+    audience=None,
+    sub="research-service",
+    token_type="service",
+    ttl=60,
+    iat=None,
+    exp=None,
+):
     issuer = issuer or settings.EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER
     audience = audience or settings.EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE
     now = iat or datetime.now(timezone.utc)
@@ -63,7 +78,9 @@ def _sign(private_pem, kid, *, issuer=None, audience=None, sub="research-service
 def keys(tmp_path, monkeypatch):
     kp = _make_keypair(tmp_path)
     monkeypatch.setattr(
-        settings, "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE", str(tmp_path / "public_keys.json")
+        settings,
+        "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
+        str(tmp_path / "public_keys.json"),
     )
     return kp
 
@@ -171,7 +188,8 @@ class TestPublicKeysLoadable:
 
     def test_文件不存在_返回False(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
-            settings, "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
+            settings,
+            "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
             str(tmp_path / "missing.json"),
         )
         assert public_keys_loadable() is False

@@ -39,16 +39,13 @@ CONTRACT_VERSION = "1.0.0"
 # 只有这些版本状态参与检索 / 解析；其余（queued/failed 等）视为不可用来源
 _RETRIEVABLE_VERSION_STATUSES = frozenset({"ready", "ready_with_warnings"})
 
-_TIMESTAMP_PATTERN = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$"
-)
+_TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
 
 
 class InternalRetrievalError(Exception):
     """契约错误信封信号；由 API 层转换为 error-response.schema.json。"""
 
-    def __init__(self, status_code: int, error_code: str, message: str,
-                 retryable: bool = False):
+    def __init__(self, status_code: int, error_code: str, message: str, retryable: bool = False):
         self.status_code = status_code
         self.error_code = error_code
         self.message = message
@@ -67,9 +64,7 @@ def _fmt_utc(dt: datetime | None) -> str | None:
 
 async def _load_active_user(db: AsyncSession, platform_user_id: str) -> User | None:
     """按 Platform UUID 加载用户；仅 active 用户可继续，否则返回 None。"""
-    result = await db.execute(
-        select(User).where(User.platform_user_id == platform_user_id)
-    )
+    result = await db.execute(select(User).where(User.platform_user_id == platform_user_id))
     user = result.scalar_one_or_none()
     if user is None or user.status != "active":
         return None
@@ -78,9 +73,7 @@ async def _load_active_user(db: AsyncSession, platform_user_id: str) -> User | N
 
 async def _load_kb(db: AsyncSession, kb_uuid: str) -> KnowledgeBase | None:
     """按 KB UUID 加载知识库；不存在返回 None。"""
-    result = await db.execute(
-        select(KnowledgeBase).where(KnowledgeBase.uuid == kb_uuid)
-    )
+    result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.uuid == kb_uuid))
     return result.scalar_one_or_none()
 
 
@@ -89,8 +82,7 @@ def _require_kb_readable(kb: KnowledgeBase, user: User) -> None:
     try:
         require_kb_readable(kb, user.id, user.role)
     except PermissionDeniedException:
-        raise InternalRetrievalError(403, "KB_FORBIDDEN",
-                                     "目标知识库不可访问", False) from None
+        raise InternalRetrievalError(403, "KB_FORBIDDEN", "目标知识库不可访问", False) from None
 
 
 def _require_kb_active(kb: KnowledgeBase) -> None:
@@ -99,8 +91,7 @@ def _require_kb_active(kb: KnowledgeBase) -> None:
     与不可读统一映射为 KB_FORBIDDEN，避免向 Consumer 泄露删除中的资源状态。
     """
     if kb.status != "active":
-        raise InternalRetrievalError(403, "KB_FORBIDDEN",
-                                     "目标知识库不可访问", False)
+        raise InternalRetrievalError(403, "KB_FORBIDDEN", "目标知识库不可访问", False)
 
 
 async def _require_kb_ready(db: AsyncSession, kb: KnowledgeBase) -> None:
@@ -120,13 +111,18 @@ async def _require_kb_ready(db: AsyncSession, kb: KnowledgeBase) -> None:
                 if kb.index_status == "ready":
                     return
         raise InternalRetrievalError(
-            503, "INTERNAL_RETRIEVAL_UNAVAILABLE",
-            "知识库索引尚未就绪", True,
+            503,
+            "INTERNAL_RETRIEVAL_UNAVAILABLE",
+            "知识库索引尚未就绪",
+            True,
         )
 
 
 async def _retrieve_kb(
-    db: AsyncSession, kb_id: int, query: str, top_k: int = 20,
+    db: AsyncSession,
+    kb_id: int,
+    query: str,
+    top_k: int = 20,
     document_ids: list[str] | None = None,
 ) -> RetrievalOutput:
     """对单个 KB 执行向量 + BM25 双路检索并 RRF 融合。
@@ -160,9 +156,14 @@ async def _retrieve_kb(
         # BM25 缓存 key 含 index_generation：publish 递增 generation 后自动失效
         kb_row = await db.get(KnowledgeBase, kb_id)
         generation = kb_row.index_generation if kb_row is not None else 0
-        outputs.append(await bm25.search(
-            query, kb_id, top_k=top_k, index_generation=generation,
-        ))
+        outputs.append(
+            await bm25.search(
+                query,
+                kb_id,
+                top_k=top_k,
+                index_generation=generation,
+            )
+        )
     except RetrievalServiceException:
         logger.exception("BM25 检索失败: kb_id=%d", kb_id)
         raise
@@ -174,12 +175,12 @@ async def _retrieve_kb(
 
 
 async def _filter_by_document_ids(
-    db: AsyncSession, output: RetrievalOutput, document_ids: list[str],
+    db: AsyncSession,
+    output: RetrievalOutput,
+    document_ids: list[str],
 ) -> RetrievalOutput:
     """按 Document UUID 集合过滤召回结果（对齐 retrieval-request.filters.document_ids）。"""
-    result = await db.execute(
-        select(Document.id).where(Document.uuid.in_(document_ids))
-    )
+    result = await db.execute(select(Document.id).where(Document.uuid.in_(document_ids)))
     allowed = set(result.scalars().all())
     output.results = [r for r in output.results if r.doc_id in allowed]
     output.total = len(output.results)
@@ -187,7 +188,10 @@ async def _filter_by_document_ids(
 
 
 async def _map_hit(
-    db: AsyncSession, kb: KnowledgeBase, result, rank: int,
+    db: AsyncSession,
+    kb: KnowledgeBase,
+    result,
+    rank: int,
 ) -> dict | None:
     """RetrievalResult → 契约 RetrievalHit；无法解析稳定身份或来源信息时返回 None。
 
@@ -271,16 +275,14 @@ async def search_internal(db: AsyncSession, body: dict, request_id: str) -> dict
     """执行权限感知检索并返回 retrieval-response 契约响应体。"""
     user = await _load_active_user(db, body["user_id"])
     if user is None:
-        raise InternalRetrievalError(403, "AUTH_USER_DISABLED",
-                                     "用户不存在或已被禁用", False)
+        raise InternalRetrievalError(403, "AUTH_USER_DISABLED", "用户不存在或已被禁用", False)
 
     # 逐 KB READ 校验：任一无权或不存在整次失败（对齐 contracts/README.md §3）
     kbs: list[KnowledgeBase] = []
     for kb_uuid in body["knowledge_base_ids"]:
         kb = await _load_kb(db, kb_uuid)
         if kb is None:
-            raise InternalRetrievalError(403, "KB_FORBIDDEN",
-                                         "目标知识库不可访问", False)
+            raise InternalRetrievalError(403, "KB_FORBIDDEN", "目标知识库不可访问", False)
         _require_kb_active(kb)
         _require_kb_readable(kb, user)
         kbs.append(kb)
@@ -298,13 +300,19 @@ async def search_internal(db: AsyncSession, body: dict, request_id: str) -> dict
     for kb in kbs:
         try:
             output = await _retrieve_kb(
-                db, kb.id, query, top_k=limit, document_ids=document_ids,
+                db,
+                kb.id,
+                query,
+                top_k=limit,
+                document_ids=document_ids,
             )
         except Exception:
             logger.exception("KB %d 检索失败", kb.id)
             raise InternalRetrievalError(
-                503, "INTERNAL_RETRIEVAL_UNAVAILABLE",
-                "检索服务暂时不可用", True,
+                503,
+                "INTERNAL_RETRIEVAL_UNAVAILABLE",
+                "检索服务暂时不可用",
+                True,
             ) from None
         for result in output.results:
             hit = await _map_hit(db, kb, result, rank=0)
@@ -342,8 +350,7 @@ async def resolve_internal(db: AsyncSession, body: dict, request_id: str) -> dic
     """
     user = await _load_active_user(db, body["user_id"])
     if user is None:
-        raise InternalRetrievalError(403, "AUTH_USER_DISABLED",
-                                     "用户不存在或已被禁用", False)
+        raise InternalRetrievalError(403, "AUTH_USER_DISABLED", "用户不存在或已被禁用", False)
 
     kb_cache: dict[str, KnowledgeBase] = {}
     for ref in body["references"]:
@@ -352,8 +359,7 @@ async def resolve_internal(db: AsyncSession, body: dict, request_id: str) -> dic
             continue
         kb = await _load_kb(db, kb_uuid)
         if kb is None:
-            raise InternalRetrievalError(403, "KB_FORBIDDEN",
-                                         "目标知识库不可访问", False)
+            raise InternalRetrievalError(403, "KB_FORBIDDEN", "目标知识库不可访问", False)
         _require_kb_active(kb)
         _require_kb_readable(kb, user)
         kb_cache[kb_uuid] = kb
@@ -375,33 +381,39 @@ async def _resolve_one(db: AsyncSession, kb: KnowledgeBase, ref: dict) -> dict:
 
     任一环节缺失 / 不匹配当前 Active 状态 → EVIDENCE_SOURCE_UNAVAILABLE（整批失败）。
     """
-    doc_result = await db.execute(
-        select(Document).where(Document.uuid == ref["document_id"])
-    )
+    doc_result = await db.execute(select(Document).where(Document.uuid == ref["document_id"]))
     doc = doc_result.scalar_one_or_none()
     if doc is None or doc.kb_id != kb.id:
-        raise InternalRetrievalError(400, "EVIDENCE_SOURCE_UNAVAILABLE",
-                                     "引用文档当前不可用", False)
+        raise InternalRetrievalError(
+            400, "EVIDENCE_SOURCE_UNAVAILABLE", "引用文档当前不可用", False
+        )
 
     ver_result = await db.execute(
         select(DocumentVersion).where(DocumentVersion.uuid == ref["document_version_id"])
     )
     ver = ver_result.scalar_one_or_none()
-    if (ver is None or ver.document_id != doc.id
-            or ver.version != doc.active_version
-            or ver.status not in _RETRIEVABLE_VERSION_STATUSES):
-        raise InternalRetrievalError(400, "EVIDENCE_SOURCE_UNAVAILABLE",
-                                     "引用版本当前不可用", False)
+    if (
+        ver is None
+        or ver.document_id != doc.id
+        or ver.version != doc.active_version
+        or ver.status not in _RETRIEVABLE_VERSION_STATUSES
+    ):
+        raise InternalRetrievalError(
+            400, "EVIDENCE_SOURCE_UNAVAILABLE", "引用版本当前不可用", False
+        )
 
-    chunk_result = await db.execute(
-        select(Chunk).where(Chunk.segment_uuid == ref["segment_id"])
-    )
+    chunk_result = await db.execute(select(Chunk).where(Chunk.segment_uuid == ref["segment_id"]))
     chunk = chunk_result.scalar_one_or_none()
-    if (chunk is None or chunk.doc_id != doc.id
-            or chunk.document_version_id != ver.id
-            or not chunk.content or not chunk.content.strip()):
-        raise InternalRetrievalError(400, "EVIDENCE_SOURCE_UNAVAILABLE",
-                                     "引用来源当前不可用", False)
+    if (
+        chunk is None
+        or chunk.doc_id != doc.id
+        or chunk.document_version_id != ver.id
+        or not chunk.content
+        or not chunk.content.strip()
+    ):
+        raise InternalRetrievalError(
+            400, "EVIDENCE_SOURCE_UNAVAILABLE", "引用来源当前不可用", False
+        )
 
     page = None
     if chunk.metadata_:
@@ -419,8 +431,9 @@ async def _resolve_one(db: AsyncSession, kb: KnowledgeBase, ref: dict) -> dict:
         if section_path:
             location = {"section_path": section_path}
         else:
-            raise InternalRetrievalError(400, "EVIDENCE_SOURCE_UNAVAILABLE",
-                                         "引用来源缺少可解释位置", False)
+            raise InternalRetrievalError(
+                400, "EVIDENCE_SOURCE_UNAVAILABLE", "引用来源缺少可解释位置", False
+            )
 
     source_updated_at = (
         _fmt_utc(doc.updated_at)

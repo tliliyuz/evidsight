@@ -60,8 +60,7 @@ async def _scan_stuck_versions_async() -> dict:
             # 无活跃锁 → 没有 worker 正在处理，安全重投（先释放锁再投递）
             await release_version_lock_async(v.uuid)
             redispatch_ids.append(v.id)
-            logger.warning("恢复：版本 %s（id=%d）卡死超时，重新投递 ingest_version",
-                           v.uuid, v.id)
+            logger.warning("恢复：版本 %s（id=%d）卡死超时，重新投递 ingest_version", v.uuid, v.id)
 
     for vid in redispatch_ids:
         ingest_version.delay(vid)
@@ -77,8 +76,7 @@ async def _scan_stuck_versions_async() -> dict:
         )
         stuck_kbs = result.scalars().all()
         for kb in stuck_kbs:
-            logger.warning("恢复：KB %d 发布锁（%s）卡死超时，回滚为 ready",
-                           kb.id, kb.index_status)
+            logger.warning("恢复：KB %d 发布锁（%s）卡死超时，回滚为 ready", kb.id, kb.index_status)
             kb.index_status = "ready"
         await db.commit()
 
@@ -89,9 +87,14 @@ async def _scan_stuck_versions_async() -> dict:
     }
 
 
-@celery_app.task(name="app.ingest.recovery_tasks.scan_stuck_versions",
-                 bind=True, max_retries=3, soft_time_limit=120)
+@celery_app.task(
+    name="app.ingest.recovery_tasks.scan_stuck_versions",
+    bind=True,
+    max_retries=3,
+    soft_time_limit=120,
+)
 def scan_stuck_versions(self) -> dict:
     """Celery Beat 周期任务：执行卡死版本/KB 恢复扫描。"""
     from app.ingest.tasks import _get_worker_loop
+
     return _get_worker_loop().run_until_complete(_scan_stuck_versions_async())

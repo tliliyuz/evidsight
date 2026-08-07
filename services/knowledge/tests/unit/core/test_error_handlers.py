@@ -60,7 +60,9 @@ class TestExceptionToStatusCode:
     @pytest.mark.asyncio
     async def test_404知识库不存在(self, async_client, auth_headers):
         _kb_uuid = "11111111-1111-4111-8111-111111111111"
-        with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_uuid:
+        with patch(
+            "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
+        ) as mock_uuid:
             mock_uuid.return_value = 999
             with patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock:
                 mock.side_effect = KnowledgeBaseNotFoundException(999)
@@ -75,7 +77,9 @@ class TestExceptionToStatusCode:
     @pytest.mark.asyncio
     async def test_403权限不足(self, async_client, auth_headers):
         _kb_uuid = "11111111-1111-4111-8111-111111111111"
-        with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_uuid:
+        with patch(
+            "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
+        ) as mock_uuid:
             mock_uuid.return_value = 1
             with patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock:
                 mock.side_effect = PermissionDeniedException()
@@ -101,11 +105,13 @@ class TestExceptionToStatusCode:
     def test_未知异常handler_生产模式屏蔽堆栈(self):
         """生产模式下 global_exception_handler 返回通用提示"""
         from app.main import global_exception_handler
+
         # 直接测试 handler 逻辑：生产模式 detail 不泄露内部信息
         with patch("app.main.settings") as mock_settings:
             mock_settings.DEBUG = False
             # handler 是 async 函数，需要 asyncio.run
             import asyncio
+
             request = AsyncMock(spec=Request)
             request.method = "GET"
             request.url.path = "/api/test"
@@ -119,6 +125,7 @@ class TestExceptionToStatusCode:
         """开发模式下 global_exception_handler 返回完整错误信息"""
         from app.main import global_exception_handler
         import asyncio
+
         request = AsyncMock(spec=Request)
         request.method = "GET"
         request.url.path = "/api/test"

@@ -123,7 +123,6 @@ EVAL_TEST_SET: list[dict[str, Any]] = [
         ),
         "notes": "精确数字型问题，答案应为具体人数，验证 chunk 是否包含该数字",
     },
-
     # === medium: 单文档多意图 / 语义匹配 / 跨 chunk ===
     {
         "id": 6,
@@ -173,7 +172,7 @@ EVAL_TEST_SET: list[dict[str, Any]] = [
         "question": "公司对员工使用微信、钉钉等通讯工具发送文件有什么限制？",
         "type": "语义匹配（具体化）",
         "difficulty": "medium",
-        "expected_docs": ["邮箱与通讯工具使用规范.md","信息安全规范.md"],
+        "expected_docs": ["邮箱与通讯工具使用规范.md", "信息安全规范.md"],
         "relevant_chunk_ids": [418, 419, 420],
         "reference": (
             "公司规范适用的即时通讯工具包括企业微信、飞书、钉钉等。工作文件传输应优先上传至共享空间后发送链接，"
@@ -312,7 +311,6 @@ EVAL_TEST_SET: list[dict[str, Any]] = [
         ),
         "notes": "「墨盒型号」和「耗材」是同义/上下位词，TESTING.md §7.2 原有示例，保留以对齐回归集",
     },
-
     # === hard: 跨文档 / 推理 ===
     {
         "id": 18,
@@ -350,7 +348,7 @@ EVAL_TEST_SET: list[dict[str, Any]] = [
         "question": "日常办公的信息安全要求和用户数据处理的安全要求分别是什么？",
         "type": "跨文档查询",
         "difficulty": "hard",
-        "expected_docs": ["信息安全规范.md", "数据安全规范.md","邮箱与通讯工具使用规范.md"],
+        "expected_docs": ["信息安全规范.md", "数据安全规范.md", "邮箱与通讯工具使用规范.md"],
         "relevant_chunk_ids": [390, 391, 409, 410, 411],
         "reference": (
             "日常办公信息安全要求包括："
@@ -376,7 +374,7 @@ EVAL_TEST_SET: list[dict[str, Any]] = [
             "上签字确认。只有完成全部交接手续（包括固定资产归还和财务事项结清），人力资源部"
             "才会出具《离职证明》。"
         ),
-        "notes":  "离职场景下涉及固定资产管理办法和离职交接流程两个制度的交叉，检验 RRF 融合是否能同时召回多文档相关 chunk。报销制度.md 虽涉及费用报销，但离职场景下的未报销费用处理由离职交接流程直接规定，无需引用报销制度中的日常借款冲销规则。",
+        "notes": "离职场景下涉及固定资产管理办法和离职交接流程两个制度的交叉，检验 RRF 融合是否能同时召回多文档相关 chunk。报销制度.md 虽涉及费用报销，但离职场景下的未报销费用处理由离职交接流程直接规定，无需引用报销制度中的日常借款冲销规则。",
     },
     {
         "id": 23,
@@ -433,7 +431,7 @@ EVAL_TEST_SET: list[dict[str, Any]] = [
         "type": "跨文档查询",
         "difficulty": "hard",
         "expected_docs": ["突发事件应急预案.md", "差旅管理规定.md"],
-        "relevant_chunk_ids": [422,423,424],
+        "relevant_chunk_ids": [422, 423, 424],
         "reference": (
             "应急流程分两级联动：突发事件应急预案 §3.6 规定了出差/外勤突发事件的总体原则——"
             "事发后第一时间向直属上级报告，直属上级向应急领导小组通报；应急领导小组根据"
@@ -457,7 +455,7 @@ EVAL_TEST_SET: list[dict[str, Any]] = [
         "question": "代码合并之后发现引入了安全漏洞，按照安全规范应该走什么处理流程？",
         "type": "跨文档查询",
         "difficulty": "hard",
-        "expected_docs": ["代码评审标准.md", "信息安全规范.md","数据安全规范.md"],
+        "expected_docs": ["代码评审标准.md", "信息安全规范.md", "数据安全规范.md"],
         "relevant_chunk_ids": [379, 380, 390, 391],
         "reference": (
             "代码评审标准规定：存在未修复的Blocker级问题（包括安全漏洞）、单元测试未通过"
@@ -469,7 +467,6 @@ EVAL_TEST_SET: list[dict[str, Any]] = [
         ),
         "notes": "代码安全漏洞同时涉及研发流程和信息安全规范，测试高难度跨领域检索",
     },
-
     # === out-of-scope: 超出知识库范围，预期无相关文档 ===
     {
         "id": 28,

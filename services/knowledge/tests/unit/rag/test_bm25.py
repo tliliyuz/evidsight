@@ -199,6 +199,7 @@ class TestLocalCache:
         """本地缓存中的 KB chunk 数超过 BM25_MAX_CHUNKS 时清除缓存并降级"""
         monkeypatch.setattr(settings, "BM25_MAX_CHUNKS", 2)
         from rank_bm25 import BM25Okapi
+
         bm25 = BM25Okapi([list("测试"), list("内容"), list("数据")])
         _set_local_cache(1, bm25, [(1, 0), (1, 1), (1, 2)])
         # 超过硬限制，get 应返回 None
@@ -325,9 +326,11 @@ class TestBM25RetrieverSearch:
     @patch("app.rag.bm25.jieba.lcut")
     async def test_正常检索流程(self, mock_jieba):
         """Redis 缓存命中 → BM25 评分 → content fetch → 返回结果"""
+
         # jieba 分词 mock
         def jieba_side_effect(text):
             return list(text)
+
         mock_jieba.side_effect = jieba_side_effect
 
         chunks = [
@@ -337,15 +340,18 @@ class TestBM25RetrieverSearch:
         ]
 
         # Redis 缓存数据（ADR-023：不含 contents）
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [1, 1], [2, 0]],
-            "tokens": [
-                ["入", "职", "指", "南", "欢", "迎", "加", "入", "公", "司"],
-                ["报", "销", "制", "度", "差", "旅", "标", "准"],
-                ["V", "P", "N", "配", "置", "远", "程", "访", "问"],
-            ],
-            "section_info": [],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [1, 1], [2, 0]],
+                "tokens": [
+                    ["入", "职", "指", "南", "欢", "迎", "加", "入", "公", "司"],
+                    ["报", "销", "制", "度", "差", "旅", "标", "准"],
+                    ["V", "P", "N", "配", "置", "远", "程", "访", "问"],
+                ],
+                "section_info": [],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         # content fetch 需要 DB session（top_k 条）
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
@@ -415,7 +421,7 @@ class TestBM25RetrieverSearch:
         async_redis.setex.assert_called_once()
         call_args = async_redis.setex.call_args
         assert call_args[0][0] == "bm25_tokens:1:0"  # key
-        assert call_args[0][1] == settings.BM25_CACHE_TTL    # TTL
+        assert call_args[0][1] == settings.BM25_CACHE_TTL  # TTL
         # 写入值不含 contents（ADR-023）
         cached = json.loads(call_args[0][2])
         assert "doc_ids" in cached
@@ -432,10 +438,13 @@ class TestBM25RetrieverSearch:
         """Redis 缓存命中时：不查 MySQL 全量加载，但 content fetch 仍需查 DB"""
         mock_jieba.side_effect = lambda t: list(t)
 
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0]],
-            "tokens": [["测", "试"]],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0]],
+                "tokens": [["测", "试"]],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         chunks = [(1, 0, "测试")]
         # content fetch 需要 DB
@@ -508,16 +517,19 @@ class TestBM25RetrieverSearch:
             (1, 4, "文档内容五测试"),
         ]
 
-        cached_data = json.dumps({
-            "doc_ids": [[1, i] for i in range(5)],
-            "tokens": [
-                list("文档内容一测试"),
-                list("文档内容二测试"),
-                list("文档内容三测试"),
-                list("文档内容四测试"),
-                list("文档内容五测试"),
-            ],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, i] for i in range(5)],
+                "tokens": [
+                    list("文档内容一测试"),
+                    list("文档内容二测试"),
+                    list("文档内容三测试"),
+                    list("文档内容四测试"),
+                    list("文档内容五测试"),
+                ],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         # content fetch 也只返回 top_k 条
         session_factory = _mock_session_factory(_mock_content_rows(chunks[:2]))
@@ -538,13 +550,16 @@ class TestBM25RetrieverSearch:
             (1, 1, "无关内容"),
         ]
 
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [1, 1]],
-            "tokens": [
-                list("关键词出现关键词"),
-                list("无关内容"),
-            ],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [1, 1]],
+                "tokens": [
+                    list("关键词出现关键词"),
+                    list("无关内容"),
+                ],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -581,10 +596,13 @@ class TestBM25RetrieverSearch:
         """
         mock_jieba.side_effect = lambda t: list(t)
 
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0]],
-            "tokens": [["测", "试"]],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0]],
+                "tokens": [["测", "试"]],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows([(1, 0, "测试")]))
 
@@ -621,10 +639,13 @@ class TestBM25RetrieverSearch:
         mock_jieba.side_effect = lambda t: list(t)
 
         chunks = [(1, 0, "完全无关内容")]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0]],
-            "tokens": [["完全", "无关", "内容"]],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0]],
+                "tokens": [["完全", "无关", "内容"]],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -644,6 +665,7 @@ class TestBM25RetrieverSearch:
 
         # 预先设置进程内缓存（ADR-023：不含 contents）
         from rank_bm25 import BM25Okapi
+
         tokens = [list("测试内容")]
         bm25 = BM25Okapi(tokens)
         _set_local_cache(1, bm25, [(1, 0)])
@@ -667,10 +689,13 @@ class TestBM25RetrieverSearch:
         """content fetch DB 异常时应抛出 RetrievalServiceException"""
         mock_jieba.side_effect = lambda t: list(t)
 
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0]],
-            "tokens": [["测", "试"]],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0]],
+                "tokens": [["测", "试"]],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
 
         # session_factory 返回的 session 执行 content fetch 时抛异常
@@ -730,10 +755,15 @@ class TestBM25MaxChunks:
     @pytest.mark.asyncio
     async def test_redis命中skipped标记则跳过(self):
         """Redis 缓存含 skipped=True → 直接返回空，不构建 BM25Okapi"""
-        cached_data = json.dumps({
-            "doc_ids": [], "tokens": [], "section_info": [],
-            "chunk_count": 15000, "skipped": True,
-        })
+        cached_data = json.dumps(
+            {
+                "doc_ids": [],
+                "tokens": [],
+                "section_info": [],
+                "chunk_count": 15000,
+                "skipped": True,
+            }
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory()
 
@@ -752,11 +782,13 @@ class TestBM25MaxChunks:
         monkeypatch.setattr(settings, "BM25_MAX_CHUNKS", 1)
         mock_jieba.side_effect = lambda t: list(t)
 
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [1, 1]],
-            "tokens": [["测", "试"], ["内", "容"]],
-            "chunk_count": 2,
-        })
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [1, 1]],
+                "tokens": [["测", "试"], ["内", "容"]],
+                "chunk_count": 2,
+            }
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory()
 
@@ -771,16 +803,19 @@ class TestBM25MaxChunks:
         monkeypatch.setattr(settings, "BM25_MAX_CHUNKS", 1)
 
         from rank_bm25 import BM25Okapi
+
         bm25 = BM25Okapi([list("测试"), list("内容")])
         # 2 chunks > max=1，不应返回本地缓存
         _set_local_cache(1, bm25, [(1, 0), (1, 1)])
 
         # 模拟 Redis 缓存可命中（含 chunk_count=2 > max=1 → 跳过）
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [1, 1]],
-            "tokens": [["测", "试"], ["内", "容"]],
-            "chunk_count": 2,
-        })
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [1, 1]],
+                "tokens": [["测", "试"], ["内", "容"]],
+                "chunk_count": 2,
+            }
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory()
 
@@ -800,11 +835,13 @@ class TestBM25MaxChunks:
         mock_jieba.side_effect = lambda t: list(t)
 
         chunks = [(1, 0, "测试内容")]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0]],
-            "tokens": [["测", "试", "内", "容"]],
-            "chunk_count": 1,
-        })
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0]],
+                "tokens": [["测", "试", "内", "容"]],
+                "chunk_count": 1,
+            }
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -829,14 +866,17 @@ class TestBM25RetrieverWithRealJieba:
             (1, 1, "报销制度差旅标准"),
             (1, 2, "VPN配置远程访问说明"),
         ]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [1, 1], [1, 2]],
-            "tokens": [
-                jieba.lcut(chunks[0][2]),
-                jieba.lcut(chunks[1][2]),
-                jieba.lcut(chunks[2][2]),
-            ],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [1, 1], [1, 2]],
+                "tokens": [
+                    jieba.lcut(chunks[0][2]),
+                    jieba.lcut(chunks[1][2]),
+                    jieba.lcut(chunks[2][2]),
+                ],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -884,13 +924,16 @@ class TestBM25RetrieverWithRealJieba:
             (1, 0, "入职指南欢迎加入公司"),
             (1, 1, "报销制度差旅标准"),
         ]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [1, 1]],
-            "tokens": [
-                jieba.lcut(chunks[0][2]),
-                jieba.lcut(chunks[1][2]),
-            ],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [1, 1]],
+                "tokens": [
+                    jieba.lcut(chunks[0][2]),
+                    jieba.lcut(chunks[1][2]),
+                ],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -910,13 +953,16 @@ class TestBM25RetrieverWithRealJieba:
             (1, 0, "公司的入职指南"),
             (1, 1, "公司的报销制度"),
         ]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [1, 1]],
-            "tokens": [
-                jieba.lcut(chunks[0][2]),
-                jieba.lcut(chunks[1][2]),
-            ],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [1, 1]],
+                "tokens": [
+                    jieba.lcut(chunks[0][2]),
+                    jieba.lcut(chunks[1][2]),
+                ],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -934,10 +980,13 @@ class TestBM25RetrieverWithRealJieba:
     async def test_min_score阈值_可通过参数调整(self):
         """传入 min_score=-999 不过滤任何结果，传入 min_score=999 过滤全部"""
         chunks = [(1, 0, "入职指南欢迎加入公司")]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0]],
-            "tokens": [jieba.lcut(chunks[0][2])],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0]],
+                "tokens": [jieba.lcut(chunks[0][2])],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -961,10 +1010,13 @@ class TestBM25RetrieverWithRealJieba:
             (1, 3, "请假流程审批规范制度"),
             (1, 4, "绩效考核评估管理办法"),
         ]
-        cached_data = json.dumps({
-            "doc_ids": [[1, i] for i in range(5)],
-            "tokens": [jieba.lcut(c[2]) for c in chunks],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, i] for i in range(5)],
+                "tokens": [jieba.lcut(c[2]) for c in chunks],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         # content fetch 只需 top_k 条
         session_factory = _mock_session_factory(_mock_content_rows(chunks[:2]))
@@ -982,10 +1034,13 @@ class TestBM25RetrieverWithRealJieba:
             (1, 1, "日报填写规范说明"),
             (1, 2, "VPN账号申请流程指南"),
         ]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [1, 1], [1, 2]],
-            "tokens": [jieba.lcut(c[2]) for c in chunks],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [1, 1], [1, 2]],
+                "tokens": [jieba.lcut(c[2]) for c in chunks],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -1020,29 +1075,32 @@ class TestCnToInt:
         assert cn_to_int("一百零三") == 103
         assert cn_to_int("三百五十") == 350
 
-    @pytest.mark.parametrize("cn,expected", [
-        ("一", 1),
-        ("二", 2),
-        ("三", 3),
-        ("四", 4),
-        ("五", 5),
-        ("六", 6),
-        ("七", 7),
-        ("八", 8),
-        ("九", 9),
-        ("十", 10),
-        ("十一", 11),
-        ("十二", 12),
-        ("二十", 20),
-        ("二十一", 21),
-        ("三十五", 35),
-        ("九十九", 99),
-        ("一百", 100),
-        ("一百零三", 103),
-        ("二百五十", 250),
-        ("九百九十九", 999),
-        ("一千零一", 1001),
-    ])
+    @pytest.mark.parametrize(
+        "cn,expected",
+        [
+            ("一", 1),
+            ("二", 2),
+            ("三", 3),
+            ("四", 4),
+            ("五", 5),
+            ("六", 6),
+            ("七", 7),
+            ("八", 8),
+            ("九", 9),
+            ("十", 10),
+            ("十一", 11),
+            ("十二", 12),
+            ("二十", 20),
+            ("二十一", 21),
+            ("三十五", 35),
+            ("九十九", 99),
+            ("一百", 100),
+            ("一百零三", 103),
+            ("二百五十", 250),
+            ("九百九十九", 999),
+            ("一千零一", 1001),
+        ],
+    )
     def test_参数化_中文数字转整数(self, cn, expected):
         """参数化验证从简单到复杂的各种中文数字"""
         assert cn_to_int(cn) == expected
@@ -1131,9 +1189,14 @@ class TestMatchSectionNumbers:
         assert match_section_numbers("§3.2 限流配置", None, ["3.2"]) is True
 
     def test_section_path匹配(self):
-        assert match_section_numbers(
-            None, "架构 > §3 基础设施 > §3.2 限流", ["3.2"],
-        ) is True
+        assert (
+            match_section_numbers(
+                None,
+                "架构 > §3 基础设施 > §3.2 限流",
+                ["3.2"],
+            )
+            is True
+        )
 
     def test_层级匹配_单个数字(self):
         """单数字 "4" 可匹配 section_title 中以 "4 " 开头的标题"""
@@ -1148,23 +1211,26 @@ class TestMatchSectionNumbers:
 
     # --- 参数化匹配策略 ---
 
-    @pytest.mark.parametrize("section_title,section_path,target,expected", [
-        # 完整匹配
-        ("§3.2 限流配置", None, ["3.2"], True),
-        ("§4.7 超时策略", None, ["4.7"], True),
-        ("§8.2.1 安全审计", None, ["8.2.1"], True),
-        # 层级匹配（section_path）
-        (None, "架构 > §3 基础设施 > §3.2 限流", ["3.2"], True),
-        (None, "API > §6 SSE > §6.1 事件格式", ["6.1"], True),
-        # 短编号匹配（单数字匹配标题首部）
-        ("4 数据库设计", None, ["4"], True),
-        ("12 部署指南", None, ["12"], True),
-        # 否定案例
-        ("§3.2 限流", None, ["5.1"], False),
-        ("§4.7 超时", None, ["4.8"], False),
-        (None, None, ["3.2"], False),
-        ("", "", ["3.2"], False),
-    ])
+    @pytest.mark.parametrize(
+        "section_title,section_path,target,expected",
+        [
+            # 完整匹配
+            ("§3.2 限流配置", None, ["3.2"], True),
+            ("§4.7 超时策略", None, ["4.7"], True),
+            ("§8.2.1 安全审计", None, ["8.2.1"], True),
+            # 层级匹配（section_path）
+            (None, "架构 > §3 基础设施 > §3.2 限流", ["3.2"], True),
+            (None, "API > §6 SSE > §6.1 事件格式", ["6.1"], True),
+            # 短编号匹配（单数字匹配标题首部）
+            ("4 数据库设计", None, ["4"], True),
+            ("12 部署指南", None, ["12"], True),
+            # 否定案例
+            ("§3.2 限流", None, ["5.1"], False),
+            ("§4.7 超时", None, ["4.8"], False),
+            (None, None, ["3.2"], False),
+            ("", "", ["3.2"], False),
+        ],
+    )
     def test_参数化_章节匹配策略(self, section_title, section_path, target, expected):
         """参数化验证完整匹配、层级匹配、短编号匹配及否定案例"""
         assert match_section_numbers(section_title, section_path, target) is expected
@@ -1184,17 +1250,20 @@ class TestBM25SectionBoost:
             (1, 0, "SSE 事件格式详解"),
             (2, 0, "SSE 事件格式详解"),
         ]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [2, 0]],
-            "tokens": [
-                jieba.lcut("SSE 事件格式详解"),
-                jieba.lcut("SSE 事件格式详解"),
-            ],
-            "section_info": [
-                {"section_title": "§6.1 SSE 事件格式", "section_path": "API > §6 SSE > §6.1"},
-                {"section_title": "§3.2 限流配置", "section_path": "架构 > §3 基础设施 > §3.2"},
-            ],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [2, 0]],
+                "tokens": [
+                    jieba.lcut("SSE 事件格式详解"),
+                    jieba.lcut("SSE 事件格式详解"),
+                ],
+                "section_info": [
+                    {"section_title": "§6.1 SSE 事件格式", "section_path": "API > §6 SSE > §6.1"},
+                    {"section_title": "§3.2 限流配置", "section_path": "架构 > §3 基础设施 > §3.2"},
+                ],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -1211,17 +1280,20 @@ class TestBM25SectionBoost:
             (1, 0, "SSE 事件格式详解"),
             (1, 1, "限流配置参数说明"),
         ]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [1, 1]],
-            "tokens": [
-                jieba.lcut("SSE 事件格式详解"),
-                jieba.lcut("限流配置参数说明"),
-            ],
-            "section_info": [
-                {"section_title": "§6.1 SSE 事件格式", "section_path": ""},
-                {"section_title": "§3.2 限流配置", "section_path": ""},
-            ],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [1, 1]],
+                "tokens": [
+                    jieba.lcut("SSE 事件格式详解"),
+                    jieba.lcut("限流配置参数说明"),
+                ],
+                "section_info": [
+                    {"section_title": "§6.1 SSE 事件格式", "section_path": ""},
+                    {"section_title": "§3.2 限流配置", "section_path": ""},
+                ],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -1234,13 +1306,16 @@ class TestBM25SectionBoost:
     async def test_章节号查询_RetrievalResult含section信息(self):
         """BM25 检索返回的 RetrievalResult 应填充 section_title/section_path"""
         chunks = [(1, 0, "SSE 事件格式详解")]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0]],
-            "tokens": [jieba.lcut("SSE 事件格式详解")],
-            "section_info": [
-                {"section_title": "§6.1 SSE 事件格式", "section_path": "API > §6 SSE > §6.1"},
-            ],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0]],
+                "tokens": [jieba.lcut("SSE 事件格式详解")],
+                "section_info": [
+                    {"section_title": "§6.1 SSE 事件格式", "section_path": "API > §6 SSE > §6.1"},
+                ],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -1258,14 +1333,17 @@ class TestBM25SectionBoost:
             (1, 0, "测试内容一"),
             (1, 1, "测试内容二"),
         ]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0], [1, 1]],
-            "tokens": [
-                jieba.lcut("测试内容一"),
-                jieba.lcut("测试内容二"),
-            ],
-            "section_info": [],
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0], [1, 1]],
+                "tokens": [
+                    jieba.lcut("测试内容一"),
+                    jieba.lcut("测试内容二"),
+                ],
+                "section_info": [],
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 
@@ -1281,11 +1359,14 @@ class TestBM25SectionBoost:
     async def test_旧缓存无section_info向后兼容(self):
         """旧缓存数据不含 section_info 字段，不应报错"""
         chunks = [(1, 0, "测试内容")]
-        cached_data = json.dumps({
-            "doc_ids": [[1, 0]],
-            "tokens": [jieba.lcut("测试内容")],
-            # 无 section_info 字段（向后兼容）
-        }, ensure_ascii=False)
+        cached_data = json.dumps(
+            {
+                "doc_ids": [[1, 0]],
+                "tokens": [jieba.lcut("测试内容")],
+                # 无 section_info 字段（向后兼容）
+            },
+            ensure_ascii=False,
+        )
         async_redis = _mock_async_redis(get_return=cached_data)
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
 

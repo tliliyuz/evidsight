@@ -44,10 +44,10 @@ THRESHOLD = 0.95
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AC-004 Worker 中断与恢复演练")
-    parser.add_argument("--tasks", required=True,
-                        help="冻结评估集 JSON：[{id, task_id}] 或 [{id, topic}]")
-    parser.add_argument("--samples", type=int, default=5,
-                        help="最多演练任务数（默认 5）")
+    parser.add_argument(
+        "--tasks", required=True, help="冻结评估集 JSON：[{id, task_id}] 或 [{id, topic}]"
+    )
+    parser.add_argument("--samples", type=int, default=5, help="最多演练任务数（默认 5）")
     return parser.parse_args()
 
 
@@ -121,8 +121,7 @@ async def _drill_one(task_id: str) -> tuple[bool, str]:
 async def run() -> int:
     args = _parse_args()
     eval_set = _load_eval_set(Path(args.tasks))
-    print(f"[AC-004] 评估集: {args.tasks}（{len(eval_set)} 条），"
-          f"演练上限: {args.samples}")
+    print(f"[AC-004] 评估集: {args.tasks}（{len(eval_set)} 条），演练上限: {args.samples}")
 
     outcomes: list[bool] = []
     details: list[str] = []
@@ -147,7 +146,8 @@ async def run() -> int:
 
     try:
         commit = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], text=True,
+            ["git", "rev-parse", "--short", "HEAD"],
+            text=True,
         ).strip()
     except Exception:  # noqa: BLE001
         commit = "unknown"

@@ -9,6 +9,7 @@
 - Retry API 前置校验
 - SSE 事件序列完整性
 """
+
 from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
@@ -123,16 +124,18 @@ class TestPipelineRetryFullFlow:
             async def _wrapper(*args, **kwargs):
                 handler_calls[step_type] += 1
                 return await original_handlers[step_type](*args, **kwargs)
+
             return _wrapper
 
         counting_handlers = {
-            step_type: await _counting_handler(step_type)
-            for step_type in PHASE_ORDER
+            step_type: await _counting_handler(step_type) for step_type in PHASE_ORDER
         }
 
         sse_bridge = SSEBridge(task.id)
         published = _record_sse_events(sse_bridge)
-        trace = TraceRecorder(task_id=task.id, user_id=1, topic=task.topic, previous_trace=task.trace)
+        trace = TraceRecorder(
+            task_id=task.id, user_id=1, topic=task.topic, previous_trace=task.trace
+        )
 
         patches = _mock_pipeline_external(db_session, task.id)
         async with _commit_to_flush(db_session):
@@ -434,7 +437,9 @@ class TestCrashRecovery:
 
         # 第一次超时扫描：记录缺失时间
         with patch("app.main.async_session_factory", new=_session_factory(db_session)):
-            with patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=False):
+            with patch(
+                "app.main.check_task_lock_async", new_callable=AsyncMock, return_value=False
+            ):
                 with patch("app.main.settings.WORKER_TIMEOUT_SECONDS", 0):
                     from app.main import _check_worker_timeouts
 
@@ -479,6 +484,7 @@ class TestCrashRecovery:
         # 创建 planning completed step（有 completed_at 但 task.trace 为空）
         now = datetime.now(timezone.utc)
         from tests.integration._retry_helpers import _create_step
+
         planning_step = await _create_step(
             db_session,
             task.id,
@@ -616,6 +622,7 @@ class TestRetryApiValidation:
         """running 状态任务调用 retry 返回 E2003。"""
         task = await _seed_task(db_session, status="running")
         from tests.integration._retry_helpers import _create_step
+
         await _create_step(db_session, task.id, "planning", status="running")
 
         with patch("app.api.research._execute_research_task.delay") as mock_delay:
@@ -631,7 +638,9 @@ class TestRetryApiValidation:
         mock_delay.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_recoverable为false的failed任务_retry_返回E2003(self, db_session, async_client, auth_headers):
+    async def test_recoverable为false的failed任务_retry_返回E2003(
+        self, db_session, async_client, auth_headers
+    ):
         """recoverable=false 的 failed 任务调用 retry 返回 E2003。"""
         task = await _seed_task(
             db_session,
@@ -676,7 +685,9 @@ class TestSseEventIntegrity:
 
         sse_bridge = SSEBridge(task.id)
         published = _record_sse_events(sse_bridge)
-        trace = TraceRecorder(task_id=task.id, user_id=1, topic=task.topic, previous_trace=task.trace)
+        trace = TraceRecorder(
+            task_id=task.id, user_id=1, topic=task.topic, previous_trace=task.trace
+        )
         handlers = build_default_phase_handlers()
 
         patches = _mock_pipeline_external(db_session, task.id)
@@ -702,8 +713,12 @@ class TestSseEventIntegrity:
         # Retry 场景：planning~rerank 已 completed 被跳过，仅 synthesis/evidence_graph/render 实际执行
         executed_phases = ["synthesizing", "building_evidence_graph", "rendering"]
         for phase in executed_phases:
-            started = [e for e in published if e[0] == EVENT_PHASE_STARTED and e[1].get("phase") == phase]
-            completed = [e for e in published if e[0] == EVENT_PHASE_COMPLETED and e[1].get("phase") == phase]
+            started = [
+                e for e in published if e[0] == EVENT_PHASE_STARTED and e[1].get("phase") == phase
+            ]
+            completed = [
+                e for e in published if e[0] == EVENT_PHASE_COMPLETED and e[1].get("phase") == phase
+            ]
             assert len(started) == 1, f"Phase {phase} 缺少 phase.started"
             assert len(completed) == 1, f"Phase {phase} 缺少 phase.completed"
 

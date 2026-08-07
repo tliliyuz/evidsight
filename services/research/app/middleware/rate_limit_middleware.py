@@ -43,17 +43,19 @@ return current
 # 匹配顺序：先精确路径，再前缀匹配；未命中归入 default
 _ENDPOINT_GROUPS = [
     # (路径前缀, 方法限制, 组名)
-    ("/api/research", {"POST"}, "research"),    # 创建研究任务
+    ("/api/research", {"POST"}, "research"),  # 创建研究任务
     ("/api/auth/login", {"POST"}, "login"),
     ("/api/auth/register", {"POST"}, "login"),
 ]
 
 # 不需要限流的路径前缀
-_SKIP_PREFIXES = frozenset({
-    "/docs",
-    "/openapi.json",
-    "/api/health",
-})
+_SKIP_PREFIXES = frozenset(
+    {
+        "/docs",
+        "/openapi.json",
+        "/api/health",
+    }
+)
 
 
 def _get_client_ip(request: Request) -> str:
@@ -130,7 +132,10 @@ class RateLimitMiddleware:
             redis_client = await get_async_redis()
             # 原子 INCR + 首次设置 TTL
             current = await redis_client.eval(
-                _RATE_LIMIT_SCRIPT, 1, key, str(window),
+                _RATE_LIMIT_SCRIPT,
+                1,
+                key,
+                str(window),
             )
             current = int(current)
         except Exception as e:
@@ -165,7 +170,10 @@ class RateLimitMiddleware:
         # 超限 → 429 E9004
         logger.warning(
             "限流触发: ip=%s group=%s count=%d limit=%d",
-            client_ip, group, current, limit,
+            client_ip,
+            group,
+            current,
+            limit,
         )
         response = JSONResponse(
             status_code=429,

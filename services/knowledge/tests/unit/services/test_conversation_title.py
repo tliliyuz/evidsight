@@ -7,6 +7,7 @@
 - T1.4  LLM 返回空内容 → 回退截断方案
 - T1.5  LLM 返回过长标题 → 截断至 20 字
 """
+
 from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest

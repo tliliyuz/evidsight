@@ -251,9 +251,7 @@ class TestCreateTaskIdentityGate:
     失败原因是 create_task 未调用检查而直接创建任务，而非 mock 装配错误。
     """
 
-    async def test_禁用用户_创建任务失败关闭_无任务行(
-        self, db_session: AsyncSession, monkeypatch
-    ):
+    async def test_禁用用户_创建任务失败关闭_无任务行(self, db_session: AsyncSession, monkeypatch):
         from unittest.mock import AsyncMock
 
         from app.core.exceptions import UserDisabledException
@@ -263,13 +261,17 @@ class TestCreateTaskIdentityGate:
             raise UserDisabledException()
 
         monkeypatch.setattr(
-            research_service, "check_user_status", AsyncMock(side_effect=_raise_disabled),
+            research_service,
+            "check_user_status",
+            AsyncMock(side_effect=_raise_disabled),
             raising=False,
         )
 
         req = _make_request()
         with pytest.raises(UserDisabledException):
-            await create_task(db_session, user_id="550e8400-e29b-41d4-a716-446655440000", request=req)
+            await create_task(
+                db_session, user_id="550e8400-e29b-41d4-a716-446655440000", request=req
+            )
 
         # 失败关闭：不得留下任务行
         tasks = (await db_session.execute(select(ResearchTask))).scalars().all()
@@ -287,13 +289,17 @@ class TestCreateTaskIdentityGate:
             raise ServiceUnavailableException("身份事实源不可用")
 
         monkeypatch.setattr(
-            research_service, "check_user_status", AsyncMock(side_effect=_raise_unavailable),
+            research_service,
+            "check_user_status",
+            AsyncMock(side_effect=_raise_unavailable),
             raising=False,
         )
 
         req = _make_request()
         with pytest.raises(ServiceUnavailableException):
-            await create_task(db_session, user_id="550e8400-e29b-41d4-a716-446655440000", request=req)
+            await create_task(
+                db_session, user_id="550e8400-e29b-41d4-a716-446655440000", request=req
+            )
 
         tasks = (await db_session.execute(select(ResearchTask))).scalars().all()
         assert tasks == []
@@ -307,11 +313,16 @@ class TestCreateTaskIdentityGate:
             return None
 
         monkeypatch.setattr(
-            research_service, "check_user_status", AsyncMock(side_effect=_ok), raising=False,
+            research_service,
+            "check_user_status",
+            AsyncMock(side_effect=_ok),
+            raising=False,
         )
 
         req = _make_request()
-        result = await create_task(db_session, user_id="550e8400-e29b-41d4-a716-446655440000", request=req)
+        result = await create_task(
+            db_session, user_id="550e8400-e29b-41d4-a716-446655440000", request=req
+        )
         assert result.status == "pending"
 
 
@@ -342,6 +353,7 @@ class TestGetTaskList:
     async def test_多条记录_按created_at降序排列(self, db_session: AsyncSession):
         """验证最新创建的任务排在前面。使用显式时间戳保证确定性。"""
         from datetime import timedelta
+
         now = datetime.now(timezone.utc)
         t1 = await _seed_task(db_session, user_id=1, topic="旧任务")
         t1.created_at = now - timedelta(hours=1)
@@ -430,9 +442,7 @@ class TestGetTaskDetail:
         assert result.total_evidence == 0
 
     async def test_running状态_含current_phase(self, db_session: AsyncSession):
-        task = await _seed_task(
-            db_session, user_id=1, status="running", current_phase="searching"
-        )
+        task = await _seed_task(db_session, user_id=1, status="running", current_phase="searching")
         result = await get_task_detail(db_session, task)
         assert result.status == "running"
         assert result.current_phase == "searching"
@@ -577,10 +587,9 @@ class TestCancelTask:
         """内存状态为 running，但 DB 已被改为 completed，CAS 失败。"""
         task = await _seed_task(db_session, user_id=1, status="running")
         from sqlalchemy import update as sa_update
+
         await db_session.execute(
-            sa_update(ResearchTask)
-            .where(ResearchTask.id == task.id)
-            .values(status="completed")
+            sa_update(ResearchTask).where(ResearchTask.id == task.id).values(status="completed")
         )
         await db_session.flush()
 
@@ -601,7 +610,12 @@ async def _seed_report_task(db: AsyncSession, status: str = "completed") -> Rese
         id="task-report-service-001",
         user_id=1,
         topic="量子计算对密码学的影响",
-        requirements={"task_type": "analysis", "depth": "quick", "max_sources": 10, "language": "zh"},
+        requirements={
+            "task_type": "analysis",
+            "depth": "quick",
+            "max_sources": 10,
+            "language": "zh",
+        },
         status=status,
         total_steps=7,
         completed_steps=7,
@@ -767,7 +781,12 @@ async def _seed_retry_task(
     task = ResearchTask(
         user_id=1,
         topic="断点续跑测试主题",
-        requirements={"task_type": "analysis", "depth": "quick", "max_sources": 10, "language": "zh"},
+        requirements={
+            "task_type": "analysis",
+            "depth": "quick",
+            "max_sources": 10,
+            "language": "zh",
+        },
         status=status,
         recoverable=recoverable,
         execution_context=execution_context,
@@ -780,32 +799,38 @@ async def _seed_retry_task(
     await db.flush()
 
     # 基础 planning step（completed，模拟已完成的第一个阶段）
-    db.add(ResearchStep(
-        task_id=task.id,
-        step_type="planning",
-        status="completed",
-        label="Planning：拆解研究主题",
-    ))
+    db.add(
+        ResearchStep(
+            task_id=task.id,
+            step_type="planning",
+            status="completed",
+            label="Planning：拆解研究主题",
+        )
+    )
 
     # 可选 failed step
     if with_failed_step:
-        db.add(ResearchStep(
-            task_id=task.id,
-            step_type="synthesis",
-            status="failed",
-            error_code="E3104",
-            error_message="LLM 综合失败",
-            label="Synthesis：跨源综合",
-        ))
+        db.add(
+            ResearchStep(
+                task_id=task.id,
+                step_type="synthesis",
+                status="failed",
+                error_code="E3104",
+                error_message="LLM 综合失败",
+                label="Synthesis：跨源综合",
+            )
+        )
 
     # 可选 completed step
     if with_completed_step:
-        db.add(ResearchStep(
-            task_id=task.id,
-            step_type="search",
-            status="completed",
-            label="Search：多源搜索",
-        ))
+        db.add(
+            ResearchStep(
+                task_id=task.id,
+                step_type="search",
+                status="completed",
+                label="Search：多源搜索",
+            )
+        )
 
     await db.flush()
     return task
@@ -816,12 +841,16 @@ class TestRetryTask:
 
     # ── 成功路径 ──────────────────────────────────────────────
 
-    async def test_failed任务_recoverable为true_重置为pending并返回resume_from(self, db_session: AsyncSession):
+    async def test_failed任务_recoverable为true_重置为pending并返回resume_from(
+        self, db_session: AsyncSession
+    ):
         ec = {
             "last_completed_step_id": "step-search-001",
             "execution_pointer": {"phase": "synthesizing"},
         }
-        task = await _seed_retry_task(db_session, status="failed", execution_context=ec, with_failed_step=True)
+        task = await _seed_retry_task(
+            db_session, status="failed", execution_context=ec, with_failed_step=True
+        )
 
         result = await retry_task(db_session, task)
 
@@ -836,7 +865,9 @@ class TestRetryTask:
         ec = {
             "execution_pointer": {"phase": "fetching"},
         }
-        task = await _seed_retry_task(db_session, status="partially_completed", execution_context=ec)
+        task = await _seed_retry_task(
+            db_session, status="partially_completed", execution_context=ec
+        )
 
         result = await retry_task(db_session, task)
 
@@ -875,6 +906,7 @@ class TestRetryTask:
 
         # 查询 synthesis step 应被重置
         from sqlalchemy import select as sa_sel
+
         result = await db_session.execute(
             sa_sel(ResearchStep).where(
                 ResearchStep.task_id == task.id,
@@ -896,6 +928,7 @@ class TestRetryTask:
 
         # 查询 search step 应保持 completed
         from sqlalchemy import select as sa_sel
+
         result = await db_session.execute(
             sa_sel(ResearchStep).where(
                 ResearchStep.task_id == task.id,
@@ -947,6 +980,7 @@ class TestRetryTask:
         await retry_task(db_session, task)
 
         from sqlalchemy import select as sa_sel
+
         result = await db_session.execute(
             sa_sel(ResearchStep).where(ResearchStep.task_id == task.id)
         )
@@ -1015,10 +1049,9 @@ class TestRetryTask:
 
         # 模拟并发：在 retry_task 执行前将 DB 状态改为 completed
         from sqlalchemy import update as sa_update
+
         await db_session.execute(
-            sa_update(ResearchTask)
-            .where(ResearchTask.id == task.id)
-            .values(status="completed")
+            sa_update(ResearchTask).where(ResearchTask.id == task.id).values(status="completed")
         )
         await db_session.flush()
 
@@ -1029,7 +1062,9 @@ class TestRetryTask:
 
     # ── resume_from 正确性 ───────────────────────────────────
 
-    async def test_resume_from_next_step_type_为最后一个phase时_返回None(self, db_session: AsyncSession):
+    async def test_resume_from_next_step_type_为最后一个phase时_返回None(
+        self, db_session: AsyncSession
+    ):
         """如果 last_phase 是 render（最后一个），next_step_type 应为 None。"""
         ec = {
             "execution_pointer": {"phase": "rendering"},
@@ -1041,7 +1076,9 @@ class TestRetryTask:
         assert result.resume_from.phase == "rendering"
         assert result.resume_from.next_step_type is None
 
-    async def test_resume_from_execution_context为空时_phase返回None(self, db_session: AsyncSession):
+    async def test_resume_from_execution_context为空时_phase返回None(
+        self, db_session: AsyncSession
+    ):
         task = await _seed_retry_task(db_session, status="failed", execution_context=None)
 
         result = await retry_task(db_session, task)

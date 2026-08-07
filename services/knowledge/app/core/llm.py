@@ -27,6 +27,7 @@ _llm_client: AsyncOpenAI | None = None
 @dataclass
 class LLMChunk:
     """LLM 流式输出的单个 chunk"""
+
     content: str = ""
     reasoning_content: str = ""
     finish_reason: str | None = None
@@ -35,6 +36,7 @@ class LLMChunk:
 @dataclass
 class LLMResult:
     """LLM 调用结果"""
+
     content: str
     reasoning_content: str
     prompt_tokens: int
@@ -198,7 +200,9 @@ async def chat_completion(
 
         logger.info(
             "LLM_PERF(非流式) api=%.3fs prompt_tok=%d completion_tok=%d",
-            t_api - t0, prompt_tokens, completion_tokens,
+            t_api - t0,
+            prompt_tokens,
+            completion_tokens,
         )
 
         return LLMResult(

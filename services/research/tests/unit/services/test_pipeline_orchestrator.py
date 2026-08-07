@@ -51,9 +51,11 @@ def _mock_task_lock():
     把 refresh_task_lock_async mock 掉，使测试不会访问真实 Redis。
     fixture 退出时取消事件循环中残留的后台协程，避免 'Task destroyed but pending' 警告。
     """
-    with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True), \
-         patch("app.services.pipeline_orchestrator.release_task_lock_async"), \
-         patch("app.services.pipeline_orchestrator.refresh_task_lock_async", new_callable=AsyncMock):
+    with (
+        patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True),
+        patch("app.services.pipeline_orchestrator.release_task_lock_async"),
+        patch("app.services.pipeline_orchestrator.refresh_task_lock_async", new_callable=AsyncMock),
+    ):
         yield
 
     try:
@@ -111,12 +113,14 @@ def _make_task(**kwargs) -> MagicMock:
 
 def _make_phase_handler(should_fail: bool = False, error: Exception = None):
     """创建 Phase handler mock，可选失败。"""
+
     async def handler(task, step, session, sse_bridge):
         if should_fail:
             if error:
                 raise error
             raise RuntimeError("模拟 Phase 失败")
         return {"status": "ok"}
+
     return handler
 
 
@@ -148,8 +152,13 @@ class TestPhaseOrder:
         """PHASE_ORDER 应包含全部 7 个 step_type。"""
         assert len(PHASE_ORDER) == 7
         expected = [
-            "planning", "search", "fetch", "rerank",
-            "synthesis", "evidence_graph", "render",
+            "planning",
+            "search",
+            "fetch",
+            "rerank",
+            "synthesis",
+            "evidence_graph",
+            "render",
         ]
         assert list(PHASE_ORDER) == expected
 
@@ -169,9 +178,7 @@ class TestPhaseOrder:
         sse_bridge.task_id = str(task.id)
 
         handler_called = []
-        handlers = {
-            phase: _make_phase_handler() for phase in PHASE_ORDER
-        }
+        handlers = {phase: _make_phase_handler() for phase in PHASE_ORDER}
         for phase in PHASE_ORDER:
             original = handlers[phase]
 
@@ -182,8 +189,11 @@ class TestPhaseOrder:
             handlers[phase] = wrapped
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers=handlers,
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers=handlers,
         )
 
         await orchestrator.run()
@@ -191,8 +201,7 @@ class TestPhaseOrder:
         assert len(handler_called) == 0
         # task.created 事件不应发送
         created_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_CREATED
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_CREATED
         ]
         assert len(created_calls) == 0
 
@@ -209,14 +218,19 @@ class TestPhaseOrder:
         call_order = []
         handlers = {}
         for phase in PHASE_ORDER[:3]:  # planning / search / fetch
+
             async def h(t, s, sess, sb, p=phase):
                 call_order.append(p)
                 return {"status": "ok"}
+
             handlers[phase] = h
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers=handlers,
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers=handlers,
         )
 
         # Mock 模块级锁函数（acquire_step_lock_async / release_step_lock_async）
@@ -239,8 +253,11 @@ class TestPhaseOrder:
         handlers = {"planning": _make_phase_handler()}
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers=handlers,
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers=handlers,
         )
 
         skip_phases = []
@@ -279,11 +296,16 @@ class TestIdempotentLock:
         handlers = {"planning": _make_phase_handler()}
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers=handlers,
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers=handlers,
         )
 
-        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=False):
+        with patch(
+            "app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=False
+        ):
             # 锁被占用 → orchestrator 应完成运行（不抛异常），所有 phase 被跳过
             await orchestrator.run()
 
@@ -315,8 +337,11 @@ class TestFatalErrorTermination:
         }
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers=handlers,
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers=handlers,
         )
 
         with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
@@ -325,8 +350,7 @@ class TestFatalErrorTermination:
 
         # 验证 task.failed 事件被发送
         task_failed_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_FAILED
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_FAILED
         ]
         assert len(task_failed_calls) == 1
         payload = task_failed_calls[0][0][1]
@@ -349,6 +373,7 @@ class TestFatalErrorTermination:
         sse_bridge.task_id = str(task.id)
 
         call_order = []
+
         async def failing_planning(t, s, sess, sb):
             call_order.append("planning")
             raise SynthesisFailedException("模拟可恢复致命失败")
@@ -360,8 +385,11 @@ class TestFatalErrorTermination:
         handlers = {"planning": failing_planning, "search": ok_search}
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers=handlers,
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers=handlers,
         )
 
         with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
@@ -370,8 +398,7 @@ class TestFatalErrorTermination:
 
         # 验证 task.failed 事件被发送且 recoverable=True
         failed_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_FAILED
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_FAILED
         ]
         assert len(failed_calls) == 1
         payload = failed_calls[0][0][1]
@@ -380,8 +407,7 @@ class TestFatalErrorTermination:
 
         # 验证没有 warning 事件（所有 E31xx 均致命）
         warning_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_WARNING
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_WARNING
         ]
         assert len(warning_calls) == 0
 
@@ -402,8 +428,11 @@ class TestFatalErrorTermination:
         sse_bridge.task_id = str(task.id)
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={},
         )
 
         step = MagicMock(spec=ResearchStep)
@@ -426,8 +455,7 @@ class TestFatalErrorTermination:
         assert step.error_code is None
         # step.failed SSE 事件应被发送
         failed_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_STEP_FAILED
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_STEP_FAILED
         ]
         assert len(failed_calls) == 1
 
@@ -444,8 +472,11 @@ class TestFatalErrorTermination:
         sse_bridge.task_id = str(task.id)
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={},
         )
 
         error = RuntimeError("模拟未知致命错误")
@@ -457,8 +488,7 @@ class TestFatalErrorTermination:
 
         # task.failed SSE 事件应被发送
         failed_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_FAILED
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_FAILED
         ]
         assert len(failed_calls) == 1
 
@@ -485,8 +515,11 @@ class TestFinalizeTask:
         handlers = {p: _make_phase_handler() for p in PHASE_ORDER}
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers=handlers,
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers=handlers,
         )
 
         with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
@@ -495,8 +528,7 @@ class TestFinalizeTask:
 
         # 验证 task.completed 事件被发送
         completed_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_COMPLETED
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_COMPLETED
         ]
         assert len(completed_calls) == 1
 
@@ -517,8 +549,11 @@ class TestFinalizeTask:
         }
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers=handlers,
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers=handlers,
         )
 
         with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
@@ -526,8 +561,7 @@ class TestFinalizeTask:
                 await orchestrator.run()
 
         failed_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_FAILED
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_FAILED
         ]
         assert len(failed_calls) == 1
 
@@ -550,24 +584,28 @@ class TestCancelDetection:
 
         # 第一次 refresh（_start_task）保持 running，后续 refresh（phase 循环）变为 canceled
         refresh_count = 0
+
         async def _refresh(task_obj, attrs=None):
             nonlocal refresh_count
             refresh_count += 1
             if refresh_count > 1:
                 task_obj.status = "canceled"
             return None
+
         session.refresh.side_effect = _refresh
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={},
         )
 
         await orchestrator.run()
 
         canceled_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_CANCELED
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_CANCELED
         ]
         assert len(canceled_calls) == 1
         payload = canceled_calls[0][0][1]
@@ -603,8 +641,11 @@ class TestCostTracking:
 
         trace = TraceRecorder(task_id=str(task.id), user_id=1, topic="测试")
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=trace, phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=trace,
+            phase_handlers={},
         )
 
         output = {
@@ -640,8 +681,11 @@ class TestCostTracking:
 
         trace = TraceRecorder(task_id=str(task.id), user_id=1, topic="测试")
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=trace, phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=trace,
+            phase_handlers={},
         )
 
         await orchestrator._complete_step(step, "search", {"after_dedup": 5})
@@ -840,8 +884,11 @@ class TestCostTracking:
 
         trace = TraceRecorder(task_id=str(task.id), user_id=1, topic="测试")
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=trace, phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=trace,
+            phase_handlers={},
         )
 
         output = {
@@ -879,8 +926,11 @@ class TestCostTracking:
 
         trace = TraceRecorder(task_id=str(task.id), user_id=1, topic="测试")
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=trace, phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=trace,
+            phase_handlers={},
         )
 
         output = {
@@ -920,8 +970,11 @@ class TestCostTracking:
 
         trace = TraceRecorder(task_id=str(task.id), user_id=1, topic="测试")
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=trace, phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=trace,
+            phase_handlers={},
         )
 
         output = {"item_count": 8, "source_count": 5}
@@ -958,9 +1011,7 @@ class TestPipelineWithRealSession:
 
         sse_bridge = AsyncMock()
         sse_bridge.task_id = str(task.id)
-        trace_recorder = TraceRecorder(
-            task_id=str(task.id), user_id=str(user.id), topic=task.topic
-        )
+        trace_recorder = TraceRecorder(task_id=str(task.id), user_id=str(user.id), topic=task.topic)
 
         orchestrator = PipelineOrchestrator(
             task=task,
@@ -972,14 +1023,14 @@ class TestPipelineWithRealSession:
 
         # 阻止内部 commit，避免破坏测试事务隔离；所有写操作仍在同一事务内可见
         with patch.object(db_session, "commit", new_callable=AsyncMock):
-            with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
+            with patch(
+                "app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True
+            ):
                 with patch("app.services.pipeline_orchestrator.release_step_lock_async"):
                     await orchestrator.run()
 
         # 在同一未提交事务内查询验证 CAS 更新结果
-        result = await db_session.execute(
-            sa_select(ResearchTask).where(ResearchTask.id == task.id)
-        )
+        result = await db_session.execute(sa_select(ResearchTask).where(ResearchTask.id == task.id))
         updated_task = result.scalar_one()
         assert updated_task.status == "completed"
 
@@ -1008,8 +1059,11 @@ class TestStepLockRecovery:
             return {"status": "ok"}
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={"synthesis": handler},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={"synthesis": handler},
         )
         orchestrator._is_recovery = True
         orchestrator._task_lock_acquired = True
@@ -1021,8 +1075,13 @@ class TestStepLockRecovery:
         step.label = "Synthesis"
         orchestrator._create_step = AsyncMock(return_value=step)
 
-        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", side_effect=[False, True]) as mock_acquire, \
-             patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release:
+        with (
+            patch(
+                "app.services.pipeline_orchestrator.acquire_step_lock_async",
+                side_effect=[False, True],
+            ) as mock_acquire,
+            patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release,
+        ):
             await orchestrator._run_phase("synthesis")
 
         # 强制释放旧锁并重新获取（finally 块会再释放一次，因此共 2 次）
@@ -1047,8 +1106,11 @@ class TestStepLockRecovery:
         sse_bridge.task_id = str(task.id)
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={},
         )
         orchestrator._task_lock_acquired = False
 
@@ -1059,8 +1121,12 @@ class TestStepLockRecovery:
         step.label = "Synthesis"
         orchestrator._create_step = AsyncMock(return_value=step)
 
-        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=False) as mock_acquire, \
-             patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release:
+        with (
+            patch(
+                "app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=False
+            ) as mock_acquire,
+            patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release,
+        ):
             await orchestrator._run_phase("synthesis")
 
         # 仅尝试一次，不强制释放
@@ -1079,8 +1145,11 @@ class TestStepLockRecovery:
         sse_bridge.task_id = str(task.id)
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={},
         )
         orchestrator._is_recovery = True
         orchestrator._task_lock_acquired = True
@@ -1092,8 +1161,10 @@ class TestStepLockRecovery:
         step.label = "Synthesis"
         orchestrator._create_step = AsyncMock(return_value=step)
 
-        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async") as mock_acquire, \
-             patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release:
+        with (
+            patch("app.services.pipeline_orchestrator.acquire_step_lock_async") as mock_acquire,
+            patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release,
+        ):
             await orchestrator._run_phase("synthesis")
 
         mock_acquire.assert_not_awaited()
@@ -1120,8 +1191,11 @@ class TestStepLockRecovery:
             return {"status": "ok"}
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={"synthesis": handler},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={"synthesis": handler},
         )
         # 注意：不设置 _is_recovery，模拟 DB 回滚到 pending 的情况
         orchestrator._task_lock_acquired = True
@@ -1133,8 +1207,13 @@ class TestStepLockRecovery:
         step.label = "Synthesis"
         orchestrator._create_step = AsyncMock(return_value=step)
 
-        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", side_effect=[False, True]) as mock_acquire, \
-             patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release:
+        with (
+            patch(
+                "app.services.pipeline_orchestrator.acquire_step_lock_async",
+                side_effect=[False, True],
+            ) as mock_acquire,
+            patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release,
+        ):
             await orchestrator._run_phase("synthesis")
 
         # 强制释放旧锁并重新获取（finally 块会再释放一次，因此共 2 次）
@@ -1161,8 +1240,11 @@ class TestStepLockRecovery:
             return {"successful": 1, "failed": 0}
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={"fetch": handler},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={"fetch": handler},
         )
         orchestrator._task_lock_acquired = True
 
@@ -1173,8 +1255,13 @@ class TestStepLockRecovery:
         step.label = "Fetch"
         orchestrator._create_step = AsyncMock(return_value=step)
 
-        with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", side_effect=[False, True]) as mock_acquire, \
-             patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release:
+        with (
+            patch(
+                "app.services.pipeline_orchestrator.acquire_step_lock_async",
+                side_effect=[False, True],
+            ) as mock_acquire,
+            patch("app.services.pipeline_orchestrator.release_step_lock_async") as mock_release,
+        ):
             await orchestrator._run_phase("fetch")
 
         assert mock_acquire.await_count == 2
@@ -1211,9 +1298,7 @@ class TestStepLockRecovery:
 
         sse_bridge = AsyncMock()
         sse_bridge.task_id = str(task.id)
-        trace_recorder = TraceRecorder(
-            task_id=str(task.id), user_id=str(user.id), topic=task.topic
-        )
+        trace_recorder = TraceRecorder(task_id=str(task.id), user_id=str(user.id), topic=task.topic)
 
         orchestrator = PipelineOrchestrator(
             task=task,
@@ -1224,7 +1309,9 @@ class TestStepLockRecovery:
         )
 
         with patch.object(db_session, "commit", new_callable=AsyncMock):
-            with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
+            with patch(
+                "app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True
+            ):
                 with patch("app.services.pipeline_orchestrator.release_step_lock_async"):
                     await orchestrator.run()
 
@@ -1240,9 +1327,7 @@ class TestStepLockRecovery:
         assert planning_steps[0].status == "completed"
 
         # 验证 task 状态变为 completed
-        result = await db_session.execute(
-            sa_select(ResearchTask).where(ResearchTask.id == task.id)
-        )
+        result = await db_session.execute(sa_select(ResearchTask).where(ResearchTask.id == task.id))
         updated_task = result.scalar_one()
         assert updated_task.status == "completed"
 
@@ -1268,9 +1353,7 @@ class TestStepLockRecovery:
 
         sse_bridge = AsyncMock()
         sse_bridge.task_id = str(task.id)
-        trace_recorder = TraceRecorder(
-            task_id=str(task.id), user_id=str(user.id), topic=task.topic
-        )
+        trace_recorder = TraceRecorder(task_id=str(task.id), user_id=str(user.id), topic=task.topic)
 
         orchestrator = PipelineOrchestrator(
             task=task,
@@ -1281,23 +1364,24 @@ class TestStepLockRecovery:
         )
 
         with patch.object(db_session, "commit", new_callable=AsyncMock):
-            with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
+            with patch(
+                "app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True
+            ):
                 with patch("app.services.pipeline_orchestrator.release_step_lock_async"):
                     await orchestrator.run()
 
         # 验证 planning step 状态为 failed
         result = await db_session.execute(
-            sa_select(ResearchStep)
-            .where(ResearchStep.task_id == task.id, ResearchStep.step_type == "planning")
+            sa_select(ResearchStep).where(
+                ResearchStep.task_id == task.id, ResearchStep.step_type == "planning"
+            )
         )
         planning_step = result.scalar_one()
         assert planning_step.status == "failed"
         assert planning_step.error_code == "E3101"
 
         # 验证 task 状态为 failed
-        result = await db_session.execute(
-            sa_select(ResearchTask).where(ResearchTask.id == task.id)
-        )
+        result = await db_session.execute(sa_select(ResearchTask).where(ResearchTask.id == task.id))
         updated_task = result.scalar_one()
         assert updated_task.status == "failed"
         assert updated_task.error_code == "E3101"
@@ -1529,7 +1613,9 @@ class TestExecutionContextAtomicity:
     """_complete_step 原子更新 step 状态与 execution_context，确保崩溃后可恢复。"""
 
     @pytest.mark.asyncio
-    async def test__complete_step_原子更新step状态与execution_context(self, db_session: AsyncSession):
+    async def test__complete_step_原子更新step状态与execution_context(
+        self, db_session: AsyncSession
+    ):
         """_complete_step 调用后，step.status 与 task.execution_context 同时可见。"""
         import json
 
@@ -1563,9 +1649,7 @@ class TestExecutionContextAtomicity:
             task=task,
             session=db_session,
             sse_bridge=sse_bridge,
-            trace_recorder=TraceRecorder(
-                task_id=str(task.id), user_id=user.id, topic=task.topic
-            ),
+            trace_recorder=TraceRecorder(task_id=str(task.id), user_id=user.id, topic=task.topic),
             phase_handlers={},
         )
 
@@ -1605,7 +1689,9 @@ class TestExecutionContextAtomicity:
         assert ec_from_db["last_completed_step_id"] == str(step.id)
 
     @pytest.mark.asyncio
-    async def test__complete_step_连续两个phase后execution_context正确递进(self, db_session: AsyncSession):
+    async def test__complete_step_连续两个phase后execution_context正确递进(
+        self, db_session: AsyncSession
+    ):
         """连续执行 planning → search 后，execution_context 指向最后完成的 phase。"""
         user = SimpleNamespace(id=str(uuid.uuid4()))
 
@@ -1638,16 +1724,20 @@ class TestExecutionContextAtomicity:
             task=task,
             session=db_session,
             sse_bridge=sse_bridge,
-            trace_recorder=TraceRecorder(
-                task_id=str(task.id), user_id=user.id, topic=task.topic
-            ),
+            trace_recorder=TraceRecorder(task_id=str(task.id), user_id=user.id, topic=task.topic),
             phase_handlers={},
         )
 
         await orchestrator._complete_step(
-            plan_step, "planning",
-            {"sub_questions": ["q1"], "prompt_tokens": 100, "completion_tokens": 50,
-             "model": "deepseek-v4-pro", "retry_count": 0},
+            plan_step,
+            "planning",
+            {
+                "sub_questions": ["q1"],
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "model": "deepseek-v4-pro",
+                "retry_count": 0,
+            },
         )
 
         assert task.execution_context["current_phase"] == "planning"
@@ -1669,7 +1759,8 @@ class TestExecutionContextAtomicity:
         # 注意：_complete_step 内部会 +1，这里手动设回以模拟正常 flow
         task.completed_steps = 1
         await orchestrator._complete_step(
-            search_step, "searching",
+            search_step,
+            "searching",
             {"total_results": 12, "after_dedup": 8, "sources_created": 8},
         )
 
@@ -1685,7 +1776,9 @@ class TestExecutionContextAtomicity:
         assert plan_step.completed_at is not None
 
     @pytest.mark.asyncio
-    async def test__complete_step后execution_context可供retry_task构造resume_from(self, db_session: AsyncSession):
+    async def test__complete_step后execution_context可供retry_task构造resume_from(
+        self, db_session: AsyncSession
+    ):
         """模拟 Worker 崩溃场景：search 完成后崩溃 → execution_context 中有完整 checkpoint。"""
         user = SimpleNamespace(id=str(uuid.uuid4()))
 
@@ -1699,7 +1792,11 @@ class TestExecutionContextAtomicity:
             execution_context={
                 "current_phase": "planning",
                 "last_completed_step_id": "fake-planning-step-uuid",
-                "execution_pointer": {"phase": "planning", "step_index": 1, "total_steps_in_phase": 1},
+                "execution_pointer": {
+                    "phase": "planning",
+                    "step_index": 1,
+                    "total_steps_in_phase": 1,
+                },
                 "progress": {"completed_steps": 1, "total_steps": 7, "progress": 0.14},
             },
         )
@@ -1722,14 +1819,13 @@ class TestExecutionContextAtomicity:
             task=task,
             session=db_session,
             sse_bridge=sse_bridge,
-            trace_recorder=TraceRecorder(
-                task_id=str(task.id), user_id=user.id, topic=task.topic
-            ),
+            trace_recorder=TraceRecorder(task_id=str(task.id), user_id=user.id, topic=task.topic),
             phase_handlers={},
         )
 
         await orchestrator._complete_step(
-            search_step, "searching",
+            search_step,
+            "searching",
             {"total_results": 15, "after_dedup": 10, "sources_created": 10},
         )
 
@@ -1746,10 +1842,15 @@ class TestExecutionContextAtomicity:
 
         # 根据 last_phase 推算下一个 step_type
         from app.services.research_service import PHASE_ORDER
+
         phase_to_step = {
-            "planning": "planning", "searching": "search", "fetching": "fetch",
-            "reranking": "rerank", "synthesizing": "synthesis",
-            "building_evidence_graph": "evidence_graph", "rendering": "render",
+            "planning": "planning",
+            "searching": "search",
+            "fetching": "fetch",
+            "reranking": "rerank",
+            "synthesizing": "synthesis",
+            "building_evidence_graph": "evidence_graph",
+            "rendering": "render",
         }
         last_step_type = phase_to_step.get(last_phase, last_phase)
         idx = PHASE_ORDER.index(last_step_type)
@@ -1799,9 +1900,7 @@ class TestExecutionContextAtomicity:
             task=task,
             session=db_session,
             sse_bridge=sse_bridge,
-            trace_recorder=TraceRecorder(
-                task_id=str(task.id), user_id=user.id, topic=task.topic
-            ),
+            trace_recorder=TraceRecorder(task_id=str(task.id), user_id=user.id, topic=task.topic),
             phase_handlers={},
         )
 
@@ -1812,6 +1911,7 @@ class TestExecutionContextAtomicity:
         async def failing_execute(*args, **kwargs):
             from sqlalchemy import select as sa_select_inner
             from sqlalchemy.sql import func
+
             stmt = args[0] if args else kwargs.get("statement")
             stmt_str = str(stmt) if stmt is not None else ""
             # 拦截 execution_context 中的 count 查询（来自 _update_execution_context）
@@ -1824,7 +1924,8 @@ class TestExecutionContextAtomicity:
         try:
             with pytest.raises(RuntimeError, match="模拟 DB 查询失败"):
                 await orchestrator._complete_step(
-                    step, "searching",
+                    step,
+                    "searching",
                     {"total_results": 5},
                 )
         finally:
@@ -1864,8 +1965,11 @@ class TestCrashRecoveryAndTaskLock:
         sse_bridge.task_id = str(task.id)
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={},
         )
 
         started = await orchestrator._start_task()
@@ -1873,8 +1977,7 @@ class TestCrashRecoveryAndTaskLock:
         assert started is True
         # 正常路径发送 task.created
         created_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_CREATED
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_CREATED
         ]
         assert len(created_calls) == 1
 
@@ -1888,18 +1991,22 @@ class TestCrashRecoveryAndTaskLock:
         sse_bridge.task_id = str(task.id)
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={},
         )
 
-        with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True) as mock_acquire:
+        with patch(
+            "app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True
+        ) as mock_acquire:
             started = await orchestrator._start_task()
 
         assert started is True
         # 崩溃恢复路径不发送 task.created
         created_calls = [
-            c for c in sse_bridge.publish.await_args_list
-            if c[0][0] == EVENT_TASK_CREATED
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_CREATED
         ]
         assert len(created_calls) == 0
         mock_acquire.assert_awaited_once_with(str(task.id))
@@ -1914,11 +2021,16 @@ class TestCrashRecoveryAndTaskLock:
         sse_bridge.task_id = str(task.id)
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={},
         )
 
-        with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=False) as mock_acquire:
+        with patch(
+            "app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=False
+        ) as mock_acquire:
             started = await orchestrator._start_task()
 
         assert started is False
@@ -1935,14 +2047,21 @@ class TestCrashRecoveryAndTaskLock:
         handlers = {phase: _make_phase_handler() for phase in PHASE_ORDER}
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers=handlers,
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers=handlers,
         )
 
         with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
             with patch("app.services.pipeline_orchestrator.release_step_lock_async"):
-                with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True) as mock_acquire:
-                    with patch("app.services.pipeline_orchestrator.release_task_lock_async") as mock_release:
+                with patch(
+                    "app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True
+                ) as mock_acquire:
+                    with patch(
+                        "app.services.pipeline_orchestrator.release_task_lock_async"
+                    ) as mock_release:
                         await orchestrator.run()
 
         mock_release.assert_awaited_once_with(str(task.id))
@@ -1962,14 +2081,21 @@ class TestCrashRecoveryAndTaskLock:
         handlers = {"planning": failing_handler}
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers=handlers,
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers=handlers,
         )
 
         with patch("app.services.pipeline_orchestrator.acquire_step_lock_async", return_value=True):
             with patch("app.services.pipeline_orchestrator.release_step_lock_async"):
-                with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True):
-                    with patch("app.services.pipeline_orchestrator.release_task_lock_async") as mock_release:
+                with patch(
+                    "app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True
+                ):
+                    with patch(
+                        "app.services.pipeline_orchestrator.release_task_lock_async"
+                    ) as mock_release:
                         await orchestrator.run()
 
         mock_release.assert_awaited_once_with(str(task.id))
@@ -1984,14 +2110,25 @@ class TestCrashRecoveryAndTaskLock:
         sse_bridge.task_id = str(task.id)
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={},
         )
 
-        with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True), \
-             patch("app.services.pipeline_orchestrator.refresh_task_lock_async", new_callable=AsyncMock) as mock_refresh, \
-             patch("app.services.pipeline_orchestrator.settings.CELERY_LOCK_REFRESH_INTERVAL", 0.05), \
-             patch.object(PipelineOrchestrator, "_start_task_lock_refresh", PipelineOrchestrator._start_task_lock_refresh):
+        with (
+            patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True),
+            patch(
+                "app.services.pipeline_orchestrator.refresh_task_lock_async", new_callable=AsyncMock
+            ) as mock_refresh,
+            patch("app.services.pipeline_orchestrator.settings.CELERY_LOCK_REFRESH_INTERVAL", 0.05),
+            patch.object(
+                PipelineOrchestrator,
+                "_start_task_lock_refresh",
+                PipelineOrchestrator._start_task_lock_refresh,
+            ),
+        ):
             await orchestrator._acquire_task_lock(str(task.id))
 
             assert orchestrator._task_lock_acquired is True
@@ -2019,13 +2156,20 @@ class TestCrashRecoveryAndTaskLock:
         sse_bridge.task_id = str(task.id)
 
         orchestrator = PipelineOrchestrator(
-            task=task, session=session, sse_bridge=sse_bridge,
-            trace_recorder=MagicMock(), phase_handlers={},
+            task=task,
+            session=session,
+            sse_bridge=sse_bridge,
+            trace_recorder=MagicMock(),
+            phase_handlers={},
         )
 
-        with patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True), \
-             patch("app.services.pipeline_orchestrator.refresh_task_lock_async", new_callable=AsyncMock), \
-             patch("app.services.pipeline_orchestrator.settings.CELERY_LOCK_REFRESH_INTERVAL", 0.05):
+        with (
+            patch("app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True),
+            patch(
+                "app.services.pipeline_orchestrator.refresh_task_lock_async", new_callable=AsyncMock
+            ),
+            patch("app.services.pipeline_orchestrator.settings.CELERY_LOCK_REFRESH_INTERVAL", 0.05),
+        ):
             await orchestrator._acquire_task_lock(str(task.id))
 
             refresh_task = orchestrator._task_lock_refresh_task

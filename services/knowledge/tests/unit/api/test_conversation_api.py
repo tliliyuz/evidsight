@@ -9,6 +9,7 @@
 - A5.6  不可访问 KB 会话
 - A5.7  last_message_at 字段
 """
+
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
@@ -36,35 +37,64 @@ def _platform_uuid(i: int) -> str:
     return f"550e8400-e29b-41d4-a716-4466554400{i:02d}"
 
 
-def _make_conv_response(conv_uuid=VALID_CONV_UUID, user_id=1, kb_uuid=VALID_KB_UUID,
-                        title="新对话", message_count=0, kb_status="active",
-                        kb_name="测试知识库", last_message_at=None,
-                        original_kb_uuid=None, original_kb_name=None):
+def _make_conv_response(
+    conv_uuid=VALID_CONV_UUID,
+    user_id=1,
+    kb_uuid=VALID_KB_UUID,
+    title="新对话",
+    message_count=0,
+    kb_status="active",
+    kb_name="测试知识库",
+    last_message_at=None,
+    original_kb_uuid=None,
+    original_kb_name=None,
+):
     return ConversationResponse(
-        uuid=conv_uuid, owner_user_id=_platform_uuid(user_id), kb_uuid=kb_uuid, title=title,
+        uuid=conv_uuid,
+        owner_user_id=_platform_uuid(user_id),
+        kb_uuid=kb_uuid,
+        title=title,
         message_count=message_count,
-        created_at=NOW, updated_at=NOW,
-        kb_status=kb_status, kb_name=kb_name,
+        created_at=NOW,
+        updated_at=NOW,
+        kb_status=kb_status,
+        kb_name=kb_name,
         last_message_at=last_message_at or NOW,
-        original_kb_uuid=original_kb_uuid, original_kb_name=original_kb_name,
+        original_kb_uuid=original_kb_uuid,
+        original_kb_name=original_kb_name,
     )
 
 
-def _make_conv_detail(conv_uuid=VALID_CONV_UUID, user_id=1, kb_uuid=VALID_KB_UUID,
-                      title="新对话", message_count=2, messages=None, kb_status="active",
-                      kb_name="测试知识库", last_message_at=None):
+def _make_conv_detail(
+    conv_uuid=VALID_CONV_UUID,
+    user_id=1,
+    kb_uuid=VALID_KB_UUID,
+    title="新对话",
+    message_count=2,
+    messages=None,
+    kb_status="active",
+    kb_name="测试知识库",
+    last_message_at=None,
+):
     if messages is None:
         messages = [
-            MessageResponse(id=1, role="user", content="问题",
-                            thinking_content=None, created_at=NOW),
-            MessageResponse(id=2, role="assistant", content="回答",
-                            thinking_content=None, created_at=NOW),
+            MessageResponse(
+                id=1, role="user", content="问题", thinking_content=None, created_at=NOW
+            ),
+            MessageResponse(
+                id=2, role="assistant", content="回答", thinking_content=None, created_at=NOW
+            ),
         ]
     return ConversationDetailResponse(
-        uuid=conv_uuid, owner_user_id=_platform_uuid(user_id), kb_uuid=kb_uuid, title=title,
+        uuid=conv_uuid,
+        owner_user_id=_platform_uuid(user_id),
+        kb_uuid=kb_uuid,
+        title=title,
         message_count=message_count,
-        created_at=NOW, updated_at=NOW,
-        kb_status=kb_status, kb_name=kb_name,
+        created_at=NOW,
+        updated_at=NOW,
+        kb_status=kb_status,
+        kb_name=kb_name,
         last_message_at=last_message_at or NOW,
         messages=messages,
     )
@@ -139,10 +169,13 @@ class TestListConversations:
     @pytest.mark.asyncio
     async def test_list_success(self, async_client, auth_headers):
         with patch("app.api.conversation.list_conversations", new_callable=AsyncMock) as mock:
-            mock.return_value = _make_list_data(total=2, items=[
-                _make_conv_response(conv_uuid="conv-uuid-1", title="会话1"),
-                _make_conv_response(conv_uuid="conv-uuid-2", title="会话2"),
-            ])
+            mock.return_value = _make_list_data(
+                total=2,
+                items=[
+                    _make_conv_response(conv_uuid="conv-uuid-1", title="会话1"),
+                    _make_conv_response(conv_uuid="conv-uuid-2", title="会话2"),
+                ],
+            )
 
             response = await async_client.get(
                 "/api/conversations",
@@ -189,8 +222,12 @@ class TestGetConversationDetail:
 
     @pytest.mark.asyncio
     async def test_detail_success(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.conversation.get_conversation_detail", new_callable=AsyncMock) as mock:
+        with (
+            patch(
+                "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.conversation.get_conversation_detail", new_callable=AsyncMock) as mock,
+        ):
             mock_resolve.return_value = 1
             mock.return_value = _make_conv_detail(title="关于报销流程")
 
@@ -215,7 +252,9 @@ class TestGetConversationDetail:
 
     @pytest.mark.asyncio
     async def test_detail_not_found(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve:
+        with patch(
+            "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+        ) as mock_resolve:
             mock_resolve.side_effect = ConversationNotFoundException(999)
 
             response = await async_client.get(
@@ -228,8 +267,12 @@ class TestGetConversationDetail:
 
     @pytest.mark.asyncio
     async def test_detail_access_denied(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.conversation.get_conversation_detail", new_callable=AsyncMock) as mock:
+        with (
+            patch(
+                "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.conversation.get_conversation_detail", new_callable=AsyncMock) as mock,
+        ):
             mock_resolve.return_value = 1
             mock.side_effect = ConversationAccessDeniedException()
 
@@ -252,8 +295,12 @@ class TestRenameConversation:
 
     @pytest.mark.asyncio
     async def test_rename_success(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.conversation.rename_conversation", new_callable=AsyncMock) as mock:
+        with (
+            patch(
+                "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.conversation.rename_conversation", new_callable=AsyncMock) as mock,
+        ):
             mock_resolve.return_value = 1
             mock.return_value = _make_conv_response(title="新标题")
 
@@ -268,7 +315,9 @@ class TestRenameConversation:
 
     @pytest.mark.asyncio
     async def test_rename_not_found(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve:
+        with patch(
+            "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+        ) as mock_resolve:
             mock_resolve.side_effect = ConversationNotFoundException(999)
 
             response = await async_client.put(
@@ -282,8 +331,12 @@ class TestRenameConversation:
 
     @pytest.mark.asyncio
     async def test_rename_access_denied(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.conversation.rename_conversation", new_callable=AsyncMock) as mock:
+        with (
+            patch(
+                "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.conversation.rename_conversation", new_callable=AsyncMock) as mock,
+        ):
             mock_resolve.return_value = 1
             mock.side_effect = ConversationAccessDeniedException()
 
@@ -298,7 +351,9 @@ class TestRenameConversation:
 
     @pytest.mark.asyncio
     async def test_rename_empty_title(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve:
+        with patch(
+            "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+        ) as mock_resolve:
             mock_resolve.return_value = 1
             response = await async_client.put(
                 f"/api/conversations/{VALID_CONV_UUID}",
@@ -309,7 +364,9 @@ class TestRenameConversation:
 
     @pytest.mark.asyncio
     async def test_rename_title_too_long(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve:
+        with patch(
+            "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+        ) as mock_resolve:
             mock_resolve.return_value = 1
             response = await async_client.put(
                 f"/api/conversations/{VALID_CONV_UUID}",
@@ -324,8 +381,12 @@ class TestDeleteConversation:
 
     @pytest.mark.asyncio
     async def test_delete_success(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.conversation.delete_conversation", new_callable=AsyncMock) as mock:
+        with (
+            patch(
+                "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.conversation.delete_conversation", new_callable=AsyncMock) as mock,
+        ):
             mock_resolve.return_value = 1
 
             response = await async_client.delete(
@@ -341,7 +402,9 @@ class TestDeleteConversation:
 
     @pytest.mark.asyncio
     async def test_delete_not_found(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve:
+        with patch(
+            "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+        ) as mock_resolve:
             mock_resolve.side_effect = ConversationNotFoundException(999)
 
             response = await async_client.delete(
@@ -354,8 +417,12 @@ class TestDeleteConversation:
 
     @pytest.mark.asyncio
     async def test_delete_access_denied(self, async_client, auth_headers):
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.conversation.delete_conversation", new_callable=AsyncMock) as mock:
+        with (
+            patch(
+                "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.conversation.delete_conversation", new_callable=AsyncMock) as mock,
+        ):
             mock_resolve.return_value = 1
             mock.side_effect = ConversationAccessDeniedException()
 
@@ -380,11 +447,19 @@ class TestConversationKbStatus:
     async def test_list_orphan_conversation(self, async_client, auth_headers):
         """kb_uuid=None + original_kb_uuid 非空（KB 已删除），kb_status="deleted" """
         with patch("app.api.conversation.list_conversations", new_callable=AsyncMock) as mock:
-            mock.return_value = _make_list_data(total=1, items=[
-                _make_conv_response(conv_uuid="orphan-conv-uuid", kb_uuid=None, kb_status="deleted",
-                                    kb_name="已删除知识库", original_kb_uuid="old-kb-uuid",
-                                    original_kb_name="已删除知识库"),
-            ])
+            mock.return_value = _make_list_data(
+                total=1,
+                items=[
+                    _make_conv_response(
+                        conv_uuid="orphan-conv-uuid",
+                        kb_uuid=None,
+                        kb_status="deleted",
+                        kb_name="已删除知识库",
+                        original_kb_uuid="old-kb-uuid",
+                        original_kb_name="已删除知识库",
+                    ),
+                ],
+            )
 
             response = await async_client.get("/api/conversations", headers=auth_headers)
 
@@ -399,16 +474,23 @@ class TestConversationKbStatus:
     @pytest.mark.asyncio
     async def test_detail_unavailable_kb(self, async_client, auth_headers):
         """KB 为 private 且非 owner 时，kb_status=unavailable"""
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.conversation.get_conversation_detail", new_callable=AsyncMock) as mock:
+        with (
+            patch(
+                "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.conversation.get_conversation_detail", new_callable=AsyncMock) as mock,
+        ):
             mock_resolve.return_value = 20
             mock.return_value = _make_conv_detail(
-                conv_uuid="unavail-conv-uuid", kb_uuid="private-kb-uuid",
-                kb_status="unavailable", kb_name="私有知识库",
+                conv_uuid="unavail-conv-uuid",
+                kb_uuid="private-kb-uuid",
+                kb_status="unavailable",
+                kb_name="私有知识库",
             )
 
             response = await async_client.get(
-                "/api/conversations/unavail-conv-uuid", headers=auth_headers,
+                "/api/conversations/unavail-conv-uuid",
+                headers=auth_headers,
             )
 
         assert response.status_code == 200
@@ -422,10 +504,13 @@ class TestConversationKbStatus:
         with patch("app.api.conversation.list_conversations", new_callable=AsyncMock) as mock:
             t1 = datetime(2026, 6, 13, 10, 0, 0, tzinfo=timezone.utc)
             t2 = datetime(2026, 6, 13, 8, 0, 0, tzinfo=timezone.utc)
-            mock.return_value = _make_list_data(total=2, items=[
-                _make_conv_response(conv_uuid="conv-new", title="较新", last_message_at=t1),
-                _make_conv_response(conv_uuid="conv-old", title="较旧", last_message_at=t2),
-            ])
+            mock.return_value = _make_list_data(
+                total=2,
+                items=[
+                    _make_conv_response(conv_uuid="conv-new", title="较新", last_message_at=t1),
+                    _make_conv_response(conv_uuid="conv-old", title="较旧", last_message_at=t2),
+                ],
+            )
 
             response = await async_client.get("/api/conversations", headers=auth_headers)
 

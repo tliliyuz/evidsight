@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TurnResult:
     """单轮回归检查结果"""
+
     turn: int
     question: str
     # 事件序列
@@ -70,7 +71,7 @@ class TurnResult:
     passed: bool = False
     failure_reasons: list[str] = field(default_factory=list)
     # 多轮特有标记
-    rag_degraded: bool = False     # 应有 sources 但无（Turn ≥2）
+    rag_degraded: bool = False  # 应有 sources 但无（Turn ≥2）
     context_dependent: bool = False  # 该轮是否依赖前轮上下文
     in_truncation_zone: bool = False  # 该轮是否在历史截断观察区内
 
@@ -78,6 +79,7 @@ class TurnResult:
 @dataclass
 class SessionResult:
     """单个多轮 session 的汇总结果"""
+
     session_id: str
     session_name: str
     turns: list[TurnResult] = field(default_factory=list)
@@ -87,20 +89,21 @@ class SessionResult:
     failed_turns: int = 0
     error_turns: int = 0
     # 多轮特有退化检测
-    rag_degraded_count: int = 0    # 出现 RAG 退化的轮次数
+    rag_degraded_count: int = 0  # 出现 RAG 退化的轮次数
     context_dependent_total: int = 0  # context_dependent=True 的轮次总数
-    context_dependent_pass: int = 0   # 其中通过的轮次数
+    context_dependent_pass: int = 0  # 其中通过的轮次数
     # 截断区域统计
-    truncation_zone_total: int = 0    # 截断观察区内的轮次数
-    truncation_zone_pass: int = 0     # 其中通过的轮次数
+    truncation_zone_total: int = 0  # 截断观察区内的轮次数
+    truncation_zone_pass: int = 0  # 其中通过的轮次数
     truncation_zone_rag_degraded: int = 0  # 截断区内 RAG 退化轮次
     # 综合
-    passed: bool = False           # 全部 turn 通过
+    passed: bool = False  # 全部 turn 通过
 
 
 @dataclass
 class MultiTurnSummary:
     """多轮回归测试汇总"""
+
     total_sessions: int = 0
     passed_sessions: int = 0
     failed_sessions: int = 0
@@ -126,6 +129,7 @@ class MultiTurnSummary:
 
 class SSEEvent:
     """单条 SSE 事件"""
+
     __slots__ = ("event", "data")
     event: str
     data: dict[str, Any] | None
@@ -412,9 +416,7 @@ class MultiTurnRegressionRunner:
         for i, turn_spec in enumerate(turns_spec):
             turn_num = turn_spec["turn"]
             question = turn_spec["question"]
-            in_trunc_zone = (
-                truncation_zone_start is not None and turn_num >= truncation_zone_start
-            )
+            in_trunc_zone = truncation_zone_start is not None and turn_num >= truncation_zone_start
 
             display_q = question[:50] + ("..." if len(question) > 50 else "")
             ctx_tag = " [依赖上下文]" if turn_spec["expected"].get("context_dependent") else ""
@@ -453,7 +455,11 @@ class MultiTurnRegressionRunner:
 
                 if turn_result.passed:
                     session_result.passed_turns += 1
-                    src_info = f"({turn_result.source_count} 来源)" if turn_result.has_sources else "(无来源)"
+                    src_info = (
+                        f"({turn_result.source_count} 来源)"
+                        if turn_result.has_sources
+                        else "(无来源)"
+                    )
                     print(f"✅ {turn_result.answer_length} 字符 {src_info}")
                 else:
                     session_result.failed_turns += 1
@@ -492,11 +498,11 @@ class MultiTurnRegressionRunner:
         # 计算总轮数
         total_turns = sum(len(s["turns"]) for s in MULTI_TURN_TEST_SET)
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"  多轮 RAG 回归测试 — kb_uuid={self.kb_uuid}")
         print(f"  服务地址: {self.base_url}")
         print(f"  测试集: {len(MULTI_TURN_TEST_SET)} 个 Session，共 {total_turns} 轮")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
         for session_idx, session in enumerate(MULTI_TURN_TEST_SET, 1):
             session_name = session["name"]
@@ -519,10 +525,14 @@ class MultiTurnRegressionRunner:
 
             if session_result.passed:
                 summary.passed_sessions += 1
-                print(f"  ✅ Session 通过 ({session_result.passed_turns}/{session_result.total_turns} 轮)")
+                print(
+                    f"  ✅ Session 通过 ({session_result.passed_turns}/{session_result.total_turns} 轮)"
+                )
             else:
                 summary.failed_sessions += 1
-                print(f"  ❌ Session 失败 ({session_result.failed_turns}/{session_result.total_turns} 轮失败)")
+                print(
+                    f"  ❌ Session 失败 ({session_result.failed_turns}/{session_result.total_turns} 轮失败)"
+                )
 
             summary.sessions.append(session_result)
 
@@ -540,15 +550,13 @@ class MultiTurnRegressionRunner:
 
 def print_multi_turn_report(summary: MultiTurnSummary) -> None:
     """打印多轮回归测试报告"""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("  多轮 RAG 回归测试报告")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     # 总览
     total_sessions = summary.total_sessions
-    session_pass_rate = (
-        summary.passed_sessions / total_sessions * 100 if total_sessions > 0 else 0
-    )
+    session_pass_rate = summary.passed_sessions / total_sessions * 100 if total_sessions > 0 else 0
     turn_pass_rate = (
         summary.passed_turns / summary.total_turns * 100 if summary.total_turns > 0 else 0
     )
@@ -586,7 +594,9 @@ def print_multi_turn_report(summary: MultiTurnSummary) -> None:
             print(f"  ⚠️  截断区内出现 RAG 退化！历史截断可能侵蚀了检索预算。")
         else:
             print(f"  ✅ 截断区内无 RAG 退化，历史截断未影响检索。")
-        print(f"  ℹ️  截断区起点基于 token 预算估算（History Budget=6000），实际截断位置依赖具体消息长度。")
+        print(
+            f"  ℹ️  截断区起点基于 token 预算估算（History Budget=6000），实际截断位置依赖具体消息长度。"
+        )
     print()
 
     # 逐 Session 详情
@@ -608,7 +618,8 @@ def print_multi_turn_report(summary: MultiTurnSummary) -> None:
 
         if session_result.context_dependent_total > 0:
             cd_status = (
-                "✅" if session_result.context_dependent_pass == session_result.context_dependent_total
+                "✅"
+                if session_result.context_dependent_pass == session_result.context_dependent_total
                 else "❌"
             )
             print(
@@ -691,19 +702,27 @@ def main() -> None:
         description="DocMind 多轮 RAG 回归测试 — 端到端多轮问答质量验证",
     )
     parser.add_argument(
-        "--kb-uuid", type=str, required=True,
+        "--kb-uuid",
+        type=str,
+        required=True,
         help="目标知识库 UUID",
     )
     parser.add_argument(
-        "--base-url", type=str, default="http://localhost:8000",
+        "--base-url",
+        type=str,
+        default="http://localhost:8000",
         help="服务地址（默认 http://localhost:8000）",
     )
     parser.add_argument(
-        "--token", type=str, required=True,
+        "--token",
+        type=str,
+        required=True,
         help="JWT access_token（可通过 /api/auth/login 获取）",
     )
     parser.add_argument(
-        "--timeout", type=int, default=90,
+        "--timeout",
+        type=int,
+        default=90,
         help="单轮超时秒数（默认 90，多轮场景 LLM 生成时间可能较长）",
     )
     args = parser.parse_args()
@@ -713,12 +732,14 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    asyncio.run(main_async(
-        kb_uuid=args.kb_uuid,
-        base_url=args.base_url,
-        token=args.token,
-        timeout=args.timeout,
-    ))
+    asyncio.run(
+        main_async(
+            kb_uuid=args.kb_uuid,
+            base_url=args.base_url,
+            token=args.token,
+            timeout=args.timeout,
+        )
+    )
 
 
 if __name__ == "__main__":

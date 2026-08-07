@@ -9,6 +9,7 @@
 
 SDD 门禁：RED —— 目标行为（下游消费 internal 证据）当前缺失。
 """
+
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
@@ -34,7 +35,12 @@ async def _make_task(db_session, task_id: str = "task-downstream-001") -> Resear
         id=task_id,
         user_id="550e8400-e29b-41d4-a716-446655440001",
         topic="量子计算对密码学的影响",
-        requirements={"task_type": "analysis", "depth": "quick", "max_sources": 10, "language": "zh"},
+        requirements={
+            "task_type": "analysis",
+            "depth": "quick",
+            "max_sources": 10,
+            "language": "zh",
+        },
         source_strategy="hybrid",
         status="running",
         total_steps=7,
@@ -193,7 +199,9 @@ class TestSynthesisInternalEvidence:
             )
 
         sse = AsyncMock()
-        with patch("app.pipeline.synthesizer.resolve_retrieval", new=AsyncMock(return_value=resolved)):
+        with patch(
+            "app.pipeline.synthesizer.resolve_retrieval", new=AsyncMock(return_value=resolved)
+        ):
             with patch("app.pipeline.synthesizer.chat_completion", new=_llm):
                 output = await run_synthesis(task, synthesis_step, db_session, sse)
 

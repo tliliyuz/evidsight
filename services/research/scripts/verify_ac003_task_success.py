@@ -39,8 +39,9 @@ ALLOWED_STATUSES = {"completed", "partially_completed", "failed", "canceled"}
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AC-003 深度研究任务成功率验证")
-    parser.add_argument("--tasks", required=True,
-                        help="冻结评估集 JSON：[{id, task_id}] 或 [{id, topic}]")
+    parser.add_argument(
+        "--tasks", required=True, help="冻结评估集 JSON：[{id, task_id}] 或 [{id, topic}]"
+    )
     return parser.parse_args()
 
 
@@ -100,15 +101,18 @@ async def run() -> int:
     success, denominator, rate = compute_task_success_rate(status_counts)
     canceled = status_counts["canceled"]
 
-    print(f"  任务数: {sum(status_counts.values())}，成功: {success}，"
-          f"分母（排除取消）: {denominator}，canceled: {canceled}")
+    print(
+        f"  任务数: {sum(status_counts.values())}，成功: {success}，"
+        f"分母（排除取消）: {denominator}，canceled: {canceled}"
+    )
     print(f"  成功率: {rate:.2%}（门槛 ≥ {THRESHOLD:.0%}）")
     for p in problems:
         print(f"  - {p}")
 
     try:
         commit = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], text=True,
+            ["git", "rev-parse", "--short", "HEAD"],
+            text=True,
         ).strip()
     except Exception:  # noqa: BLE001
         commit = "unknown"

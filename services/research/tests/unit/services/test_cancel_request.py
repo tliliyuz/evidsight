@@ -84,7 +84,15 @@ class TestCanceledTerminalResolver:
         await db_session.flush()
         steps = [
             ResearchStep(task_id=task.id, step_type=t, status="completed")
-            for t in ["planning", "search", "fetch", "rerank", "synthesis", "evidence_graph", "render"]
+            for t in [
+                "planning",
+                "search",
+                "fetch",
+                "rerank",
+                "synthesis",
+                "evidence_graph",
+                "render",
+            ]
         ]
         db_session.add_all(steps)
         await db_session.flush()

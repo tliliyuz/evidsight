@@ -150,7 +150,8 @@ async def _mark_stale_running_steps(session, task_id: str) -> None:
     if result.rowcount > 0:
         logger.info(
             "恢复扫描将遗留 running Step 置为 retrying: task_id=%s, count=%d",
-            task_id, result.rowcount,
+            task_id,
+            result.rowcount,
         )
 
 

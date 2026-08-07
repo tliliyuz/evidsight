@@ -6,6 +6,7 @@
 - SSE 事件序列完整性
 - 子 step 树结构
 """
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -72,14 +73,17 @@ def _make_mock_step(**overrides) -> MagicMock:
 
 
 def _valid_planning_json() -> str:
-    return json.dumps({
-        "sub_questions": [
-            "量子计算对RSA和ECC加密算法的具体威胁",
-            "NIST后量子密码标准化最新进展",
-            "中国在量子安全通信领域的政策与布局",
-        ],
-        "rationale": "从技术威胁、标准应对、政策布局三维度拆解",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "sub_questions": [
+                "量子计算对RSA和ECC加密算法的具体威胁",
+                "NIST后量子密码标准化最新进展",
+                "中国在量子安全通信领域的政策与布局",
+            ],
+            "rationale": "从技术威胁、标准应对、政策布局三维度拆解",
+        },
+        ensure_ascii=False,
+    )
 
 
 def _make_llm_result(content: str) -> LLMResult:
@@ -136,9 +140,24 @@ class TestPlanningToSearchFlow:
 
         with patch("app.pipeline.searcher._call_tavily") as mock_tavily:
             mock_tavily.side_effect = [
-                {"results": [{"url": f"https://source{i}.com/q1", "title": f"Source {i}", "score": 0.8} for i in range(1, 3)]},
-                {"results": [{"url": f"https://source{i}.com/q2", "title": f"Source {i}", "score": 0.8} for i in range(1, 3)]},
-                {"results": [{"url": f"https://source{i}.com/q3", "title": f"Source {i}", "score": 0.8} for i in range(1, 3)]},
+                {
+                    "results": [
+                        {"url": f"https://source{i}.com/q1", "title": f"Source {i}", "score": 0.8}
+                        for i in range(1, 3)
+                    ]
+                },
+                {
+                    "results": [
+                        {"url": f"https://source{i}.com/q2", "title": f"Source {i}", "score": 0.8}
+                        for i in range(1, 3)
+                    ]
+                },
+                {
+                    "results": [
+                        {"url": f"https://source{i}.com/q3", "title": f"Source {i}", "score": 0.8}
+                        for i in range(1, 3)
+                    ]
+                },
             ]
 
             search_output = await run_search(task, search_step, db, sse)
@@ -155,9 +174,7 @@ class TestPlanningToSearchFlow:
         db = AsyncMock()
 
         with patch("app.pipeline.planner.chat_completion") as mock_llm:
-            mock_llm.return_value = _make_llm_result(
-                '{"sub_questions": ["只有一个子问题"]}'
-            )
+            mock_llm.return_value = _make_llm_result('{"sub_questions": ["只有一个子问题"]}')
 
             with pytest.raises(PlanningFailedException) as exc_info:
                 await run_planning(task, planning_step, db, sse)
@@ -196,10 +213,7 @@ class TestSearchToFetchFlow:
             await run_search(task, search_step, db, sse)
 
         # 验证 ResearchSource 通过 session.add 被添加
-        add_calls = [
-            c for c in db.add.call_args_list
-            if isinstance(c[0][0], ResearchSource)
-        ]
+        add_calls = [c for c in db.add.call_args_list if isinstance(c[0][0], ResearchSource)]
         assert len(add_calls) == 2  # 两个 URL 各一个 source
 
         # 验证 source 属性正确
@@ -252,10 +266,7 @@ class TestPipelineSseEventSequence:
         assert "step.progress" in events  # 进度事件
 
         # step.progress 事件应包含 sub_questions_generated
-        progress_calls = [
-            c for c in sse.publish.await_args_list
-            if c[0][0] == "step.progress"
-        ]
+        progress_calls = [c for c in sse.publish.await_args_list if c[0][0] == "step.progress"]
         last_progress = progress_calls[-1]
         data = last_progress[0][1]
         assert "sub_questions_generated" in data

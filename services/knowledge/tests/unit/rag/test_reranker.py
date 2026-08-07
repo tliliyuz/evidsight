@@ -184,11 +184,46 @@ class TestDashScopeRerankerIntegration:
         """构造 5 条检索结果"""
         return RetrievalOutput(
             results=[
-                RetrievalResult(doc_id=1, chunk_index=0, content="入职流程包括填写个人信息", score=0.85, page=1, doc_name="入职指南.pdf"),
-                RetrievalResult(doc_id=1, chunk_index=1, content="报销需要提交发票原件", score=0.80, page=2, doc_name="入职指南.pdf"),
-                RetrievalResult(doc_id=2, chunk_index=0, content="年假申请需要提前三天", score=0.78, page=1, doc_name="考勤制度.pdf"),
-                RetrievalResult(doc_id=3, chunk_index=0, content="公司提供免费午餐和班车", score=0.75, page=3, doc_name="福利说明.pdf"),
-                RetrievalResult(doc_id=2, chunk_index=1, content="病假需提供医院证明", score=0.72, page=2, doc_name="考勤制度.pdf"),
+                RetrievalResult(
+                    doc_id=1,
+                    chunk_index=0,
+                    content="入职流程包括填写个人信息",
+                    score=0.85,
+                    page=1,
+                    doc_name="入职指南.pdf",
+                ),
+                RetrievalResult(
+                    doc_id=1,
+                    chunk_index=1,
+                    content="报销需要提交发票原件",
+                    score=0.80,
+                    page=2,
+                    doc_name="入职指南.pdf",
+                ),
+                RetrievalResult(
+                    doc_id=2,
+                    chunk_index=0,
+                    content="年假申请需要提前三天",
+                    score=0.78,
+                    page=1,
+                    doc_name="考勤制度.pdf",
+                ),
+                RetrievalResult(
+                    doc_id=3,
+                    chunk_index=0,
+                    content="公司提供免费午餐和班车",
+                    score=0.75,
+                    page=3,
+                    doc_name="福利说明.pdf",
+                ),
+                RetrievalResult(
+                    doc_id=2,
+                    chunk_index=1,
+                    content="病假需提供医院证明",
+                    score=0.72,
+                    page=2,
+                    doc_name="考勤制度.pdf",
+                ),
             ],
             total=5,
         )
@@ -198,10 +233,7 @@ class TestDashScopeRerankerIntegration:
         """构造模拟的 DashScope Rerank API 成功响应"""
 
         def _make_response(indices_scores: list[tuple[int, float]]):
-            results = [
-                {"index": idx, "relevance_score": score}
-                for idx, score in indices_scores
-            ]
+            results = [{"index": idx, "relevance_score": score} for idx, score in indices_scores]
             return {
                 "output": {"results": results},
                 "usage": {"total_tokens": 120},
@@ -210,17 +242,17 @@ class TestDashScopeRerankerIntegration:
         return _make_response
 
     @pytest.mark.asyncio
-    async def test_API正常返回按相关性降序重排(
-        self, reranker, sample_output, mock_rerank_response
-    ):
+    async def test_API正常返回按相关性降序重排(self, reranker, sample_output, mock_rerank_response):
         """API 返回 [2,0,4] → 输出按此顺序重排"""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = mock_rerank_response([
-            (2, 0.96),  # doc_id=2, chunk_index=0 → 年假
-            (0, 0.91),  # doc_id=1, chunk_index=0 → 入职
-            (4, 0.73),  # doc_id=2, chunk_index=1 → 病假
-        ])
+        mock_resp.json.return_value = mock_rerank_response(
+            [
+                (2, 0.96),  # doc_id=2, chunk_index=0 → 年假
+                (0, 0.91),  # doc_id=1, chunk_index=0 → 入职
+                (4, 0.73),  # doc_id=2, chunk_index=1 → 病假
+            ]
+        )
 
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -247,10 +279,12 @@ class TestDashScopeRerankerIntegration:
         """5 条输入 top_n=2，API 返回 2 条 → 输出 2 条"""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = mock_rerank_response([
-            (1, 0.98),
-            (3, 0.87),
-        ])
+        mock_resp.json.return_value = mock_rerank_response(
+            [
+                (1, 0.98),
+                (3, 0.87),
+            ]
+        )
 
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -279,13 +313,17 @@ class TestDashScopeRerankerIntegration:
         assert result.results == []
 
     @pytest.mark.asyncio
-    async def test_单条输入不调API直接返回(
-        self, reranker, mock_rerank_response
-    ):
+    async def test_单条输入不调API直接返回(self, reranker, mock_rerank_response):
         """1 条输入 → 调用 API（即使只有 1 条也走精排获得 relevance_score）"""
         single_output = RetrievalOutput(
             results=[
-                RetrievalResult(doc_id=1, chunk_index=0, content="唯一的文档内容", score=0.9, doc_name="文档.pdf"),
+                RetrievalResult(
+                    doc_id=1,
+                    chunk_index=0,
+                    content="唯一的文档内容",
+                    score=0.9,
+                    doc_name="文档.pdf",
+                ),
             ],
             total=1,
         )
@@ -306,9 +344,7 @@ class TestDashScopeRerankerIntegration:
         assert result.results[0].content == "唯一的文档内容"
 
     @pytest.mark.asyncio
-    async def test_API返回HTTP错误降级回退(
-        self, reranker, sample_output
-    ):
+    async def test_API返回HTTP错误降级回退(self, reranker, sample_output):
         """API 返回 500 → 降级回退到原始 RRF 排序 + 截取 top_k"""
         mock_resp = MagicMock()
         mock_resp.status_code = 500
@@ -331,9 +367,7 @@ class TestDashScopeRerankerIntegration:
         assert result.results[2].content == "年假申请需要提前三天"
 
     @pytest.mark.asyncio
-    async def test_API网络异常重试后降级回退(
-        self, reranker, sample_output
-    ):
+    async def test_API网络异常重试后降级回退(self, reranker, sample_output):
         """网络超时 → 重试 3 次后降级回退"""
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -350,9 +384,7 @@ class TestDashScopeRerankerIntegration:
         assert result.results[0].content == "入职流程包括填写个人信息"
 
     @pytest.mark.asyncio
-    async def test_API返回JSON解析错误重试后降级(
-        self, reranker, sample_output
-    ):
+    async def test_API返回JSON解析错误重试后降级(self, reranker, sample_output):
         """API 返回非 JSON 内容 → 重试后降级"""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -371,15 +403,19 @@ class TestDashScopeRerankerIntegration:
         assert result.total == 3
 
     @pytest.mark.asyncio
-    async def test_top_k大于输入数量返回全部(
-        self, reranker, sample_output, mock_rerank_response
-    ):
+    async def test_top_k大于输入数量返回全部(self, reranker, sample_output, mock_rerank_response):
         """5 条输入 top_k=10 → effective_top_n=5，返回全部 5 条"""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = mock_rerank_response([
-            (3, 0.96), (2, 0.92), (0, 0.88), (4, 0.81), (1, 0.75),
-        ])
+        mock_resp.json.return_value = mock_rerank_response(
+            [
+                (3, 0.96),
+                (2, 0.92),
+                (0, 0.88),
+                (4, 0.81),
+                (1, 0.75),
+            ]
+        )
 
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -393,15 +429,16 @@ class TestDashScopeRerankerIntegration:
         assert len(result.results) == 5
 
     @pytest.mark.asyncio
-    async def test_API请求体格式正确(
-        self, reranker, sample_output, mock_rerank_response
-    ):
+    async def test_API请求体格式正确(self, reranker, sample_output, mock_rerank_response):
         """验证发送给 API 的请求体格式正确"""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = mock_rerank_response([
-            (0, 0.95), (1, 0.80),
-        ])
+        mock_resp.json.return_value = mock_rerank_response(
+            [
+                (0, 0.95),
+                (1, 0.80),
+            ]
+        )
 
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -423,9 +460,7 @@ class TestDashScopeRerankerIntegration:
         assert payload["parameters"]["return_documents"] is False
 
     @pytest.mark.asyncio
-    async def test_API首次失败第二次成功(
-        self, reranker, sample_output, mock_rerank_response
-    ):
+    async def test_API首次失败第二次成功(self, reranker, sample_output, mock_rerank_response):
         """第一次调用失败（500），第二次成功 → 返回正确结果"""
         fail_resp = MagicMock()
         fail_resp.status_code = 500
@@ -433,9 +468,13 @@ class TestDashScopeRerankerIntegration:
 
         success_resp = MagicMock()
         success_resp.status_code = 200
-        success_resp.json.return_value = mock_rerank_response([
-            (1, 0.98), (3, 0.85), (0, 0.72),
-        ])
+        success_resp.json.return_value = mock_rerank_response(
+            [
+                (1, 0.98),
+                (3, 0.85),
+                (0, 0.72),
+            ]
+        )
 
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -450,15 +489,17 @@ class TestDashScopeRerankerIntegration:
         assert result.results[0].content == "报销需要提交发票原件"
 
     @pytest.mark.asyncio
-    async def test_不改变chunk原始内容(
-        self, reranker, sample_output, mock_rerank_response
-    ):
+    async def test_不改变chunk原始内容(self, reranker, sample_output, mock_rerank_response):
         """仅重新排序，不修改 chunk 的 content/doc_id/page/doc_name"""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = mock_rerank_response([
-            (2, 0.99), (4, 0.88), (0, 0.75),
-        ])
+        mock_resp.json.return_value = mock_rerank_response(
+            [
+                (2, 0.99),
+                (4, 0.88),
+                (0, 0.75),
+            ]
+        )
 
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)

@@ -93,7 +93,9 @@ class SSEBridge:
         """当前 seq 序号（只读）。"""
         return self._seq
 
-    async def publish(self, event_type: str, data: dict | None = None, event_id: int | None = None) -> None:
+    async def publish(
+        self, event_type: str, data: dict | None = None, event_id: int | None = None
+    ) -> None:
         """异步发布事件到 Redis Pub/Sub。
 
         Args:
@@ -116,7 +118,9 @@ class SSEBridge:
         except Exception:
             logger.warning(
                 "SSE 发布失败（Redis 可能不可用）: task_id=%s, event=%s, seq=%d",
-                self._task_id, event_type, self._seq,
+                self._task_id,
+                event_type,
+                self._seq,
             )
 
 
@@ -166,7 +170,9 @@ async def sse_event_stream(
             try:
                 replayed = await replay_loader(last_event_id)
             except Exception:
-                logger.exception("SSE 游标回放失败: task_id=%s, last_event_id=%s", task_id, last_event_id)
+                logger.exception(
+                    "SSE 游标回放失败: task_id=%s, last_event_id=%s", task_id, last_event_id
+                )
                 replayed = []
             for event in replayed:
                 try:
@@ -174,7 +180,9 @@ async def sse_event_stream(
                 except ValueError:
                     logger.warning(
                         "跳过不可投影的 agent event: task_id=%s, seq=%s, type=%s",
-                        task_id, getattr(event, "sequence", "?"), getattr(event, "event_type", "?"),
+                        task_id,
+                        getattr(event, "sequence", "?"),
+                        getattr(event, "event_type", "?"),
                     )
                     continue
                 yield format_sse_event(event_name, event_data, event_id=event.sequence)
@@ -183,9 +191,7 @@ async def sse_event_stream(
         redis_async = await get_async_redis()
         pubsub = await _subscribe_channel(redis_async, channel)
         if pubsub is None:
-            logger.warning(
-                "SSE 订阅失败（无法订阅 Redis 频道）: task_id=%s", task_id
-            )
+            logger.warning("SSE 订阅失败（无法订阅 Redis 频道）: task_id=%s", task_id)
             return
 
         try:
@@ -318,9 +324,7 @@ async def _get_pubsub_message(pubsub, timeout: float = 1.0) -> dict | None:
     """
     if _IS_LINUX:
         try:
-            return await pubsub.get_message(
-                ignore_subscribe_messages=True, timeout=timeout
-            )
+            return await pubsub.get_message(ignore_subscribe_messages=True, timeout=timeout)
         except Exception:
             return None
     else:

@@ -190,21 +190,23 @@ def _parse_search_response(payload: dict) -> RetrievalSearchResult:
         if not isinstance(hit, dict):
             raise InternalRetrievalContractException(f"命中 {i} 不是对象")
         _validate_hit(hit, i)
-        hits.append(RetrievalHit(
-            hit_id=str(hit["hit_id"]),
-            knowledge_base_id=str(hit["knowledge_base_id"]),
-            document_id=str(hit["document_id"]),
-            document_version_id=str(hit["document_version_id"]),
-            segment_id=str(hit["segment_id"]),
-            document_display_name=str(hit.get("document_display_name") or ""),
-            section_title=hit.get("section_title"),
-            location=hit.get("location") or {},
-            minimal_excerpt=str(hit.get("minimal_excerpt") or ""),
-            scores=hit.get("scores") or [],
-            source_updated_at=str(hit.get("source_updated_at") or ""),
-            retrieved_at=str(hit.get("retrieved_at") or ""),
-            access_scope=str(hit.get("access_scope") or "internal"),
-        ))
+        hits.append(
+            RetrievalHit(
+                hit_id=str(hit["hit_id"]),
+                knowledge_base_id=str(hit["knowledge_base_id"]),
+                document_id=str(hit["document_id"]),
+                document_version_id=str(hit["document_version_id"]),
+                segment_id=str(hit["segment_id"]),
+                document_display_name=str(hit.get("document_display_name") or ""),
+                section_title=hit.get("section_title"),
+                location=hit.get("location") or {},
+                minimal_excerpt=str(hit.get("minimal_excerpt") or ""),
+                scores=hit.get("scores") or [],
+                source_updated_at=str(hit.get("source_updated_at") or ""),
+                retrieved_at=str(hit.get("retrieved_at") or ""),
+                access_scope=str(hit.get("access_scope") or "internal"),
+            )
+        )
 
     return RetrievalSearchResult(
         contract_version=str(payload.get("contract_version") or ""),
@@ -240,20 +242,20 @@ def _parse_resolve_response(payload: dict) -> list[ResolvedReference]:
             raise InternalRetrievalContractException(f"resolved[{i}] 不是对象")
         identity = ref.get("source_identity")
         if not isinstance(identity, dict):
-            raise InternalRetrievalContractException(
-                f"resolved[{i}] 缺少 source_identity"
-            )
+            raise InternalRetrievalContractException(f"resolved[{i}] 缺少 source_identity")
         missing = [f for f in _REQUIRED_HIT_IDENTITY_FIELDS[1:] if not identity.get(f)]
         if missing:
             raise InternalRetrievalContractException(
                 f"resolved[{i}] source_identity 缺少字段: {', '.join(missing)}"
             )
-        refs.append(ResolvedReference(
-            source_identity=identity,
-            minimal_excerpt=str(ref.get("minimal_excerpt") or ""),
-            location=ref.get("location") or {},
-            source_updated_at=str(ref.get("source_updated_at") or ""),
-        ))
+        refs.append(
+            ResolvedReference(
+                source_identity=identity,
+                minimal_excerpt=str(ref.get("minimal_excerpt") or ""),
+                location=ref.get("location") or {},
+                source_updated_at=str(ref.get("source_updated_at") or ""),
+            )
+        )
 
     return refs
 
@@ -284,10 +286,13 @@ async def _post_with_retry(
         except (httpx.HTTPError, OSError) as exc:
             logger.warning(
                 "Internal Retrieval 网络/超时错误（第 %d/%d 次）: url=%s, err=%s",
-                attempt + 1, attempts, url, exc,
+                attempt + 1,
+                attempts,
+                url,
+                exc,
             )
             if attempt < retry_max:
-                await asyncio.sleep(_RETRY_BASE_DELAY * (2 ** attempt))
+                await asyncio.sleep(_RETRY_BASE_DELAY * (2**attempt))
                 continue
             raise InternalRetrievalUnavailableException("内部知识检索服务暂不可用") from exc
 
@@ -299,15 +304,15 @@ async def _post_with_retry(
         if error_code in _RETRYABLE_ERROR_CODES and attempt < retry_max:
             logger.warning(
                 "Internal Retrieval 可重试错误（第 %d/%d 次）: code=%s",
-                attempt + 1, attempts, error_code,
+                attempt + 1,
+                attempts,
+                error_code,
             )
-            await asyncio.sleep(_RETRY_BASE_DELAY * (2 ** attempt))
+            await asyncio.sleep(_RETRY_BASE_DELAY * (2**attempt))
             continue
 
         if error_code in _RETRYABLE_ERROR_CODES:
-            raise InternalRetrievalUnavailableException(
-                f"内部知识检索暂不可用（{error_code}）"
-            )
+            raise InternalRetrievalUnavailableException(f"内部知识检索暂不可用（{error_code}）")
 
         _raise_contract_error(error_code, message)
 

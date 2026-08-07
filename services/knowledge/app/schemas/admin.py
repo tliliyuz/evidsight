@@ -13,9 +13,14 @@ class StatsChartsData(BaseModel):
     嵌入 /api/admin/stats 响应的 charts 字段。
     数据来源：traces 表聚合（复用 get_trace_stats 逻辑）。
     """
+
     trend: list[TraceTrendItem] = Field(default_factory=list, description="问答量趋势（按天/小时）")
-    latency: list[TraceLatencyItem] = Field(default_factory=list, description="响应时间分位数（P50/P95/P99）")
-    tokens: list[TraceTokenItem] = Field(default_factory=list, description="Token 使用统计（Input/Output）")
+    latency: list[TraceLatencyItem] = Field(
+        default_factory=list, description="响应时间分位数（P50/P95/P99）"
+    )
+    tokens: list[TraceTokenItem] = Field(
+        default_factory=list, description="Token 使用统计（Input/Output）"
+    )
 
 
 class AdminStatsResponse(BaseModel):
@@ -23,6 +28,7 @@ class AdminStatsResponse(BaseModel):
 
     对齐 API.md §7.1：系统全局统计概览 + ECharts 图表数据（§7.6）
     """
+
     user_count: int = Field(description="注册用户总数")
     kb_count: int = Field(description="知识库总数（含 private+public，不含已删除）")
     doc_count: int = Field(description="文档总数（所有状态）")
@@ -38,6 +44,7 @@ class AdminKBItem(BaseModel):
 
     对齐 API.md §7.2：跨用户管理视图，含 owner 信息
     """
+
     uuid: str
     name: str
     description: str | None = None
@@ -56,6 +63,7 @@ class AdminKBListResponse(BaseModel):
 
     对齐 API.md §7.2：分页知识库列表
     """
+
     total: int
     page: int
     page_size: int
@@ -67,6 +75,7 @@ class AdminDocItem(BaseModel):
 
     对齐 API.md §7.3：跨知识库视图，含 KB 名称和 owner 信息
     """
+
     uuid: str
     kb_uuid: str
     kb_name: str = Field(description="所属知识库名称")
@@ -89,6 +98,7 @@ class AdminDocListResponse(BaseModel):
 
     对齐 API.md §7.3：分页文档列表
     """
+
     total: int
     page: int
     page_size: int
@@ -104,6 +114,7 @@ class AdminUserItem(BaseModel):
     对齐 API.md §7.7：用户列表项，含关联统计
     id 为 Platform User UUID（对齐 IDENTITY_AND_ACCESS.md §2，非内部 users.id）。
     """
+
     id: str
     username: str
     role: str = Field(description="user / admin")
@@ -120,6 +131,7 @@ class AdminUserListResponse(BaseModel):
 
     对齐 API.md §7.7：分页用户列表
     """
+
     total: int
     page: int
     page_size: int
@@ -132,6 +144,7 @@ class AdminUserDetailResponse(BaseModel):
     对齐 API.md §7.7：用户详情（含统计 + Token 聚合）
     id 为 Platform User UUID（非内部 users.id）。
     """
+
     id: str
     username: str
     role: str
@@ -148,11 +161,13 @@ class AdminUserDetailResponse(BaseModel):
 
 class AdminUserStatusRequest(BaseModel):
     """PUT /api/admin/users/{user_id}/status 请求体"""
+
     status: str = Field(description="active / disabled")
 
 
 class AdminUserStatusResponse(BaseModel):
     """PUT /api/admin/users/{user_id}/status 响应（id 为 Platform User UUID）"""
+
     id: str
     username: str
     status: str
@@ -160,10 +175,12 @@ class AdminUserStatusResponse(BaseModel):
 
 class AdminUserResetPasswordResponse(BaseModel):
     """POST /api/admin/users/{user_id}/reset-password 响应（id 为 Platform User UUID）"""
+
     id: str
     username: str
 
 
 class AdminUserResetPasswordRequest(BaseModel):
     """POST /api/admin/users/{user_id}/reset-password 请求体"""
+
     new_password: str = Field(min_length=6, description="新密码（≥6 字符）")

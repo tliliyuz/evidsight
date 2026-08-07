@@ -79,10 +79,13 @@ async def _generate_sse_stream(
     t_sources_end = None
 
     # 发送 meta 事件（conversation_id 使用 UUID，对齐 API.md §6.1）
-    yield format_sse_event("meta", {
-        "conversation_id": conv.uuid,
-        "task_id": task_id,
-    })
+    yield format_sse_event(
+        "meta",
+        {
+            "conversation_id": conv.uuid,
+            "task_id": task_id,
+        },
+    )
 
     try:
         # 构建 OpenAI 格式消息列表（含历史消息注入，对齐 ARCHITECTURE.md §8.2）
@@ -103,16 +106,22 @@ async def _generate_sse_stream(
             if chunk.reasoning_content and deep_thinking:
                 if t_first_token is None:
                     t_first_token = time.perf_counter()
-                yield format_sse_event("thinking", {
-                    "delta": chunk.reasoning_content,
-                })
+                yield format_sse_event(
+                    "thinking",
+                    {
+                        "delta": chunk.reasoning_content,
+                    },
+                )
             if chunk.content:
                 if t_first_token is None:
                     t_first_token = time.perf_counter()
                 assistant_content += chunk.content
-                yield format_sse_event("message", {
-                    "delta": chunk.content,
-                })
+                yield format_sse_event(
+                    "message",
+                    {
+                        "delta": chunk.content,
+                    },
+                )
 
         t_stream_end = time.perf_counter()  # LLM 流结束
 
@@ -131,9 +140,8 @@ async def _generate_sse_stream(
             )
 
         # DeepSeek 流式 API 不返回 usage，使用 chunker 估算
-        prompt_tokens = (
-            estimate_tokens(prompt_result.system_prompt)
-            + estimate_tokens(prompt_result.user_prompt)
+        prompt_tokens = estimate_tokens(prompt_result.system_prompt) + estimate_tokens(
+            prompt_result.user_prompt
         )
         completion_tokens = estimate_tokens(assistant_content)
         token_usage = {
@@ -154,15 +162,17 @@ async def _generate_sse_stream(
                 _audit_result = audit_evidence(assistant_content, prompt_result.used_chunks)
                 # 补填 post_audit 到 evidence_review Trace（ADR-021）
                 if recorder and _audit_result:
-                    recorder.set_post_audit({
-                        "has_citation": _audit_result.has_citation,
-                        "citations_detected": _audit_result.cited_indices,
-                        "consistency_status": _audit_result.consistency_status,
-                        "evidence_status": _audit_result.evidence_status,
-                        "confidence_level": _audit_result.confidence_level,
-                        "confidence_note": _audit_result.confidence_note,
-                        "raw_answer_preview": assistant_content[:200],
-                    })
+                    recorder.set_post_audit(
+                        {
+                            "has_citation": _audit_result.has_citation,
+                            "citations_detected": _audit_result.cited_indices,
+                            "consistency_status": _audit_result.consistency_status,
+                            "evidence_status": _audit_result.evidence_status,
+                            "confidence_level": _audit_result.confidence_level,
+                            "confidence_note": _audit_result.confidence_note,
+                            "raw_answer_preview": assistant_content[:200],
+                        }
+                    )
             except Exception:
                 logger.warning("证据审计执行失败，跳过", exc_info=True)
 
@@ -197,11 +207,14 @@ async def _generate_sse_stream(
                     await s.commit()
                 except Exception:
                     await s.rollback()
-        yield format_sse_event("error", {
-            "code": error_code,
-            "message": error_msg,
-            "detail": str(e),
-        })
+        yield format_sse_event(
+            "error",
+            {
+                "code": error_code,
+                "message": error_msg,
+                "detail": str(e),
+            },
+        )
         return
 
     # 发送 sources 事件
@@ -219,10 +232,7 @@ async def _generate_sse_stream(
     # 两级匹配均须尊重引用标注：LLM 写了 [来源N] 意味着它认为自己有价值引用，
     # 即使以"未找到"开头也是部分答案而非真阴性（如"未找到X的直接流程，但Y[来源1]"）
     # _answer_head 是 _answer_stripped 的前缀，仅需检查全文即可覆盖两级匹配
-    _not_found = (
-        not _has_citation
-        and any(kw in _answer_stripped for kw in _NOT_FOUND_KEYWORDS)
-    )
+    _not_found = not _has_citation and any(kw in _answer_stripped for kw in _NOT_FOUND_KEYWORDS)
     logger.info(
         "SOURCES_DIAG used_chunks=%d cited=%s has_citation=%s not_found=%s answer_head=%s",
         len(prompt_result.used_chunks) if prompt_result.used_chunks else 0,
@@ -242,8 +252,7 @@ async def _generate_sse_stream(
         _cited_indices = extract_citation_indices(_answer_stripped)
         if _cited_indices:
             _cited_with_orig_index = [
-                (i + 1, c) for i, c in enumerate(_send_chunks)
-                if str(i + 1) in _cited_indices
+                (i + 1, c) for i, c in enumerate(_send_chunks) if str(i + 1) in _cited_indices
             ]
             if _cited_with_orig_index:
                 sources = build_sources(
@@ -276,23 +285,34 @@ async def _generate_sse_stream(
     title = None
     message_id = 0  # 异常回退时的默认值
     msg_id, title = await _persist_message(
-        conv, is_first_turn, question, assistant_content, "STREAM", recorder,
+        conv,
+        is_first_turn,
+        question,
+        assistant_content,
+        "STREAM",
+        recorder,
         token_count=token_usage.get("total", 0),
     )
     if msg_id is None:
-        yield format_sse_event("error", {
-            "code": "E9001",
-            "message": "保存消息失败",
-        })
+        yield format_sse_event(
+            "error",
+            {
+                "code": "E9001",
+                "message": "保存消息失败",
+            },
+        )
         return
     message_id = msg_id
 
     # session 已释放，安全发送 finish 事件（message_id 来自已提交的记录）
-    yield format_sse_event("finish", {
-        "message_id": message_id,
-        "title": title,
-        "token_usage": token_usage,
-    })
+    yield format_sse_event(
+        "finish",
+        {
+            "message_id": message_id,
+            "title": title,
+            "token_usage": token_usage,
+        },
+    )
 
     t_finish = time.perf_counter()
     _ttft = (t_first_token - t0) if t_first_token else -1
@@ -413,22 +433,34 @@ async def _generate_reject_response(
     yield format_sse_event("message", {"delta": _REJECT_RESPONSE})
 
     message_id, title = await _persist_message(
-        conv, is_first_turn, question, _REJECT_RESPONSE, "REJECT", recorder,
+        conv,
+        is_first_turn,
+        question,
+        _REJECT_RESPONSE,
+        "REJECT",
+        recorder,
     )
     if message_id is None:
         yield format_sse_event("sources", {"chunks": []})
-        yield format_sse_event("finish", {
-            "message_id": 0, "title": None,
-            "token_usage": {"prompt": 0, "completion": 0, "total": 0},
-        })
+        yield format_sse_event(
+            "finish",
+            {
+                "message_id": 0,
+                "title": None,
+                "token_usage": {"prompt": 0, "completion": 0, "total": 0},
+            },
+        )
         return
 
     yield format_sse_event("sources", {"chunks": []})
-    yield format_sse_event("finish", {
-        "message_id": message_id,
-        "title": title,
-        "token_usage": {"prompt": 0, "completion": 0, "total": 0},
-    })
+    yield format_sse_event(
+        "finish",
+        {
+            "message_id": message_id,
+            "title": title,
+            "token_usage": {"prompt": 0, "completion": 0, "total": 0},
+        },
+    )
 
 
 async def _generate_meta_response(
@@ -442,12 +474,20 @@ async def _generate_meta_response(
     yield format_sse_event("message", {"delta": _META_RESPONSE})
 
     message_id, title = await _persist_message(
-        conv, is_first_turn, question, _META_RESPONSE, "META", recorder,
+        conv,
+        is_first_turn,
+        question,
+        _META_RESPONSE,
+        "META",
+        recorder,
     )
 
     yield format_sse_event("sources", {"chunks": []})
-    yield format_sse_event("finish", {
-        "message_id": message_id or 0,
-        "title": title,
-        "token_usage": {"prompt": 0, "completion": 0, "total": 0},
-    })
+    yield format_sse_event(
+        "finish",
+        {
+            "message_id": message_id or 0,
+            "title": title,
+            "token_usage": {"prompt": 0, "completion": 0, "total": 0},
+        },
+    )

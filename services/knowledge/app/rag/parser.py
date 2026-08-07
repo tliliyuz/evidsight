@@ -28,24 +28,26 @@ from docx.enum.style import WD_STYLE_TYPE
 logger = logging.getLogger(__name__)
 
 # Word 内置标题样式名映射 -> Markdown 标题层级
-_WORD_HEADING_PATTERN = re.compile(r'^Heading\s*(\d+)', re.IGNORECASE)
-_WORD_TITLE_PATTERNS = re.compile(r'^(Title|Subtitle)$', re.IGNORECASE)
+_WORD_HEADING_PATTERN = re.compile(r"^Heading\s*(\d+)", re.IGNORECASE)
+_WORD_TITLE_PATTERNS = re.compile(r"^(Title|Subtitle)$", re.IGNORECASE)
 
 
 @dataclass
 class ParsedPage:
     """单页解析结果"""
+
     page_number: int
     content: str
     success: bool = True
     error: str | None = None
     element_types: list[str] = field(default_factory=list)  # ["text", "table"]
-    tables: list[str] = field(default_factory=list)          # Markdown 表格文本
+    tables: list[str] = field(default_factory=list)  # Markdown 表格文本
 
 
 @dataclass
 class ParseResult:
     """文档解析聚合结果"""
+
     pages: list[ParsedPage] = field(default_factory=list)
     total_pages: int = 0
     failed_pages: int = 0
@@ -65,11 +67,7 @@ class ParseResult:
     @property
     def warnings(self) -> list[str]:
         """收集所有失败页面的警告信息"""
-        return [
-            f"第{p.page_number}页: {p.error}"
-            for p in self.pages
-            if not p.success and p.error
-        ]
+        return [f"第{p.page_number}页: {p.error}" for p in self.pages if not p.success and p.error]
 
 
 def parse_document(file_path: str, file_type: str | None = None) -> ParseResult:
@@ -85,7 +83,11 @@ def parse_document(file_path: str, file_type: str | None = None) -> ParseResult:
     path = Path(file_path)
     if not path.exists():
         return ParseResult(
-            pages=[ParsedPage(page_number=1, content="", success=False, error=f"文件不存在: {file_path}")],
+            pages=[
+                ParsedPage(
+                    page_number=1, content="", success=False, error=f"文件不存在: {file_path}"
+                )
+            ],
             total_pages=1,
             failed_pages=1,
             source_type=file_type or "",
@@ -103,7 +105,14 @@ def parse_document(file_path: str, file_type: str | None = None) -> ParseResult:
             result = _parse_text(file_path)
         else:
             return ParseResult(
-                pages=[ParsedPage(page_number=1, content="", success=False, error=f"不支持的文件类型: {file_type}")],
+                pages=[
+                    ParsedPage(
+                        page_number=1,
+                        content="",
+                        success=False,
+                        error=f"不支持的文件类型: {file_type}",
+                    )
+                ],
                 total_pages=1,
                 failed_pages=1,
                 source_type=file_type,
@@ -145,10 +154,7 @@ def _table_to_markdown(table_data: list[list[str | None]]) -> str:
     # 过滤全空行（所有单元格均为 None 或空字符串）
     rows: list[list[str | None]] = []
     for row in table_data:
-        if row and any(
-            cell is not None and str(cell).strip()
-            for cell in row
-        ):
+        if row and any(cell is not None and str(cell).strip() for cell in row):
             rows.append(row)
 
     if not rows:
@@ -240,7 +246,7 @@ def _parse_pdf(file_path: str) -> ParseResult:
                                 if md:
                                     table_md_list.append(md)
                     except Exception as exc:
-                        logger.warning(f"pdfplumber 第{i+1}页表格提取失败: {exc}")
+                        logger.warning(f"pdfplumber 第{i + 1}页表格提取失败: {exc}")
 
             # 组装 content：文本 + 表格
             content_parts: list[str] = []
@@ -254,23 +260,25 @@ def _parse_pdf(file_path: str) -> ParseResult:
                 element_types = ["text"] if (text and text.strip()) else []
                 if table_md_list:
                     element_types.append("table")
-                pages.append(ParsedPage(
-                    page_number=i + 1,
-                    content=content,
-                    element_types=element_types,
-                    tables=table_md_list,
-                ))
+                pages.append(
+                    ParsedPage(
+                        page_number=i + 1,
+                        content=content,
+                        element_types=element_types,
+                        tables=table_md_list,
+                    )
+                )
             else:
-                pages.append(ParsedPage(
-                    page_number=i + 1, content="",
-                    success=False, error="页面无文本或文本为空"
-                ))
+                pages.append(
+                    ParsedPage(
+                        page_number=i + 1, content="", success=False, error="页面无文本或文本为空"
+                    )
+                )
                 failed += 1
         except Exception as e:
-            pages.append(ParsedPage(
-                page_number=i + 1, content="",
-                success=False, error=f"页面解析异常: {e}"
-            ))
+            pages.append(
+                ParsedPage(page_number=i + 1, content="", success=False, error=f"页面解析异常: {e}")
+            )
             failed += 1
 
     total = len(doc)
@@ -296,7 +304,9 @@ def _parse_pdf_with_pdfplumber(file_path: str, original_error: str = "") -> Pars
     try:
         doc = pdfplumber.open(file_path)
     except Exception as e:
-        error_msg = f"pymupdf 失败: {original_error}; pdfplumber 失败: {e}" if original_error else str(e)
+        error_msg = (
+            f"pymupdf 失败: {original_error}; pdfplumber 失败: {e}" if original_error else str(e)
+        )
         return ParseResult(
             pages=[ParsedPage(page_number=1, content="", success=False, error=error_msg)],
             total_pages=1,
@@ -312,16 +322,16 @@ def _parse_pdf_with_pdfplumber(file_path: str, original_error: str = "") -> Pars
             if text and text.strip():
                 pages.append(ParsedPage(page_number=i + 1, content=text.strip()))
             else:
-                pages.append(ParsedPage(
-                    page_number=i + 1, content="",
-                    success=False, error="页面无文本或文本为空"
-                ))
+                pages.append(
+                    ParsedPage(
+                        page_number=i + 1, content="", success=False, error="页面无文本或文本为空"
+                    )
+                )
                 failed += 1
         except Exception as e:
-            pages.append(ParsedPage(
-                page_number=i + 1, content="",
-                success=False, error=f"页面解析异常: {e}"
-            ))
+            pages.append(
+                ParsedPage(page_number=i + 1, content="", success=False, error=f"页面解析异常: {e}")
+            )
             failed += 1
 
     total = len(doc.pages)
@@ -380,7 +390,7 @@ def _docx_heading_to_markdown(paragraph) -> str | None:
             pass
 
         # 检查段落样式类型是否为 HEADING
-        if style.type == WD_STYLE_TYPE.PARAGRAPH and hasattr(style, 'base_style'):
+        if style.type == WD_STYLE_TYPE.PARAGRAPH and hasattr(style, "base_style"):
             try:
                 base = style.base_style
                 if base is not None:
@@ -435,18 +445,19 @@ def _parse_docx(file_path: str) -> ParseResult:
                 if text and text.strip():
                     pages.append(ParsedPage(page_number=i + 1, content=text.strip()))
         except Exception as e:
-            logger.warning(f"DOCX 第{i+1}段解析失败: {e}")
-            pages.append(ParsedPage(
-                page_number=i + 1, content="",
-                success=False, error=f"段落解析异常: {e}"
-            ))
+            logger.warning(f"DOCX 第{i + 1}段解析失败: {e}")
+            pages.append(
+                ParsedPage(page_number=i + 1, content="", success=False, error=f"段落解析异常: {e}")
+            )
             failed += 1
 
     total = len(doc.paragraphs)
 
     if not pages:
         return ParseResult(
-            pages=[ParsedPage(page_number=1, content="", success=False, error="文档无有效文本内容")],
+            pages=[
+                ParsedPage(page_number=1, content="", success=False, error="文档无有效文本内容")
+            ],
             total_pages=total,
             failed_pages=total,
         )
@@ -463,7 +474,9 @@ def _parse_text(file_path: str) -> ParseResult:
             content = Path(file_path).read_text(encoding="gbk")
         except Exception as e:
             return ParseResult(
-                pages=[ParsedPage(page_number=1, content="", success=False, error=f"编码错误: {e}")],
+                pages=[
+                    ParsedPage(page_number=1, content="", success=False, error=f"编码错误: {e}")
+                ],
                 total_pages=1,
                 failed_pages=1,
             )

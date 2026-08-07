@@ -21,7 +21,9 @@ from app.services.agent_event_service import (
 
 
 async def _make_task(db: AsyncSession) -> str:
-    task = ResearchTask(id="evt-task-1", user_id="user-1", topic="t", requirements={"max_sources": 10})
+    task = ResearchTask(
+        id="evt-task-1", user_id="user-1", topic="t", requirements={"max_sources": 10}
+    )
     db.add(task)
     await db.flush()
     return str(task.id)
@@ -37,7 +39,11 @@ class TestAppendEvent:
 
     async def test_不同任务各自独立序号(self, db_session):
         task_id = await _make_task(db_session)
-        db_session.add(ResearchTask(id="evt-task-2", user_id="user-1", topic="t2", requirements={"max_sources": 10}))
+        db_session.add(
+            ResearchTask(
+                id="evt-task-2", user_id="user-1", topic="t2", requirements={"max_sources": 10}
+            )
+        )
         await db_session.flush()
         ev1 = await append_event(db_session, task_id, event_type=EVENT_TYPE_PHASE_ENTER)
         ev2 = await append_event(db_session, "evt-task-2", event_type=EVENT_TYPE_PHASE_ENTER)
@@ -52,7 +58,8 @@ class TestAppendEvent:
     async def test_事件摘要剥离禁止字段(self, db_session):
         task_id = await _make_task(db_session)
         ev = await append_event(
-            db_session, task_id,
+            db_session,
+            task_id,
             event_type=EVENT_TYPE_TOOL_REQUEST,
             input_summary={
                 "tool_name": "plan_tool",
@@ -80,7 +87,9 @@ class TestListEventsAfter:
         rows = await list_events_after(db_session, task_id, last_sequence=None)
         assert [r.sequence for r in rows] == [1, 2, 3]
         assert [r.event_type for r in rows] == [
-            EVENT_TYPE_PHASE_ENTER, EVENT_TYPE_TOOL_REQUEST, EVENT_TYPE_TOOL_RESULT,
+            EVENT_TYPE_PHASE_ENTER,
+            EVENT_TYPE_TOOL_REQUEST,
+            EVENT_TYPE_TOOL_RESULT,
         ]
 
     async def test_游标后事件(self, db_session):
@@ -95,7 +104,11 @@ class TestListEventsAfter:
 
     async def test_不同任务互不干扰(self, db_session):
         task_id = await self._seed(db_session)
-        db_session.add(ResearchTask(id="evt-task-9", user_id="user-1", topic="t9", requirements={"max_sources": 10}))
+        db_session.add(
+            ResearchTask(
+                id="evt-task-9", user_id="user-1", topic="t9", requirements={"max_sources": 10}
+            )
+        )
         await db_session.flush()
         other = await append_event(db_session, "evt-task-9", event_type=EVENT_TYPE_PHASE_ENTER)
         rows = await list_events_after(db_session, task_id, last_sequence=None)

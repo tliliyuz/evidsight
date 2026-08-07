@@ -1,4 +1,5 @@
 """Pydantic Schema 校验测试"""
+
 import pytest
 from pydantic import ValidationError
 
@@ -73,6 +74,7 @@ class TestDocumentStatusEnum:
     @pytest.fixture(autouse=True)
     def _setup(self):
         from app.models.enums import DocumentStatus, TERMINAL_STATUSES, is_terminal
+
         self.DocumentStatus = DocumentStatus
         self.TERMINAL_STATUSES = TERMINAL_STATUSES
         self.is_terminal = is_terminal
@@ -82,7 +84,12 @@ class TestDocumentStatusEnum:
 
     def test_all_values_match_doc(self):
         expected = {
-            "queued", "processing", "completed", "partial", "failed", "deleting",
+            "queued",
+            "processing",
+            "completed",
+            "partial",
+            "failed",
+            "deleting",
         }
         actual = {m.value for m in self.DocumentStatus}
         assert actual == expected
@@ -113,35 +120,54 @@ class TestDocumentResponse:
     @pytest.fixture(autouse=True)
     def _setup(self):
         from app.schemas.document import DocumentResponse
+
         self.DocumentResponse = DocumentResponse
 
     def test_accepts_enum_value(self):
         from app.models.enums import DocumentStatus
+
         resp = self.DocumentResponse(
-            uuid="doc-001", kb_uuid="kb-001", filename="test.pdf", file_type="pdf",
-            status=DocumentStatus.QUEUED, created_at="2026-05-17T00:00:00",
+            uuid="doc-001",
+            kb_uuid="kb-001",
+            filename="test.pdf",
+            file_type="pdf",
+            status=DocumentStatus.QUEUED,
+            created_at="2026-05-17T00:00:00",
         )
         assert resp.status == DocumentStatus.QUEUED
 
     def test_accepts_string_and_converts(self):
         resp = self.DocumentResponse(
-            uuid="doc-001", kb_uuid="kb-001", filename="test.pdf", file_type="pdf",
-            status="completed", created_at="2026-05-17T00:00:00",
+            uuid="doc-001",
+            kb_uuid="kb-001",
+            filename="test.pdf",
+            file_type="pdf",
+            status="completed",
+            created_at="2026-05-17T00:00:00",
         )
         from app.models.enums import DocumentStatus
+
         assert resp.status == DocumentStatus.COMPLETED
 
     def test_rejects_invalid_status(self):
         with pytest.raises(ValidationError):
             self.DocumentResponse(
-                uuid="doc-001", kb_uuid="kb-001", filename="test.pdf", file_type="pdf",
-                status="invalid_status", created_at="2026-05-17T00:00:00",
+                uuid="doc-001",
+                kb_uuid="kb-001",
+                filename="test.pdf",
+                file_type="pdf",
+                status="invalid_status",
+                created_at="2026-05-17T00:00:00",
             )
 
     def test_model_dump_returns_string(self):
         resp = self.DocumentResponse(
-            uuid="doc-001", kb_uuid="kb-001", filename="test.pdf", file_type="pdf",
-            status="completed", created_at="2026-05-17T00:00:00",
+            uuid="doc-001",
+            kb_uuid="kb-001",
+            filename="test.pdf",
+            file_type="pdf",
+            status="completed",
+            created_at="2026-05-17T00:00:00",
         )
         data = resp.model_dump()
         assert data["status"] == "completed"
@@ -154,6 +180,7 @@ class TestKnowledgeBaseCreateVisibility:
     @pytest.fixture(autouse=True)
     def _setup(self):
         from app.schemas.knowledge_base import KnowledgeBaseCreate
+
         self.KnowledgeBaseCreate = KnowledgeBaseCreate
 
     def test_default_visibility_is_private(self):
@@ -190,6 +217,7 @@ class TestKnowledgeBaseUpdateVisibility:
     @pytest.fixture(autouse=True)
     def _setup(self):
         from app.schemas.knowledge_base import KnowledgeBaseUpdate
+
         self.KnowledgeBaseUpdate = KnowledgeBaseUpdate
 
     def test_visibility_optional(self):
@@ -225,15 +253,22 @@ class TestKnowledgeBaseResponseVisibility:
     @pytest.fixture(autouse=True)
     def _setup(self):
         from app.schemas.knowledge_base import KnowledgeBaseResponse
+
         self.KnowledgeBaseResponse = KnowledgeBaseResponse
 
     def test_response_includes_visibility(self):
         """U9.8: model_validate 含 visibility 成功"""
         from datetime import datetime, timezone
+
         resp = self.KnowledgeBaseResponse(
-            uuid="kb-001", name="知识库", description="描述",
+            uuid="kb-001",
+            name="知识库",
+            description="描述",
             owner="550e8400-e29b-41d4-a716-446655440001",
-            visibility="public", status="active", doc_count=0, chunk_count=0,
+            visibility="public",
+            status="active",
+            doc_count=0,
+            chunk_count=0,
             created_at=datetime.now(timezone.utc),
         )
         assert resp.visibility == "public"

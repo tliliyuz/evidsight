@@ -40,9 +40,11 @@ def _make_retrieval_output():
     return RetrievalOutput(
         results=[
             RetrievalResult(
-                doc_id=1, chunk_index=0,
+                doc_id=1,
+                chunk_index=0,
                 content="检索到的相关内容",
-                score=0.95, page=1,
+                score=0.95,
+                page=1,
             ),
         ],
         total=1,
@@ -52,6 +54,7 @@ def _make_retrieval_output():
 def _make_llm_chunks(texts=None):
     """构造 LLM 流式 chunk 列表"""
     from app.core.llm import LLMChunk
+
     if texts is None:
         texts = ["这是", "LLM", "的回答"]
     chunks = []
@@ -121,8 +124,9 @@ def _mock_db_with_conversation(db, conv, kb=None, doc_count=1):
 
 
 @contextmanager
-def _mock_chat_pipeline_for_trace(db, conv, *, retrieval_output=None, llm_chunks=None,
-                                   intent_result=None, use_real_recorder=True):
+def _mock_chat_pipeline_for_trace(
+    db, conv, *, retrieval_output=None, llm_chunks=None, intent_result=None, use_real_recorder=True
+):
     """Trace 集成测试专用 mock 上下文管理器。
 
     与 _mock_chat_pipeline 不同：
@@ -140,7 +144,8 @@ def _mock_chat_pipeline_for_trace(db, conv, *, retrieval_output=None, llm_chunks
         llm_chunks = _make_llm_chunks()
     if intent_result is None:
         intent_result = IntentResult(
-            intent=Intent.KNOWLEDGE, method="llm_flash",
+            intent=Intent.KNOWLEDGE,
+            method="llm_flash",
             metadata={"model": "deepseek-v4-flash", "confidence": None},
         )
 
@@ -150,13 +155,16 @@ def _mock_chat_pipeline_for_trace(db, conv, *, retrieval_output=None, llm_chunks
     mock_conv.id = conv.id
     mock_conv.uuid = _TEST_CONV_UUID
     mock_conv.user_id = conv.user_id
-    mock_conv.message_count = getattr(conv, 'message_count', 0)
-    mock_conv.title = getattr(conv, 'title', '新对话')
+    mock_conv.message_count = getattr(conv, "message_count", 0)
+    mock_conv.title = getattr(conv, "title", "新对话")
 
     mock_user_msg = MagicMock(id=10, role="user", content="测试问题")
     mock_assistant_msg = MagicMock(
-        id=11, role="assistant", content="这是LLM的回答",
-        thinking_content=None, token_count=50,
+        id=11,
+        role="assistant",
+        content="这是LLM的回答",
+        thinking_content=None,
+        token_count=50,
     )
 
     with ExitStack() as stack:
@@ -173,27 +181,28 @@ def _mock_chat_pipeline_for_trace(db, conv, *, retrieval_output=None, llm_chunks
         mock_ctx = MagicMock()
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_ctx.__aexit__ = AsyncMock(return_value=None)
-        mocks['async_session'] = stack.enter_context(
-            patch("app.services.chat_service.async_session",
-                  return_value=mock_ctx))
-        stack.enter_context(
-            patch("app.services.sse_stream.async_session",
-                  return_value=mock_ctx))
-        mocks['mock_session'] = mock_session
+        mocks["async_session"] = stack.enter_context(
+            patch("app.services.chat_service.async_session", return_value=mock_ctx)
+        )
+        stack.enter_context(patch("app.services.sse_stream.async_session", return_value=mock_ctx))
+        mocks["mock_session"] = mock_session
 
-        mocks['conv_patch'] = stack.enter_context(
-            patch("app.services.chat_service.Conversation", return_value=mock_conv))
+        mocks["conv_patch"] = stack.enter_context(
+            patch("app.services.chat_service.Conversation", return_value=mock_conv)
+        )
+        stack.enter_context(patch("app.services.sse_stream.Conversation", return_value=mock_conv))
+        mocks["msg_patch"] = stack.enter_context(
+            patch(
+                "app.services.chat_service.Message", side_effect=[mock_user_msg, mock_assistant_msg]
+            )
+        )
         stack.enter_context(
-            patch("app.services.sse_stream.Conversation", return_value=mock_conv))
-        mocks['msg_patch'] = stack.enter_context(
-            patch("app.services.chat_service.Message",
-                  side_effect=[mock_user_msg, mock_assistant_msg]))
-        stack.enter_context(
-            patch("app.services.sse_stream.Message",
-                  return_value=mock_assistant_msg))
+            patch("app.services.sse_stream.Message", return_value=mock_assistant_msg)
+        )
 
         # Mock _pipeline（KnowledgePipeline 单例）
         from app.rag.knowledge_pipeline import KnowledgePipelineResult
+
         _pipeline_result = KnowledgePipelineResult(
             reranked_output=retrieval_output,
             prompt_result=MagicMock(
@@ -209,41 +218,52 @@ def _mock_chat_pipeline_for_trace(db, conv, *, retrieval_output=None, llm_chunks
         mock_pipeline = MagicMock()
         mock_pipeline.execute_knowledge = AsyncMock(return_value=_pipeline_result)
         mock_pipeline.execute_casual = AsyncMock(return_value=_pipeline_result)
-        mocks['pipeline'] = stack.enter_context(
-            patch("app.services.chat_service._pipeline", mock_pipeline))
-        mocks['pipeline_result'] = _pipeline_result
+        mocks["pipeline"] = stack.enter_context(
+            patch("app.services.chat_service._pipeline", mock_pipeline)
+        )
+        mocks["pipeline_result"] = _pipeline_result
 
-        mocks['llm'] = stack.enter_context(patch("app.services.sse_stream.stream_chat_completion"))
-        mocks['tokens'] = stack.enter_context(
-            patch("app.services.sse_stream.estimate_tokens", return_value=50))
-        mocks['heartbeat'] = stack.enter_context(
-            patch("app.services.chat_service.stream_with_heartbeat",
-                  side_effect=lambda g, **kw: g))
-        mocks['intent'] = stack.enter_context(
-            patch("app.services.chat_service.classify_intent", new_callable=AsyncMock))
-        mocks['intent'].return_value = intent_result
+        mocks["llm"] = stack.enter_context(patch("app.services.sse_stream.stream_chat_completion"))
+        mocks["tokens"] = stack.enter_context(
+            patch("app.services.sse_stream.estimate_tokens", return_value=50)
+        )
+        mocks["heartbeat"] = stack.enter_context(
+            patch("app.services.chat_service.stream_with_heartbeat", side_effect=lambda g, **kw: g)
+        )
+        mocks["intent"] = stack.enter_context(
+            patch("app.services.chat_service.classify_intent", new_callable=AsyncMock)
+        )
+        mocks["intent"].return_value = intent_result
 
         # Mock resolve_uuid_to_id：将 UUID 字符串转回整数 ID
         _conv_id = conv.id
+
         async def _mock_resolve(db, model, uuid_str):
             if uuid_str == _TEST_KB_UUID:
                 return 1
             if uuid_str == _TEST_CONV_UUID:
                 return _conv_id
             return None
-        mocks['resolve_uuid'] = stack.enter_context(
-            patch("app.core.uuid_helpers.resolve_uuid_to_id",
-                  new_callable=AsyncMock, side_effect=_mock_resolve))
+
+        mocks["resolve_uuid"] = stack.enter_context(
+            patch(
+                "app.core.uuid_helpers.resolve_uuid_to_id",
+                new_callable=AsyncMock,
+                side_effect=_mock_resolve,
+            )
+        )
 
         # Mock record_trace 阻止真实 DB 写入，但记录调用参数
         record_trace_mock = AsyncMock()
-        mocks['record_trace'] = stack.enter_context(
-            patch("app.rag.trace_recorder.record_trace", new=record_trace_mock))
+        mocks["record_trace"] = stack.enter_context(
+            patch("app.rag.trace_recorder.record_trace", new=record_trace_mock)
+        )
 
         # Recorder: 使用真实 TraceRecorder（验证数据收集正确性）
         # 或 MagicMock（用于需要手动控制的路径）
         if use_real_recorder:
             from app.rag.trace_recorder import TraceRecorder
+
             # 使用真实 TraceRecorder，但 finish 中调用的 record_trace 已被 mock
             recorder_instance = TraceRecorder(
                 trace_id="test-trace-integration",
@@ -252,9 +272,10 @@ def _mock_chat_pipeline_for_trace(db, conv, *, retrieval_output=None, llm_chunks
                 kb_id=1,
                 question="测试问题",
             )
-            mocks['TraceRecorder'] = stack.enter_context(
-                patch("app.services.chat_service.TraceRecorder", return_value=recorder_instance))
-            mocks['recorder'] = recorder_instance
+            mocks["TraceRecorder"] = stack.enter_context(
+                patch("app.services.chat_service.TraceRecorder", return_value=recorder_instance)
+            )
+            mocks["recorder"] = recorder_instance
         else:
             mock_recorder = MagicMock()
             mock_recorder.finish = AsyncMock()
@@ -265,18 +286,19 @@ def _mock_chat_pipeline_for_trace(db, conv, *, retrieval_output=None, llm_chunks
             mock_recorder.record_generate = MagicMock()
             mock_recorder.set_response_mode = MagicMock()
             mock_recorder.record_error = MagicMock()
-            mocks['TraceRecorder'] = stack.enter_context(
-                patch("app.services.chat_service.TraceRecorder", return_value=mock_recorder))
-            mocks['recorder'] = mock_recorder
+            mocks["TraceRecorder"] = stack.enter_context(
+                patch("app.services.chat_service.TraceRecorder", return_value=mock_recorder)
+            )
+            mocks["recorder"] = mock_recorder
 
         # LLM 默认行为配置
-        mocks['llm'].return_value = _async_gen(llm_chunks)
+        mocks["llm"].return_value = _async_gen(llm_chunks)
 
         # 便捷访问别名
-        mocks['conv'] = mock_conv
-        mocks['user_msg'] = mock_user_msg
-        mocks['assistant_msg'] = mock_assistant_msg
-        mocks['retrieval_output'] = retrieval_output
+        mocks["conv"] = mock_conv
+        mocks["user_msg"] = mock_user_msg
+        mocks["assistant_msg"] = mock_assistant_msg
+        mocks["retrieval_output"] = retrieval_output
 
         yield mocks
 
@@ -326,19 +348,24 @@ class TestTraceKnowledgeRAGFlow:
         llm_chunks = _make_llm_chunks(["这是[来源1]", "LLM", "的回答"])
 
         with _mock_chat_pipeline_for_trace(
-            db, conv,
+            db,
+            conv,
             retrieval_output=retrieval_output,
             llm_chunks=llm_chunks,
             use_real_recorder=True,
         ) as mocks:
             response = await chat(
-                db=db, user_id=1, role="user",
-                conversation_id=None, kb_id=_TEST_KB_UUID,
-                question="测试问题", deep_thinking=False,
+                db=db,
+                user_id=1,
+                role="user",
+                conversation_id=None,
+                kb_id=_TEST_KB_UUID,
+                question="测试问题",
+                deep_thinking=False,
             )
             events = await _consume_sse(response)
 
-        recorder = mocks['recorder']
+        recorder = mocks["recorder"]
 
         # 验证 SSE 流正常完成
         event_types = [e["event"] for e in events]
@@ -351,7 +378,7 @@ class TestTraceKnowledgeRAGFlow:
         assert recorder._intent_type == "KNOWLEDGE"
 
         # 验证 record_trace 被调用（finish 写入 DB）
-        assert mocks['record_trace'].called
+        assert mocks["record_trace"].called
 
         # 验证顶层字段
         assert recorder._status == "success"
@@ -387,23 +414,29 @@ class TestTraceCasualFlow:
         llm_chunks = _make_llm_chunks(["你好！很高兴为你服务。"])
 
         with _mock_chat_pipeline_for_trace(
-            db, conv,
+            db,
+            conv,
             retrieval_output=_make_retrieval_output(),
             llm_chunks=llm_chunks,
             intent_result=IntentResult(
-                intent=Intent.CASUAL, method="regex",
+                intent=Intent.CASUAL,
+                method="regex",
                 metadata={"rule": "CASUAL_PATTERNS"},
             ),
             use_real_recorder=True,
         ) as mocks:
             response = await chat(
-                db=db, user_id=1, role="user",
-                conversation_id=None, kb_id=_TEST_KB_UUID,
-                question="你好", deep_thinking=False,
+                db=db,
+                user_id=1,
+                role="user",
+                conversation_id=None,
+                kb_id=_TEST_KB_UUID,
+                question="你好",
+                deep_thinking=False,
             )
             events = await _consume_sse(response)
 
-        recorder = mocks['recorder']
+        recorder = mocks["recorder"]
 
         # 验证 SSE 流正常完成
         event_types = [e["event"] for e in events]
@@ -423,7 +456,9 @@ class TestTraceCasualFlow:
         # record_generate 参数 total_ms → 写入为 duration_ms=int(total_ms)
         assert recorder._generate_data is not None
         assert recorder._generate_data["model"] is not None
-        assert recorder._generate_data["duration_ms"] >= 0  # Mock 环境下 perf_counter 无真实延迟，允许 0
+        assert (
+            recorder._generate_data["duration_ms"] >= 0
+        )  # Mock 环境下 perf_counter 无真实延迟，允许 0
 
         # 验证顶层字段
         assert recorder._response_mode == "CASUAL"
@@ -468,6 +503,7 @@ class TestTraceMetaFlow:
 
         # 使用真实 TraceRecorder
         from app.rag.trace_recorder import TraceRecorder
+
         recorder_instance = TraceRecorder(
             trace_id="test-trace-meta",
             user_id=1,
@@ -493,10 +529,14 @@ class TestTraceMetaFlow:
 
         with ExitStack() as stack:
             stack.enter_context(
-                patch("app.services.chat_service.Conversation", return_value=mock_conv_for_meta))
+                patch("app.services.chat_service.Conversation", return_value=mock_conv_for_meta)
+            )
             stack.enter_context(
-                patch("app.services.chat_service.Message",
-                      side_effect=[mock_user_msg, MagicMock(id=11, role="assistant")]))
+                patch(
+                    "app.services.chat_service.Message",
+                    side_effect=[mock_user_msg, MagicMock(id=11, role="assistant")],
+                )
+            )
 
             # Mock async_session：_generate_meta_response 内部自管短 session（ADR-017）
             mock_session = AsyncMock()
@@ -510,33 +550,48 @@ class TestTraceMetaFlow:
             mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
             mock_ctx.__aexit__ = AsyncMock(return_value=None)
             stack.enter_context(
-                patch("app.services.chat_service.async_session",
-                      return_value=mock_ctx))
+                patch("app.services.chat_service.async_session", return_value=mock_ctx)
+            )
             stack.enter_context(
-                patch("app.services.sse_stream.async_session",
-                      return_value=mock_ctx))
+                patch("app.services.sse_stream.async_session", return_value=mock_ctx)
+            )
 
             stack.enter_context(
-                patch("app.services.chat_service.classify_intent", new_callable=AsyncMock,
-                      return_value=IntentResult(
-                          intent=Intent.META, method="regex",
-                          metadata={"rule": "META_PATTERNS"},
-                      )))
+                patch(
+                    "app.services.chat_service.classify_intent",
+                    new_callable=AsyncMock,
+                    return_value=IntentResult(
+                        intent=Intent.META,
+                        method="regex",
+                        metadata={"rule": "META_PATTERNS"},
+                    ),
+                )
+            )
+            stack.enter_context(patch("app.rag.trace_recorder.record_trace", new=record_trace_mock))
             stack.enter_context(
-                patch("app.rag.trace_recorder.record_trace", new=record_trace_mock))
+                patch("app.services.chat_service.TraceRecorder", return_value=recorder_instance)
+            )
             stack.enter_context(
-                patch("app.services.chat_service.TraceRecorder", return_value=recorder_instance))
+                patch(
+                    "app.services.chat_service.stream_with_heartbeat", side_effect=lambda g, **kw: g
+                )
+            )
             stack.enter_context(
-                patch("app.services.chat_service.stream_with_heartbeat",
-                      side_effect=lambda g, **kw: g))
-            stack.enter_context(
-                patch("app.core.uuid_helpers.resolve_uuid_to_id",
-                      new_callable=AsyncMock, return_value=1))
+                patch(
+                    "app.core.uuid_helpers.resolve_uuid_to_id",
+                    new_callable=AsyncMock,
+                    return_value=1,
+                )
+            )
 
             response = await chat(
-                db=db, user_id=1, role="user",
-                conversation_id=None, kb_id=_TEST_KB_UUID,
-                question="你能做什么？", deep_thinking=False,
+                db=db,
+                user_id=1,
+                role="user",
+                conversation_id=None,
+                kb_id=_TEST_KB_UUID,
+                question="你能做什么？",
+                deep_thinking=False,
             )
             events = await _consume_sse(response)
 
@@ -597,20 +652,25 @@ class TestTraceErrorFlow:
         retrieval_output = _make_retrieval_output()
 
         with _mock_chat_pipeline_for_trace(
-            db, conv,
+            db,
+            conv,
             retrieval_output=retrieval_output,
             use_real_recorder=True,
         ) as mocks:
-            mocks['llm'].return_value = _async_gen_error("API 超时")
+            mocks["llm"].return_value = _async_gen_error("API 超时")
 
             response = await chat(
-                db=db, user_id=1, role="user",
-                conversation_id=None, kb_id=_TEST_KB_UUID,
-                question="测试问题", deep_thinking=False,
+                db=db,
+                user_id=1,
+                role="user",
+                conversation_id=None,
+                kb_id=_TEST_KB_UUID,
+                question="测试问题",
+                deep_thinking=False,
             )
             events = await _consume_sse(response)
 
-        recorder = mocks['recorder']
+        recorder = mocks["recorder"]
 
         # 验证 SSE 流包含 error 事件
         event_types = [e["event"] for e in events]
@@ -626,7 +686,7 @@ class TestTraceErrorFlow:
         assert len(recorder._error_message) > 0
 
         # 验证 record_trace 被调用（finish 在 error 处理中写入）
-        assert mocks['record_trace'].called
+        assert mocks["record_trace"].called
 
         # 细粒度 trace 数据（rewrite/retrieve/rerank）已移至 KnowledgePipeline 内部
 
@@ -654,19 +714,24 @@ class TestTraceRetrieveGranularity:
         llm_chunks = _make_llm_chunks(["这是[来源1]的回答"])
 
         with _mock_chat_pipeline_for_trace(
-            db, conv,
+            db,
+            conv,
             retrieval_output=retrieval_output,
             llm_chunks=llm_chunks,
             use_real_recorder=True,
         ) as mocks:
             response = await chat(
-                db=db, user_id=1, role="user",
-                conversation_id=None, kb_id=_TEST_KB_UUID,
-                question="测试问题", deep_thinking=False,
+                db=db,
+                user_id=1,
+                role="user",
+                conversation_id=None,
+                kb_id=_TEST_KB_UUID,
+                question="测试问题",
+                deep_thinking=False,
             )
             events = await _consume_sse(response)
 
-        recorder = mocks['recorder']
+        recorder = mocks["recorder"]
 
         # 验证 SSE 流正常完成
         event_types = [e["event"] for e in events]
@@ -674,4 +739,4 @@ class TestTraceRetrieveGranularity:
 
         # 验证 SSE 流正常完成 + record_trace 被调用
         # 细粒度 trace 数据验证已移至 test_knowledge_pipeline.py
-        assert mocks['record_trace'].called
+        assert mocks["record_trace"].called

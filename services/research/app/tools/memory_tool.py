@@ -53,7 +53,11 @@ class MemoryTool:
             # 避免同一操作产生重复条目。memory_note 通过 output 由 AgentLoop 摘要保留。
             return ToolResult(
                 success=True,
-                output={"operation": operation, "entries_count": len(memory.recent()), "memory_note": content},
+                output={
+                    "operation": operation,
+                    "entries_count": len(memory.recent()),
+                    "memory_note": content,
+                },
                 observation=f"已向 Working Memory 追加 {len(content)} 字符的备注",
             )
 

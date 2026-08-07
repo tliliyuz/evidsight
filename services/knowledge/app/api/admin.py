@@ -110,7 +110,9 @@ async def list_admin_traces(
     user_id: int | None = Query(None, description="按用户筛选"),
     status: str | None = Query(None, description="success / error / partial"),
     intent_type: str | None = Query(None, description="KNOWLEDGE / CASUAL / META"),
-    response_mode: str | None = Query(None, description="RAG / DIRECT_LLM / META / CASUAL / FALLBACK"),
+    response_mode: str | None = Query(
+        None, description="RAG / DIRECT_LLM / META / CASUAL / FALLBACK"
+    ),
     start_date: datetime | None = Query(None, description="开始时间（ISO 8601）"),
     end_date: datetime | None = Query(None, description="结束时间（ISO 8601）"),
     search: str | None = Query(None, description="按问题模糊搜索"),
@@ -155,7 +157,9 @@ async def get_admin_trace_stats(
     days: int = Query(7, ge=1, le=90, description="过去 N 天"),
     group_by: str = Query("day", description="day / hour"),
     tz_offset_minutes: int = Query(
-        0, ge=-720, le=840,
+        0,
+        ge=-720,
+        le=840,
         description="目标时区相对 UTC 的分钟偏移（如 UTC+8 → 480）。用于日期分组和窗口边界对齐。",
     ),
     db: AsyncSession = Depends(get_db),
@@ -166,7 +170,10 @@ async def get_admin_trace_stats(
     对齐 API.md §7.6。
     """
     data = await get_trace_stats(
-        db, days=days, group_by=group_by, tz_offset_minutes=tz_offset_minutes,
+        db,
+        days=days,
+        group_by=group_by,
+        tz_offset_minutes=tz_offset_minutes,
     )
     return {"code": "0", "message": "ok", "data": data.model_dump()}
 
@@ -249,7 +256,5 @@ async def reset_admin_user_password(
     对齐 API.md §7.7 POST /api/admin/users/{user_id}/reset-password：路径参数为 Platform User UUID。
     """
     resolved = await resolve_user_id(db, user_id)
-    data = await reset_user_password(
-        db, user_id=resolved, new_password=body.new_password
-    )
+    data = await reset_user_password(db, user_id=resolved, new_password=body.new_password)
     return {"code": "0", "message": "密码重置成功", "data": data.model_dump()}

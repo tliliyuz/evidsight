@@ -21,15 +21,16 @@ from app.pipeline.types import SearchResult
 logger = logging.getLogger(__name__)
 
 # 引用标注匹配（对齐 RESEARCH_PIPELINE.md §8.4：[来源N] 格式）
-_CITATION_PATTERN = re.compile(r'\[来源(\d+)\]')
+_CITATION_PATTERN = re.compile(r"\[来源(\d+)\]")
 
 # 答案句子分隔符
-_ANSWER_SENTENCE_SEP = re.compile(r'[。！？]')
+_ANSWER_SENTENCE_SEP = re.compile(r"[。！？]")
 
 
 @dataclass
 class EvidenceAuditResult:
     """三层证据审计综合结果"""
+
     # 第一层：引用存在性
     has_citation: bool = False
     cited_indices: list[int] = field(default_factory=list)
@@ -122,9 +123,7 @@ def _check_source_consistency(
 
     # 将 [来源N] 编号映射到实际 SearchResult
     cited_results = [
-        used_results[i - 1]
-        for i in result.cited_indices
-        if 1 <= i <= len(used_results)
+        used_results[i - 1] for i in result.cited_indices if 1 <= i <= len(used_results)
     ]
 
     # 按 source_id 统计
@@ -139,9 +138,7 @@ def _check_source_consistency(
         result.consistency_status = "acceptable"
     else:
         result.consistency_status = "dispersed"
-        result.consistency_detail = (
-            f"报告依赖 {result.unique_source_count} 个不同来源"
-        )
+        result.consistency_detail = f"报告依赖 {result.unique_source_count} 个不同来源"
 
 
 def _check_sentence_evidence(
@@ -172,7 +169,7 @@ def _check_sentence_evidence(
             continue
 
         # 跳过纯引用句和问句
-        if '来源' in sent or sent.endswith('？') or sent.endswith('?'):
+        if "来源" in sent or sent.endswith("？") or sent.endswith("?"):
             continue
 
         factual_count += 1

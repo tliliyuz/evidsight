@@ -105,9 +105,7 @@ async def refresh_token_v1(
     从 HttpOnly Refresh Cookie 读取 Token，成功后在同一响应轮换 Refresh/CSRF Cookie；
     重放检测、Family 撤销、用户禁用、过期等刷新失败必须清除 Cookie。
     """
-    refresh_token_str = request.cookies.get(
-        settings.EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME
-    )
+    refresh_token_str = request.cookies.get(settings.EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME)
     if not refresh_token_str:
         # 迁移期兼容入口（IA-016）：配置开启且 Cookie 缺失时回退读取 body
         if (
@@ -151,9 +149,7 @@ async def logout_user_v1(
     幂等撤销当前 Token Family 并清除 Refresh/CSRF Cookie，重复退出不泄露 Token 状态。
     logout 不加 _PUBLIC_PATHS：需要 Access Token，不走中间件公开豁免。
     """
-    refresh_token_str = request.cookies.get(
-        settings.EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME
-    )
+    refresh_token_str = request.cookies.get(settings.EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME)
     if not refresh_token_str:
         # 迁移期兼容入口（IA-016）：配置开启且 Cookie 缺失时回退读取 body
         if (

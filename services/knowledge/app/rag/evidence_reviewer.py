@@ -24,38 +24,41 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ChunkRoleDecision:
     """单 chunk 角色判定结果"""
+
     chunk_index: int
     doc_id: int
-    role: str                    # "ASSERTIVE" — 过滤后仍有陈述句 / "REJECTED" — 过滤后为空
+    role: str  # "ASSERTIVE" — 过滤后仍有陈述句 / "REJECTED" — 过滤后为空
     filtered_sentence_count: int
     assertive_sentence_count: int
     referential_sentence_count: int
-    reason: str | None = None    # REJECTED 时说明原因
+    reason: str | None = None  # REJECTED 时说明原因
 
 
 @dataclass
 class SentenceReviewItem:
     """逐句详情（仅 debug 模式输出）"""
+
     chunk_index: int
     sentence_index: int
     text: str
-    role: str                    # "assertive" | "referential"
+    role: str  # "assertive" | "referential"
     reason: str | None = None
 
 
 @dataclass
 class EvidenceReviewResult:
     """综合证据审查结果"""
-    decision: str                # "ALLOW" | "REJECT"
+
+    decision: str  # "ALLOW" | "REJECT"
     total_chunks: int
     assertive_count: int
     referential_count: int
     rejected_count: int
-    reason: str | None           # "NO_ASSERTIVE_EVIDENCE" when REJECT
+    reason: str | None  # "NO_ASSERTIVE_EVIDENCE" when REJECT
     chunk_decisions: list[ChunkRoleDecision]
     sentence_review: list[SentenceReviewItem] = field(default_factory=list)
     duration_ms: float = 0.0
-    status: str = "success"     # "success" | "error"（异常降级时标记 error）
+    status: str = "success"  # "success" | "error"（异常降级时标记 error）
 
 
 def review_evidence(
@@ -133,41 +136,47 @@ def _do_review(
         if stats is None or stats.total_sentences == 0:
             # 无统计信息 → 视为 REJECTED
             rejected_chunks += 1
-            chunk_decisions.append(ChunkRoleDecision(
-                chunk_index=chunk_idx,
-                doc_id=doc_id,
-                role="REJECTED",
-                filtered_sentence_count=0,
-                assertive_sentence_count=0,
-                referential_sentence_count=0,
-                reason="无法获取过滤统计信息或 chunk 无有效句子",
-            ))
+            chunk_decisions.append(
+                ChunkRoleDecision(
+                    chunk_index=chunk_idx,
+                    doc_id=doc_id,
+                    role="REJECTED",
+                    filtered_sentence_count=0,
+                    assertive_sentence_count=0,
+                    referential_sentence_count=0,
+                    reason="无法获取过滤统计信息或 chunk 无有效句子",
+                )
+            )
             continue
 
         if stats.assertive_count > 0:
             assertive_chunks += 1
-            chunk_decisions.append(ChunkRoleDecision(
-                chunk_index=chunk_idx,
-                doc_id=doc_id,
-                role="ASSERTIVE",
-                filtered_sentence_count=stats.total_sentences,
-                assertive_sentence_count=stats.assertive_count,
-                referential_sentence_count=stats.referential_count,
-                reason=None,
-            ))
+            chunk_decisions.append(
+                ChunkRoleDecision(
+                    chunk_index=chunk_idx,
+                    doc_id=doc_id,
+                    role="ASSERTIVE",
+                    filtered_sentence_count=stats.total_sentences,
+                    assertive_sentence_count=stats.assertive_count,
+                    referential_sentence_count=stats.referential_count,
+                    reason=None,
+                )
+            )
         else:
             # 过滤后为空（all sentences were filtered out, fallback returned original）
             # 但 stats 显示 assertive_count == 0，说明过滤后确实没有陈述句
             rejected_chunks += 1
-            chunk_decisions.append(ChunkRoleDecision(
-                chunk_index=chunk_idx,
-                doc_id=doc_id,
-                role="REJECTED",
-                filtered_sentence_count=stats.total_sentences,
-                assertive_sentence_count=0,
-                referential_sentence_count=stats.referential_count,
-                reason="过滤后无陈述性句子（全部为引用性知识）",
-            ))
+            chunk_decisions.append(
+                ChunkRoleDecision(
+                    chunk_index=chunk_idx,
+                    doc_id=doc_id,
+                    role="REJECTED",
+                    filtered_sentence_count=stats.total_sentences,
+                    assertive_sentence_count=0,
+                    referential_sentence_count=stats.referential_count,
+                    reason="过滤后无陈述性句子（全部为引用性知识）",
+                )
+            )
 
         # Debug 模式：逐句详情
         # 注意：分析的是 result.content（过滤后文本），仅包含过滤后剩余的断言性句子。
@@ -178,13 +187,15 @@ def _do_review(
             sentences = [s.strip() for s in raw if s.strip()]
             for si, sent in enumerate(sentences):
                 role = detect_sentence_role(sent)
-                sentence_review.append(SentenceReviewItem(
-                    chunk_index=chunk_idx,
-                    sentence_index=si,
-                    text=sent[:200],  # 截断长句
-                    role=role,
-                    reason=None,
-                ))
+                sentence_review.append(
+                    SentenceReviewItem(
+                        chunk_index=chunk_idx,
+                        sentence_index=si,
+                        text=sent[:200],  # 截断长句
+                        role=role,
+                        reason=None,
+                    )
+                )
 
     total = len(reranked_output.results)
     decision = "REJECT" if assertive_chunks == 0 else "ALLOW"

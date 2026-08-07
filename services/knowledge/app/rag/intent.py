@@ -26,8 +26,8 @@ class Intent(str, Enum):
     """意图分类枚举"""
 
     KNOWLEDGE = "KNOWLEDGE"  # 知识查询：走完整 RAG 链路
-    CASUAL = "CASUAL"        # 闲谈：跳过检索，LLM 直接回复
-    META = "META"            # 元问题：固定模板响应
+    CASUAL = "CASUAL"  # 闲谈：跳过检索，LLM 直接回复
+    META = "META"  # 元问题：固定模板响应
 
 
 @dataclass
@@ -39,6 +39,7 @@ class IntentResult:
     - metadata.model: 规则路径为 None，LLM 路径为实际模型名
     - metadata.confidence: 规则路径为 None，LLM 路径暂为 None（模型不返回置信度）
     """
+
     intent: Intent
     method: str  # "regex" / "llm_flash" / "llm_pro"
     metadata: dict  # {"model": str|None, "confidence": float|None}
@@ -152,7 +153,8 @@ async def _llm_classify(question: str) -> IntentResult:
             )
         else:
             logger.warning(
-                "INTENT_CLASSIFY 无效标签 '%s'，降级回退正则", result.content.strip(),
+                "INTENT_CLASSIFY 无效标签 '%s'，降级回退正则",
+                result.content.strip(),
             )
             return _fallback_classify(question)
 
@@ -212,7 +214,8 @@ async def classify_intent(question: str) -> IntentResult:
     if _is_meta_question(question):
         logger.info(
             "INTENT_CLASSIFY question=%s intent=META rule=True cost=%.3fms",
-            question[:50], (time.perf_counter() - t0) * 1000,
+            question[:50],
+            (time.perf_counter() - t0) * 1000,
         )
         return IntentResult(
             intent=Intent.META,
@@ -223,7 +226,8 @@ async def classify_intent(question: str) -> IntentResult:
     if _is_casual_chat(question):
         logger.info(
             "INTENT_CLASSIFY question=%s intent=CASUAL rule=True cost=%.3fms",
-            question[:50], (time.perf_counter() - t0) * 1000,
+            question[:50],
+            (time.perf_counter() - t0) * 1000,
         )
         return IntentResult(
             intent=Intent.CASUAL,
@@ -235,6 +239,9 @@ async def classify_intent(question: str) -> IntentResult:
     result = await _llm_classify(question)
     logger.info(
         "INTENT_CLASSIFY question=%s intent=%s method=%s rule=False cost=%.3fs",
-        question[:50], result.intent.value, result.method, time.perf_counter() - t0,
+        question[:50],
+        result.intent.value,
+        result.method,
+        time.perf_counter() - t0,
     )
     return result

@@ -22,7 +22,9 @@ class ReportSection(Base):
     __tablename__ = "report_sections"
 
     id: Mapped[int] = mapped_column(
-        sa.Integer, primary_key=True, autoincrement=True,
+        sa.Integer,
+        primary_key=True,
+        autoincrement=True,
     )
     task_id: Mapped[str] = mapped_column(
         sa.String(36),
@@ -37,13 +39,15 @@ class ReportSection(Base):
         comment="父章节（支持嵌套）",
     )
     heading: Mapped[str] = mapped_column(
-        sa.String(300), nullable=False,
+        sa.String(300),
+        nullable=False,
     )
-    content: Mapped[str] = mapped_column(
-        MEDIUMTEXT, nullable=False, comment="Markdown 正文"
-    )
+    content: Mapped[str] = mapped_column(MEDIUMTEXT, nullable=False, comment="Markdown 正文")
     sort_order: Mapped[int] = mapped_column(
-        sa.Integer, default=0, server_default=sa.text("0"), nullable=False,
+        sa.Integer,
+        default=0,
+        server_default=sa.text("0"),
+        nullable=False,
     )
 
     updated_at: Mapped[datetime] = mapped_column(

@@ -1,4 +1,5 @@
 """由 packages/contracts/schemas/v1/common.schema.json 生成，请勿手工编辑业务字段。"""
+
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator

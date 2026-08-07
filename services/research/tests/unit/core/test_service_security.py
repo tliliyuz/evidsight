@@ -1,4 +1,5 @@
 """Research Service JWT 签发单测 — 载荷对齐 CONFIGURATION.md §3"""
+
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -16,10 +17,14 @@ def keypair(tmp_path, monkeypatch):
         serialization.PrivateFormat.PKCS8,
         serialization.NoEncryption(),
     ).decode()
-    public_pem = key.public_key().public_bytes(
-        serialization.Encoding.PEM,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode()
+    public_pem = (
+        key.public_key()
+        .public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode()
+    )
     priv_file = tmp_path / "private.pem"
     priv_file.write_text(private_pem, encoding="utf-8")
     monkeypatch.setattr(settings, "EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID", "test-kid")
@@ -37,7 +42,9 @@ class TestCreateServiceToken:
         assert headers["kid"] == "test-kid"
 
         payload = jwt.decode(
-            token, public_pem, algorithms=["RS256"],
+            token,
+            public_pem,
+            algorithms=["RS256"],
             audience=settings.EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE,
             issuer=settings.EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER,
         )
@@ -49,10 +56,13 @@ class TestCreateServiceToken:
         private_pem, public_pem = keypair
         token = create_service_token()
         payload = jwt.decode(
-            token, public_pem, algorithms=["RS256"],
+            token,
+            public_pem,
+            algorithms=["RS256"],
             audience=settings.EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE,
         )
         from datetime import datetime, timezone
+
         exp = payload["exp"]
         iat = payload["iat"]
         ttl = exp - iat

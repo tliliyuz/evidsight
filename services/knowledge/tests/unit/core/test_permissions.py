@@ -7,6 +7,7 @@
 
 权限函数操作已加载的 KnowledgeBase 对象，不触发 DB 查询。
 """
+
 import pytest
 
 from app.core.exceptions import PermissionDeniedException

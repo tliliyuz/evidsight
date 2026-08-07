@@ -8,6 +8,7 @@ GREEN 目标：/internal/v1/retrieval/search 与 /resolve 按固定处理顺序
 本文件通过 FakeSession 按查询目标实体 + uuid 等值过滤路由预置行，屏蔽真实 MySQL；
 检索执行函数 _retrieve_kb 在成功路径被 monkeypatch，屏蔽 ChromaDB/Embedding/BM25。
 """
+
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -31,9 +32,9 @@ from evidsight_contracts.loader import validator_for
 
 USER = "550e8400-e29b-41d4-a716-446655440001"
 ADMIN = "550e8400-e29b-41d4-a716-446655440002"
-KB_A = "550e8400-e29b-41d4-a716-446655440010"       # public，owner=user2，USER 可读
+KB_A = "550e8400-e29b-41d4-a716-446655440010"  # public，owner=user2，USER 可读
 KB_PRIVATE = "550e8400-e29b-41d4-a716-446655440011"  # private，owner=user1，USER 可读
-KB_OTHER = "550e8400-e29b-41d4-a716-446655440012"    # private，owner=user2，USER 不可读
+KB_OTHER = "550e8400-e29b-41d4-a716-446655440012"  # private，owner=user2，USER 不可读
 DOC_A = "550e8400-e29b-41d4-a716-446655440020"
 VER_A1 = "550e8400-e29b-41d4-a716-446655440031"
 SEG_A1 = "550e8400-e29b-41d4-a716-446655440041"
@@ -43,6 +44,7 @@ HIT_ID = "550e8400-e29b-41d4-a716-446655440100"
 
 # ---------------- Service JWT / HTTP 辅助 ----------------
 
+
 def _make_service_keypair(tmp_path):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = key.private_bytes(
@@ -50,10 +52,14 @@ def _make_service_keypair(tmp_path):
         serialization.PrivateFormat.PKCS8,
         serialization.NoEncryption(),
     ).decode()
-    public_pem = key.public_key().public_bytes(
-        serialization.Encoding.PEM,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode()
+    public_pem = (
+        key.public_key()
+        .public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode()
+    )
     keys_file = tmp_path / "public_keys.json"
     keys_file.write_text(json.dumps({"test-kid": public_pem}), encoding="utf-8")
     return private_pem
@@ -99,7 +105,8 @@ def _resolve_body(references=None, **overrides) -> dict:
     body = {
         "contract_version": "1.0.0",
         "user_id": USER,
-        "references": references or [
+        "references": references
+        or [
             {
                 "knowledge_base_id": KB_A,
                 "document_id": DOC_A,
@@ -117,13 +124,15 @@ def _resolve_body(references=None, **overrides) -> dict:
 def service_auth(tmp_path, monkeypatch):
     private_pem = _make_service_keypair(tmp_path)
     monkeypatch.setattr(
-        settings, "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
+        settings,
+        "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
         str(tmp_path / "public_keys.json"),
     )
     return private_pem
 
 
 # ---------------- FakeSession：按实体 + uuid 等值过滤路由预置行 ----------------
+
 
 def _extract_equality_filters(query) -> dict:
     """从 select 的 where 条件提取 str 等值过滤（column.key -> value）。
@@ -184,7 +193,8 @@ class FakeSession:
         filters = _extract_equality_filters(query)
         if filters:
             rows = [
-                r for r in rows
+                r
+                for r in rows
                 if all(getattr(r, key, None) == value for key, value in filters.items())
             ]
         return FakeResult(rows)
@@ -214,11 +224,17 @@ async def contract_client(fake_db):
 
 # ---------------- ORM 预置行构造 ----------------
 
+
 def _user(**overrides):
 
     base = {
-        "id": 1, "platform_user_id": USER, "username": "u", "password_hash": "x",
-        "role": "user", "status": "active", "status_version": 1,
+        "id": 1,
+        "platform_user_id": USER,
+        "username": "u",
+        "password_hash": "x",
+        "role": "user",
+        "status": "active",
+        "status_version": 1,
     }
     base.update(overrides)
     return User(**base)
@@ -227,9 +243,14 @@ def _user(**overrides):
 def _kb(**overrides):
 
     base = {
-        "id": 10, "uuid": KB_A, "name": "公开库", "user_id": 2,
-        "visibility": "public", "status": "active",
-        "index_status": "ready", "index_generation": 1,
+        "id": 10,
+        "uuid": KB_A,
+        "name": "公开库",
+        "user_id": 2,
+        "visibility": "public",
+        "status": "active",
+        "index_status": "ready",
+        "index_generation": 1,
     }
     base.update(overrides)
     return KnowledgeBase(**base)
@@ -238,8 +259,13 @@ def _kb(**overrides):
 def _doc(**overrides):
 
     base = {
-        "id": 20, "uuid": DOC_A, "kb_id": 10, "filename": "权限设计文档.pdf",
-        "display_name": "权限设计文档", "status": "completed", "active_version": 1,
+        "id": 20,
+        "uuid": DOC_A,
+        "kb_id": 10,
+        "filename": "权限设计文档.pdf",
+        "display_name": "权限设计文档",
+        "status": "completed",
+        "active_version": 1,
         "updated_at": datetime(2026, 8, 3, 9, 0, 0),
     }
     base.update(overrides)
@@ -249,8 +275,12 @@ def _doc(**overrides):
 def _version(**overrides):
 
     base = {
-        "id": 31, "uuid": VER_A1, "document_id": 20, "version": 1,
-        "status": "ready", "published_at": datetime(2026, 8, 3, 10, 0, 0),
+        "id": 31,
+        "uuid": VER_A1,
+        "document_id": 20,
+        "version": 1,
+        "status": "ready",
+        "published_at": datetime(2026, 8, 3, 10, 0, 0),
     }
     base.update(overrides)
     return DocumentVersion(**base)
@@ -259,8 +289,13 @@ def _version(**overrides):
 def _chunk(**overrides):
 
     base = {
-        "id": 41, "doc_id": 20, "kb_id": 10, "document_version_id": 31,
-        "segment_uuid": SEG_A1, "chunk_index": 0, "chroma_id": "c1",
+        "id": 41,
+        "doc_id": 20,
+        "kb_id": 10,
+        "document_version_id": 31,
+        "segment_uuid": SEG_A1,
+        "chunk_index": 0,
+        "chroma_id": "c1",
         "content": "KB 的 READ 权限决定该用户是否可检索。",
         "metadata_": {"page": 3, "section_title": "权限矩阵"},
     }
@@ -270,12 +305,15 @@ def _chunk(**overrides):
 
 # ---------------- RED 验收测试 ----------------
 
+
 class TestRetrievalSearchEndpoint:
     SEARCH_URL = "/internal/v1/retrieval/search"
 
     @pytest.mark.asyncio
     async def test_missing_service_auth_returns_401(self, contract_client, service_auth):
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(""))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(), headers=_headers("")
+        )
         assert response.status_code == 401
         body = response.json()
         assert body["error"]["error_code"] == "INTERNAL_SERVICE_UNAUTHENTICATED"
@@ -309,21 +347,27 @@ class TestRetrievalSearchEndpoint:
     async def test_body_missing_required_field_returns_400(self, contract_client, service_auth):
         body = _search_body()
         del body["query"]
-        response = await contract_client.post(self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_INVALID"
 
     @pytest.mark.asyncio
     async def test_body_invalid_uuid_returns_400(self, contract_client, service_auth):
         body = _search_body(knowledge_base_ids=["not-a-uuid"])
-        response = await contract_client.post(self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_INVALID"
 
     @pytest.mark.asyncio
     async def test_body_unknown_field_returns_400(self, contract_client, service_auth):
         body = _search_body(role="admin", visibility="public")
-        response = await contract_client.post(self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_INVALID"
 
@@ -331,21 +375,31 @@ class TestRetrievalSearchEndpoint:
     async def test_body_contract_version_mismatch_returns_400(self, contract_client, service_auth):
         # contracts/README §5：正文 contract_version 与版本头不一致 → INTERNAL_CONTRACT_UNSUPPORTED
         body = _search_body(contract_version="2.0.0")
-        response = await contract_client.post(self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_UNSUPPORTED"
 
     @pytest.mark.asyncio
     async def test_empty_query_returns_400(self, contract_client, service_auth):
         # retrieval-request.schema.json：query minLength=1
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(query=""), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL,
+            json=_search_body(query=""),
+            headers=_headers(_service_token(service_auth)),
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_INVALID"
 
     @pytest.mark.asyncio
     async def test_query_too_long_returns_400(self, contract_client, service_auth):
         # retrieval-request.schema.json：query maxLength=8192
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(query="x" * 8193), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL,
+            json=_search_body(query="x" * 8193),
+            headers=_headers(_service_token(service_auth)),
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_INVALID"
 
@@ -355,53 +409,80 @@ class TestRetrievalSearchEndpoint:
             {"languages": ["zh"]},
             {"updated_since": "2026-01-01T00:00:00Z"},
             {"updated_until": "2026-01-02T00:00:00Z"},
-            {"languages": ["zh"], "updated_since": "2026-01-01T00:00:00Z",
-             "updated_until": "2026-01-02T00:00:00Z"},
+            {
+                "languages": ["zh"],
+                "updated_since": "2026-01-01T00:00:00Z",
+                "updated_until": "2026-01-02T00:00:00Z",
+            },
         ],
     )
     @pytest.mark.asyncio
-    async def test_unimplemented_filters_rejected_returns_400(self, contract_client, service_auth, filters):
+    async def test_unimplemented_filters_rejected_returns_400(
+        self, contract_client, service_auth, filters
+    ):
         # CHANGELOG「不做静默错误」：未实现的过滤字段语义 → 拒绝而非忽略
         body = _search_body(filters=filters)
-        response = await contract_client.post(self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_INVALID"
 
     @pytest.mark.asyncio
     async def test_disabled_user_returns_403(self, contract_client, fake_db, service_auth):
-        fake_db.seed(__import__("app.models.user", fromlist=["User"]).User, _user(status="disabled"))
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
+        fake_db.seed(
+            __import__("app.models.user", fromlist=["User"]).User, _user(status="disabled")
+        )
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 403
         assert response.json()["error"]["error_code"] == "AUTH_USER_DISABLED"
 
     @pytest.mark.asyncio
     async def test_missing_user_returns_403(self, contract_client, fake_db, service_auth):
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 403
         assert response.json()["error"]["error_code"] == "AUTH_USER_DISABLED"
 
     @pytest.mark.asyncio
     async def test_kb_not_found_returns_403(self, contract_client, fake_db, service_auth):
         fake_db.seed(__import__("app.models.user", fromlist=["User"]).User, _user())
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 403
         assert response.json()["error"]["error_code"] == "KB_FORBIDDEN"
 
     @pytest.mark.asyncio
     async def test_kb_not_readable_returns_403(self, contract_client, fake_db, service_auth):
         fake_db.seed(User, _user())
-        fake_db.seed(__import__("app.models.knowledge_base", fromlist=["KnowledgeBase"]).KnowledgeBase,
-                     _kb(uuid=KB_OTHER, user_id=2, visibility="private"))
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(knowledge_base_ids=[KB_OTHER]), headers=_headers(_service_token(service_auth)))
+        fake_db.seed(
+            __import__("app.models.knowledge_base", fromlist=["KnowledgeBase"]).KnowledgeBase,
+            _kb(uuid=KB_OTHER, user_id=2, visibility="private"),
+        )
+        response = await contract_client.post(
+            self.SEARCH_URL,
+            json=_search_body(knowledge_base_ids=[KB_OTHER]),
+            headers=_headers(_service_token(service_auth)),
+        )
         assert response.status_code == 403
         assert response.json()["error"]["error_code"] == "KB_FORBIDDEN"
 
     @pytest.mark.asyncio
-    async def test_any_kb_forbidden_fails_whole_request(self, contract_client, fake_db, service_auth):
+    async def test_any_kb_forbidden_fails_whole_request(
+        self, contract_client, fake_db, service_auth
+    ):
         fake_db.seed(User, _user())
-        fake_db.seed(KnowledgeBase, [_kb(), _kb(uuid=KB_OTHER, id=12, user_id=2, visibility="private")])
+        fake_db.seed(
+            KnowledgeBase, [_kb(), _kb(uuid=KB_OTHER, id=12, user_id=2, visibility="private")]
+        )
         body = _search_body(knowledge_base_ids=[KB_A, KB_OTHER])
-        response = await contract_client.post(self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=body, headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 403
         assert response.json()["error"]["error_code"] == "KB_FORBIDDEN"
 
@@ -410,17 +491,23 @@ class TestRetrievalSearchEndpoint:
         # DATABASE.md §5.1：deleting 状态立即拒绝 Internal Retrieval（失败关闭）
         fake_db.seed(User, _user())
         fake_db.seed(KnowledgeBase, _kb(status="deleting"))
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 403
         assert response.json()["error"]["error_code"] == "KB_FORBIDDEN"
 
     @pytest.mark.asyncio
-    async def test_kb_index_not_ready_returns_503(self, contract_client, fake_db, service_auth, monkeypatch):
+    async def test_kb_index_not_ready_returns_503(
+        self, contract_client, fake_db, service_auth, monkeypatch
+    ):
         # ADR-007：updating 有界等待后仍未收敛 → 503 可重试；缩短等待窗避免测试空等
         monkeypatch.setattr(settings, "PUBLISH_LOCK_WAIT_MS", 100)
         fake_db.seed(User, _user())
         fake_db.seed(KnowledgeBase, _kb(index_status="updating"))
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 503
         body = response.json()
         assert body["error"]["error_code"] == "INTERNAL_RETRIEVAL_UNAVAILABLE"
@@ -428,7 +515,11 @@ class TestRetrievalSearchEndpoint:
 
     @pytest.mark.asyncio
     async def test_kb_updating_then_ready_waits_and_succeeds(
-        self, contract_client, fake_db, service_auth, monkeypatch,
+        self,
+        contract_client,
+        fake_db,
+        service_auth,
+        monkeypatch,
     ):
         """updating（发布锁持有中）→ 有界等待 → refresh 收敛为 ready → 检索放行。
 
@@ -446,8 +537,10 @@ class TestRetrievalSearchEndpoint:
         async def fake_retrieve(db, kb_id, query, top_k=20, document_ids=None):
             return RetrievalOutput(
                 results=[RetrievalResult(doc_id=20, chunk_index=0, content="正文", score=0.02)],
-                total=1, fusion_method="rrf",
+                total=1,
+                fusion_method="rrf",
             )
+
         monkeypatch.setattr(internal_retrieval, "_retrieve_kb", fake_retrieve)
 
         refresh_calls = {"n": 0}
@@ -459,25 +552,32 @@ class TestRetrievalSearchEndpoint:
         fake_db.refresh = _converge
 
         response = await contract_client.post(
-            self.SEARCH_URL, json=_search_body(),
+            self.SEARCH_URL,
+            json=_search_body(),
             headers=_headers(_service_token(service_auth)),
         )
         assert response.status_code == 200, response.text
         assert refresh_calls["n"] >= 1
 
     @pytest.mark.asyncio
-    async def test_kb_recovering_returns_503_immediately(self, contract_client, fake_db, service_auth):
+    async def test_kb_recovering_returns_503_immediately(
+        self, contract_client, fake_db, service_auth
+    ):
         """recovering 为不可恢复状态：不做有界等待，直接 503 可重试。"""
         fake_db.seed(User, _user())
         fake_db.seed(KnowledgeBase, _kb(index_status="recovering"))
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 503
         body = response.json()
         assert body["error"]["error_code"] == "INTERNAL_RETRIEVAL_UNAVAILABLE"
         assert body["error"]["retryable"] is True
 
     @pytest.mark.asyncio
-    async def test_success_returns_200_schema_compliant(self, contract_client, fake_db, service_auth, monkeypatch):
+    async def test_success_returns_200_schema_compliant(
+        self, contract_client, fake_db, service_auth, monkeypatch
+    ):
         from app.rag.retriever import RetrievalOutput, RetrievalResult
         from app.services import internal_retrieval
 
@@ -489,13 +589,23 @@ class TestRetrievalSearchEndpoint:
 
         async def fake_retrieve(db, kb_id, query, top_k=20, document_ids=None):
             return RetrievalOutput(
-                results=[RetrievalResult(doc_id=20, chunk_index=0, content="KB 的 READ 权限决定该用户是否可检索。", score=0.02)],
-                total=1, fusion_method="rrf",
+                results=[
+                    RetrievalResult(
+                        doc_id=20,
+                        chunk_index=0,
+                        content="KB 的 READ 权限决定该用户是否可检索。",
+                        score=0.02,
+                    )
+                ],
+                total=1,
+                fusion_method="rrf",
             )
 
         monkeypatch.setattr(internal_retrieval, "_retrieve_kb", fake_retrieve)
 
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 200, response.text
         body = response.json()
         assert not list(validator_for("retrieval-response").iter_errors(body))
@@ -506,11 +616,20 @@ class TestRetrievalSearchEndpoint:
         assert hit["document_version_id"] == VER_A1
         assert hit["segment_id"] == SEG_A1
         # 命中对象不得暴露内部实现字段
-        forbidden = {"query_plan", "chunk_text", "file_path", "cache_key", "embedding", "collection"}
+        forbidden = {
+            "query_plan",
+            "chunk_text",
+            "file_path",
+            "cache_key",
+            "embedding",
+            "collection",
+        }
         assert not (set(hit) & forbidden)
 
     @pytest.mark.asyncio
-    async def test_success_empty_results_returns_200(self, contract_client, fake_db, service_auth, monkeypatch):
+    async def test_success_empty_results_returns_200(
+        self, contract_client, fake_db, service_auth, monkeypatch
+    ):
         from app.rag.retriever import RetrievalOutput
         from app.services import internal_retrieval
 
@@ -522,14 +641,18 @@ class TestRetrievalSearchEndpoint:
 
         monkeypatch.setattr(internal_retrieval, "_retrieve_kb", fake_retrieve)
 
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 200, response.text
         body = response.json()
         assert not list(validator_for("retrieval-response").iter_errors(body))
         assert body["results"] == [] and body["returned_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_retrieval_failure_returns_503(self, contract_client, fake_db, service_auth, monkeypatch):
+    async def test_retrieval_failure_returns_503(
+        self, contract_client, fake_db, service_auth, monkeypatch
+    ):
         from app.services import internal_retrieval
 
         fake_db.seed(User, _user())
@@ -540,7 +663,9 @@ class TestRetrievalSearchEndpoint:
 
         monkeypatch.setattr(internal_retrieval, "_retrieve_kb", fake_retrieve)
 
-        response = await contract_client.post(self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.SEARCH_URL, json=_search_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 503
         body = response.json()
         assert body["error"]["error_code"] == "INTERNAL_RETRIEVAL_UNAVAILABLE"
@@ -551,7 +676,9 @@ class TestResolveEndpoint:
     RESOLVE_URL = "/internal/v1/retrieval/resolve"
 
     @pytest.mark.asyncio
-    async def test_success_returns_200_schema_compliant(self, contract_client, fake_db, service_auth):
+    async def test_success_returns_200_schema_compliant(
+        self, contract_client, fake_db, service_auth
+    ):
 
         fake_db.seed(User, _user())
         fake_db.seed(KnowledgeBase, _kb())
@@ -559,7 +686,9 @@ class TestResolveEndpoint:
         fake_db.seed(DocumentVersion, _version())
         fake_db.seed(Chunk, _chunk())
 
-        response = await contract_client.post(self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 200, response.text
         body = response.json()
         assert not list(validator_for("evidence-resolve-response").iter_errors(body))
@@ -570,15 +699,21 @@ class TestResolveEndpoint:
         assert resolved["segment_id"] == SEG_A1
 
     @pytest.mark.asyncio
-    async def test_resolve_body_contract_version_mismatch_returns_400(self, contract_client, service_auth):
+    async def test_resolve_body_contract_version_mismatch_returns_400(
+        self, contract_client, service_auth
+    ):
         # contracts/README §5：正文 contract_version 与版本头不一致 → INTERNAL_CONTRACT_UNSUPPORTED
         body = _resolve_body(contract_version="2.0.0")
-        response = await contract_client.post(self.RESOLVE_URL, json=body, headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.RESOLVE_URL, json=body, headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "INTERNAL_CONTRACT_UNSUPPORTED"
 
     @pytest.mark.asyncio
-    async def test_segment_without_location_returns_evidence_unavailable(self, contract_client, fake_db, service_auth):
+    async def test_segment_without_location_returns_evidence_unavailable(
+        self, contract_client, fake_db, service_auth
+    ):
         # P5：无真实定位信息（page/section_path 均缺）→ 拒绝，而非伪造 section_path=["来源"]
         fake_db.seed(User, _user())
         fake_db.seed(KnowledgeBase, _kb())
@@ -586,7 +721,9 @@ class TestResolveEndpoint:
         fake_db.seed(DocumentVersion, _version())
         fake_db.seed(Chunk, _chunk(metadata_={}))
 
-        response = await contract_client.post(self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "EVIDENCE_SOURCE_UNAVAILABLE"
 
@@ -594,11 +731,19 @@ class TestResolveEndpoint:
     async def test_kb_not_readable_returns_403(self, contract_client, fake_db, service_auth):
         fake_db.seed(User, _user())
         fake_db.seed(KnowledgeBase, _kb(uuid=KB_OTHER, user_id=2, visibility="private"))
-        body = _resolve_body(references=[{
-            "knowledge_base_id": KB_OTHER, "document_id": DOC_A,
-            "document_version_id": VER_A1, "segment_id": SEG_A1,
-        }])
-        response = await contract_client.post(self.RESOLVE_URL, json=body, headers=_headers(_service_token(service_auth)))
+        body = _resolve_body(
+            references=[
+                {
+                    "knowledge_base_id": KB_OTHER,
+                    "document_id": DOC_A,
+                    "document_version_id": VER_A1,
+                    "segment_id": SEG_A1,
+                }
+            ]
+        )
+        response = await contract_client.post(
+            self.RESOLVE_URL, json=body, headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 403
         assert response.json()["error"]["error_code"] == "KB_FORBIDDEN"
 
@@ -607,12 +752,16 @@ class TestResolveEndpoint:
         # DATABASE.md §5.1：deleting 状态立即拒绝 Internal Retrieval（失败关闭）
         fake_db.seed(User, _user())
         fake_db.seed(KnowledgeBase, _kb(status="deleting"))
-        response = await contract_client.post(self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 403
         assert response.json()["error"]["error_code"] == "KB_FORBIDDEN"
 
     @pytest.mark.asyncio
-    async def test_version_not_active_returns_evidence_unavailable(self, contract_client, fake_db, service_auth):
+    async def test_version_not_active_returns_evidence_unavailable(
+        self, contract_client, fake_db, service_auth
+    ):
 
         fake_db.seed(User, _user())
         fake_db.seed(KnowledgeBase, _kb())
@@ -620,12 +769,16 @@ class TestResolveEndpoint:
         fake_db.seed(DocumentVersion, _version(version=1))
         fake_db.seed(Chunk, _chunk())
 
-        response = await contract_client.post(self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "EVIDENCE_SOURCE_UNAVAILABLE"
 
     @pytest.mark.asyncio
-    async def test_segment_missing_returns_evidence_unavailable(self, contract_client, fake_db, service_auth):
+    async def test_segment_missing_returns_evidence_unavailable(
+        self, contract_client, fake_db, service_auth
+    ):
 
         fake_db.seed(User, _user())
         fake_db.seed(KnowledgeBase, _kb())
@@ -633,7 +786,9 @@ class TestResolveEndpoint:
         fake_db.seed(DocumentVersion, _version())
         # 不 seed Chunk → segment 缺失
 
-        response = await contract_client.post(self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.RESOLVE_URL, json=_resolve_body(), headers=_headers(_service_token(service_auth))
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "EVIDENCE_SOURCE_UNAVAILABLE"
 
@@ -647,9 +802,23 @@ class TestResolveEndpoint:
         fake_db.seed(Chunk, _chunk())
         # 第二个引用指向不存在的 segment → 整批失败，不返回部分结果
         references = [
-            {"knowledge_base_id": KB_A, "document_id": DOC_A, "document_version_id": VER_A1, "segment_id": SEG_A1},
-            {"knowledge_base_id": KB_A, "document_id": DOC_A, "document_version_id": VER_A1, "segment_id": SEG_A2},
+            {
+                "knowledge_base_id": KB_A,
+                "document_id": DOC_A,
+                "document_version_id": VER_A1,
+                "segment_id": SEG_A1,
+            },
+            {
+                "knowledge_base_id": KB_A,
+                "document_id": DOC_A,
+                "document_version_id": VER_A1,
+                "segment_id": SEG_A2,
+            },
         ]
-        response = await contract_client.post(self.RESOLVE_URL, json=_resolve_body(references=references), headers=_headers(_service_token(service_auth)))
+        response = await contract_client.post(
+            self.RESOLVE_URL,
+            json=_resolve_body(references=references),
+            headers=_headers(_service_token(service_auth)),
+        )
         assert response.status_code == 400
         assert response.json()["error"]["error_code"] == "EVIDENCE_SOURCE_UNAVAILABLE"

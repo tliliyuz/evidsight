@@ -2,6 +2,7 @@
 
 SDD 门禁：RED —— 目标行为（v1 幂等创建端点、Idempotency-Key、重放与 409）当前缺失。
 """
+
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -40,7 +41,9 @@ class TestResearchV1Create:
         assert r.status_code == 422
         assert r.json()["code"] == "E9003"
 
-    async def test_正常创建_返回202且replayed_false(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_正常创建_返回202且replayed_false(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         with patch("app.api.research_v1._execute_research_task.delay") as mock_delay:
             r = await async_client.post(
                 "/api/v1/research/tasks", json=_payload(), headers=_headers(auth_headers)

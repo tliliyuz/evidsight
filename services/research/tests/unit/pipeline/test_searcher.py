@@ -1,4 +1,5 @@
 """Searcher 单元测试 — Tavily API 调用、子 step 管理、URL 去重、失败重试。"""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -190,7 +191,10 @@ class TestRunSearchSuccess:
             ]
 
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert output["after_dedup"] == 6
@@ -207,7 +211,10 @@ class TestRunSearchSuccess:
             ]
 
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             # shared.com/page 被去重，所以只有 4 条唯一 URL
@@ -219,13 +226,15 @@ class TestRunSearchSuccess:
             mock_tavily.return_value = _make_tavily_response(["https://example.com/article"])
 
             await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             # 验证 session.add 被调用（创建 ResearchSource）
             add_calls = [
-                c for c in self.db_session.add.call_args_list
-                if isinstance(c[0][0], ResearchSource)
+                c for c in self.db_session.add.call_args_list if isinstance(c[0][0], ResearchSource)
             ]
             assert len(add_calls) == 1  # 每个 URL 一个 source
 
@@ -235,13 +244,14 @@ class TestRunSearchSuccess:
             mock_tavily.return_value = _make_tavily_response(["https://example.com/1"])
 
             await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             # 验证发射了 step.started / step.progress / step.completed
-            event_types = [
-                c[0][0] for c in self.sse_bridge.publish.await_args_list
-            ]
+            event_types = [c[0][0] for c in self.sse_bridge.publish.await_args_list]
             assert "step.started" in event_types
             assert "step.progress" in event_types
             assert "step.completed" in event_types
@@ -258,7 +268,10 @@ class TestRunSearchSuccess:
 
             original_total = self.task.total_steps
             await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert self.task.total_steps == original_total
@@ -269,7 +282,10 @@ class TestRunSearchSuccess:
         _mock_planning_in_session(self.db_session, [])
 
         output = await run_search(
-            self.task, self.step, self.db_session, self.sse_bridge,
+            self.task,
+            self.step,
+            self.db_session,
+            self.sse_bridge,
         )
 
         assert output["total_results"] == 0
@@ -303,7 +319,10 @@ class TestRunSearchFailure:
             ]
 
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             # 子问题1 应标记为 skipped
@@ -319,7 +338,10 @@ class TestRunSearchFailure:
 
             with pytest.raises(SearchFailedException) as exc_info:
                 await run_search(
-                    self.task, self.step, self.db_session, self.sse_bridge,
+                    self.task,
+                    self.step,
+                    self.db_session,
+                    self.sse_bridge,
                 )
 
             assert exc_info.value.error_code == "E3102"
@@ -335,7 +357,10 @@ class TestRunSearchFailure:
             _mock_planning_in_session(self.db_session, ["单个子问题"])
 
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert mock_tavily.call_count == 2  # 原始 + 1次重试
@@ -365,14 +390,16 @@ class TestRunSearchFailure:
             ]
 
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert output["after_dedup"] == 5  # 5 条唯一 URL
             assert output["sources_created"] == 4  # 5 - 1 条已存在
             add_calls = [
-                c for c in self.db_session.add.call_args_list
-                if isinstance(c[0][0], ResearchSource)
+                c for c in self.db_session.add.call_args_list if isinstance(c[0][0], ResearchSource)
             ]
             added_urls = {c[0][0].url for c in add_calls}
             assert "https://a.com/1" not in added_urls
@@ -391,7 +418,10 @@ class TestRunSearchFailure:
             ]
 
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             # url_a 与 url_b 前 255 字符相同，应只保留一条
@@ -425,15 +455,17 @@ class TestRunSearchFailure:
             ]
 
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert output["after_dedup"] == 3
             # new_url 与 existing_url 前 255 字符相同，应跳过
             assert output["sources_created"] == 2
             add_calls = [
-                c for c in self.db_session.add.call_args_list
-                if isinstance(c[0][0], ResearchSource)
+                c for c in self.db_session.add.call_args_list if isinstance(c[0][0], ResearchSource)
             ]
             added_urls = {c[0][0].url for c in add_calls}
             assert new_url not in added_urls

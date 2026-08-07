@@ -12,6 +12,7 @@
 
 SDD 门禁：RED —— 目标行为（Rerank 消费内部候选 + 分型持久化）当前缺失。
 """
+
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
@@ -113,7 +114,12 @@ def _make_task(*, strategy: str = "knowledge", task_id: str = "task-internal-001
         id=task_id,
         user_id="550e8400-e29b-41d4-a716-446655440001",
         topic="量子计算对密码学的影响",
-        requirements={"task_type": "analysis", "depth": "quick", "max_sources": 5, "language": "zh"},
+        requirements={
+            "task_type": "analysis",
+            "depth": "quick",
+            "max_sources": 5,
+            "language": "zh",
+        },
         source_strategy=strategy,
         status="running",
         total_steps=7,
@@ -189,12 +195,30 @@ class TestRerankKnowledgeInternal:
 
         task = _make_task(strategy="knowledge")
         candidates = [
-            _internal_candidate(kb=KB_A, doc=DOC_A, version=VER_A, segment=SEG_A,
-                                display_name="内部文档A", sq_index=1),
-            _internal_candidate(kb=KB_A, doc=DOC_A, version=VER_A, segment=SEG_B,
-                                display_name="内部文档A", sq_index=1),
-            _internal_candidate(kb=KB_B, doc=DOC_B, version=VER_B, segment=SEG_B,
-                                display_name="内部文档B", sq_index=2),
+            _internal_candidate(
+                kb=KB_A,
+                doc=DOC_A,
+                version=VER_A,
+                segment=SEG_A,
+                display_name="内部文档A",
+                sq_index=1,
+            ),
+            _internal_candidate(
+                kb=KB_A,
+                doc=DOC_A,
+                version=VER_A,
+                segment=SEG_B,
+                display_name="内部文档A",
+                sq_index=1,
+            ),
+            _internal_candidate(
+                kb=KB_B,
+                doc=DOC_B,
+                version=VER_B,
+                segment=SEG_B,
+                display_name="内部文档B",
+                sq_index=2,
+            ),
         ]
         rerank_step = await _seed_task_with_search_output(db_session, task, candidates)
 
@@ -286,21 +310,29 @@ class TestRerankHybridInternal:
 
         task = _make_task(strategy="hybrid", task_id="task-hybrid-001")
         internal = [
-            _internal_candidate(kb=KB_A, doc=DOC_A, version=VER_A, segment=SEG_A,
-                                display_name="内部文档A", sq_index=1),
+            _internal_candidate(
+                kb=KB_A,
+                doc=DOC_A,
+                version=VER_A,
+                segment=SEG_A,
+                display_name="内部文档A",
+                sq_index=1,
+            ),
         ]
         rerank_step = await _seed_task_with_search_output(db_session, task, internal)
 
         # Web 来源（fetch 成功）
-        db_session.add(ResearchSource(
-            task_id=task.id,
-            url="https://example.com/web-1",
-            title="外部网页",
-            domain="example.com",
-            content="外部网页正文，NIST 后量子密码进展。",
-            fetch_status="success",
-            fetched_at=datetime(2026, 1, 1, 0, 0, 4, tzinfo=timezone.utc),
-        ))
+        db_session.add(
+            ResearchSource(
+                task_id=task.id,
+                url="https://example.com/web-1",
+                title="外部网页",
+                domain="example.com",
+                content="外部网页正文，NIST 后量子密码进展。",
+                fetch_status="success",
+                fetched_at=datetime(2026, 1, 1, 0, 0, 4, tzinfo=timezone.utc),
+            )
+        )
         await db_session.flush()
 
         resolved = [_resolved_reference(internal[0], "内部正文ABCDEFGH")]

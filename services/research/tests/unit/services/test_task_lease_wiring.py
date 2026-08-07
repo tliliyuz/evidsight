@@ -42,8 +42,10 @@ class _SessionContextManager:
 
 def _session_factory(db_session):
     """返回一个复用测试 db_session 的 session_factory。"""
+
     def factory():
         return _SessionContextManager(db_session)
+
     return factory
 
 
@@ -86,10 +88,16 @@ async def _seed_task(db_session: AsyncSession, task_id: str, **kw) -> ResearchTa
 
 class TestStartClaimsLease:
     async def test_pending任务启动_领取租约并绑定到handle(
-        self, db_session, seeded_user, fake_locks, monkeypatch,
+        self,
+        db_session,
+        seeded_user,
+        fake_locks,
+        monkeypatch,
     ):
         user, _ = seeded_user
-        task = await _seed_task(db_session, "lease-wire-1", user_id=user.id, status="pending", total_steps=0)
+        task = await _seed_task(
+            db_session, "lease-wire-1", user_id=user.id, status="pending", total_steps=0
+        )
         # 单元测试中避免真实 commit 破坏事务隔离：将 commit 重定向为 flush
         monkeypatch.setattr(db_session, "commit", db_session.flush)
 
@@ -106,15 +114,25 @@ class TestStartClaimsLease:
             assert task.lease_expires_at is not None
         finally:
             # release 会释放 DB 租约：复用测试会话，避免连接真实 MySQL
-            with patch("app.services.task_lifecycle.async_session_factory", new=_session_factory(db_session)):
+            with patch(
+                "app.services.task_lifecycle.async_session_factory",
+                new=_session_factory(db_session),
+            ):
                 await handle.release()
 
     async def test_running恢复路径_领取新generation(
-        self, db_session, seeded_user, fake_locks, monkeypatch,
+        self,
+        db_session,
+        seeded_user,
+        fake_locks,
+        monkeypatch,
     ):
         user, _ = seeded_user
         task = await _seed_task(
-            db_session, "lease-wire-2", user_id=user.id, status="running",
+            db_session,
+            "lease-wire-2",
+            user_id=user.id,
+            status="running",
             lease_owner="worker-old",
             lease_expires_at=_now() - timedelta(seconds=30),
             lease_generation=1,
@@ -133,11 +151,18 @@ class TestStartClaimsLease:
             assert task.lease_owner == handle.worker_id
             assert task.lease_owner != "worker-old"
         finally:
-            with patch("app.services.task_lifecycle.async_session_factory", new=_session_factory(db_session)):
+            with patch(
+                "app.services.task_lifecycle.async_session_factory",
+                new=_session_factory(db_session),
+            ):
                 await handle.release()
 
     async def test_租约领取失败_放弃启动并释放锁(
-        self, db_session, seeded_user, fake_locks, monkeypatch,
+        self,
+        db_session,
+        seeded_user,
+        fake_locks,
+        monkeypatch,
     ):
         user, _ = seeded_user
         task = await _seed_task(db_session, "lease-wire-3", user_id=user.id, status="pending")
@@ -161,7 +186,10 @@ class TestHandleLeaseRelease:
     async def test_release_清除DB租约(self, db_session, seeded_user, fake_locks):
         user, _ = seeded_user
         task = await _seed_task(
-            db_session, "lease-wire-4", user_id=user.id, status="running",
+            db_session,
+            "lease-wire-4",
+            user_id=user.id,
+            status="running",
             lease_owner="worker-1",
             lease_expires_at=_now() + timedelta(seconds=300),
             lease_generation=1,
@@ -169,7 +197,9 @@ class TestHandleLeaseRelease:
 
         handle = TaskLockHandle("lease-wire-4")
         handle.bind_lease("worker-1", 1)
-        with patch("app.services.task_lifecycle.async_session_factory", new=_session_factory(db_session)):
+        with patch(
+            "app.services.task_lifecycle.async_session_factory", new=_session_factory(db_session)
+        ):
             await handle.release()
 
         await db_session.refresh(task)
@@ -180,7 +210,10 @@ class TestHandleLeaseRelease:
     async def test_renew_续租DB租约(self, db_session, seeded_user, fake_locks):
         user, _ = seeded_user
         task = await _seed_task(
-            db_session, "lease-wire-5", user_id=user.id, status="running",
+            db_session,
+            "lease-wire-5",
+            user_id=user.id,
+            status="running",
             lease_owner="worker-1",
             lease_expires_at=_now() - timedelta(seconds=10),
             lease_generation=1,
@@ -188,7 +221,9 @@ class TestHandleLeaseRelease:
 
         handle = TaskLockHandle("lease-wire-5")
         handle.bind_lease("worker-1", 1, ttl_seconds=120)
-        with patch("app.services.task_lifecycle.async_session_factory", new=_session_factory(db_session)):
+        with patch(
+            "app.services.task_lifecycle.async_session_factory", new=_session_factory(db_session)
+        ):
             ok = await handle.renew_lease()
 
         assert ok is True

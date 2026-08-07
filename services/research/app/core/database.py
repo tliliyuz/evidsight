@@ -19,11 +19,11 @@ from app.config import settings
 
 engine = create_async_engine(
     settings.database_url,
-    echo=settings.DEBUG,                    # DEBUG 时输出 SQL
-    pool_size=20,                           # 连接池大小
-    max_overflow=10,                        # 最大溢出连接数
-    pool_pre_ping=True,                     # 连接前 ping 检测有效性
-    pool_recycle=3600,                      # 1 小时回收连接
+    echo=settings.DEBUG,  # DEBUG 时输出 SQL
+    pool_size=20,  # 连接池大小
+    max_overflow=10,  # 最大溢出连接数
+    pool_pre_ping=True,  # 连接前 ping 检测有效性
+    pool_recycle=3600,  # 1 小时回收连接
 )
 
 # ── 异步会话工厂 ─────────────────────────────────────────────
@@ -31,7 +31,7 @@ engine = create_async_engine(
 async_session_factory = async_sessionmaker(
     engine,
     class_=AsyncSession,
-    expire_on_commit=False,                 # commit 后不使实例过期
+    expire_on_commit=False,  # commit 后不使实例过期
 )
 
 

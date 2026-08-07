@@ -58,11 +58,7 @@ def evaluate_citation_validity(
         section_id = section.get("id")
         linked_ids = set(section_evidence.get(section_id, []))
         # 该 section 实际关联证据在 Graph 中的 index 集合
-        linked_indices = {
-            evidence_index.get(eid)
-            for eid in linked_ids
-            if eid in evidence_index
-        }
+        linked_indices = {evidence_index.get(eid) for eid in linked_ids if eid in evidence_index}
         for idx in extract_citations(section.get("content")):
             total += 1
             if idx in linked_indices:
@@ -84,9 +80,7 @@ def compute_task_success_rate(
         (success, denominator, rate)。success = completed + partially_completed；
         denominator 排除 canceled（用户主动取消，PRD AC-003 明确不计入失败）。
     """
-    success = status_counts.get("completed", 0) + status_counts.get(
-        "partially_completed", 0
-    )
+    success = status_counts.get("completed", 0) + status_counts.get("partially_completed", 0)
     failed = status_counts.get("failed", 0)
     denominator = success + failed
     rate = (success / denominator) if denominator else 0.0
@@ -141,17 +135,11 @@ def check_evidence_traceability(items: list[dict]) -> tuple[int, int, list[str]]
         if source_type == "internal":
             ok = all(item.get(field) for field in _INTERNAL_TRACEABILITY_FIELDS)
             if not ok:
-                problems.append(
-                    f"item[{total - 1}]: internal 缺可定位位置或稳定 ID"
-                )
+                problems.append(f"item[{total - 1}]: internal 缺可定位位置或稳定 ID")
         elif source_type == "web":
-            ok = bool(item.get("canonical_url_snapshot")) and bool(
-                item.get("fetched_at_snapshot")
-            )
+            ok = bool(item.get("canonical_url_snapshot")) and bool(item.get("fetched_at_snapshot"))
             if not ok:
-                problems.append(
-                    f"item[{total - 1}]: web 缺 URL 或获取时间"
-                )
+                problems.append(f"item[{total - 1}]: web 缺 URL 或获取时间")
         else:
             ok = False
             problems.append(f"item[{total - 1}]: source_type 缺失或非法")

@@ -93,9 +93,7 @@ class AgentLoop:
 
             messages = self._build_messages()
             available_tools = self._phase_controller.get_available_tools()
-            tool_schemas = [
-                self._tool_to_schema(t) for t in available_tools
-            ]
+            tool_schemas = [self._tool_to_schema(t) for t in available_tools]
 
             try:
                 llm_result = await chat_completion(
@@ -106,13 +104,15 @@ class AgentLoop:
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Agent Loop LLM 调用失败: %s", exc)
                 # 记录失败 observation 后继续，给 LLM 机会在下一轮恢复
-                self._working_memory.add(ReActEntry(
-                    iteration=iteration,
-                    phase=current_phase,
-                    thought=None,
-                    tool_name=None,
-                    observation=f"LLM 调用失败: {exc}",
-                ))
+                self._working_memory.add(
+                    ReActEntry(
+                        iteration=iteration,
+                        phase=current_phase,
+                        thought=None,
+                        tool_name=None,
+                        observation=f"LLM 调用失败: {exc}",
+                    )
+                )
                 continue
 
             # §16 / §17.3-22：模型隐藏推理（reasoning_content）不进入 SSE 或
@@ -121,12 +121,14 @@ class AgentLoop:
             tool_calls = llm_result.tool_calls or []
             if not tool_calls:
                 # LLM 未返回 Tool 调用，记录 content 为观察后继续
-                self._working_memory.add(ReActEntry(
-                    iteration=iteration,
-                    phase=current_phase,
-                    thought=llm_result.reasoning_content,
-                    observation=llm_result.content or "LLM 未返回 Tool 调用",
-                ))
+                self._working_memory.add(
+                    ReActEntry(
+                        iteration=iteration,
+                        phase=current_phase,
+                        thought=llm_result.reasoning_content,
+                        observation=llm_result.content or "LLM 未返回 Tool 调用",
+                    )
+                )
                 continue
 
             for tool_call in tool_calls:
@@ -137,7 +139,8 @@ class AgentLoop:
                     "tool_call_id": tool_call.id,
                     "tool_name": tool_call.name,
                     "arguments": self._sanitize_arguments(
-                        tool_call.name, tool_call.arguments,
+                        tool_call.name,
+                        tool_call.arguments,
                     ),
                 }
                 if self._recorder is not None:
@@ -168,7 +171,9 @@ class AgentLoop:
 
                 result = exec_result.result
                 sse_observation = self._sanitize_observation(
-                    tool_call.name, observation, result.success,
+                    tool_call.name,
+                    observation,
+                    result.success,
                 )
                 observation_data = {
                     "iteration": iteration,
@@ -197,24 +202,22 @@ class AgentLoop:
                 else:
                     await self._sse.publish(EVENT_AGENT_OBSERVATION, observation_data)
 
-                self._working_memory.add(ReActEntry(
-                    iteration=iteration,
-                    phase=current_phase,
-                    thought=llm_result.reasoning_content,
-                    tool_name=tool_call.name,
-                    tool_call_id=tool_call.id,
-                    arguments=tool_call.arguments,
-                    observation=observation,
-                    tool_output_summary=self._summarize_output(result.output),
-                    step_id=exec_result.step_id,
-                ))
+                self._working_memory.add(
+                    ReActEntry(
+                        iteration=iteration,
+                        phase=current_phase,
+                        thought=llm_result.reasoning_content,
+                        tool_name=tool_call.name,
+                        tool_call_id=tool_call.id,
+                        arguments=tool_call.arguments,
+                        observation=observation,
+                        tool_output_summary=self._summarize_output(result.output),
+                        step_id=exec_result.step_id,
+                    )
+                )
 
                 # 当前 phase 的 primary tool 成功执行一次即标记完成
-                if (
-                    tool is not None
-                    and tool.mapped_phase == current_phase
-                    and result.success
-                ):
+                if tool is not None and tool.mapped_phase == current_phase and result.success:
                     self._phase_controller.mark_phase_done(current_phase)
 
             # 本轮 tool calls 处理完后，若当前 phase 已完成则推进
@@ -299,9 +302,17 @@ class AgentLoop:
             return {}
         # 仅保留关键计数字段；memory_tool 追加的 note 也需保留以便回溯
         keys = [
-            "sub_questions", "total_results", "successful", "evidence_count",
-            "clusters_count", "conflicts_count", "gaps_count", "item_count",
-            "sections_count", "citations_count", "memory_note",
+            "sub_questions",
+            "total_results",
+            "successful",
+            "evidence_count",
+            "clusters_count",
+            "conflicts_count",
+            "gaps_count",
+            "item_count",
+            "sections_count",
+            "citations_count",
+            "memory_note",
         ]
         summary = {k: output[k] for k in keys if k in output}
         if not summary:

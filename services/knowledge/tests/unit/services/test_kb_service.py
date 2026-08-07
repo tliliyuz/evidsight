@@ -156,9 +156,11 @@ class TestGetRealChunkCounts:
     @pytest.mark.asyncio
     async def test_单个KB返回正确计数(self, mock_db):
         """查询单个 KB 的分块数，返回 {kb_id: count}"""
-        mock_db.execute.return_value = _make_all_result([
-            _make_chunk_count_row(1, 42),
-        ])
+        mock_db.execute.return_value = _make_all_result(
+            [
+                _make_chunk_count_row(1, 42),
+            ]
+        )
 
         result = await _get_real_chunk_counts(mock_db, [1])
 
@@ -170,11 +172,13 @@ class TestGetRealChunkCounts:
     @pytest.mark.asyncio
     async def test_多个KB批量返回(self, mock_db):
         """批量查询多个 KB，一次 GROUP BY 返回所有结果"""
-        mock_db.execute.return_value = _make_all_result([
-            _make_chunk_count_row(1, 10),
-            _make_chunk_count_row(2, 0),
-            _make_chunk_count_row(3, 55),
-        ])
+        mock_db.execute.return_value = _make_all_result(
+            [
+                _make_chunk_count_row(1, 10),
+                _make_chunk_count_row(2, 0),
+                _make_chunk_count_row(3, 55),
+            ]
+        )
 
         result = await _get_real_chunk_counts(mock_db, [1, 2, 3])
 
@@ -192,9 +196,11 @@ class TestGetRealChunkCounts:
     @pytest.mark.asyncio
     async def test_无结果KB不在返回中(self, mock_db):
         """某些 KB 没有 chunk 记录时，不在返回的 dict 中出现"""
-        mock_db.execute.return_value = _make_all_result([
-            _make_chunk_count_row(1, 5),
-        ])
+        mock_db.execute.return_value = _make_all_result(
+            [
+                _make_chunk_count_row(1, 5),
+            ]
+        )
 
         result = await _get_real_chunk_counts(mock_db, [1, 999])
 
@@ -292,7 +298,7 @@ class TestGetKB:
 
         assert result.uuid == "kb-uuid-1"
         assert result.chunk_count == 99  # 覆写为实时值，非 DB 缓存的 0
-        assert result.doc_count == 5    # 覆写为实时值，非 DB 缓存的 0
+        assert result.doc_count == 5  # 覆写为实时值，非 DB 缓存的 0
         assert mock_db.execute.call_count == 3
 
     @pytest.mark.asyncio
@@ -393,7 +399,7 @@ class TestListKBs:
         assert result.total == 2
         assert len(result.items) == 2
         assert result.items[0].chunk_count == 15  # 实时值，非 999
-        assert result.items[0].doc_count == 5     # 实时值，非 999
+        assert result.items[0].doc_count == 5  # 实时值，非 999
         assert result.items[1].chunk_count == 30
         assert result.items[1].doc_count == 3
         assert result.items[0].owner == "550e8400-e29b-41d4-a716-446655440001"
@@ -462,7 +468,7 @@ class TestListPublicKBs:
         assert item.owner == "550e8400-e29b-41d4-a716-446655440003"
         assert item.username == "zhangsan"
         assert item.chunk_count == 25  # 实时值
-        assert item.doc_count == 8    # 实时值
+        assert item.doc_count == 8  # 实时值
 
     @pytest.mark.asyncio
     async def test_空列表(self, mock_db):
@@ -507,24 +513,27 @@ class TestUpdateKB:
         # update_kb: resolve_user_uuid → owner Platform User UUID
         # update_kb 末尾: 再查一次实时 chunk_count + 实时 doc_count
         mock_db.execute.side_effect = [
-            _make_scalar_one_or_none_result(kb),             # get_kb: 查 KB
-            _make_all_result([_make_chunk_count_row(1, 88)]),       # get_kb: 实时分块
-            _make_all_result([_make_doc_count_row(1, 5)]),          # get_kb: 实时文档
+            _make_scalar_one_or_none_result(kb),  # get_kb: 查 KB
+            _make_all_result([_make_chunk_count_row(1, 88)]),  # get_kb: 实时分块
+            _make_all_result([_make_doc_count_row(1, 5)]),  # get_kb: 实时文档
             _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),  # owner 解析
-            _make_all_result([_make_chunk_count_row(1, 88)]),       # update_kb 末尾: chunk 修正
-            _make_all_result([_make_doc_count_row(1, 5)]),          # update_kb 末尾: doc 修正
+            _make_all_result([_make_chunk_count_row(1, 88)]),  # update_kb 末尾: chunk 修正
+            _make_all_result([_make_doc_count_row(1, 5)]),  # update_kb 末尾: doc 修正
         ]
         mock_db.flush = AsyncMock()
 
         result = await update_kb(
-            mock_db, kb_id=1, user_id=1, role="user",
+            mock_db,
+            kb_id=1,
+            user_id=1,
+            role="user",
             data=KnowledgeBaseUpdate(name="新名称"),
         )
 
         assert result.name == "新名称"
         assert result.owner == "550e8400-e29b-41d4-a716-446655440001"
         assert result.chunk_count == 88  # 实时值，非 DB 缓存值
-        assert result.doc_count == 5     # 实时值，非 DB 缓存值
+        assert result.doc_count == 5  # 实时值，非 DB 缓存值
         mock_db.flush.assert_called_once()
         mock_db.refresh.assert_called_once()
         assert mock_db.execute.call_count == 6
@@ -536,16 +545,19 @@ class TestUpdateKB:
         mock_db.execute = AsyncMock()
         mock_db.execute.side_effect = [
             _make_scalar_one_or_none_result(kb),
-            _make_all_result([]),   # get_kb: 实时分块（fallback）
-            _make_all_result([]),   # get_kb: 实时文档（fallback）
+            _make_all_result([]),  # get_kb: 实时分块（fallback）
+            _make_all_result([]),  # get_kb: 实时文档（fallback）
             _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),  # owner 解析
-            _make_all_result([]),   # update_kb 末尾: chunk
-            _make_all_result([]),   # update_kb 末尾: doc
+            _make_all_result([]),  # update_kb 末尾: chunk
+            _make_all_result([]),  # update_kb 末尾: doc
         ]
         mock_db.flush = AsyncMock()
 
         result = await update_kb(
-            mock_db, kb_id=1, user_id=1, role="user",
+            mock_db,
+            kb_id=1,
+            user_id=1,
+            role="user",
             data=KnowledgeBaseUpdate(description="新描述"),
         )
 
@@ -567,7 +579,10 @@ class TestUpdateKB:
         mock_db.flush = AsyncMock()
 
         result = await update_kb(
-            mock_db, kb_id=1, user_id=1, role="user",
+            mock_db,
+            kb_id=1,
+            user_id=1,
+            role="user",
             data=KnowledgeBaseUpdate(visibility="public"),
         )
 
@@ -581,7 +596,10 @@ class TestUpdateKB:
 
         with pytest.raises(PermissionDeniedException):
             await update_kb(
-                mock_db, kb_id=1, user_id=2, role="user",
+                mock_db,
+                kb_id=1,
+                user_id=2,
+                role="user",
                 data=KnowledgeBaseUpdate(name="想改你的KB"),
             )
 
@@ -601,7 +619,10 @@ class TestUpdateKB:
         mock_db.flush = AsyncMock()
 
         result = await update_kb(
-            mock_db, kb_id=1, user_id=2, role="admin",
+            mock_db,
+            kb_id=1,
+            user_id=2,
+            role="admin",
             data=KnowledgeBaseUpdate(visibility="public"),
         )
 
@@ -621,7 +642,10 @@ class TestUpdateKB:
 
         with pytest.raises(KnowledgeBaseNameExistsException) as exc:
             await update_kb(
-                mock_db, kb_id=1, user_id=1, role="user",
+                mock_db,
+                kb_id=1,
+                user_id=1,
+                role="user",
                 data=KnowledgeBaseUpdate(name="冲突名称"),
             )
         assert exc.value.error_code == "E1002"
@@ -656,13 +680,16 @@ class TestUpdateKB:
         # db.refresh 会把 kb.chunk_count 和 kb.doc_count 重置为 DB 缓存值 0
         async def _refresh_reset_counts(instance):
             instance.chunk_count = 0  # 模拟 DB 缓存列值
-            instance.doc_count = 0    # 模拟 DB 缓存列值
+            instance.doc_count = 0  # 模拟 DB 缓存列值
             instance.updated_at = datetime.now(timezone.utc)
 
         mock_db.refresh.side_effect = _refresh_reset_counts
 
         result = await update_kb(
-            mock_db, kb_id=1, user_id=1, role="user",
+            mock_db,
+            kb_id=1,
+            user_id=1,
+            role="user",
             data=KnowledgeBaseUpdate(name="验证计数修正"),
         )
 
@@ -698,7 +725,10 @@ class TestUpdateKB:
         mock_db.flush = AsyncMock()
 
         result = await update_kb(
-            mock_db, kb_id=1, user_id=1, role="user",
+            mock_db,
+            kb_id=1,
+            user_id=1,
+            role="user",
             data=KnowledgeBaseUpdate(name="新名"),
         )
 

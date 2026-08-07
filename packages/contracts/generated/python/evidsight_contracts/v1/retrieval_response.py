@@ -1,4 +1,5 @@
 """由 packages/contracts/schemas/v1/retrieval-response.schema.json 生成，请勿手工编辑业务字段。"""
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from .common import NonNegativeInt, RequestId, SemVerStr

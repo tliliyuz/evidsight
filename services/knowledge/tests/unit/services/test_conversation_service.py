@@ -22,9 +22,16 @@ from app.schemas.conversation import ConversationResponse
 # ==================== 辅助函数 ====================
 
 
-def _make_conv(conv_id=1, user_id=1, kb_id=1, title="新对话",
-               message_count=0, last_message_at=None,
-               original_kb_id=None, original_kb_name=None):
+def _make_conv(
+    conv_id=1,
+    user_id=1,
+    kb_id=1,
+    title="新对话",
+    message_count=0,
+    last_message_at=None,
+    original_kb_id=None,
+    original_kb_name=None,
+):
     """构造 Conversation ORM 对象 mock（带 knowledge_base relationship）
 
     kb_status / kb_name 显式设为 None：model_validate(from_attributes=True)
@@ -134,11 +141,13 @@ class TestListConversations:
         conv2.knowledge_base = kb
         conv2.kb_uuid = kb.uuid
 
-        db.execute = AsyncMock(side_effect=[
-            _make_scalar_mock(2),                      # count
-            _make_scalars_unique_all([conv1, conv2]),   # list query
-            _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),  # owner uuid
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                _make_scalar_mock(2),  # count
+                _make_scalars_unique_all([conv1, conv2]),  # list query
+                _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),  # owner uuid
+            ]
+        )
 
         result = await list_conversations(db, user_id=1, page=1, page_size=20)
 
@@ -155,10 +164,12 @@ class TestListConversations:
         from app.services.conversation_service import list_conversations
 
         db = AsyncMock()
-        db.execute = AsyncMock(side_effect=[
-            _make_scalar_mock(0),
-            _make_scalars_unique_all([]),
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                _make_scalar_mock(0),
+                _make_scalars_unique_all([]),
+            ]
+        )
 
         result = await list_conversations(db, user_id=1)
 
@@ -171,16 +182,23 @@ class TestListConversations:
         from app.services.conversation_service import list_conversations
 
         db = AsyncMock()
-        conv = _make_conv(conv_id=10, kb_id=None, title="孤儿会话",
-                          original_kb_id=5, original_kb_name="已删除知识库")
+        conv = _make_conv(
+            conv_id=10,
+            kb_id=None,
+            title="孤儿会话",
+            original_kb_id=5,
+            original_kb_name="已删除知识库",
+        )
         conv.knowledge_base = None
         conv.kb_uuid = None
 
-        db.execute = AsyncMock(side_effect=[
-            _make_scalar_mock(1),
-            _make_scalars_unique_all([conv]),
-            _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),  # owner uuid
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                _make_scalar_mock(1),
+                _make_scalars_unique_all([conv]),
+                _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),  # owner uuid
+            ]
+        )
 
         result = await list_conversations(db, user_id=1)
 
@@ -227,9 +245,15 @@ class TestCreateConversation:
         data = ConversationCreate(kb_uuid="550e8400-e29b-41d4-a716-446655440000", title="测试会话")
 
         # mock resolve_uuid_to_id（service 内部局部导入）+ _enrich_kb_status
-        with patch("app.core.uuid_helpers.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.services.conversation_service._enrich_kb_status") as mock_enrich, \
-             patch("app.services.conversation_service.resolve_user_uuid", new_callable=AsyncMock) as mock_uuid:
+        with (
+            patch(
+                "app.core.uuid_helpers.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.services.conversation_service._enrich_kb_status") as mock_enrich,
+            patch(
+                "app.services.conversation_service.resolve_user_uuid", new_callable=AsyncMock
+            ) as mock_uuid,
+        ):
             mock_resolve.return_value = 1
             mock_uuid.return_value = "550e8400-e29b-41d4-a716-446655440001"
             result = await create_conversation(db, user_id=1, data=data)
@@ -267,11 +291,13 @@ class TestGetConversationDetail:
         msg1 = _make_msg(msg_id=1, role="user", content="报销流程是什么？")
         msg2 = _make_msg(msg_id=2, role="assistant", content="报销流程如下...")
 
-        db.execute = AsyncMock(side_effect=[
-            _make_scalars_unique_one_or_none(conv),  # get conv
-            _make_scalars_all_mock([msg1, msg2]),     # get messages
-            _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),  # owner uuid
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                _make_scalars_unique_one_or_none(conv),  # get conv
+                _make_scalars_all_mock([msg1, msg2]),  # get messages
+                _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),  # owner uuid
+            ]
+        )
 
         result = await get_conversation_detail(db, conv_id=1, user_id=1)
 
@@ -288,9 +314,11 @@ class TestGetConversationDetail:
         from app.services.conversation_service import get_conversation_detail
 
         db = AsyncMock()
-        db.execute = AsyncMock(side_effect=[
-            _make_scalars_unique_one_or_none(None),  # conv not found
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                _make_scalars_unique_one_or_none(None),  # conv not found
+            ]
+        )
 
         with pytest.raises(ConversationNotFoundException):
             await get_conversation_detail(db, conv_id=999, user_id=1)
@@ -304,9 +332,11 @@ class TestGetConversationDetail:
         conv = _make_conv(conv_id=1, user_id=1)
         conv.knowledge_base = None
         conv.kb_uuid = None
-        db.execute = AsyncMock(side_effect=[
-            _make_scalars_unique_one_or_none(conv),
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                _make_scalars_unique_one_or_none(conv),
+            ]
+        )
 
         with pytest.raises(ConversationAccessDeniedException):
             await get_conversation_detail(db, conv_id=1, user_id=999)

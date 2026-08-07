@@ -98,7 +98,10 @@ async def claim_task_lease(
     generation = row.scalar_one_or_none()
     logger.info(
         "租约领取成功: task_id=%s, worker=%s, generation=%s, ttl=%ss",
-        task_id, worker_id, generation, ttl_seconds,
+        task_id,
+        worker_id,
+        generation,
+        ttl_seconds,
     )
     return generation
 
@@ -307,7 +310,8 @@ class TaskLockHandle:
         self._refresh_task = asyncio.create_task(_refresh_loop())
         logger.debug(
             "启动任务级锁租约刷新: task_id=%s, interval=%ss",
-            self._task_id, interval,
+            self._task_id,
+            interval,
         )
 
     def _stop_refresh(self) -> None:
@@ -345,15 +349,14 @@ async def start_research_task(
     if current_status == "pending":
         locked = await lock_handle.acquire()
         if not locked:
-            logger.warning(
-                "正常路径获取任务级锁失败，尝试强制释放残留锁: task_id=%s", task_id
-            )
+            logger.warning("正常路径获取任务级锁失败，尝试强制释放残留锁: task_id=%s", task_id)
             await release_task_lock_async(task_id)
             locked = await lock_handle.acquire()
             if not locked:
                 logger.error(
                     "强制释放残留锁后仍无法获取任务级锁，但仍提交 running "
-                    "交由超时监察者兜底: task_id=%s", task_id
+                    "交由超时监察者兜底: task_id=%s",
+                    task_id,
                 )
 
         result = await session.execute(
@@ -362,9 +365,7 @@ async def start_research_task(
             .values(status="running", started_at=now)
         )
         if result.rowcount == 0:
-            logger.warning(
-                "CAS 失败：任务状态已非 pending，释放锁并跳过: task_id=%s", task_id
-            )
+            logger.warning("CAS 失败：任务状态已非 pending，释放锁并跳过: task_id=%s", task_id)
             await lock_handle.release()
             return False
         await session.commit()
@@ -379,15 +380,11 @@ async def start_research_task(
     elif current_status == "running":
         logger.warning("任务处于 running，进入崩溃恢复路径: task_id=%s", task_id)
         if not await lock_handle.acquire():
-            logger.warning(
-                "崩溃恢复时任务级锁已被占用，跳过: task_id=%s", task_id
-            )
+            logger.warning("崩溃恢复时任务级锁已被占用，跳过: task_id=%s", task_id)
             return False
 
     else:
-        logger.warning(
-            "任务状态不支持启动: task_id=%s, status=%s", task_id, current_status
-        )
+        logger.warning("任务状态不支持启动: task_id=%s, status=%s", task_id, current_status)
         return False
 
     # 领取 DB 租约（§13.1 / DATABASE.md §8）：pending 与崩溃恢复路径统一在此领取
@@ -398,7 +395,8 @@ async def start_research_task(
     if generation is None:
         logger.warning(
             "租约领取失败（条件不满足），放弃启动: task_id=%s, worker=%s",
-            task_id, worker_id,
+            task_id,
+            worker_id,
         )
         await lock_handle.release()
         return False
@@ -407,7 +405,9 @@ async def start_research_task(
     await session.refresh(task)
     logger.info(
         "Worker 已领取租约: task_id=%s, worker=%s, generation=%s",
-        task_id, worker_id, generation,
+        task_id,
+        worker_id,
+        generation,
     )
 
     # 修正旧任务 total_steps
@@ -417,22 +417,28 @@ async def start_research_task(
         await session.refresh(task)
         logger.info(
             "修正 total_steps: task_id=%s, old=%s → new=%d",
-            task_id, task.total_steps, len(PHASE_ORDER)
+            task_id,
+            task.total_steps,
+            len(PHASE_ORDER),
         )
 
     # 仅正常启动路径发送 task.created
     if current_status == "pending":
-        await sse_bridge.publish(EVENT_TASK_CREATED, {
-            "task_id": task_id,
-            "status": "running",
-            "created_at": task.created_at.isoformat() if task.created_at else None,
-        })
+        await sse_bridge.publish(
+            EVENT_TASK_CREATED,
+            {
+                "task_id": task_id,
+                "status": "running",
+                "created_at": task.created_at.isoformat() if task.created_at else None,
+            },
+        )
 
     emit_task_status_transition("running")
 
     logger.info(
         "任务启动: task_id=%s, mode=%s",
-        task_id, "recovery" if current_status == "running" else "normal",
+        task_id,
+        "recovery" if current_status == "running" else "normal",
     )
     return True
 
@@ -468,7 +474,8 @@ async def load_task_steps(session: AsyncSession, task_id: str) -> list[ResearchS
     except Exception as exc:
         logger.debug(
             "显式查询 Step 失败，回退到 task.steps: task_id=%s, error=%s",
-            task_id, exc,
+            task_id,
+            exc,
         )
 
     task = await session.get(ResearchTask, task_id)
@@ -498,11 +505,7 @@ async def emergency_fail_task(
         recoverable=recoverable,
     )
     if updated:
-        logger.warning(
-            "紧急失败写入成功: task_id=%s, error_code=%s", task_id, error_code
-        )
+        logger.warning("紧急失败写入成功: task_id=%s, error_code=%s", task_id, error_code)
     else:
-        logger.warning(
-            "紧急失败写入 CAS 失败，任务已非 pending/running: task_id=%s", task_id
-        )
+        logger.warning("紧急失败写入 CAS 失败，任务已非 pending/running: task_id=%s", task_id)
     return updated

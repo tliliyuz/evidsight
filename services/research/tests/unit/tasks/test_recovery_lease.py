@@ -40,6 +40,7 @@ class _SessionContextManager:
 def _session_factory(db_session):
     def factory():
         return _SessionContextManager(db_session)
+
     return factory
 
 
@@ -76,7 +77,9 @@ class TestRecoverStaleTasksByLease:
     @pytest.mark.asyncio
     async def test_租约过期的running任务_重新投递(self, db_session):
         task = await _seed_running_task(
-            db_session, "task-stale-1", lease_expires_at=_now() - timedelta(seconds=30),
+            db_session,
+            "task-stale-1",
+            lease_expires_at=_now() - timedelta(seconds=30),
         )
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
@@ -90,7 +93,9 @@ class TestRecoverStaleTasksByLease:
     @pytest.mark.asyncio
     async def test_租约未过期的running任务_不投递(self, db_session):
         task = await _seed_running_task(
-            db_session, "task-fresh-1", lease_expires_at=_now() + timedelta(seconds=60),
+            db_session,
+            "task-fresh-1",
+            lease_expires_at=_now() + timedelta(seconds=60),
         )
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
@@ -103,7 +108,9 @@ class TestRecoverStaleTasksByLease:
     @pytest.mark.asyncio
     async def test_租约过期_但锁存在_跳过(self, db_session):
         task = await _seed_running_task(
-            db_session, "task-locked-1", lease_expires_at=_now() - timedelta(seconds=30),
+            db_session,
+            "task-locked-1",
+            lease_expires_at=_now() - timedelta(seconds=30),
         )
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
@@ -117,7 +124,8 @@ class TestRecoverStaleTasksByLease:
     @pytest.mark.asyncio
     async def test_恢复后_清除旧owner_递增恢复计数(self, db_session):
         task = await _seed_running_task(
-            db_session, "task-owner-1",
+            db_session,
+            "task-owner-1",
             lease_expires_at=_now() - timedelta(seconds=30),
             recovery_count=2,
         )
@@ -137,7 +145,9 @@ class TestRecoverStaleTasksByLease:
     @pytest.mark.asyncio
     async def test_恢复时_遗留runningStep置为retrying(self, db_session):
         task = await _seed_running_task(
-            db_session, "task-steps-1", lease_expires_at=_now() - timedelta(seconds=30),
+            db_session,
+            "task-steps-1",
+            lease_expires_at=_now() - timedelta(seconds=30),
         )
         step = ResearchStep(task_id=task.id, step_type="search", status="running")
         db_session.add(step)
@@ -175,7 +185,10 @@ class TestRecoverStaleTasksByLease:
     @pytest.mark.asyncio
     async def test_无租约的running任务_视为过期可恢复(self, db_session):
         task = await _seed_running_task(
-            db_session, "task-nolease-1", lease_expires_at=None, lease_owner=None,
+            db_session,
+            "task-nolease-1",
+            lease_expires_at=None,
+            lease_owner=None,
         )
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):

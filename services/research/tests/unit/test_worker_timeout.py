@@ -68,9 +68,7 @@ class TestMarkTaskWorkerTimeout:
 
         context_session = AsyncMock()
         context_result = MagicMock()
-        context_result.scalar_one_or_none.return_value = {
-            "last_completed_step_id": "step-abc"
-        }
+        context_result.scalar_one_or_none.return_value = {"last_completed_step_id": "step-abc"}
         context_session.execute.return_value = context_result
 
         def _session_factory():
@@ -88,8 +86,10 @@ class TestMarkTaskWorkerTimeout:
 
         sse_bridge = AsyncMock()
 
-        with patch("app.main.async_session_factory", side_effect=_session_factory()), \
-             patch("app.main.SSEBridge", return_value=sse_bridge):
+        with (
+            patch("app.main.async_session_factory", side_effect=_session_factory()),
+            patch("app.main.SSEBridge", return_value=sse_bridge),
+        ):
             from app.main import _mark_task_worker_timeout
 
             await _mark_task_worker_timeout(task_id)
@@ -104,7 +104,9 @@ class TestMarkTaskWorkerTimeout:
         assert "E3112" in str(compiled)
 
         # 验证 SSE
-        publish_calls = [c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_FAILED]
+        publish_calls = [
+            c for c in sse_bridge.publish.await_args_list if c[0][0] == EVENT_TASK_FAILED
+        ]
         assert len(publish_calls) == 1
         payload = publish_calls[0][0][1]
         assert payload["task_id"] == task_id
@@ -123,8 +125,10 @@ class TestMarkTaskWorkerTimeout:
 
         sse_bridge = AsyncMock()
 
-        with patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)), \
-             patch("app.main.SSEBridge", return_value=sse_bridge):
+        with (
+            patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
+            patch("app.main.SSEBridge", return_value=sse_bridge),
+        ):
             from app.main import _mark_task_worker_timeout
 
             await _mark_task_worker_timeout(task_id)
@@ -143,8 +147,10 @@ class TestMarkTaskWorkerTimeout:
         sse_bridge = AsyncMock()
         sse_bridge.publish.side_effect = RuntimeError("Redis 不可用")
 
-        with patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)), \
-             patch("app.main.SSEBridge", return_value=sse_bridge):
+        with (
+            patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
+            patch("app.main.SSEBridge", return_value=sse_bridge),
+        ):
             from app.main import _mark_task_worker_timeout
 
             # 不应抛异常
@@ -187,10 +193,12 @@ class TestCheckWorkerTimeouts:
         task_id = "task-101"
         session = self._setup_session_for_two_queries([_running_task_row(task_id)])
 
-        with patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)), \
-             patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=True), \
-             patch("app.main._mark_task_worker_timeout") as mark_failed, \
-             patch("app.main._mark_task_pending_timeout") as mark_pending:
+        with (
+            patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
+            patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=True),
+            patch("app.main._mark_task_worker_timeout") as mark_failed,
+            patch("app.main._mark_task_pending_timeout") as mark_pending,
+        ):
             from app.main import _check_worker_timeouts
 
             await _check_worker_timeouts()
@@ -204,11 +212,13 @@ class TestCheckWorkerTimeouts:
         task_id = "task-102"
         session = self._setup_session_for_two_queries([_running_task_row(task_id)])
 
-        with patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)), \
-             patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=False), \
-             patch("app.main._mark_task_worker_timeout") as mark_failed, \
-             patch("app.main._mark_task_pending_timeout") as mark_pending, \
-             patch("app.main.settings.WORKER_TIMEOUT_SECONDS", 0):
+        with (
+            patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
+            patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=False),
+            patch("app.main._mark_task_worker_timeout") as mark_failed,
+            patch("app.main._mark_task_pending_timeout") as mark_pending,
+            patch("app.main.settings.WORKER_TIMEOUT_SECONDS", 0),
+        ):
             from app.main import _check_worker_timeouts
 
             # 第一次：记录首次缺失时间
@@ -226,10 +236,12 @@ class TestCheckWorkerTimeouts:
         started_at = datetime.now(timezone.utc) - timedelta(seconds=2)
         session = self._setup_session_for_two_queries([(task_id, started_at)])
 
-        with patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)), \
-             patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=False), \
-             patch("app.main._mark_task_worker_timeout") as mark_failed, \
-             patch("app.main._mark_task_pending_timeout") as mark_pending:
+        with (
+            patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
+            patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=False),
+            patch("app.main._mark_task_worker_timeout") as mark_failed,
+            patch("app.main._mark_task_pending_timeout") as mark_pending,
+        ):
             from app.main import _check_worker_timeouts
 
             await _check_worker_timeouts()
@@ -242,9 +254,11 @@ class TestCheckWorkerTimeouts:
         """没有 running 任务时 _mark_task_worker_timeout 不被调用。"""
         session = self._setup_session_for_two_queries([])
 
-        with patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)), \
-             patch("app.main._mark_task_worker_timeout") as mark_failed, \
-             patch("app.main._mark_task_pending_timeout") as mark_pending:
+        with (
+            patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
+            patch("app.main._mark_task_worker_timeout") as mark_failed,
+            patch("app.main._mark_task_pending_timeout") as mark_pending,
+        ):
             from app.main import _check_worker_timeouts
 
             await _check_worker_timeouts()
@@ -258,10 +272,16 @@ class TestCheckWorkerTimeouts:
         task_id = "task-104"
         session = self._setup_session_for_two_queries([_running_task_row(task_id)])
 
-        with patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)), \
-             patch("app.main.check_task_lock_async", new_callable=AsyncMock, side_effect=RuntimeError("Redis 断开")), \
-             patch("app.main._mark_task_worker_timeout") as mark_failed, \
-             patch("app.main._mark_task_pending_timeout") as mark_pending:
+        with (
+            patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
+            patch(
+                "app.main.check_task_lock_async",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("Redis 断开"),
+            ),
+            patch("app.main._mark_task_worker_timeout") as mark_failed,
+            patch("app.main._mark_task_pending_timeout") as mark_pending,
+        ):
             from app.main import _check_worker_timeouts
 
             await _check_worker_timeouts()
@@ -277,19 +297,23 @@ class TestCheckWorkerTimeouts:
 
         from app import main as main_module
 
-        with patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)), \
-             patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=False), \
-             patch("app.main._mark_task_worker_timeout"), \
-             patch("app.main._mark_task_pending_timeout"):
+        with (
+            patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
+            patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=False),
+            patch("app.main._mark_task_worker_timeout"),
+            patch("app.main._mark_task_pending_timeout"),
+        ):
             from app.main import _check_worker_timeouts
 
             await _check_worker_timeouts()
             assert task_id in main_module._worker_lock_missing_since
 
-        with patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)), \
-             patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=True), \
-             patch("app.main._mark_task_worker_timeout") as mark_failed, \
-             patch("app.main._mark_task_pending_timeout") as mark_pending:
+        with (
+            patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
+            patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=True),
+            patch("app.main._mark_task_worker_timeout") as mark_failed,
+            patch("app.main._mark_task_pending_timeout") as mark_pending,
+        ):
             from app.main import _check_worker_timeouts
 
             await _check_worker_timeouts()

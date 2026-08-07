@@ -1,4 +1,5 @@
 """Synthesis 阶段单元测试 —— 跨源综合、LLM 重试、输出校验。"""
+
 import json
 from datetime import datetime, timezone
 from typing import Any
@@ -203,8 +204,12 @@ class TestSynthesisSuccess:
         assert output["completion_tokens"] == 500
         assert output["evidence_count"] == 2
 
-        progress_calls = [c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_PROGRESS]
-        completed_calls = [c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_COMPLETED]
+        progress_calls = [
+            c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_PROGRESS
+        ]
+        completed_calls = [
+            c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_COMPLETED
+        ]
         assert len(progress_calls) == 2
         assert "跨源综合" in progress_calls[0].args[1]["label"]
         assert progress_calls[1].args[1]["clusters_count"] == 1
@@ -309,7 +314,9 @@ class TestSynthesisSuccess:
         assert output["conflicts"] == []
         assert output["conflicts_count"] == 0
 
-        completed_calls = [c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_COMPLETED]
+        completed_calls = [
+            c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_COMPLETED
+        ]
         assert len(completed_calls) == 1
         assert completed_calls[0].args[1]["conflicts"] == []
 
@@ -343,7 +350,13 @@ class TestSynthesisFailure:
 
         with patch("app.pipeline.synthesizer.chat_completion") as mock_llm:
             mock_llm.side_effect = [
-                LLMResult(content="不是 JSON", reasoning_content="", prompt_tokens=100, completion_tokens=50, total_tokens=150),
+                LLMResult(
+                    content="不是 JSON",
+                    reasoning_content="",
+                    prompt_tokens=100,
+                    completion_tokens=50,
+                    total_tokens=150,
+                ),
                 _make_llm_result(_valid_notes()),
             ]
             output = await run_synthesis(task, synthesis_step, db_session, sse)

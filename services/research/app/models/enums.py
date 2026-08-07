@@ -7,8 +7,13 @@
 # ── 研究任务表 ──────────────────────────────────────────────────
 
 TASK_STATUS_ENUM = (
-    "pending", "running", "completed", "partially_completed",
-    "failed", "canceled", "paused",
+    "pending",
+    "running",
+    "completed",
+    "partially_completed",
+    "failed",
+    "canceled",
+    "paused",
 )
 
 # ── 来源策略（DATABASE.md §5.1）────────────────────────────────
@@ -16,19 +21,34 @@ TASK_STATUS_ENUM = (
 SOURCE_STRATEGY_ENUM = ("knowledge", "web", "hybrid")
 
 TASK_PHASE_ENUM = (
-    "planning", "searching", "fetching", "reranking",
-    "synthesizing", "building_evidence_graph", "rendering",
+    "planning",
+    "searching",
+    "fetching",
+    "reranking",
+    "synthesizing",
+    "building_evidence_graph",
+    "rendering",
 )
 
 # ── 研究步骤表 ──────────────────────────────────────────────────
 
 STEP_TYPE_ENUM = (
-    "planning", "search", "fetch", "rerank",
-    "synthesis", "evidence_graph", "render",
+    "planning",
+    "search",
+    "fetch",
+    "rerank",
+    "synthesis",
+    "evidence_graph",
+    "render",
 )
 
 STEP_STATUS_ENUM = (
-    "pending", "running", "completed", "failed", "skipped", "retrying",
+    "pending",
+    "running",
+    "completed",
+    "failed",
+    "skipped",
+    "retrying",
 )
 
 # ── 来源表 ──────────────────────────────────────────────────────

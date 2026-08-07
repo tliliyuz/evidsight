@@ -71,17 +71,17 @@ class TestListUsers:
 
         # execute 调用顺序：count → data → 每个用户 4 次聚合查询
         effects = [
-            _make_scalar_mock(2),                   # count 查询 total=2
-            _make_scalars_all_mock(users),          # data 查询返回 2 个 user
+            _make_scalar_mock(2),  # count 查询 total=2
+            _make_scalars_all_mock(users),  # data 查询返回 2 个 user
             # user 1 (alice) 的 4 次聚合
-            _make_scalar_mock(3),                   # kb_count=3
-            _make_scalar_mock(15),                  # doc_count=15
-            _make_scalar_mock(10),                  # conversation_count=10
+            _make_scalar_mock(3),  # kb_count=3
+            _make_scalar_mock(15),  # doc_count=15
+            _make_scalar_mock(10),  # conversation_count=10
             _make_scalar_mock(datetime(2026, 6, 12, tzinfo=timezone.utc)),
             # user 2 (bob) 的 4 次聚合
-            _make_scalar_mock(5),                   # kb_count=5
-            _make_scalar_mock(25),                  # doc_count=25
-            _make_scalar_mock(20),                  # conversation_count=20
+            _make_scalar_mock(5),  # kb_count=5
+            _make_scalar_mock(25),  # doc_count=25
+            _make_scalar_mock(20),  # conversation_count=20
             _make_scalar_mock(datetime(2026, 6, 11, tzinfo=timezone.utc)),
         ]
         db.execute = AsyncMock(side_effect=effects)
@@ -117,12 +117,12 @@ class TestListUsers:
         admin_user = _make_user(2, "admin_user", role="admin")
 
         effects = [
-            _make_scalar_mock(1),                   # count=1
-            _make_scalars_all_mock([admin_user]),   # 仅 1 个 admin
-            _make_scalar_mock(0),                   # kb_count
-            _make_scalar_mock(0),                   # doc_count
-            _make_scalar_mock(0),                   # conversation_count
-            _make_scalar_mock(None),                # last_active_at
+            _make_scalar_mock(1),  # count=1
+            _make_scalars_all_mock([admin_user]),  # 仅 1 个 admin
+            _make_scalar_mock(0),  # kb_count
+            _make_scalar_mock(0),  # doc_count
+            _make_scalar_mock(0),  # conversation_count
+            _make_scalar_mock(None),  # last_active_at
         ]
         db.execute = AsyncMock(side_effect=effects)
 
@@ -144,10 +144,10 @@ class TestListUsers:
         effects = [
             _make_scalar_mock(1),
             _make_scalars_all_mock([disabled_user]),
-            _make_scalar_mock(1),                   # kb_count
-            _make_scalar_mock(2),                   # doc_count
-            _make_scalar_mock(3),                   # conversation_count
-            _make_scalar_mock(None),                # last_active_at
+            _make_scalar_mock(1),  # kb_count
+            _make_scalar_mock(2),  # doc_count
+            _make_scalar_mock(3),  # conversation_count
+            _make_scalar_mock(None),  # last_active_at
         ]
         db.execute = AsyncMock(side_effect=effects)
 
@@ -168,9 +168,9 @@ class TestListUsers:
         effects = [
             _make_scalar_mock(1),
             _make_scalars_all_mock([user]),
-            _make_scalar_mock(2),                   # kb_count
-            _make_scalar_mock(8),                   # doc_count
-            _make_scalar_mock(5),                   # conversation_count
+            _make_scalar_mock(2),  # kb_count
+            _make_scalar_mock(8),  # doc_count
+            _make_scalar_mock(5),  # conversation_count
             _make_scalar_mock(datetime(2026, 6, 10, tzinfo=timezone.utc)),
         ]
         db.execute = AsyncMock(side_effect=effects)
@@ -209,10 +209,10 @@ class TestListUsers:
         effects = [
             _make_scalar_mock(1),
             _make_scalars_all_mock([user]),
-            _make_scalar_mock(None),                # kb_count → None → or 0
-            _make_scalar_mock(None),                # doc_count
-            _make_scalar_mock(None),                # conversation_count
-            _make_scalar_mock(None),                # last_active_at
+            _make_scalar_mock(None),  # kb_count → None → or 0
+            _make_scalar_mock(None),  # doc_count
+            _make_scalar_mock(None),  # conversation_count
+            _make_scalar_mock(None),  # last_active_at
         ]
         db.execute = AsyncMock(side_effect=effects)
 
@@ -244,14 +244,18 @@ class TestGetUserDetail:
 
         # execute 调用顺序：kb_count / doc_count / conversation_count / message_count / token_stats
         token_execute_mock = MagicMock()
-        token_execute_mock.one.return_value = (5000, 2000, datetime(2026, 6, 12, tzinfo=timezone.utc))
+        token_execute_mock.one.return_value = (
+            5000,
+            2000,
+            datetime(2026, 6, 12, tzinfo=timezone.utc),
+        )
 
         effects = [
-            _make_scalar_mock(2),                   # kb_count
-            _make_scalar_mock(15),                  # doc_count
-            _make_scalar_mock(28),                  # conversation_count
-            _make_scalar_mock(156),                 # message_count
-            token_execute_mock,                     # token_stats (用 .one())
+            _make_scalar_mock(2),  # kb_count
+            _make_scalar_mock(15),  # doc_count
+            _make_scalar_mock(28),  # conversation_count
+            _make_scalar_mock(156),  # message_count
+            token_execute_mock,  # token_stats (用 .one())
         ]
         db.execute = AsyncMock(side_effect=effects)
 
@@ -281,11 +285,11 @@ class TestGetUserDetail:
         token_execute_mock.one.return_value = (0, 0, None)
 
         effects = [
-            _make_scalar_mock(0),                   # kb_count
-            _make_scalar_mock(0),                   # doc_count
-            _make_scalar_mock(0),                   # conversation_count
-            _make_scalar_mock(0),                   # message_count
-            token_execute_mock,                     # token_stats
+            _make_scalar_mock(0),  # kb_count
+            _make_scalar_mock(0),  # doc_count
+            _make_scalar_mock(0),  # conversation_count
+            _make_scalar_mock(0),  # message_count
+            token_execute_mock,  # token_stats
         ]
         db.execute = AsyncMock(side_effect=effects)
 
@@ -319,11 +323,11 @@ class TestGetUserDetail:
         token_execute_mock.one.return_value = (0, 0, None)
 
         effects = [
-            _make_scalar_mock(0),                   # kb_count
-            _make_scalar_mock(0),                   # doc_count
-            _make_scalar_mock(0),                   # conversation_count
-            _make_scalar_mock(0),                   # message_count
-            token_execute_mock,                     # token_stats 全零
+            _make_scalar_mock(0),  # kb_count
+            _make_scalar_mock(0),  # doc_count
+            _make_scalar_mock(0),  # conversation_count
+            _make_scalar_mock(0),  # message_count
+            token_execute_mock,  # token_stats 全零
         ]
         db.execute = AsyncMock(side_effect=effects)
 
@@ -358,7 +362,10 @@ class TestChangeUserStatus:
             new_callable=AsyncMock,
         ) as mock_revoke:
             result = await change_user_status(
-                db, user_id=3, new_status="disabled", current_user_id=2,
+                db,
+                user_id=3,
+                new_status="disabled",
+                current_user_id=2,
             )
 
         assert result.status == "disabled"
@@ -383,7 +390,10 @@ class TestChangeUserStatus:
             new_callable=AsyncMock,
         ) as mock_revoke:
             result = await change_user_status(
-                db, user_id=3, new_status="active", current_user_id=2,
+                db,
+                user_id=3,
+                new_status="active",
+                current_user_id=2,
             )
 
         assert result.status == "active"
@@ -402,7 +412,10 @@ class TestChangeUserStatus:
 
         with pytest.raises(AdminSelfModifyException):
             await change_user_status(
-                db, user_id=2, new_status="disabled", current_user_id=2,
+                db,
+                user_id=2,
+                new_status="disabled",
+                current_user_id=2,
             )
 
     @pytest.mark.asyncio
@@ -416,7 +429,10 @@ class TestChangeUserStatus:
 
         with pytest.raises(UserNotFoundException):
             await change_user_status(
-                db, user_id=99999, new_status="disabled", current_user_id=2,
+                db,
+                user_id=99999,
+                new_status="disabled",
+                current_user_id=2,
             )
 
     @pytest.mark.asyncio
@@ -430,7 +446,10 @@ class TestChangeUserStatus:
         db.flush = AsyncMock()
 
         result = await change_user_status(
-            db, user_id=3, new_status="active", current_user_id=2,
+            db,
+            user_id=3,
+            new_status="active",
+            current_user_id=2,
         )
 
         assert result.status == "active"
@@ -457,10 +476,15 @@ class TestResetUserPassword:
         db.get = AsyncMock(return_value=user)
         db.flush = AsyncMock()
 
-        with patch("app.services.admin_service.verify_password", return_value=False) as mock_verify, \
-             patch("app.services.admin_service.hash_password", return_value="$2b$12$new_hash_value") as mock_hash, \
-             patch("app.services.auth_service.revoke_all_user_tokens", new_callable=AsyncMock) as mock_revoke:
-
+        with (
+            patch("app.services.admin_service.verify_password", return_value=False) as mock_verify,
+            patch(
+                "app.services.admin_service.hash_password", return_value="$2b$12$new_hash_value"
+            ) as mock_hash,
+            patch(
+                "app.services.auth_service.revoke_all_user_tokens", new_callable=AsyncMock
+            ) as mock_revoke,
+        ):
             result = await reset_user_password(db, user_id=3, new_password="NewPass123!")
 
         assert result.id == "550e8400-e29b-41d4-a716-446655440003"

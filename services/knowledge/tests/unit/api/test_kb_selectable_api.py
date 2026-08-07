@@ -28,7 +28,13 @@ class TestSelectableKB:
                 {"id": 2, "name": "我的公开库", "visibility": "public", "doc_count": 3},
             ],
             "public": [
-                {"id": 10, "name": "他人公开库", "visibility": "public", "doc_count": 8, "username": "other"},
+                {
+                    "id": 10,
+                    "name": "他人公开库",
+                    "visibility": "public",
+                    "doc_count": 8,
+                    "username": "other",
+                },
             ],
         }
 
@@ -76,7 +82,13 @@ class TestSelectableKB:
                 {"id": 2, "name": "我的公开库", "visibility": "public", "doc_count": 3},
             ],
             "public": [
-                {"id": 10, "name": "他人公开库", "visibility": "public", "doc_count": 5, "username": "other"},
+                {
+                    "id": 10,
+                    "name": "他人公开库",
+                    "visibility": "public",
+                    "doc_count": 5,
+                    "username": "other",
+                },
             ],
         }
 
@@ -123,8 +135,20 @@ class TestSelectableKB:
         mock_data = {
             "mine": [],  # admin 自己没有 KB
             "public": [
-                {"id": 10, "name": "用户A的公开库", "visibility": "public", "doc_count": 5, "username": "userA"},
-                {"id": 11, "name": "用户B的公开库", "visibility": "public", "doc_count": 3, "username": "userB"},
+                {
+                    "id": 10,
+                    "name": "用户A的公开库",
+                    "visibility": "public",
+                    "doc_count": 5,
+                    "username": "userA",
+                },
+                {
+                    "id": 11,
+                    "name": "用户B的公开库",
+                    "visibility": "public",
+                    "doc_count": 3,
+                    "username": "userB",
+                },
             ],
         }
 

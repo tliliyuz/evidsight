@@ -102,7 +102,7 @@ def _extract_json_from_text(text: str) -> str:
     if brace_end == -1:
         return text
 
-    return text[brace_start:brace_end + 1]
+    return text[brace_start : brace_end + 1]
 
 
 def _count_entities(text: str) -> int:
@@ -121,22 +121,71 @@ def _count_entities(text: str) -> int:
     if is_chinese_dominant:
         try:
             import jieba
+
             words = jieba.lcut(text)
             # 中文常见虚词/停用词（单字 + 高频虚词）
             _chinese_stopwords = {
-                "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一",
-                "一个", "这", "那", "这个", "那个", "也", "与", "及", "或", "但", "而",
-                "吗", "呢", "吧", "啊", "哦", "呀", "么", "嘛", "哈",
-                "什么", "怎么", "怎样", "为什么", "哪里", "哪个", "如何",
-                "可以", "可能", "应该", "需要", "能够", "会", "要",
-                "着", "过", "得", "地", "所", "被", "把", "让", "将", "以",
+                "的",
+                "了",
+                "在",
+                "是",
+                "我",
+                "有",
+                "和",
+                "就",
+                "不",
+                "人",
+                "都",
+                "一",
+                "一个",
+                "这",
+                "那",
+                "这个",
+                "那个",
+                "也",
+                "与",
+                "及",
+                "或",
+                "但",
+                "而",
+                "吗",
+                "呢",
+                "吧",
+                "啊",
+                "哦",
+                "呀",
+                "么",
+                "嘛",
+                "哈",
+                "什么",
+                "怎么",
+                "怎样",
+                "为什么",
+                "哪里",
+                "哪个",
+                "如何",
+                "可以",
+                "可能",
+                "应该",
+                "需要",
+                "能够",
+                "会",
+                "要",
+                "着",
+                "过",
+                "得",
+                "地",
+                "所",
+                "被",
+                "把",
+                "让",
+                "将",
+                "以",
             }
             meaningful = [
-                w for w in words
-                if len(w) >= 2
-                and w not in _chinese_stopwords
-                and not w.isdigit()
-                and w.strip()
+                w
+                for w in words
+                if len(w) >= 2 and w not in _chinese_stopwords and not w.isdigit() and w.strip()
             ]
             return len(meaningful)
         except ImportError:
@@ -144,16 +193,50 @@ def _count_entities(text: str) -> int:
 
     # 回退：英文按空格分词，过滤短词和停用词
     import string as _string
+
     english_stopwords = {
-        "the", "a", "an", "is", "are", "was", "were", "be", "been",
-        "in", "on", "at", "to", "for", "of", "and", "or", "it", "its",
-        "this", "that", "what", "how", "why", "when", "where", "who",
-        "has", "have", "do", "does", "did", "will", "would", "can", "could",
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "and",
+        "or",
+        "it",
+        "its",
+        "this",
+        "that",
+        "what",
+        "how",
+        "why",
+        "when",
+        "where",
+        "who",
+        "has",
+        "have",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "can",
+        "could",
     }
     words = text.split()
     punctuation = set(_string.punctuation)
     meaningful = [
-        w for w in words
+        w
+        for w in words
         if len(w) >= 3
         and w.lower() not in english_stopwords
         and not w.isdigit()
@@ -263,9 +346,7 @@ async def run_planning(
     language = requirements.get("language", "zh")
 
     # 获取策略段落
-    strategy = _TASK_TYPE_STRATEGIES.get(
-        task_type, _TASK_TYPE_STRATEGIES["explainer"]
-    )
+    strategy = _TASK_TYPE_STRATEGIES.get(task_type, _TASK_TYPE_STRATEGIES["explainer"])
 
     # 构建 System Prompt
     system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
@@ -276,7 +357,9 @@ async def run_planning(
 
     logger.info(
         "Planning 开始: task_id=%s, task_type=%s, language=%s",
-        task_id, task_type, language,
+        task_id,
+        task_type,
+        language,
     )
 
     messages: list[dict[str, str]] = [
@@ -291,16 +374,21 @@ async def run_planning(
     for attempt in range(max_retries + 1):
         logger.info(
             "Planning 第 %d/%d 次尝试: task_id=%s",
-            attempt + 1, max_retries + 1, task_id,
+            attempt + 1,
+            max_retries + 1,
+            task_id,
         )
 
         # 发射进度：attempt 为已发生的重试次数（0 表示首次）
-        await sse_bridge.publish(EVENT_STEP_PROGRESS, {
-            "step_id": step_id,
-            "phase": "planning",
-            "attempt": attempt,
-            "max_retries": max_retries,
-        })
+        await sse_bridge.publish(
+            EVENT_STEP_PROGRESS,
+            {
+                "step_id": step_id,
+                "phase": "planning",
+                "attempt": attempt,
+                "max_retries": max_retries,
+            },
+        )
 
         # 调用 LLM
         result = await chat_completion(
@@ -321,14 +409,14 @@ async def run_planning(
             logger.warning("Planning JSON 解析失败 (attempt %d): %s", attempt, e)
             if attempt < max_retries:
                 messages.append({"role": "assistant", "content": result.content})
-                messages.append({
-                    "role": "user",
-                    "content": f"JSON 解析失败：{e}。请重新输出严格 JSON 格式。",
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": f"JSON 解析失败：{e}。请重新输出严格 JSON 格式。",
+                    }
+                )
                 continue
-            raise PlanningFailedException(
-                detail=f"JSON 解析失败（{max_retries} 次重试耗尽）: {e}"
-            )
+            raise PlanningFailedException(detail=f"JSON 解析失败（{max_retries} 次重试耗尽）: {e}")
 
         sub_questions = parsed["sub_questions"]
 
@@ -336,12 +424,15 @@ async def run_planning(
         validation_errors = _validate_sub_questions(sub_questions)
         if not validation_errors:
             # 通过！发射 SSE 事件并返回
-            await sse_bridge.publish(EVENT_STEP_PROGRESS, {
-                "step_id": step_id,
-                "sub_questions_generated": len(sub_questions),
-                "sub_questions": sub_questions,
-                "rationale": parsed["rationale"],
-            })
+            await sse_bridge.publish(
+                EVENT_STEP_PROGRESS,
+                {
+                    "step_id": step_id,
+                    "sub_questions_generated": len(sub_questions),
+                    "sub_questions": sub_questions,
+                    "rationale": parsed["rationale"],
+                },
+            )
 
             output = {
                 "sub_questions": sub_questions,
@@ -354,7 +445,9 @@ async def run_planning(
 
             logger.info(
                 "Planning 完成: task_id=%s, sub_questions=%d, retries=%d",
-                task_id, len(sub_questions), attempt,
+                task_id,
+                len(sub_questions),
+                attempt,
             )
             return output
 
@@ -364,12 +457,14 @@ async def run_planning(
         if attempt < max_retries:
             # 追加错误反馈到消息历史
             messages.append({"role": "assistant", "content": result.content})
-            messages.append({
-                "role": "user",
-                "content": _RETRY_FEEDBACK_MESSAGE.format(
-                    errors="; ".join(validation_errors),
-                ),
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": _RETRY_FEEDBACK_MESSAGE.format(
+                        errors="; ".join(validation_errors),
+                    ),
+                }
+            )
             continue
 
         # 重试耗尽

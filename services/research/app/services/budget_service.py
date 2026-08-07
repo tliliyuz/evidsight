@@ -218,7 +218,9 @@ def settle_budget(task: Any, usage_delta: dict) -> bool:
             continue
         current = usage.get(key, 0)
         try:
-            usage[key] = current + float(value) if key == KEY_USAGE_COST_USD else current + int(value)
+            usage[key] = (
+                current + float(value) if key == KEY_USAGE_COST_USD else current + int(value)
+            )
         except (TypeError, ValueError):
             continue
 

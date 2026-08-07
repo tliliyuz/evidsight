@@ -38,12 +38,15 @@ _UUID_RE = re.compile(
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AC-010 Evidence 来源可追溯性验证")
     parser.add_argument("--service-token", required=True, help="Internal API Service JWT")
-    parser.add_argument("--tasks", required=True,
-                        help="Research Task 引用 JSON：[{task_id, references:[...]}]")
-    parser.add_argument("--base-url", default="http://localhost:8000",
-                        help="Knowledge API 基地址")
-    parser.add_argument("--user-id", default="550e8400-e29b-41d4-a716-446655440001",
-                        help="请求用户 Platform UUID（默认测试用户）")
+    parser.add_argument(
+        "--tasks", required=True, help="Research Task 引用 JSON：[{task_id, references:[...]}]"
+    )
+    parser.add_argument("--base-url", default="http://localhost:8000", help="Knowledge API 基地址")
+    parser.add_argument(
+        "--user-id",
+        default="550e8400-e29b-41d4-a716-446655440001",
+        help="请求用户 Platform UUID（默认测试用户）",
+    )
     parser.add_argument("--request-timeout", type=int, default=30, help="单请求超时（秒）")
     return parser.parse_args()
 
@@ -59,8 +62,9 @@ def _load_tasks(path: Path) -> list[dict]:
     return data
 
 
-def _resolve(api_base: str, token: str, user_id: str, references: list[dict],
-             timeout: int) -> list[dict] | None:
+def _resolve(
+    api_base: str, token: str, user_id: str, references: list[dict], timeout: int
+) -> list[dict] | None:
     """调用 Internal Evidence Resolve；请求失败返回 None（整批失败）。"""
     body = {
         "contract_version": CONTRACT_VERSION,
@@ -74,8 +78,9 @@ def _resolve(api_base: str, token: str, user_id: str, references: list[dict],
         "X-Request-ID": str(uuid_lib.uuid4()),
         "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
     }
-    resp = httpx.post(f"{api_base}/internal/v1/retrieval/resolve",
-                      json=body, headers=headers, timeout=timeout)
+    resp = httpx.post(
+        f"{api_base}/internal/v1/retrieval/resolve", json=body, headers=headers, timeout=timeout
+    )
     if resp.status_code != 200:
         return None
     return resp.json().get("results", [])
@@ -100,8 +105,9 @@ def main() -> int:
 
     for task in tasks:
         refs = task["references"]
-        results = _resolve(args.base_url, args.service_token, args.user_id,
-                           refs, args.request_timeout)
+        results = _resolve(
+            args.base_url, args.service_token, args.user_id, refs, args.request_timeout
+        )
         task_id = task.get("task_id", "?")
         if results is None:
             problems.append(f"task={task_id}: Resolve 请求失败（非 200 / 服务错误）")
@@ -109,11 +115,9 @@ def main() -> int:
 
         for ref, result in zip(refs, results):
             total_refs += 1
-            ref_desc = (f"task={task_id} doc={ref.get('document_id')} "
-                        f"seg={ref.get('segment_id')}")
+            ref_desc = f"task={task_id} doc={ref.get('document_id')} seg={ref.get('segment_id')}"
             # 引用本身 UUID 合法性
-            for field in ("document_id", "document_version_id", "segment_id",
-                          "knowledge_base_id"):
+            for field in ("document_id", "document_version_id", "segment_id", "knowledge_base_id"):
                 if not _is_valid_uuid(ref.get(field, "")):
                     problems.append(f"{ref_desc}: {field} 非合法 UUID")
             # 解析结果可追溯性
@@ -125,14 +129,14 @@ def main() -> int:
                 traceable += 1
 
     rate = (traceable / total_refs) if total_refs else 0.0
-    print(f"[AC-010] 引用总数: {total_refs}，可追溯: {traceable}，"
-          f"追溯率: {rate:.2%}（门槛 100%）")
+    print(f"[AC-010] 引用总数: {total_refs}，可追溯: {traceable}，追溯率: {rate:.2%}（门槛 100%）")
     for p in problems:
         print(f"  - 不可追溯: {p}")
 
     try:
         commit = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], text=True,
+            ["git", "rev-parse", "--short", "HEAD"],
+            text=True,
         ).strip()
     except Exception:  # noqa: BLE001
         commit = "unknown"

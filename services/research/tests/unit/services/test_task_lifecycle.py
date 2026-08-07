@@ -50,7 +50,9 @@ class TestTaskLockHandle:
 
 
 class TestStartResearchTask:
-    async def test_pending任务启动(self, db_session: AsyncSession, seeded_user, fake_locks, monkeypatch):
+    async def test_pending任务启动(
+        self, db_session: AsyncSession, seeded_user, fake_locks, monkeypatch
+    ):
         user, _ = seeded_user
         task = ResearchTask(
             id="task-1",

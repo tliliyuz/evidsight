@@ -18,6 +18,7 @@ from app.middleware.rate_limit_middleware import (
 
 # ==================== 单元测试 ====================
 
+
 class TestGetClientIp:
     """客户端 IP 提取"""
 
@@ -98,18 +99,25 @@ class TestGetLimitForGroup:
 
 # ==================== 集成测试（ASGI 中间件）====================
 
+
 def _make_mock_app(status_code=200, body=b'{"code":"0"}'):
     """创建 mock ASGI 应用（返回固定响应）"""
+
     async def mock_app(scope, receive, send):
-        await send({
-            "type": "http.response.start",
-            "status": status_code,
-            "headers": [[b"content-type", b"application/json"]],
-        })
-        await send({
-            "type": "http.response.body",
-            "body": body,
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status_code,
+                "headers": [[b"content-type", b"application/json"]],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": body,
+            }
+        )
+
     return mock_app
 
 
@@ -138,10 +146,13 @@ class TestRateLimitMiddlewareIntegration:
             app = RateLimitMiddleware(_make_mock_app())
             scope = _make_asgi_scope("/api/knowledge-bases", "GET")
             messages = []
+
             async def receive():
                 return {"type": "http.request", "body": b""}
+
             async def send(msg):
                 messages.append(msg)
+
             await app(scope, receive, send)
 
         # 找到 http.response.start 消息
@@ -161,10 +172,13 @@ class TestRateLimitMiddlewareIntegration:
             app = RateLimitMiddleware(_make_mock_app())
             scope = _make_asgi_scope("/api/knowledge-bases", "GET")
             messages = []
+
             async def receive():
                 return {"type": "http.request", "body": b""}
+
             async def send(msg):
                 messages.append(msg)
+
             await app(scope, receive, send)
 
         # 找到 http.response.start 消息
@@ -212,10 +226,13 @@ class TestRateLimitMiddlewareIntegration:
             app = RateLimitMiddleware(_make_mock_app())
             scope = _make_asgi_scope("/api/knowledge-bases", "GET")
             messages = []
+
             async def receive():
                 return {"type": "http.request", "body": b""}
+
             async def send(msg):
                 messages.append(msg)
+
             await app(scope, receive, send)
 
         # 限流关闭时不应注入限流 header
@@ -232,10 +249,13 @@ class TestRateLimitMiddlewareIntegration:
             app = RateLimitMiddleware(_make_mock_app())
             scope = _make_asgi_scope("/api/knowledge-bases", "GET")
             messages = []
+
             async def receive():
                 return {"type": "http.request", "body": b""}
+
             async def send(msg):
                 messages.append(msg)
+
             await app(scope, receive, send)
 
         # Redis 故障时应降级放行（正常响应，非 429）
@@ -251,10 +271,13 @@ class TestRateLimitMiddlewareIntegration:
         app = RateLimitMiddleware(_make_mock_app())
         scope = _make_asgi_scope("/api/knowledge-bases", "OPTIONS")
         messages = []
+
         async def receive():
             return {"type": "http.request", "body": b""}
+
         async def send(msg):
             messages.append(msg)
+
         await app(scope, receive, send)
 
         start_msg = next(m for m in messages if m["type"] == "http.response.start")
@@ -267,10 +290,13 @@ class TestRateLimitMiddlewareIntegration:
         app = RateLimitMiddleware(_make_mock_app())
         scope = _make_asgi_scope("/api/health", "GET")
         messages = []
+
         async def receive():
             return {"type": "http.request", "body": b""}
+
         async def send(msg):
             messages.append(msg)
+
         await app(scope, receive, send)
 
         start_msg = next(m for m in messages if m["type"] == "http.response.start")
@@ -285,10 +311,13 @@ class TestRateLimitMiddlewareIntegration:
         scope = _make_asgi_scope("/ws", "GET")
         scope["type"] = "websocket"  # 非 HTTP 类型
         messages = []
+
         async def receive():
             return {"type": "http.request", "body": b""}
+
         async def send(msg):
             messages.append(msg)
+
         await app(scope, receive, send)
 
         # WebSocket 请求直接放行，不经过限流逻辑
@@ -305,10 +334,13 @@ class TestRateLimitMiddlewareIntegration:
                 app = RateLimitMiddleware(_make_mock_app())
                 scope = _make_asgi_scope("/api/chat", "POST", "10.0.0.1")
                 messages = []
+
                 async def receive():
                     return {"type": "http.request", "body": b""}
+
                 async def send(msg):
                     messages.append(msg)
+
                 await app(scope, receive, send)
 
         # 验证 eval 调用参数

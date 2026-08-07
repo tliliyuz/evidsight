@@ -74,7 +74,7 @@ class TestEvidencePreviewIntegration:
         assert src.highlight_start is not None
         assert src.highlight_end is not None
         assert 0 <= src.highlight_start < src.highlight_end <= len(src.preview_text)
-        highlighted = src.preview_text[src.highlight_start:src.highlight_end]
+        highlighted = src.preview_text[src.highlight_start : src.highlight_end]
         assert highlighted == best_sentence
 
     def test_evidence定位_不同question命中不同句子(self):
@@ -107,8 +107,8 @@ class TestEvidencePreviewIntegration:
         # 验证 highlight 区间各自正确
         sources1 = build_sources(matched1.results, {1: "报销制度.md"})
         sources2 = build_sources(matched2.results, {1: "报销制度.md"})
-        h1 = sources1[0].preview_text[sources1[0].highlight_start:sources1[0].highlight_end]
-        h2 = sources2[0].preview_text[sources2[0].highlight_start:sources2[0].highlight_end]
+        h1 = sources1[0].preview_text[sources1[0].highlight_start : sources1[0].highlight_end]
+        h2 = sources2[0].preview_text[sources2[0].highlight_start : sources2[0].highlight_end]
         assert "差旅费" in h1
         assert "办公用品" in h2
 
@@ -119,10 +119,12 @@ class TestEvidencePreviewIntegration:
         chunk1 = "员工入职需要提交身份证复印件和学历证明。人力资源部审核通过后办理入职手续。"
         chunk2 = "VPN 配置步骤：打开系统设置，选择网络和Internet，点击VPN添加连接。"
 
-        output = RetrievalOutput(results=[
-            _make_result(chunk1, doc_id=1),
-            _make_result(chunk2, doc_id=2),
-        ])
+        output = RetrievalOutput(
+            results=[
+                _make_result(chunk1, doc_id=1),
+                _make_result(chunk2, doc_id=2),
+            ]
+        )
 
         matched = match_sentences(output, "入职需要什么材料 VPN配置")
         sources = build_sources(matched.results, {1: "入职.pdf", 2: "IT手册.pdf"})
@@ -152,7 +154,8 @@ class TestEvidencePreviewFallback:
         from app.services.chat_service import build_sources
 
         result = RetrievalResult(
-            doc_id=1, chunk_index=0,
+            doc_id=1,
+            chunk_index=0,
             content="测试内容" * 50,
             score=0.9,
             # matched_sentence 默认为 None
@@ -172,7 +175,8 @@ class TestEvidencePreviewFallback:
         from app.services.chat_service import build_sources
 
         result = RetrievalResult(
-            doc_id=1, chunk_index=0,
+            doc_id=1,
+            chunk_index=0,
             content="",
             score=0.5,
             matched_sentence="某句",
@@ -191,7 +195,8 @@ class TestEvidencePreviewFallback:
         from app.services.chat_service import build_sources
 
         result = RetrievalResult(
-            doc_id=1, chunk_index=0,
+            doc_id=1,
+            chunk_index=0,
             content="",
             score=0.5,
         )
@@ -219,7 +224,9 @@ class TestEvidencePreviewShortChunk:
 
         assert sources[0].preview_text is not None
         assert sources[0].preview_text in chunk_content
-        assert 0 <= sources[0].preview_range.start < sources[0].preview_range.end <= len(chunk_content)
+        assert (
+            0 <= sources[0].preview_range.start < sources[0].preview_range.end <= len(chunk_content)
+        )
         # highlight 区间有效
         assert sources[0].highlight_start is not None
         assert sources[0].highlight_end is not None
@@ -266,7 +273,7 @@ class TestHighlightRange:
         sources = build_sources(matched.results, {1: "test.md"})
         src = sources[0]
 
-        highlighted = src.preview_text[src.highlight_start:src.highlight_end]
+        highlighted = src.preview_text[src.highlight_start : src.highlight_end]
         assert highlighted == best_sentence
 
     def test_highlight在preview_text边界内(self):
@@ -338,7 +345,8 @@ class TestBuildSourcesFormat:
         from app.services.chat_service import build_sources
 
         result = RetrievalResult(
-            doc_id=1, chunk_index=0,
+            doc_id=1,
+            chunk_index=0,
             content="测试内容。",
             score=0.123456,
         )
@@ -416,13 +424,20 @@ class TestBuildSourcesEdgeCases:
 
         results = [
             RetrievalResult(
-                doc_id=1, chunk_index=0, content="内容。", score=0.9,
+                doc_id=1,
+                chunk_index=0,
+                content="内容。",
+                score=0.9,
                 section_title="§6.1 SSE 事件完整格式",
                 section_path="RAG Pipeline > §6 SSE 事件流",
             ),
             RetrievalResult(
-                doc_id=2, chunk_index=0, content="内容。", score=0.8,
-                section_title=None, section_path=None,
+                doc_id=2,
+                chunk_index=0,
+                content="内容。",
+                score=0.8,
+                section_title=None,
+                section_path=None,
             ),
         ]
 

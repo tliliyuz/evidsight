@@ -27,15 +27,9 @@ class RequirementsSchema(BaseModel):
     task_type: Literal["comparison", "explainer", "analysis"] = Field(
         ..., description="研究类型：comparison / explainer / analysis"
     )
-    depth: Literal["quick"] = Field(
-        "quick", description="研究深度，MVP 仅支持 quick"
-    )
-    max_sources: int = Field(
-        10, ge=1, le=50, description="信息源数量上限（1-50）"
-    )
-    language: str = Field(
-        "zh", min_length=2, max_length=10, description="报告语言，如 zh / en"
-    )
+    depth: Literal["quick"] = Field("quick", description="研究深度，MVP 仅支持 quick")
+    max_sources: int = Field(10, ge=1, le=50, description="信息源数量上限（1-50）")
+    language: str = Field("zh", min_length=2, max_length=10, description="报告语言，如 zh / en")
 
 
 # ── 创建请求 ────────────────────────────────────────────────────
@@ -48,9 +42,7 @@ class ResearchCreateRequest(BaseModel):
     knowledge/hybrid 必须至少选择一个当前可读 KB（1-50 个），web 不接受内部 KB。
     """
 
-    topic: str = Field(
-        ..., min_length=1, max_length=500, description="研究主题（≤ 500 字符）"
-    )
+    topic: str = Field(..., min_length=1, max_length=500, description="研究主题（≤ 500 字符）")
     requirements: RequirementsSchema = Field(
         ..., description="研究要求配置（task_type / depth / max_sources / language）"
     )

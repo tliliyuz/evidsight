@@ -37,17 +37,11 @@ READY_WITH_WARNINGS = "ready_with_warnings"
 FAILED = "failed"
 
 # 解析至验证阶段 → 对外 processing
-PROCESSING_STAGES: frozenset[str] = frozenset(
-    {PARSING, CHUNKING, EMBEDDING, INDEXING, VERIFYING}
-)
+PROCESSING_STAGES: frozenset[str] = frozenset({PARSING, CHUNKING, EMBEDDING, INDEXING, VERIFYING})
 # 终态版本：不可再被 Worker 恢复
-TERMINAL_VERSION_STATUSES: frozenset[str] = frozenset(
-    {READY, READY_WITH_WARNINGS, FAILED}
-)
+TERMINAL_VERSION_STATUSES: frozenset[str] = frozenset({READY, READY_WITH_WARNINGS, FAILED})
 # 可检索版本（Internal Retrieval 只读这些）
-RETRIEVABLE_VERSION_STATUSES: frozenset[str] = frozenset(
-    {READY, READY_WITH_WARNINGS}
-)
+RETRIEVABLE_VERSION_STATUSES: frozenset[str] = frozenset({READY, READY_WITH_WARNINGS})
 
 
 class PublishAbortedError(Exception):
@@ -100,9 +94,7 @@ async def count_active_version_chunks(db, kb_id: int) -> int:
 async def count_version_chunks(db, version_id: int) -> int:
     """统计指定 Version 的 chunks 总数（发布成功后回填 doc.chunk_count）。"""
     result = await db.execute(
-        select(func.count())
-        .select_from(Chunk)
-        .where(Chunk.document_version_id == version_id)
+        select(func.count()).select_from(Chunk).where(Chunk.document_version_id == version_id)
     )
     return result.scalar() or 0
 
@@ -110,9 +102,7 @@ async def count_version_chunks(db, version_id: int) -> int:
 async def next_version_number(db, doc_id: int) -> int:
     """同一 Document 内 version 递增且唯一：max(version)+1，无历史从 1 开始。"""
     result = await db.execute(
-        select(func.max(DocumentVersion.version)).where(
-            DocumentVersion.document_id == doc_id
-        )
+        select(func.max(DocumentVersion.version)).where(DocumentVersion.document_id == doc_id)
     )
     max_version = result.scalar()
     return (max_version or 0) + 1
@@ -169,13 +159,9 @@ def verify_staging(
     """
     issues: list[str] = []
     if len(chunk_rows) != declared_count:
-        issues.append(
-            f"Segment 数不一致: 解析声明={declared_count}, MySQL={len(chunk_rows)}"
-        )
+        issues.append(f"Segment 数不一致: 解析声明={declared_count}, MySQL={len(chunk_rows)}")
     if len(staging_rows) != len(chunk_rows):
-        issues.append(
-            f"Embedding 数量不一致: staging={len(staging_rows)}, MySQL={len(chunk_rows)}"
-        )
+        issues.append(f"Embedding 数量不一致: staging={len(staging_rows)}, MySQL={len(chunk_rows)}")
     staging_indices = {r["chunk_index"] for r in staging_rows}
     chunk_indices = {c["chunk_index"] for c in chunk_rows}
     if staging_indices != chunk_indices:
@@ -213,8 +199,7 @@ async def publish_version(db, kb, doc, version, store, staging_rows) -> None:
     try:
         # 2. 将 staging 向量写入现有 per-KB Collection（版本作用域 Chroma id）
         ids = [
-            build_version_chroma_id(doc.id, version.version, r["chunk_index"])
-            for r in staging_rows
+            build_version_chroma_id(doc.id, version.version, r["chunk_index"]) for r in staging_rows
         ]
         await store.add(
             ids=ids,
@@ -234,9 +219,7 @@ async def publish_version(db, kb, doc, version, store, staging_rows) -> None:
         )
 
         # 3. MySQL 事务切换 active_version + 版本终态
-        final_status = (
-            version.status if version.status in (READY, READY_WITH_WARNINGS) else READY
-        )
+        final_status = version.status if version.status in (READY, READY_WITH_WARNINGS) else READY
         doc.active_version = version.version
         version.status = final_status
         version.published_at = datetime.now(timezone.utc)
@@ -260,18 +243,22 @@ async def publish_version(db, kb, doc, version, store, staging_rows) -> None:
         #    应全部落在在线 Collection；缺失即发布失败 → recovering，
         #    由恢复器依据 Active Version 补齐或回滚（不静默接受丢失）
         expected = {
-            build_version_chroma_id(doc.id, version.version, r["chunk_index"])
-            for r in staging_rows
+            build_version_chroma_id(doc.id, version.version, r["chunk_index"]) for r in staging_rows
         }
-        actual = set(await store.get_ids(
-            kb_id=kb.id,
-            where={"$and": [{"doc_id": doc.id}, {"version": version.version}]},
-        ))
+        actual = set(
+            await store.get_ids(
+                kb_id=kb.id,
+                where={"$and": [{"doc_id": doc.id}, {"version": version.version}]},
+            )
+        )
         if actual != expected:
             missing = sorted(expected - actual)
             logger.error(
                 "发布后在线集合校验失败: kb_id=%d doc_id=%d version=%d missing=%s",
-                kb.id, doc.id, version.version, missing,
+                kb.id,
+                doc.id,
+                version.version,
+                missing,
             )
             raise RuntimeError(
                 f"在线集合校验失败，缺失 {len(missing)} 个向量（示例: {missing[:5]}）"
@@ -312,9 +299,7 @@ async def write_staging_artifact(kb_id: int, version_uuid: str, staging_rows: li
 
     from app.config import settings
 
-    artifact_key = str(
-        Path(settings.UPLOAD_DIR) / "staging" / str(kb_id) / f"{version_uuid}.json"
-    )
+    artifact_key = str(Path(settings.UPLOAD_DIR) / "staging" / str(kb_id) / f"{version_uuid}.json")
     await local_storage.save_bytes(
         artifact_key,
         json.dumps(staging_rows, ensure_ascii=False).encode("utf-8"),

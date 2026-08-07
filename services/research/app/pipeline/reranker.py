@@ -101,6 +101,7 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一个研究证据评审专家。你需要对
 @dataclass
 class FetchedDoc:
     """Fetch 阶段产出的单篇文档（内存结构）。"""
+
     source_id: int
     url: str
     title: str
@@ -117,6 +118,7 @@ class Candidate:
     - internal：source_id=None，使用稳定 KB/Document/Version/Segment 身份，
       content 为当前 Step 内存中 resolve 重取的正文，持久化时不写入。
     """
+
     source_id: int | None
     url: str
     title: str
@@ -140,6 +142,7 @@ class Candidate:
 @dataclass
 class Evidence:
     """LLM 精排后的证据条目（web / internal 统一结构）。"""
+
     source_id: int | None
     url: str
     title: str
@@ -182,7 +185,7 @@ def _extract_json_from_text(text: str) -> str:
     if brace_end == -1:
         return text
 
-    return text[brace_start:brace_end + 1]
+    return text[brace_start : brace_end + 1]
 
 
 def _parse_llm_ratings(raw_text: str, expected_count: int) -> list[dict]:
@@ -223,11 +226,13 @@ def _parse_llm_ratings(raw_text: str, expected_count: int) -> list[dict]:
         if not isinstance(rationale, str):
             rationale = str(rationale)
 
-        parsed.append({
-            "segment_index": segment_index,
-            "score": float(score),
-            "rationale": rationale,
-        })
+        parsed.append(
+            {
+                "segment_index": segment_index,
+                "score": float(score),
+                "rationale": rationale,
+            }
+        )
 
     return parsed
 
@@ -256,14 +261,16 @@ async def _load_fetched_docs(
     for source in sources:
         if not source.content or not source.content.strip():
             continue
-        docs.append(FetchedDoc(
-            source_id=source.id,
-            url=source.url,
-            title=source.title or "",
-            domain=source.domain or "",
-            content=source.content,
-            fetched_at=source.fetched_at,
-        ))
+        docs.append(
+            FetchedDoc(
+                source_id=source.id,
+                url=source.url,
+                title=source.title or "",
+                domain=source.domain or "",
+                content=source.content,
+                fetched_at=source.fetched_at,
+            )
+        )
 
     return docs
 
@@ -387,24 +394,26 @@ def _internal_to_candidates(
             except (TypeError, ValueError):
                 bm25_score = 0.0
 
-        candidates.append(Candidate(
-            source_id=None,
-            url="",
-            title=c.get("document_display_name") or "",
-            domain="",
-            content=excerpt,
-            sub_question_index=int(c.get("sub_question_index") or 1),
-            bm25_score=bm25_score,
-            source_type="internal",
-            knowledge_base_id=c.get("knowledge_base_id"),
-            document_id=c.get("document_id"),
-            document_version_id=c.get("document_version_id"),
-            segment_id=c.get("segment_id"),
-            document_display_name=c.get("document_display_name"),
-            location=c.get("location"),
-            source_observed_at=c.get("source_updated_at"),
-            scores=scores,
-        ))
+        candidates.append(
+            Candidate(
+                source_id=None,
+                url="",
+                title=c.get("document_display_name") or "",
+                domain="",
+                content=excerpt,
+                sub_question_index=int(c.get("sub_question_index") or 1),
+                bm25_score=bm25_score,
+                source_type="internal",
+                knowledge_base_id=c.get("knowledge_base_id"),
+                document_id=c.get("document_id"),
+                document_version_id=c.get("document_version_id"),
+                segment_id=c.get("segment_id"),
+                document_display_name=c.get("document_display_name"),
+                location=c.get("location"),
+                source_observed_at=c.get("source_updated_at"),
+                scores=scores,
+            )
+        )
         if len(candidates) >= max_candidates:
             break
     return candidates
@@ -494,16 +503,18 @@ def _bm25_stage(
 
         for seg_idx, score in sorted_segments:
             content = segments[seg_idx]
-            candidates.append(Candidate(
-                source_id=doc.source_id,
-                url=doc.url,
-                title=doc.title,
-                domain=doc.domain,
-                content=content,
-                sub_question_index=segment_best_sq.get(seg_idx, 0),
-                bm25_score=score,
-                fetched_at=doc.fetched_at,
-            ))
+            candidates.append(
+                Candidate(
+                    source_id=doc.source_id,
+                    url=doc.url,
+                    title=doc.title,
+                    domain=doc.domain,
+                    content=content,
+                    sub_question_index=segment_best_sq.get(seg_idx, 0),
+                    bm25_score=score,
+                    fetched_at=doc.fetched_at,
+                )
+            )
 
         if len(candidates) >= max_candidates:
             break
@@ -534,9 +545,7 @@ def _build_rerank_prompt(
         task_type, _TASK_TYPE_DIMENSIONS["explainer"]
     )
 
-    sub_questions_text = "\n".join(
-        f"{i}. {sq}" for i, sq in enumerate(sub_questions, start=1)
-    )
+    sub_questions_text = "\n".join(f"{i}. {sq}" for i, sq in enumerate(sub_questions, start=1))
 
     # 按 token 预算逐步截断 candidates：先减少数量，再缩短单片段长度
     max_candidates = len(candidates)
@@ -565,7 +574,10 @@ def _build_rerank_prompt(
             if max_candidates < len(candidates) or content_limit < 1500:
                 logger.warning(
                     "Rerank Prompt 截断: candidates %d→%d, content_limit=%d, tokens=%d",
-                    len(candidates), max_candidates, content_limit, tokens,
+                    len(candidates),
+                    max_candidates,
+                    content_limit,
+                    tokens,
                 )
             return messages, candidates_text
 
@@ -636,28 +648,30 @@ async def _llm_rerank(
             evidence_list: list[Evidence] = []
             for i, rating in enumerate(ratings):
                 candidate = candidates[i]
-                evidence_list.append(Evidence(
-                    source_id=candidate.source_id,
-                    url=candidate.url,
-                    title=candidate.title,
-                    domain=candidate.domain,
-                    content=candidate.content,
-                    relevance_score=round(rating["score"] / 10.0, 3),
-                    bm25_score=candidate.bm25_score,
-                    sub_question_index=candidate.sub_question_index,
-                    word_count=len(candidate.content),
-                    rationale=rating["rationale"],
-                    source_type=candidate.source_type,
-                    knowledge_base_id=candidate.knowledge_base_id,
-                    document_id=candidate.document_id,
-                    document_version_id=candidate.document_version_id,
-                    segment_id=candidate.segment_id,
-                    document_display_name=candidate.document_display_name,
-                    location=candidate.location,
-                    source_observed_at=candidate.source_observed_at,
-                    fetched_at=candidate.fetched_at,
-                    scores=candidate.scores,
-                ))
+                evidence_list.append(
+                    Evidence(
+                        source_id=candidate.source_id,
+                        url=candidate.url,
+                        title=candidate.title,
+                        domain=candidate.domain,
+                        content=candidate.content,
+                        relevance_score=round(rating["score"] / 10.0, 3),
+                        bm25_score=candidate.bm25_score,
+                        sub_question_index=candidate.sub_question_index,
+                        word_count=len(candidate.content),
+                        rationale=rating["rationale"],
+                        source_type=candidate.source_type,
+                        knowledge_base_id=candidate.knowledge_base_id,
+                        document_id=candidate.document_id,
+                        document_version_id=candidate.document_version_id,
+                        segment_id=candidate.segment_id,
+                        document_display_name=candidate.document_display_name,
+                        location=candidate.location,
+                        source_observed_at=candidate.source_observed_at,
+                        fetched_at=candidate.fetched_at,
+                        scores=candidate.scores,
+                    )
+                )
 
             # 按 relevance_score 降序
             evidence_list.sort(key=lambda e: e.relevance_score, reverse=True)
@@ -668,11 +682,15 @@ async def _llm_rerank(
             logger.warning("Rerank LLM 输出解析失败 (attempt %d): %s", attempt, e)
             if attempt < max_retries:
                 # 追加错误反馈，要求重试
-                messages.append({"role": "assistant", "content": result.content if 'result' in dir() else ""})
-                messages.append({
-                    "role": "user",
-                    "content": f"输出格式错误：{e}。请重新输出严格 JSON，确保 ratings 数组长度={expected_count}。",
-                })
+                messages.append(
+                    {"role": "assistant", "content": result.content if "result" in dir() else ""}
+                )
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": f"输出格式错误：{e}。请重新输出严格 JSON，确保 ratings 数组长度={expected_count}。",
+                    }
+                )
                 continue
             break
 
@@ -684,9 +702,7 @@ async def _llm_rerank(
                 continue
             break
 
-    raise RerankFailedException(
-        detail=f"LLM Rerank 失败（{max_retries} 次重试耗尽）: {last_error}"
-    )
+    raise RerankFailedException(detail=f"LLM Rerank 失败（{max_retries} 次重试耗尽）: {last_error}")
 
 
 # ── Evidence 持久化 ───────────────────────────────────────────
@@ -694,9 +710,7 @@ async def _llm_rerank(
 
 async def _clear_task_evidence(session: AsyncSession, task_id: str) -> None:
     """清空任务下已有 EvidenceItem，避免 Step 重试时累加重复计数。"""
-    await session.execute(
-        delete(EvidenceItem).where(EvidenceItem.task_id == task_id)
-    )
+    await session.execute(delete(EvidenceItem).where(EvidenceItem.task_id == task_id))
 
 
 async def _persist_evidence(
@@ -799,7 +813,10 @@ async def run_rerank(
 
     logger.info(
         "Rerank 开始: task_id=%s, task_type=%s, max_sources=%d, strategy=%s",
-        task_id, task_type, max_sources, strategy,
+        task_id,
+        task_type,
+        max_sources,
+        strategy,
     )
 
     sub_questions = await _load_sub_questions(session, task)
@@ -816,7 +833,8 @@ async def run_rerank(
         if internal_raw:
             pairs = await _resolve_internal_candidates(task, internal_raw)
             internal_candidates = _internal_to_candidates(
-                pairs, max_candidates=settings.RERANK_CANDIDATE_MAX,
+                pairs,
+                max_candidates=settings.RERANK_CANDIDATE_MAX,
             )
             candidates.extend(internal_candidates)
             internal_count = len(internal_candidates)
@@ -841,29 +859,38 @@ async def run_rerank(
 
     logger.info(
         "Rerank 候选准备完成: task_id=%s, internal=%d, web=%d, total=%d",
-        task_id, internal_count, web_count, len(candidates),
+        task_id,
+        internal_count,
+        web_count,
+        len(candidates),
     )
 
-    await sse_bridge.publish(EVENT_STEP_PROGRESS, {
-        "step_id": step_id,
-        "phase": "reranking",
-        "label": (
-            f"BM25 粗筛完成，{len(candidates)} 个候选进入精排"
-            if internal_count == 0
-            else f"候选准备完成，{len(candidates)} 个候选进入精排（内部 {internal_count} / 网页 {web_count}）"
-        ),
-        "candidates_count": len(candidates),
-    })
+    await sse_bridge.publish(
+        EVENT_STEP_PROGRESS,
+        {
+            "step_id": step_id,
+            "phase": "reranking",
+            "label": (
+                f"BM25 粗筛完成，{len(candidates)} 个候选进入精排"
+                if internal_count == 0
+                else f"候选准备完成，{len(candidates)} 个候选进入精排（内部 {internal_count} / 网页 {web_count}）"
+            ),
+            "candidates_count": len(candidates),
+        },
+    )
 
     if not candidates:
         raise RerankFailedException(detail="候选为空，无法精排")
 
-    await sse_bridge.publish(EVENT_STEP_PROGRESS, {
-        "step_id": step_id,
-        "phase": "reranking",
-        "label": f"正在对 {len(candidates)} 个候选进行 LLM 精排...",
-        "candidates_count": len(candidates),
-    })
+    await sse_bridge.publish(
+        EVENT_STEP_PROGRESS,
+        {
+            "step_id": step_id,
+            "phase": "reranking",
+            "label": f"正在对 {len(candidates)} 个候选进行 LLM 精排...",
+            "candidates_count": len(candidates),
+        },
+    )
 
     # 2. LLM 精排
     evidence_list, prompt_tokens, completion_tokens, retry_count = await _llm_rerank(
@@ -887,15 +914,20 @@ async def run_rerank(
 
     # 6. 质量警告（Evidence < 3 不阻断）
     if len(selected_evidence) < 3:
-        await sse_bridge.publish(EVENT_TASK_WARNING, {
-            "step_id": step_id,
-            "error_description": f"精排后 Evidence 数量 {len(selected_evidence)} < 3，可能影响后续综合质量",
-        })
+        await sse_bridge.publish(
+            EVENT_TASK_WARNING,
+            {
+                "step_id": step_id,
+                "error_description": f"精排后 Evidence 数量 {len(selected_evidence)} < 3，可能影响后续综合质量",
+            },
+        )
 
     # 7. 聚合统计
-    avg_score = round(
-        sum(e.relevance_score for e in selected_evidence) / len(selected_evidence), 3
-    ) if selected_evidence else 0.0
+    avg_score = (
+        round(sum(e.relevance_score for e in selected_evidence) / len(selected_evidence), 3)
+        if selected_evidence
+        else 0.0
+    )
 
     top_domains: list[str] = []
     seen_domains: set[str] = set()
@@ -910,24 +942,26 @@ async def run_rerank(
 
     logger.info(
         "Rerank 完成: task_id=%s, evidence=%d, avg_score=%.3f, top_domains=%s",
-        task_id, len(selected_evidence), avg_score, top_domains,
+        task_id,
+        len(selected_evidence),
+        avg_score,
+        top_domains,
     )
 
-    await sse_bridge.publish(EVENT_STEP_COMPLETED, {
-        "step_id": step_id,
-        "evidence_count": len(selected_evidence),
-        "avg_score": avg_score,
-        "top_domains": top_domains,
-    })
+    await sse_bridge.publish(
+        EVENT_STEP_COMPLETED,
+        {
+            "step_id": step_id,
+            "evidence_count": len(selected_evidence),
+            "avg_score": avg_score,
+            "top_domains": top_domains,
+        },
+    )
 
     output = {
         "evidence_count": len(selected_evidence),
-        "internal_evidence_count": sum(
-            1 for e in selected_evidence if e.source_type == "internal"
-        ),
-        "web_evidence_count": sum(
-            1 for e in selected_evidence if e.source_type == "web"
-        ),
+        "internal_evidence_count": sum(1 for e in selected_evidence if e.source_type == "internal"),
+        "web_evidence_count": sum(1 for e in selected_evidence if e.source_type == "web"),
         "candidates_count": len(candidates),
         "bm25_candidates": web_count,  # 向后兼容：web 策略下为 BM25 候选数
         "avg_score": avg_score,

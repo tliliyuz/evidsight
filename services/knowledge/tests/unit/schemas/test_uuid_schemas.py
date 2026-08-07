@@ -43,10 +43,15 @@ class TestKnowledgeBaseResponseSchema:
     def test_contains_uuid_field(self):
         """序列化输出含 uuid 字段"""
         resp = KnowledgeBaseResponse(
-            uuid=VALID_UUID, name="测试KB", description="desc",
+            uuid=VALID_UUID,
+            name="测试KB",
+            description="desc",
             owner="550e8400-e29b-41d4-a716-446655440001",
-            visibility="private", status="active",
-            doc_count=5, chunk_count=100, created_at=NOW,
+            visibility="private",
+            status="active",
+            doc_count=5,
+            chunk_count=100,
+            created_at=NOW,
         )
         data = resp.model_dump()
         assert data["uuid"] == VALID_UUID
@@ -55,10 +60,15 @@ class TestKnowledgeBaseResponseSchema:
     def test_does_not_contain_id_field(self):
         """序列化输出不含 id 字段"""
         resp = KnowledgeBaseResponse(
-            uuid=VALID_UUID, name="测试KB", description=None,
+            uuid=VALID_UUID,
+            name="测试KB",
+            description=None,
             owner="550e8400-e29b-41d4-a716-446655440001",
-            visibility="private", status="active",
-            doc_count=0, chunk_count=0, created_at=NOW,
+            visibility="private",
+            status="active",
+            doc_count=0,
+            chunk_count=0,
+            created_at=NOW,
         )
         data = resp.model_dump()
         assert "id" not in data
@@ -74,9 +84,12 @@ class TestDocumentResponseSchema:
     def test_contains_uuid_and_kb_uuid(self):
         """序列化输出含 uuid + kb_uuid"""
         resp = DocumentResponse(
-            uuid=VALID_UUID, kb_uuid=VALID_UUID_2,
-            filename="test.pdf", file_type="pdf",
-            status="completed", created_at=NOW,
+            uuid=VALID_UUID,
+            kb_uuid=VALID_UUID_2,
+            filename="test.pdf",
+            file_type="pdf",
+            status="completed",
+            created_at=NOW,
         )
         data = resp.model_dump()
         assert data["uuid"] == VALID_UUID
@@ -85,9 +98,12 @@ class TestDocumentResponseSchema:
     def test_does_not_contain_id_or_kb_id(self):
         """序列化输出不含 id / kb_id"""
         resp = DocumentResponse(
-            uuid=VALID_UUID, kb_uuid=VALID_UUID_2,
-            filename="test.pdf", file_type="pdf",
-            status="queued", created_at=NOW,
+            uuid=VALID_UUID,
+            kb_uuid=VALID_UUID_2,
+            filename="test.pdf",
+            file_type="pdf",
+            status="queued",
+            created_at=NOW,
         )
         data = resp.model_dump()
         assert "id" not in data
@@ -96,8 +112,10 @@ class TestDocumentResponseSchema:
     def test_upload_response_has_uuid(self):
         """DocumentUploadResponse 含 uuid + kb_uuid"""
         resp = DocumentUploadResponse(
-            uuid=VALID_UUID, kb_uuid=VALID_UUID_2,
-            filename="test.pdf", file_type="pdf",
+            uuid=VALID_UUID,
+            kb_uuid=VALID_UUID_2,
+            filename="test.pdf",
+            file_type="pdf",
             status="queued",
         )
         data = resp.model_dump()
@@ -108,7 +126,8 @@ class TestDocumentResponseSchema:
     def test_delete_response_has_doc_uuid(self):
         """DocumentDeleteResponse 含 doc_uuid"""
         resp = DocumentDeleteResponse(
-            doc_uuid=VALID_UUID, status="deleting",
+            doc_uuid=VALID_UUID,
+            status="deleting",
         )
         data = resp.model_dump()
         assert data["doc_uuid"] == VALID_UUID
@@ -116,7 +135,8 @@ class TestDocumentResponseSchema:
     def test_reprocess_response_has_doc_uuid(self):
         """DocumentReprocessResponse 含 doc_uuid"""
         resp = DocumentReprocessResponse(
-            doc_uuid=VALID_UUID, status="queued",
+            doc_uuid=VALID_UUID,
+            status="queued",
         )
         data = resp.model_dump()
         assert data["doc_uuid"] == VALID_UUID
@@ -131,8 +151,12 @@ class TestConversationResponseSchema:
     def test_contains_uuid_field(self):
         """序列化输出含 uuid"""
         resp = ConversationResponse(
-            uuid=VALID_UUID, owner_user_id="550e8400-e29b-41d4-a716-446655440001", title="新对话",
-            message_count=0, created_at=NOW, updated_at=NOW,
+            uuid=VALID_UUID,
+            owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            title="新对话",
+            message_count=0,
+            created_at=NOW,
+            updated_at=NOW,
         )
         data = resp.model_dump()
         assert data["uuid"] == VALID_UUID
@@ -140,8 +164,12 @@ class TestConversationResponseSchema:
     def test_does_not_contain_id_field(self):
         """序列化输出不含 id"""
         resp = ConversationResponse(
-            uuid=VALID_UUID, owner_user_id="550e8400-e29b-41d4-a716-446655440001", title="新对话",
-            message_count=0, created_at=NOW, updated_at=NOW,
+            uuid=VALID_UUID,
+            owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            title="新对话",
+            message_count=0,
+            created_at=NOW,
+            updated_at=NOW,
         )
         data = resp.model_dump()
         assert "id" not in data
@@ -149,8 +177,13 @@ class TestConversationResponseSchema:
     def test_contains_kb_uuid(self):
         """含 kb_uuid 字段"""
         resp = ConversationResponse(
-            uuid=VALID_UUID, owner_user_id="550e8400-e29b-41d4-a716-446655440001", kb_uuid=VALID_UUID_2,
-            title="新对话", message_count=0, created_at=NOW, updated_at=NOW,
+            uuid=VALID_UUID,
+            owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            kb_uuid=VALID_UUID_2,
+            title="新对话",
+            message_count=0,
+            created_at=NOW,
+            updated_at=NOW,
         )
         data = resp.model_dump()
         assert data["kb_uuid"] == VALID_UUID_2
@@ -158,10 +191,17 @@ class TestConversationResponseSchema:
     def test_contains_original_kb_uuid(self):
         """含 original_kb_uuid 字段（孤儿会话审计）"""
         resp = ConversationResponse(
-            uuid=VALID_UUID, owner_user_id="550e8400-e29b-41d4-a716-446655440001",
-            kb_uuid=None, kb_status="deleted", kb_name="已删除知识库",
-            original_kb_uuid=VALID_UUID_2, original_kb_name="旧KB",
-            title="孤儿会话", message_count=2, created_at=NOW, updated_at=NOW,
+            uuid=VALID_UUID,
+            owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            kb_uuid=None,
+            kb_status="deleted",
+            kb_name="已删除知识库",
+            original_kb_uuid=VALID_UUID_2,
+            original_kb_name="旧KB",
+            title="孤儿会话",
+            message_count=2,
+            created_at=NOW,
+            updated_at=NOW,
         )
         data = resp.model_dump()
         assert data["original_kb_uuid"] == VALID_UUID_2
@@ -230,8 +270,12 @@ class TestTraceResponseSchema:
     def test_trace_list_item_no_id_field(self):
         """TraceListItem 不含自增 id 字段"""
         item = TraceListItem(
-            trace_id="abc-123", owner_user_id="550e8400-e29b-41d4-a716-446655440001", username="testuser",
-            question="测试", status="success", created_at=NOW,
+            trace_id="abc-123",
+            owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            username="testuser",
+            question="测试",
+            status="success",
+            created_at=NOW,
         )
         data = item.model_dump()
         assert "id" not in data
@@ -240,8 +284,12 @@ class TestTraceResponseSchema:
     def test_trace_detail_no_id_field(self):
         """TraceDetailResponse 不含自增 id 字段"""
         detail = TraceDetailResponse(
-            trace_id="abc-123", owner_user_id="550e8400-e29b-41d4-a716-446655440001", username="testuser",
-            question="测试", status="success", created_at=NOW,
+            trace_id="abc-123",
+            owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            username="testuser",
+            question="测试",
+            status="success",
+            created_at=NOW,
         )
         data = detail.model_dump()
         assert "id" not in data
@@ -250,9 +298,13 @@ class TestTraceResponseSchema:
     def test_trace_detail_has_conversation_uuid(self):
         """TraceDetailResponse 含 conversation_uuid"""
         detail = TraceDetailResponse(
-            trace_id="abc-123", owner_user_id="550e8400-e29b-41d4-a716-446655440001", username="testuser",
+            trace_id="abc-123",
+            owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            username="testuser",
             conversation_uuid=VALID_UUID,
-            question="测试", status="success", created_at=NOW,
+            question="测试",
+            status="success",
+            created_at=NOW,
         )
         data = detail.model_dump()
         assert data["conversation_uuid"] == VALID_UUID

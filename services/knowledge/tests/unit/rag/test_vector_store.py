@@ -77,7 +77,8 @@ class TestChromaVectorStoreSearch:
 
         # 验证通过 client.get_or_create_collection 获取 kb_1 collection
         mock_client.get_or_create_collection.assert_called_once_with(
-            name="kb_1", metadata={"hnsw:space": "cosine"},
+            name="kb_1",
+            metadata={"hnsw:space": "cosine"},
         )
         # 验证委托给 collection.query
         mock_collection.query.assert_called_once()
@@ -189,7 +190,8 @@ class TestChromaVectorStoreAdd:
         )
 
         mock_client.get_or_create_collection.assert_called_once_with(
-            name="kb_1", metadata={"hnsw:space": "cosine"},
+            name="kb_1",
+            metadata={"hnsw:space": "cosine"},
         )
         mock_collection.add.assert_called_once()
         call_kwargs = mock_collection.add.call_args[1]
@@ -219,7 +221,8 @@ class TestChromaVectorStoreGetIds:
 
         store = ChromaVectorStore(mock_client)
         ids = await store.get_ids(
-            kb_id=1, where={"$and": [{"doc_id": 1}, {"version": 2}]},
+            kb_id=1,
+            where={"$and": [{"doc_id": 1}, {"version": 2}]},
         )
 
         assert ids == ["doc_1_v2_c0", "doc_1_v2_c1"]
@@ -257,7 +260,8 @@ class TestChromaVectorStoreDelete:
 
         # 验证通过 kb_id 获取 collection 后委托 delete
         mock_client.get_or_create_collection.assert_called_once_with(
-            name="kb_1", metadata={"hnsw:space": "cosine"},
+            name="kb_1",
+            metadata={"hnsw:space": "cosine"},
         )
         mock_collection.delete.assert_called_once_with(where={"doc_id": 42})
 

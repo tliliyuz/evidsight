@@ -132,9 +132,9 @@ async def list_traces(
             return q
 
         # 按状态分组计数
-        status_q = _trace_where(
-            select(Trace.status, func.count().label("cnt"))
-        ).group_by(Trace.status)
+        status_q = _trace_where(select(Trace.status, func.count().label("cnt"))).group_by(
+            Trace.status
+        )
         status_rows = (await db.execute(status_q)).all()
         success = 0
         error = 0
@@ -150,9 +150,7 @@ async def list_traces(
         success_rate = round((success / total) * 100, 1)
 
         # 平均耗时
-        avg_q = _trace_where(
-            select(func.coalesce(func.avg(Trace.total_duration_ms), 0))
-        )
+        avg_q = _trace_where(select(func.coalesce(func.avg(Trace.total_duration_ms), 0)))
         avg_duration_ms = float((await db.execute(avg_q)).scalar() or 0)
 
         # P95 耗时（排序取第 95 百分位）
@@ -177,34 +175,35 @@ async def list_traces(
         )
 
     # 分页数据
-    q = (
-        base_q
-        .order_by(Trace.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
+    q = base_q.order_by(Trace.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     rows = (await db.execute(q)).all()
 
     items = []
     for trace, username, kb_name, kb_uuid_val, conv_uuid, platform_user_id in rows:
-        items.append(TraceListItem(
-            trace_id=trace.trace_id,
-            owner_user_id=platform_user_id,
-            username=username,
-            conversation_uuid=conv_uuid,
-            kb_uuid=kb_uuid_val,
-            kb_name=kb_name,
-            question=trace.question,
-            status=trace.status,
-            intent_type=trace.intent_type,
-            intent_method=trace.intent_method,
-            response_mode=trace.response_mode,
-            total_duration_ms=trace.total_duration_ms,
-            created_at=trace.created_at,
-        ))
+        items.append(
+            TraceListItem(
+                trace_id=trace.trace_id,
+                owner_user_id=platform_user_id,
+                username=username,
+                conversation_uuid=conv_uuid,
+                kb_uuid=kb_uuid_val,
+                kb_name=kb_name,
+                question=trace.question,
+                status=trace.status,
+                intent_type=trace.intent_type,
+                intent_method=trace.intent_method,
+                response_mode=trace.response_mode,
+                total_duration_ms=trace.total_duration_ms,
+                created_at=trace.created_at,
+            )
+        )
 
     return TraceListResponse(
-        total=total, page=page, page_size=page_size, items=items, summary=summary,
+        total=total,
+        page=page,
+        page_size=page_size,
+        items=items,
+        summary=summary,
     )
 
 
@@ -357,12 +356,12 @@ async def get_trace_stats(
     tokens_q = (
         select(
             date_expr.label("date"),
-            func.coalesce(
-                func.sum(func.JSON_EXTRACT(Trace.generate, "$.input_tokens")), 0
-            ).label("input_tokens"),
-            func.coalesce(
-                func.sum(func.JSON_EXTRACT(Trace.generate, "$.output_tokens")), 0
-            ).label("output_tokens"),
+            func.coalesce(func.sum(func.JSON_EXTRACT(Trace.generate, "$.input_tokens")), 0).label(
+                "input_tokens"
+            ),
+            func.coalesce(func.sum(func.JSON_EXTRACT(Trace.generate, "$.output_tokens")), 0).label(
+                "output_tokens"
+            ),
         )
         .where(Trace.created_at >= start_date, Trace.generate.isnot(None))
         .group_by(date_expr)
@@ -387,8 +386,7 @@ async def get_trace_stats(
     )
     intent_dist_rows = (await db.execute(intent_dist_q)).all()
     intent_distribution = [
-        TraceIntentDistItem(type=row.type, count=row.count)
-        for row in intent_dist_rows
+        TraceIntentDistItem(type=row.type, count=row.count) for row in intent_dist_rows
     ]
 
     # ===== 5. Response Mode 分布 =====
@@ -400,8 +398,7 @@ async def get_trace_stats(
     )
     response_dist_rows = (await db.execute(response_dist_q)).all()
     response_distribution = [
-        TraceResponseDistItem(mode=row.mode, count=row.count)
-        for row in response_dist_rows
+        TraceResponseDistItem(mode=row.mode, count=row.count) for row in response_dist_rows
     ]
 
     return TraceStatsResponse(

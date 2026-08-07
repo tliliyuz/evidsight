@@ -140,7 +140,14 @@ class ChromaVectorStore(BaseVectorStore):
             _queue_time = _elapsed - _inner_elapsed
             logger.info(
                 "CHROMA_QUERY total=%.3fs queue=%.3fs exec=%.3fs threads_before=%d threads_after=%d n_results=%d kb_id=%d where=%s",
-                _elapsed, _queue_time, _inner_elapsed, _threads_before, _threads_after, n_results, kb_id, where,
+                _elapsed,
+                _queue_time,
+                _inner_elapsed,
+                _threads_before,
+                _threads_after,
+                n_results,
+                kb_id,
+                where,
             )
             return result
         except Exception:
@@ -205,6 +212,7 @@ class ChromaVectorStore(BaseVectorStore):
             offset = 0
             page_size = 1000
             while True:
+
                 def _get_page():
                     return _collection.get(
                         where=where,

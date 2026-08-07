@@ -1,7 +1,17 @@
 """知识库表"""
 
 from datetime import datetime
-from sqlalchemy import BigInteger, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func, text
+from sqlalchemy import (
+    BigInteger,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -10,15 +20,15 @@ from app.models._types import UTCDateTime
 
 class KnowledgeBase(Base):
     __tablename__ = "knowledge_bases"
-    __table_args__ = (
-        UniqueConstraint("user_id", "name", name="idx_user_name"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "name", name="idx_user_name"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     uuid: Mapped[str] = mapped_column(
-        String(36), nullable=False, unique=True,
+        String(36),
+        nullable=False,
+        unique=True,
         server_default=text("(UUID())"),
-        comment="外部暴露标识符（UUID），API/URL 使用"
+        comment="外部暴露标识符（UUID），API/URL 使用",
     )
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
@@ -29,30 +39,25 @@ class KnowledgeBase(Base):
         Enum("private", "public", name="kb_visibility"),
         default="private",
         server_default=text("'private'"),
-        comment="private（仅owner可见）/ public（所有用户可检索）"
+        comment="private（仅owner可见）/ public（所有用户可检索）",
     )
     status: Mapped[str] = mapped_column(
         Enum("active", "deleting", name="kb_status"),
         default="active",
         server_default=text("'active'"),
-        comment="active（正常）/ deleting（异步清理中，随后物理删除行）"
+        comment="active（正常）/ deleting（异步清理中，随后物理删除行）",
     )
     index_status: Mapped[str] = mapped_column(
         Enum("ready", "updating", "recovering", name="kb_index_status"),
         default="ready",
         server_default=text("'ready'"),
-        comment="ready（可检索）/ updating（版本发布中，新检索有界等待）/ recovering（索引恢复中）"
+        comment="ready（可检索）/ updating（版本发布中，新检索有界等待）/ recovering（索引恢复中）",
     )
     index_generation: Mapped[int] = mapped_column(
-        BigInteger, default=0, server_default=text("0"),
-        comment="非负向量发布世代，发布时递增"
+        BigInteger, default=0, server_default=text("0"), comment="非负向量发布世代，发布时递增"
     )
-    chunk_count: Mapped[int] = mapped_column(
-        Integer, default=0, server_default=text("0")
-    )
-    doc_count: Mapped[int] = mapped_column(
-        Integer, default=0, server_default=text("0")
-    )
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    doc_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, server_default=func.current_timestamp()
     )

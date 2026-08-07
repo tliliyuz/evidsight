@@ -116,11 +116,7 @@ class TestMatchSentencesMultiChunk:
             "满1年不满10年的员工享有5天年假。"
             "满10年不满20年的员工享有10天年假。"
         )
-        chunk2 = (
-            "病假需提供医院证明。"
-            "病假天数不超过3天无需审批。"
-            "超过3天需部门负责人审批。"
-        )
+        chunk2 = "病假需提供医院证明。病假天数不超过3天无需审批。超过3天需部门负责人审批。"
         output = _make_output(chunk1, chunk2)
 
         result = match_sentences(output, "年假天数计算")
@@ -207,11 +203,7 @@ class TestMatchSentencesScore:
 
     def test_最佳句score高于其他句(self):
         """最佳句的 BM25 分数应高于（或等于）其他句"""
-        chunk = (
-            "第一条：适用范围。"
-            "第二条：年假申请流程需提前3天提交。"
-            "第三条：审批权限分级。"
-        )
+        chunk = "第一条：适用范围。第二条：年假申请流程需提前3天提交。第三条：审批权限分级。"
         output = _make_output(chunk)
         result = match_sentences(output, "年假申请流程提前几天")
 
@@ -228,16 +220,19 @@ class TestMatchSentencesFieldPassthrough:
 
     def test_原有字段不变(self):
         """doc_id、chunk_index、content、score 等字段不被修改"""
-        output = RetrievalOutput(results=[
-            RetrievalResult(
-                doc_id=42,
-                chunk_index=7,
-                content="测试内容第一句。测试内容第二句。",
-                score=0.8765,
-                page=3,
-                doc_name="测试文档.pdf",
-            )
-        ], total=1)
+        output = RetrievalOutput(
+            results=[
+                RetrievalResult(
+                    doc_id=42,
+                    chunk_index=7,
+                    content="测试内容第一句。测试内容第二句。",
+                    score=0.8765,
+                    page=3,
+                    doc_name="测试文档.pdf",
+                )
+            ],
+            total=1,
+        )
 
         result = match_sentences(output, "测试")
 

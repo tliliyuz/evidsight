@@ -91,7 +91,11 @@ def _make_trace_list_response(total=2, page=1, page_size=20, items=None, summary
             p95_duration_ms=1500.0,
         )
     return TraceListResponse(
-        total=total, page=page, page_size=page_size, items=items, summary=summary,
+        total=total,
+        page=page,
+        page_size=page_size,
+        items=items,
+        summary=summary,
     )
 
 
@@ -235,7 +239,10 @@ class TestTraceListAPI:
             # 验证 service 被正确调用
             mock_svc.assert_called_once()
             call_kwargs = mock_svc.call_args
-            assert call_kwargs.kwargs.get("status") == "error" or call_kwargs[1].get("status") == "error"
+            assert (
+                call_kwargs.kwargs.get("status") == "error"
+                or call_kwargs[1].get("status") == "error"
+            )
 
     @pytest.mark.asyncio
     async def test_A9_3_Trace列表按intent_type筛选(self, async_client, admin_auth_headers):

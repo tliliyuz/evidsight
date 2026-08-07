@@ -144,8 +144,11 @@ class TraceRecorder:
         - match_sentence: duration_ms
         """
         retrieve_total = total_ms or (
-            (vector_ms or 0) + (bm25_ms or 0) + (fusion_ms or 0)
-            + (coarse_ms or 0) + (match_sentence_ms or 0)
+            (vector_ms or 0)
+            + (bm25_ms or 0)
+            + (fusion_ms or 0)
+            + (coarse_ms or 0)
+            + (match_sentence_ms or 0)
         )
         self._retrieve_data = {
             "span_name": "retrieve",
@@ -215,7 +218,7 @@ class TraceRecorder:
             "summary": summary,
             "chunk_decisions": chunk_decisions,
             "sentence_review": sentence_review,  # None → JSON null（前端可区分「debug 未开启」与「无句子」）
-            "post_audit": None,                  # 显式初始化，LLM 流完成后由 set_post_audit() 补填
+            "post_audit": None,  # 显式初始化，LLM 流完成后由 set_post_audit() 补填
         }
         self._evidence_review_data = data
 
@@ -287,9 +290,10 @@ class TraceRecorder:
                 self._response_mode = "META"
             elif self._intent_type == "CASUAL":
                 self._response_mode = "CASUAL"
-            elif self._evidence_review_data and self._evidence_review_data.get(
-                "summary", {}
-            ).get("decision") == "REJECT":
+            elif (
+                self._evidence_review_data
+                and self._evidence_review_data.get("summary", {}).get("decision") == "REJECT"
+            ):
                 self._response_mode = "REJECT"
             elif self._generate_data is not None:
                 self._response_mode = "RAG"
@@ -320,7 +324,9 @@ class TraceRecorder:
             )
             logger.info(
                 "Trace 已记录: trace_id=%s status=%s total_ms=%d",
-                self.trace_id, self._status, total_duration_ms,
+                self.trace_id,
+                self._status,
+                total_duration_ms,
             )
         except Exception:
             logger.warning("Trace 写入失败（不影响主流程）", exc_info=True)

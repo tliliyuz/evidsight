@@ -117,7 +117,9 @@ class TestDisabledUserRejectedAtApi:
     async def test_chat_creation_rejected(self, async_client, auth_headers):
         """新建 Chat：禁用用户被拒绝，不进入 SSE 业务。"""
         await _request_with_disabled_user(
-            async_client, "post", "/api/chat",
+            async_client,
+            "post",
+            "/api/chat",
             headers=auth_headers,
             json={
                 "kb_id": KB_UUID,
@@ -131,7 +133,9 @@ class TestDisabledUserRejectedAtApi:
     async def test_upload_document_rejected(self, async_client, auth_headers):
         """上传单个文档：禁用用户被拒绝，不落盘不入队。"""
         await _request_with_disabled_user(
-            async_client, "post", f"/api/knowledge-bases/{KB_UUID}/documents",
+            async_client,
+            "post",
+            f"/api/knowledge-bases/{KB_UUID}/documents",
             headers=auth_headers,
             files={"file": ("test.txt", b"hello world", "text/plain")},
         )
@@ -140,7 +144,9 @@ class TestDisabledUserRejectedAtApi:
     async def test_batch_upload_rejected(self, async_client, auth_headers):
         """批量上传文档：禁用用户被拒绝。"""
         await _request_with_disabled_user(
-            async_client, "post", f"/api/knowledge-bases/{KB_UUID}/documents/batch-upload",
+            async_client,
+            "post",
+            f"/api/knowledge-bases/{KB_UUID}/documents/batch-upload",
             headers=auth_headers,
             files=[
                 ("files", ("a.txt", b"a", "text/plain")),
@@ -152,7 +158,8 @@ class TestDisabledUserRejectedAtApi:
     async def test_reprocess_document_rejected(self, async_client, auth_headers):
         """重新处理文档：禁用用户被拒绝。"""
         await _request_with_disabled_user(
-            async_client, "post",
+            async_client,
+            "post",
             f"/api/knowledge-bases/{KB_UUID}/documents/{DOC_UUID}/reprocess",
             headers=auth_headers,
         )
@@ -161,7 +168,9 @@ class TestDisabledUserRejectedAtApi:
     async def test_admin_status_write_rejected(self, async_client, admin_auth_headers):
         """治理写操作（禁用/启用用户）：被禁用的 admin 被拒绝。"""
         await _request_with_disabled_user(
-            async_client, "put", f"/api/admin/users/{ADMIN_TARGET_UUID}/status",
+            async_client,
+            "put",
+            f"/api/admin/users/{ADMIN_TARGET_UUID}/status",
             headers=admin_auth_headers,
             json={"status": "disabled"},
         )
@@ -170,7 +179,8 @@ class TestDisabledUserRejectedAtApi:
     async def test_admin_reset_password_rejected(self, async_client, admin_auth_headers):
         """治理写操作（重置密码）：被禁用的 admin 被拒绝。"""
         await _request_with_disabled_user(
-            async_client, "post",
+            async_client,
+            "post",
             f"/api/admin/users/{ADMIN_TARGET_UUID}/reset-password",
             headers=admin_auth_headers,
             json={"new_password": "NewPass123!"},

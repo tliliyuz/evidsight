@@ -70,7 +70,9 @@ class TestCleanupOldResearchTasks:
             ):
                 with patch("app.tasks.periodic._cleanup_orphan_task_locks", return_value=2):
                     with patch.object(
-                        cleanup_old_research_tasks, "retry", side_effect=Exception("should not retry")
+                        cleanup_old_research_tasks,
+                        "retry",
+                        side_effect=Exception("should not retry"),
                     ):
                         result = cleanup_old_research_tasks(max_age_days=30)
 

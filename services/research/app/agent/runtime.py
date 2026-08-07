@@ -140,9 +140,7 @@ class AgentRuntime:
                 session=self._session,
                 sse_bridge=self._sse,
             )
-            self._phase_controller = PhaseController(
-                self._agent_context, self._registry
-            )
+            self._phase_controller = PhaseController(self._agent_context, self._registry)
             self._loop = AgentLoop(
                 phase_controller=self._phase_controller,
                 working_memory=self._working_memory,
@@ -176,7 +174,8 @@ class AgentRuntime:
             # 预算停止不是自动成功（§14）：已有 Evidence 仍需通过完整度硬门槛，
             # 由 _finalize_task 经 TaskStateResolver 推导 partial / failed。
             logger.warning(
-                "任务预算停止，安全进入终态推导: task_id=%s", task_id,
+                "任务预算停止，安全进入终态推导: task_id=%s",
+                task_id,
             )
             await self._record_budget_stop()
             await self._finalize_task()
@@ -189,7 +188,9 @@ class AgentRuntime:
     async def _load_or_create_context(self) -> tuple[AgentContext, WorkingMemory]:
         """从 DB 或 execution_context 恢复或新建 AgentContext / WorkingMemory。"""
         execution_context = self._task.execution_context or {}
-        agent_ctx_dict = execution_context.get("agent_context") if isinstance(execution_context, dict) else None
+        agent_ctx_dict = (
+            execution_context.get("agent_context") if isinstance(execution_context, dict) else None
+        )
 
         agent_context = AgentContext.from_dict(agent_ctx_dict)
         # Phase 3：优先从 agent_memory_entries 表加载；DB 为空时 fallback 旧 JSON
@@ -197,7 +198,11 @@ class AgentRuntime:
             self._session, str(self._task.id), max_entries=self._memory_max_entries
         )
         if not working_memory.recent():
-            memory_items = execution_context.get("working_memory") if isinstance(execution_context, dict) else None
+            memory_items = (
+                execution_context.get("working_memory")
+                if isinstance(execution_context, dict)
+                else None
+            )
             working_memory = WorkingMemory.from_dict_list(
                 memory_items, max_entries=self._memory_max_entries
             )
@@ -210,12 +215,10 @@ class AgentRuntime:
         安全停止后 _finalize_task 经 TaskStateResolver 推导 canceled 等终态。
         """
         await self._session.refresh(
-            self._task, ["status", "cancel_requested_at"],
+            self._task,
+            ["status", "cancel_requested_at"],
         )
-        return (
-            self._task.cancel_requested_at is not None
-            or self._task.status == "canceled"
-        )
+        return self._task.cancel_requested_at is not None or self._task.status == "canceled"
 
     async def _assert_lease(self) -> None:
         """Step 提交前校验租约（§13.1 / §17.12）。
@@ -230,7 +233,10 @@ class AgentRuntime:
                 f"Worker 未领取任务租约，禁止提交业务结果: task_id={self._task.id}"
             )
         allowed = await is_step_commit_allowed(
-            self._session, str(self._task.id), worker_id, generation,
+            self._session,
+            str(self._task.id),
+            worker_id,
+            generation,
         )
         if not allowed:
             raise LeaseLostError(
@@ -246,11 +252,12 @@ class AgentRuntime:
         worker_id = self._lock_handle.worker_id
         generation = self._lock_handle.lease_generation
         if worker_id is None or generation is None:
-            raise LeaseLostError(
-                f"Worker 未领取任务租约，禁止推导终态: task_id={self._task.id}"
-            )
+            raise LeaseLostError(f"Worker 未领取任务租约，禁止推导终态: task_id={self._task.id}")
         allowed = await is_task_ownership_valid(
-            self._session, str(self._task.id), worker_id, generation,
+            self._session,
+            str(self._task.id),
+            worker_id,
+            generation,
         )
         if not allowed:
             raise LeaseLostError(
@@ -262,9 +269,7 @@ class AgentRuntime:
         """AgentLoop 的 Tool 执行回调：创建 Step → 预留预算 → 执行 Tool → 结算 → 持久化。"""
         # 预算预留（§14）：无法预留则停止新调用
         if not can_reserve(self._task):
-            raise BudgetExhaustedError(
-                f"任务预算已用尽，停止新调用: task_id={self._task.id}"
-            )
+            raise BudgetExhaustedError(f"任务预算已用尽，停止新调用: task_id={self._task.id}")
 
         if tool.mapped_phase is None:
             # finish_tool 等无 phase 映射的 Tool，直接执行，不创建 Step
@@ -281,7 +286,8 @@ class AgentRuntime:
         except Exception as exc:  # noqa: BLE001
             logger.exception(
                 "Agent Step 执行异常: task_id=%s, step_type=%s",
-                self._task.id, tool.mapped_phase,
+                self._task.id,
+                tool.mapped_phase,
             )
             result = ToolResult(
                 success=False,
@@ -339,7 +345,8 @@ class AgentRuntime:
         if stopped:
             logger.warning(
                 "任务预算停止: task_id=%s, reason=%s",
-                self._task.id, budget_stop_reason(self._task),
+                self._task.id,
+                budget_stop_reason(self._task),
             )
             await self._record_budget_stop()
 
@@ -357,10 +364,13 @@ class AgentRuntime:
                 input_summary={"reason": reason},
             )
         else:
-            await self._sse.publish(EVENT_TASK_WARNING, {
-                "task_id": str(self._task.id),
-                "reason": reason,
-            })
+            await self._sse.publish(
+                EVENT_TASK_WARNING,
+                {
+                    "task_id": str(self._task.id),
+                    "reason": reason,
+                },
+            )
 
     def _tool_context_with_step(self, step: ResearchStep | None) -> ToolContext:
         """构造包含指定 Step 的 ToolContext。"""
@@ -409,17 +419,24 @@ class AgentRuntime:
                     input_summary={"phase": phase_name},
                 )
             else:
-                await self._sse.publish(EVENT_PHASE_STARTED, {
-                    "phase": phase_name,
-                    "timestamp": now.isoformat(),
-                })
+                await self._sse.publish(
+                    EVENT_PHASE_STARTED,
+                    {
+                        "phase": phase_name,
+                        "timestamp": now.isoformat(),
+                    },
+                )
 
-        await self._sse.publish(EVENT_STEP_STARTED, {
-            "step_id": str(step.id),
-            "step_type": step.step_type,
-            "label": step.label,
-            "timestamp": now.isoformat(),
-        })
+        await self._sse.publish(
+            EVENT_STEP_STARTED,
+            {
+                "step_id": str(step.id),
+                "step_type": step.step_type,
+                "label": step.label,
+                "timestamp": now.isoformat(),
+            },
+        )
+
     async def _persist_memory_entries(self) -> None:
         """将 WorkingMemory 中待持久化 entries 写入 DB。"""
         if self._working_memory is None:
@@ -438,7 +455,9 @@ class AgentRuntime:
         step.status = "completed"
         step.completed_at = now
         step.duration_ms = duration_ms
-        step.output = result.output if isinstance(result.output, dict) else {"result": str(result.output)}
+        step.output = (
+            result.output if isinstance(result.output, dict) else {"result": str(result.output)}
+        )
         step.cost = extract_step_cost(step.output, default_model=settings.LLM_MODEL)
         await self._session.flush()
 
@@ -466,32 +485,46 @@ class AgentRuntime:
                 step.step_type,
             )
 
-        await self._sse.publish(EVENT_STEP_COMPLETED, {
-            "step_id": str(step.id),
-            "output": step.output,
-        })
-        await self._sse.publish(EVENT_PHASE_COMPLETED, {
-            "phase": phase_name,
-            "duration_ms": duration_ms,
-        })
+        await self._sse.publish(
+            EVENT_STEP_COMPLETED,
+            {
+                "step_id": str(step.id),
+                "output": step.output,
+            },
+        )
+        await self._sse.publish(
+            EVENT_PHASE_COMPLETED,
+            {
+                "phase": phase_name,
+                "duration_ms": duration_ms,
+            },
+        )
 
         total = self._task.total_steps or 1
         completed = self._task.completed_steps or 0
         progress = round(completed / total, 2) if total > 0 else 0.0
-        await self._sse.publish(EVENT_TASK_PROGRESS, {
-            "completed_steps": completed,
-            "total_steps": total,
-            "progress": progress,
-        })
-        await self._sse.publish(EVENT_CHECKPOINT_SAVED, {
-            "phase": phase_name,
-            "last_completed_step_id": str(step.id),
-            "saved_at": now.isoformat(),
-        })
+        await self._sse.publish(
+            EVENT_TASK_PROGRESS,
+            {
+                "completed_steps": completed,
+                "total_steps": total,
+                "progress": progress,
+            },
+        )
+        await self._sse.publish(
+            EVENT_CHECKPOINT_SAVED,
+            {
+                "phase": phase_name,
+                "last_completed_step_id": str(step.id),
+                "saved_at": now.isoformat(),
+            },
+        )
 
         logger.info(
             "Agent Step 完成: step_id=%s, type=%s, duration_ms=%s",
-            step.id, step.step_type, duration_ms,
+            step.id,
+            step.step_type,
+            duration_ms,
         )
 
     async def _fail_step(self, step: ResearchStep, result: ToolResult) -> None:
@@ -511,13 +544,18 @@ class AgentRuntime:
 
         await self._persist_memory_entries()
 
-        await self._sse.publish(EVENT_STEP_FAILED, {
-            "step_id": str(step.id),
-            "error_type": "ToolExecutionFailed",
-        })
+        await self._sse.publish(
+            EVENT_STEP_FAILED,
+            {
+                "step_id": str(step.id),
+                "error_type": "ToolExecutionFailed",
+            },
+        )
         logger.warning(
             "Agent Step 失败: step_id=%s, type=%s, error=%s",
-            step.id, step.step_type, result.error_message,
+            step.id,
+            step.step_type,
+            result.error_message,
         )
 
     async def _update_execution_context(self, step: ResearchStep, phase_name: str) -> None:
@@ -538,9 +576,7 @@ class AgentRuntime:
                 ResearchStep.step_type.in_(PHASE_ORDER),
                 ResearchStep.status.in_(terminal_statuses),
             )
-            .where(
-                parent_step.id.is_(None) | (parent_step.step_type != ResearchStep.step_type)
-            )
+            .where(parent_step.id.is_(None) | (parent_step.step_type != ResearchStep.step_type))
         )
         completed = completed_result.scalar() or 0
         self._task.completed_steps = completed
@@ -549,7 +585,9 @@ class AgentRuntime:
         progress = min(progress, 1.0)
 
         count_result = await self._session.execute(
-            sa_select(func.count()).select_from(ResearchStep).where(
+            sa_select(func.count())
+            .select_from(ResearchStep)
+            .where(
                 ResearchStep.task_id == self._task.id,
                 ResearchStep.step_type == step.step_type,
             )
@@ -557,7 +595,9 @@ class AgentRuntime:
         phase_total = count_result.scalar() or 1
 
         completed_in_phase_result = await self._session.execute(
-            sa_select(func.count()).select_from(ResearchStep).where(
+            sa_select(func.count())
+            .select_from(ResearchStep)
+            .where(
                 ResearchStep.task_id == self._task.id,
                 ResearchStep.step_type == step.step_type,
                 ResearchStep.status.in_(["completed", "skipped"]),
@@ -592,18 +632,22 @@ class AgentRuntime:
         evidence_count = self._task.total_evidence or 0
 
         new_status, error_info = self._resolver.resolve(
-            self._task, steps, evidence_count,
+            self._task,
+            steps,
+            evidence_count,
         )
 
         # 记录任务结束 finish entry，使 agent_memory_entries 包含明确的终止标记
         if self._working_memory is not None and self._agent_context is not None:
-            self._working_memory.add(ReActEntry(
-                iteration=self._agent_context.iteration_count,
-                phase="finish",
-                tool_name="finish_tool",
-                observation=f"Agent 结束运行，任务状态: {new_status}",
-                tool_output_summary={"status": new_status},
-            ))
+            self._working_memory.add(
+                ReActEntry(
+                    iteration=self._agent_context.iteration_count,
+                    phase="finish",
+                    tool_name="finish_tool",
+                    observation=f"Agent 结束运行，任务状态: {new_status}",
+                    tool_output_summary={"status": new_status},
+                )
+            )
             await self._persist_memory_entries()
 
         now = datetime.now(timezone.utc)
@@ -641,47 +685,66 @@ class AgentRuntime:
             await self._session.refresh(self._task, ["status"])
             logger.warning(
                 "CAS 失败：最终化时任务状态已非 running: task_id=%s, current_status=%s",
-                task_id, self._task.status,
+                task_id,
+                self._task.status,
             )
             return
 
         if new_status == "completed":
-            await self._sse.publish(EVENT_TASK_COMPLETED, {
-                "task_id": task_id,
-                "status": "completed",
-                "trace": {
-                    "total_duration_ms": (
-                        int((now - task_started_at).total_seconds() * 1000)
-                        if task_started_at else 0
-                    ),
-                    "sources": task_total_sources or 0,
-                    "evidence": task_total_evidence or 0,
+            await self._sse.publish(
+                EVENT_TASK_COMPLETED,
+                {
+                    "task_id": task_id,
+                    "status": "completed",
+                    "trace": {
+                        "total_duration_ms": (
+                            int((now - task_started_at).total_seconds() * 1000)
+                            if task_started_at
+                            else 0
+                        ),
+                        "sources": task_total_sources or 0,
+                        "evidence": task_total_evidence or 0,
+                    },
                 },
-            })
+            )
         elif new_status == "partially_completed":
-            await self._sse.publish(EVENT_TASK_COMPLETED, {
-                "task_id": task_id,
-                "status": "partially_completed",
-                "trace": trace_data,
-            })
+            await self._sse.publish(
+                EVENT_TASK_COMPLETED,
+                {
+                    "task_id": task_id,
+                    "status": "partially_completed",
+                    "trace": trace_data,
+                },
+            )
         elif new_status == "failed":
-            await self._sse.publish(EVENT_TASK_FAILED, {
-                "task_id": task_id,
-                "error_type": error_info.get("error_code", "Unknown") if error_info else "Unknown",
-                "error_description": error_info.get("error_message", "") if error_info else "",
-                "recoverable": error_info.get("recoverable", False) if error_info else False,
-                "last_checkpoint": self._get_last_checkpoint(execution_context),
-            })
+            await self._sse.publish(
+                EVENT_TASK_FAILED,
+                {
+                    "task_id": task_id,
+                    "error_type": error_info.get("error_code", "Unknown")
+                    if error_info
+                    else "Unknown",
+                    "error_description": error_info.get("error_message", "") if error_info else "",
+                    "recoverable": error_info.get("recoverable", False) if error_info else False,
+                    "last_checkpoint": self._get_last_checkpoint(execution_context),
+                },
+            )
         elif new_status == "canceled":
-            await self._sse.publish(EVENT_TASK_CANCELED, {
-                "task_id": task_id,
-                "status": "canceled",
-                "cancel_requested": True,
-            })
+            await self._sse.publish(
+                EVENT_TASK_CANCELED,
+                {
+                    "task_id": task_id,
+                    "status": "canceled",
+                    "cancel_requested": True,
+                },
+            )
 
         logger.info(
             "Agent Runtime 完成: task_id=%s, status=%s, steps=%d, evidence=%d",
-            task_id, new_status, len(steps), evidence_count,
+            task_id,
+            new_status,
+            len(steps),
+            evidence_count,
         )
 
     async def _handle_fatal_error(self, error: Exception) -> None:
@@ -692,7 +755,9 @@ class AgentRuntime:
         if isinstance(error, LeaseLostError):
             logger.warning(
                 "Worker 已失去租约，停止且不写入终态（交给 Recovery Scanner 接管）: "
-                "task_id=%s, error=%s", task_id, error,
+                "task_id=%s, error=%s",
+                task_id,
+                error,
             )
             return
 
@@ -733,16 +798,21 @@ class AgentRuntime:
                 error_code=error_code,
             )
             try:
-                await self._sse.publish(EVENT_TASK_FAILED, {
-                    "task_id": task_id,
-                    "error_type": error_type,
-                    "error_description": error_msg,
-                    "recoverable": recoverable,
-                })
+                await self._sse.publish(
+                    EVENT_TASK_FAILED,
+                    {
+                        "task_id": task_id,
+                        "error_type": error_type,
+                        "error_description": error_msg,
+                        "recoverable": recoverable,
+                    },
+                )
             except Exception:
                 logger.exception("SSE 发送失败: task_id=%s", task_id)
 
-    async def _record_phase_trace(self, step: ResearchStep, duration_ms: int, output: dict[str, Any]) -> None:
+    async def _record_phase_trace(
+        self, step: ResearchStep, duration_ms: int, output: dict[str, Any]
+    ) -> None:
         """按 phase 调用 TraceRecorder。"""
         step_type = step.step_type
         if step_type == "planning":
@@ -770,7 +840,8 @@ class AgentRuntime:
         elif step_type == "fetch":
             fetched = output.get("fetched", [])
             total_content_bytes = sum(
-                item.get("content_length", 0) for item in fetched
+                item.get("content_length", 0)
+                for item in fetched
                 if isinstance(item.get("content_length"), int)
             )
             self._trace.record_fetch(

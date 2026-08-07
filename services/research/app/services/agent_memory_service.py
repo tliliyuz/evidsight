@@ -33,9 +33,7 @@ def classify_react_entry(entry: ReActEntry) -> str:
     return "thought"
 
 
-def _react_entry_to_memory_entry(
-    task_id: str, entry: ReActEntry
-) -> AgentMemoryEntry:
+def _react_entry_to_memory_entry(task_id: str, entry: ReActEntry) -> AgentMemoryEntry:
     """将 ReActEntry 转换为待持久化的 AgentMemoryEntry ORM 对象。"""
     content = entry.to_dict()
     # content 已包含完整字段；created_at 复用 entry.timestamp 保持时间线一致
@@ -46,7 +44,9 @@ def _react_entry_to_memory_entry(
         phase=entry.phase,
         entry_type=classify_react_entry(entry),
         content=content,
-        created_at=entry.timestamp if isinstance(entry.timestamp, datetime) else datetime.now(timezone.utc),
+        created_at=entry.timestamp
+        if isinstance(entry.timestamp, datetime)
+        else datetime.now(timezone.utc),
     )
 
 

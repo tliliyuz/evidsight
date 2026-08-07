@@ -139,7 +139,8 @@ def write_to_new_collections(
         collection_name = f"{NEW_COLLECTION_PREFIX}{kb_id}"
         logger.info(
             "  kb_%d: %d 条记录 %s",
-            kb_id, len(records),
+            kb_id,
+            len(records),
             "(DRY RUN — 跳过)" if dry_run else "",
         )
 
@@ -155,7 +156,7 @@ def write_to_new_collections(
 
         batch_size = 500
         for start in range(0, len(records), batch_size):
-            batch = records[start:start + batch_size]
+            batch = records[start : start + batch_size]
             collection.add(
                 ids=[r["id"] for r in batch],
                 embeddings=[r["embedding"] for r in batch],
@@ -164,7 +165,10 @@ def write_to_new_collections(
             )
             logger.debug(
                 "    kb_%d: 写入 %d-%d/%d",
-                kb_id, start + 1, min(start + batch_size, len(records)), len(records),
+                kb_id,
+                start + 1,
+                min(start + batch_size, len(records)),
+                len(records),
             )
 
         written_counts[kb_id] = len(records)
@@ -191,7 +195,9 @@ def verify_migration(
         if actual_count != expected_count:
             logger.error(
                 "验证失败：kb_%d 期望 %d 条，实际 %d 条",
-                kb_id, expected_count, actual_count,
+                kb_id,
+                expected_count,
+                actual_count,
             )
             all_ok = False
         else:
@@ -216,15 +222,19 @@ def main() -> None:
         description="DocMind ChromaDB 迁移：单 collection → Per-KB collection",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="仅检查并打印迁移计划，不实际写入",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=PAGE_SIZE,
+        "--batch-size",
+        type=int,
+        default=PAGE_SIZE,
         help=f"分页读取大小（默认 {PAGE_SIZE}）",
     )
     parser.add_argument(
-        "--skip-delete", action="store_true",
+        "--skip-delete",
+        action="store_true",
         help="迁移后不删除旧 collection（用于回滚安全期）",
     )
     args = parser.parse_args()
@@ -267,7 +277,8 @@ def main() -> None:
     if args.dry_run:
         logger.info(
             "Dry run 完成，未实际写入。共 %d 个 KB，%d 条记录待迁移",
-            len(groups), sum(len(r) for r in groups.values()),
+            len(groups),
+            sum(len(r) for r in groups.values()),
         )
         return
 
@@ -282,13 +293,15 @@ def main() -> None:
         delete_old_collection(client)
     else:
         logger.info(
-            "--skip-delete：旧 collection '%s' 保留未删除", OLD_COLLECTION_NAME,
+            "--skip-delete：旧 collection '%s' 保留未删除",
+            OLD_COLLECTION_NAME,
         )
 
     logger.info("=" * 60)
     logger.info(
         "  迁移完成！共 %d 个 KB collection，%d 条记录",
-        len(written_counts), sum(written_counts.values()),
+        len(written_counts),
+        sum(written_counts.values()),
     )
     logger.info("=" * 60)
 

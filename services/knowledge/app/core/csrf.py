@@ -29,8 +29,10 @@ async def verify_csrf(request: Request) -> None:
     """
     cookie_token = request.cookies.get(settings.EVIDSIGHT_PLATFORM_CSRF_COOKIE_NAME)
     header_token = request.headers.get("X-CSRF-Token")
-    if not cookie_token or not header_token or not secrets.compare_digest(
-        cookie_token, header_token
+    if (
+        not cookie_token
+        or not header_token
+        or not secrets.compare_digest(cookie_token, header_token)
     ):
         raise InvalidTokenException("CSRF 校验失败")
     allowed_origins = settings.auth_allowed_origins

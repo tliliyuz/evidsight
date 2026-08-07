@@ -241,7 +241,9 @@ class TestEmbedRetry:
     @pytest.mark.asyncio
     async def test_API_500后重试成功(self):
         """第一次 500 失败，第二次 200 成功"""
-        fail_response = make_mock_httpx_response(status_code=500, json_data={"error": "server error"})
+        fail_response = make_mock_httpx_response(
+            status_code=500, json_data={"error": "server error"}
+        )
         success_response = make_mock_httpx_response(
             status_code=200,
             json_data=make_mock_embed_response(embeddings_count=1, total_tokens=3),
@@ -304,7 +306,10 @@ class TestEmbedRetry:
         mock_client = AsyncMock()
         # 前 4 次失败，最后一次成功
         mock_client.__aenter__.return_value.post.side_effect = [
-            fail_response, fail_response, fail_response, fail_response,
+            fail_response,
+            fail_response,
+            fail_response,
+            fail_response,
             make_mock_httpx_response(
                 status_code=200,
                 json_data=make_mock_embed_response(embeddings_count=1, total_tokens=2),
@@ -350,4 +355,5 @@ class TestEmbedRetry:
 def asyncio_run(coro):
     """同步包装器，用于测试不需要 mock 异步环境的简单场景"""
     import asyncio
+
     return asyncio.run(coro)

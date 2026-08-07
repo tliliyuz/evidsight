@@ -12,6 +12,7 @@
 - U8.2  Retrieval 超限截断（从低分 chunk 丢弃）
 - U8.3  History + Retrieval 双池子独立截断
 """
+
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -24,8 +25,9 @@ from app.rag.retriever import RetrievalOutput, RetrievalResult
 from app.services.chat_service import load_history
 
 
-def _make_message(msg_id=1, role="user", content="测试内容",
-                  thinking_content=None, created_at=None):
+def _make_message(
+    msg_id=1, role="user", content="测试内容", thinking_content=None, created_at=None
+):
     """构造 Message ORM Mock 对象"""
     msg = MagicMock()
     msg.id = msg_id
@@ -83,10 +85,12 @@ class TestLoadHistoryTokenTruncation:
         # msg1 极长（会被 continue 跳过），msg2-4 较短（应保留）
         long_msg = "非常长的消息内容占据大量空间" * 100  # ~1200 中文字符 → ~800 tokens
         messages = [
-            _make_message(msg_id=1, role="user", content=long_msg),           # 旧：~800 tokens → 超 budget
-            _make_message(msg_id=2, role="assistant", content="中等长度回答" * 20),  # ~120 中文字符 → ~80 tokens
-            _make_message(msg_id=3, role="user", content="短问题"),                 # 最新：很短
-            _make_message(msg_id=4, role="assistant", content="短回答"),            # 最新：很短
+            _make_message(msg_id=1, role="user", content=long_msg),  # 旧：~800 tokens → 超 budget
+            _make_message(
+                msg_id=2, role="assistant", content="中等长度回答" * 20
+            ),  # ~120 中文字符 → ~80 tokens
+            _make_message(msg_id=3, role="user", content="短问题"),  # 最新：很短
+            _make_message(msg_id=4, role="assistant", content="短回答"),  # 最新：很短
         ]
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = list(reversed(messages))
@@ -99,7 +103,7 @@ class TestLoadHistoryTokenTruncation:
         assert len(result) == 3
         # 结果按时间正序排列
         assert result[0]["role"] == "assistant"  # msg2（中等）
-        assert result[1]["role"] == "user"       # msg3（短问题）
+        assert result[1]["role"] == "user"  # msg3（短问题）
         assert result[2]["role"] == "assistant"  # msg4（短回答）
         # 最旧的大消息 msg1 被跳过
         assert all(long_msg not in m["content"] for m in result)
@@ -132,7 +136,9 @@ class TestLoadHistorySourceMarkerRemoval:
         db = AsyncMock()
         messages = [
             _make_message(msg_id=1, role="user", content="问题"),
-            _make_message(msg_id=2, role="assistant", content="根据[来源1]和[来源3]，报销需要发票[来源2]"),
+            _make_message(
+                msg_id=2, role="assistant", content="根据[来源1]和[来源3]，报销需要发票[来源2]"
+            ),
         ]
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = list(reversed(messages))
@@ -142,7 +148,10 @@ class TestLoadHistorySourceMarkerRemoval:
         # assistant 消息中不应包含 [来源N]
         assistant_msg = [m for m in result if m["role"] == "assistant"][0]
         assert "[来源" not in assistant_msg["content"]
-        assert "根据和，报销需要发票" in assistant_msg["content"] or "报销需要发票" in assistant_msg["content"]
+        assert (
+            "根据和，报销需要发票" in assistant_msg["content"]
+            or "报销需要发票" in assistant_msg["content"]
+        )
 
     @pytest.mark.asyncio
     async def test_user_content_unchanged(self):
@@ -167,8 +176,9 @@ class TestLoadHistoryThinkingContentExcluded:
         db = AsyncMock()
         messages = [
             _make_message(msg_id=1, role="user", content="问题"),
-            _make_message(msg_id=2, role="assistant", content="回答",
-                          thinking_content="深度思考过程" * 100),
+            _make_message(
+                msg_id=2, role="assistant", content="回答", thinking_content="深度思考过程" * 100
+            ),
         ]
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = list(reversed(messages))
@@ -230,11 +240,14 @@ class TestRetrievalBudgetTruncation:
         chunks = []
         for i in range(12):
             content = "检索结果内容" * 300  # ~1800 中文字 ≈ 1200 tokens
-            chunks.append(RetrievalResult(
-                doc_id=1, chunk_index=i,
-                content=content,
-                score=round(0.95 - i * 0.04, 2),
-            ))
+            chunks.append(
+                RetrievalResult(
+                    doc_id=1,
+                    chunk_index=i,
+                    content=content,
+                    score=round(0.95 - i * 0.04, 2),
+                )
+            )
         output = RetrievalOutput(results=chunks)
 
         # 使用 RETRIEVAL_BUDGET + 足够大的 max_chunks（覆盖默认 PROMPT_MAX_CHUNKS=5）
@@ -293,9 +306,12 @@ class TestRetrievalBudgetTruncation:
         """
         # 5 个 chunk，score 递减，大小相似
         chunks = [
-            RetrievalResult(doc_id=i, chunk_index=0,
-                            content="内容" * 200,  # ~400 中文字 ≈ 267 tokens
-                            score=round(0.95 - i * 0.1, 2))
+            RetrievalResult(
+                doc_id=i,
+                chunk_index=0,
+                content="内容" * 200,  # ~400 中文字 ≈ 267 tokens
+                score=round(0.95 - i * 0.1, 2),
+            )
             for i in range(5)
         ]
         output = RetrievalOutput(results=chunks)
@@ -333,8 +349,9 @@ class TestHistoryRetrievalDualBudget:
         db = AsyncMock()
         long_content = "这是一段较长的历史消息内容" * 100  # ~1200 中文字 ≈ 800 tokens
         messages = [
-            _make_message(msg_id=i, role="user" if i % 2 == 1 else "assistant",
-                          content=long_content)
+            _make_message(
+                msg_id=i, role="user" if i % 2 == 1 else "assistant", content=long_content
+            )
             for i in range(1, 11)  # 10 条 × ~800 tokens = ~8000 > 6000
         ]
         mock_result = MagicMock()
@@ -350,7 +367,8 @@ class TestHistoryRetrievalDualBudget:
         # 2. 构造超过 RETRIEVAL_BUDGET 的检索结果
         retrieval_chunks = [
             RetrievalResult(
-                doc_id=1, chunk_index=i,
+                doc_id=1,
+                chunk_index=i,
                 content="检索结果内容" * 200,  # ~1200 中文字 ≈ 800 tokens
                 score=round(0.95 - i * 0.04, 2),
             )
@@ -359,8 +377,9 @@ class TestHistoryRetrievalDualBudget:
         retrieval_output = RetrievalOutput(results=retrieval_chunks)
 
         # 3. 调用 build_prompt，传入截断后的历史
-        prompt_result = build_prompt("测试问题", retrieval_output,
-                                     history_messages=history, max_chunks=20)
+        prompt_result = build_prompt(
+            "测试问题", retrieval_output, history_messages=history, max_chunks=20
+        )
 
         # 验证：检索结果被独立截断（不受历史影响）
         assert prompt_result.total_context_tokens <= settings.RETRIEVAL_BUDGET
@@ -385,8 +404,9 @@ class TestHistoryRetrievalDualBudget:
         # 构造占满 HISTORY_BUDGET 的历史
         db = AsyncMock()
         messages = [
-            _make_message(msg_id=i, role="user" if i % 2 == 1 else "assistant",
-                          content="历史消息" * 250)  # ~1000 中文字 ≈ 667 tokens
+            _make_message(
+                msg_id=i, role="user" if i % 2 == 1 else "assistant", content="历史消息" * 250
+            )  # ~1000 中文字 ≈ 667 tokens
             for i in range(1, 12)  # 11 条 × ~667 tokens ≈ 7337 > 6000
         ]
         mock_result = MagicMock()
@@ -401,7 +421,8 @@ class TestHistoryRetrievalDualBudget:
         # 构造大量检索结果
         retrieval_chunks = [
             RetrievalResult(
-                doc_id=1, chunk_index=i,
+                doc_id=1,
+                chunk_index=i,
                 content="检索内容" * 300,  # ~900 中文字 ≈ 600 tokens
                 score=round(0.95 - i * 0.03, 2),
             )
@@ -409,8 +430,9 @@ class TestHistoryRetrievalDualBudget:
         ]
         retrieval_output = RetrievalOutput(results=retrieval_chunks)
 
-        prompt_result = build_prompt("问题", retrieval_output,
-                                     history_messages=history, max_chunks=20)
+        prompt_result = build_prompt(
+            "问题", retrieval_output, history_messages=history, max_chunks=20
+        )
 
         # 关键断言：检索预算仍为 RETRIEVAL_BUDGET，不受历史占用影响
         assert prompt_result.total_context_tokens <= settings.RETRIEVAL_BUDGET
@@ -425,8 +447,9 @@ class TestHistoryRetrievalDualBudget:
         # 构造超出 HISTORY_BUDGET 的历史
         db = AsyncMock()
         messages = [
-            _make_message(msg_id=i, role="user" if i % 2 == 1 else "assistant",
-                          content="历史消息" * 200)  # ~800 中文字 ≈ 533 tokens
+            _make_message(
+                msg_id=i, role="user" if i % 2 == 1 else "assistant", content="历史消息" * 200
+            )  # ~800 中文字 ≈ 533 tokens
             for i in range(1, 15)  # 14 条 × ~533 tokens = ~7462 > 6000
         ]
         mock_result = MagicMock()
@@ -440,15 +463,15 @@ class TestHistoryRetrievalDualBudget:
         # 构造占满 RETRIEVAL_BUDGET 的检索结果
         retrieval_chunks = [
             RetrievalResult(
-                doc_id=1, chunk_index=0,
+                doc_id=1,
+                chunk_index=0,
                 content="检索结果" * 3000,  # ~9000 tokens
                 score=0.9,
             ),
         ]
         retrieval_output = RetrievalOutput(results=retrieval_chunks)
 
-        prompt_result = build_prompt("问题", retrieval_output,
-                                     history_messages=history)
+        prompt_result = build_prompt("问题", retrieval_output, history_messages=history)
 
         # 关键断言：历史消息不受检索影响
         assert len(prompt_result.history_messages) == original_history_len

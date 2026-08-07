@@ -229,5 +229,3 @@ class ManualAggregationResult:
             "min_dimension": self.min_dimension,
             "min_dimension_mean": self.min_dimension_mean,
         }
-
-

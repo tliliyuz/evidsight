@@ -22,6 +22,7 @@ class AppException(HTTPException):
 
 # ==================== 知识库错误 E1xxx ====================
 
+
 class KnowledgeBaseNotFoundException(AppException):
     def __init__(self, kb_id: int):
         super().__init__("E1001", "知识库不存在", 404, f"kb_id={kb_id} 不存在或已被删除")
@@ -34,6 +35,7 @@ class KnowledgeBaseNameExistsException(AppException):
 
 # ==================== 文档错误 E2xxx ====================
 
+
 class DocumentNotFoundException(AppException):
     def __init__(self, doc_id: int):
         super().__init__("E2001", "文档不存在", 404, f"doc_id={doc_id} 不存在或已被删除")
@@ -41,7 +43,9 @@ class DocumentNotFoundException(AppException):
 
 class UnsupportedFileFormatException(AppException):
     def __init__(self, file_type: str):
-        super().__init__("E2002", "文件格式不支持", 415, f"不支持 .{file_type} 格式（仅支持 pdf/docx/md/txt）")
+        super().__init__(
+            "E2002", "文件格式不支持", 415, f"不支持 .{file_type} 格式（仅支持 pdf/docx/md/txt）"
+        )
 
 
 class FileSizeExceededException(AppException):
@@ -102,12 +106,15 @@ class DocumentNameExistsException(AppException):
 class BatchUploadCountExceededException(AppException):
     def __init__(self, actual: int, maximum: int):
         super().__init__(
-            "E2014", "批量上传文件数超限", 400,
+            "E2014",
+            "批量上传文件数超限",
+            400,
             f"单次批量上传最多允许 {maximum} 个文件，实际收到 {actual} 个",
         )
 
 
 # ==================== 会话错误 E3xxx ====================
+
 
 class ConversationNotFoundException(AppException):
     def __init__(self, conv_id: int):
@@ -121,9 +128,12 @@ class ConversationAccessDeniedException(AppException):
 
 # ==================== 问答错误 E4xxx ====================
 
+
 class KnowledgeBaseEmptyException(AppException):
     def __init__(self, kb_id: int):
-        super().__init__("E4001", "知识库无可用文档", 400, f"kb_id={kb_id} 下没有文档，请先上传文档")
+        super().__init__(
+            "E4001", "知识库无可用文档", 400, f"kb_id={kb_id} 下没有文档，请先上传文档"
+        )
 
 
 class LLMCallFailedException(AppException):
@@ -154,7 +164,8 @@ class MetaQuestionException(AppException):
 
     def __init__(self, question: str, conv: object, is_first_turn: bool):
         super().__init__(
-            "E4006", "元问题，无需检索",
+            "E4006",
+            "元问题，无需检索",
             200,  # 非错误，是正常业务分流
             question[:100],
         )
@@ -163,6 +174,7 @@ class MetaQuestionException(AppException):
 
 
 # ==================== 认证错误 E5xxx ====================
+
 
 class UsernameExistsException(AppException):
     def __init__(self, username: str):
@@ -216,6 +228,7 @@ class TokenLeakDetectedException(AppException):
 
 # ==================== 用户管理错误 E7xxx ====================
 
+
 class TraceNotFoundException(AppException):
     def __init__(self, trace_id: str):
         super().__init__("E7001", "Trace 不存在", 404, f"trace_id={trace_id} 不存在")
@@ -238,12 +251,14 @@ class PasswordSameAsCurrentException(AppException):
 
 # ==================== 认证错误补充 E5xxx ====================
 
+
 class UserDisabledException(AppException):
     def __init__(self):
         super().__init__("E5010", "用户已被禁用", 401, "该用户账号已被管理员禁用，请联系管理员")
 
 
 # ==================== 系统错误 E9xxx ====================
+
 
 class InternalServerException(AppException):
     def __init__(self, detail: str = ""):

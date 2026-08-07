@@ -22,8 +22,7 @@ class ResearchSource(Base):
     __tablename__ = "research_sources"
 
     id: Mapped[int] = mapped_column(
-        sa.Integer, primary_key=True, autoincrement=True,
-        comment="报告中的引用编号 [1], [2]..."
+        sa.Integer, primary_key=True, autoincrement=True, comment="报告中的引用编号 [1], [2]..."
     )
     task_id: Mapped[str] = mapped_column(
         sa.String(36),
@@ -31,13 +30,18 @@ class ResearchSource(Base):
         nullable=False,
     )
     url: Mapped[str] = mapped_column(
-        sa.String(2048), nullable=False,
+        sa.String(2048),
+        nullable=False,
     )
     title: Mapped[str | None] = mapped_column(
-        sa.String(500), default=None, server_default=sa.text("NULL"),
+        sa.String(500),
+        default=None,
+        server_default=sa.text("NULL"),
     )
     domain: Mapped[str | None] = mapped_column(
-        sa.String(255), default=None, server_default=sa.text("NULL"),
+        sa.String(255),
+        default=None,
+        server_default=sa.text("NULL"),
     )
     fetched_at: Mapped[datetime | None] = mapped_column(
         UTCDateTime,
@@ -66,9 +70,7 @@ class ResearchSource(Base):
     # ── 索引 ──
     __table_args__ = (
         # uk_task_url：同任务内 URL 去重（对齐 DATABASE.md §2.4，url 取前缀 255 以满足索引长度限制）
-        sa.Index(
-            "uk_task_url", "task_id", "url", unique=True, mysql_length={"url": 255}
-        ),
+        sa.Index("uk_task_url", "task_id", "url", unique=True, mysql_length={"url": 255}),
         sa.Index("idx_task", "task_id"),
     )
 

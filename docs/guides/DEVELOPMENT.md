@@ -116,6 +116,12 @@ uv sync --locked
 # 运行全仓测试
 bash scripts/test_all.sh
 
+# Python lint（ruff：静态检查 + 导入排序；不修改文件，只报告）
+uvx ruff check services/ scripts/ tests/ packages/contracts/
+
+# Python 格式化一致性检查（--check 不修改文件；正式格式化去掉 --check）
+uvx ruff format --check services/ scripts/ tests/ packages/contracts/
+
 # 验证 Compose 配置
 docker compose config --quiet
 
@@ -220,6 +226,7 @@ docker compose config --quiet
 - 时间统一存储为 UTC；
 - 日志、Trace、SSE 和错误不得包含密码、Token、服务凭证、完整 Prompt、隐藏推理或内部正文；
 - Chat SSE 与 Research SSE 使用独立解析器和状态机；
+- Python 代码遵循 ruff 约定（规则集 `E4,E7,E9,F,I`，行宽 100），提交前执行 `ruff check` 与 `ruff format --check`；配置见根 `pyproject.toml` `[tool.ruff]`。ruff 为根开发依赖（`uv add --dev ruff`）：Astral 官方活跃维护，单文件 ~8MB 无传递依赖，覆盖静态检查与格式化，替代方案为 black+isort+flake8 三件套（需三份配置）；
 - 新依赖必须说明用途、维护状态、体积和替代方案。
 
 ## 10. Docker Compose 与运维

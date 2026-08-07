@@ -59,7 +59,6 @@ def utc_now():
 utcnow = utc_now
 
 
-
 def new_uuid():
     """生成 UUID4 字符串（CHAR(36) 格式）。"""
     return str(uuid.uuid4())

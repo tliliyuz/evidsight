@@ -38,7 +38,9 @@ class FakeSSEBridge:
     def __init__(self):
         self.events = []
 
-    async def publish(self, event_type: str, data: dict | None = None, event_id: int | None = None) -> None:
+    async def publish(
+        self, event_type: str, data: dict | None = None, event_id: int | None = None
+    ) -> None:
         self.events.append({"event": event_type, "data": data or {}, "event_id": event_id})
 
 
@@ -48,19 +50,25 @@ async def _stub_handler(task, step, session, sse):
 
 @pytest.fixture
 def agent_registry():
-    handlers = {phase: _stub_handler for phase in AgentContext.from_dict({}).to_dict()["completed_phases"]}
+    handlers = {
+        phase: _stub_handler for phase in AgentContext.from_dict({}).to_dict()["completed_phases"]
+    }
     # 使用 7 phase 固定顺序
     from app.models.enums import STEP_TYPE_ENUM
+
     handlers = {phase: _stub_handler for phase in STEP_TYPE_ENUM}
     reg = ToolRegistry()
     from app.tools.base import PhaseHandlerTool
+
     for phase in STEP_TYPE_ENUM:
-        reg.register(PhaseHandlerTool(
-            name=f"{phase}_tool",
-            description=f"tool for {phase}",
-            mapped_phase=phase,
-            handler=handlers[phase],
-        ))
+        reg.register(
+            PhaseHandlerTool(
+                name=f"{phase}_tool",
+                description=f"tool for {phase}",
+                mapped_phase=phase,
+                handler=handlers[phase],
+            )
+        )
     reg.register(MemoryTool())
     return reg
 
@@ -86,11 +94,14 @@ class TestAgentRuntimeFlag:
 
         # 模拟 Redis
         fake_redis = FakeRedis()
-        monkeypatch.setattr("app.pipeline.sse_bridge.get_async_redis", AsyncMock(return_value=fake_redis))
+        monkeypatch.setattr(
+            "app.pipeline.sse_bridge.get_async_redis", AsyncMock(return_value=fake_redis)
+        )
 
         # 模拟 LLM：按顺序返回 7 个 phase 的 tool call，
         # 在 search phase 穿插一次 memory_tool，最后 finish
         from app.models.enums import STEP_TYPE_ENUM
+
         phase_order = list(STEP_TYPE_ENUM)
         tool_sequence = [f"{phase}_tool" for phase in phase_order]
         # 在 search 之后插入 memory_tool，验证全局 Tool 不破坏 phase 推进
@@ -122,9 +133,13 @@ class TestAgentRuntimeFlag:
         monkeypatch.setattr("app.agent.loop.chat_completion", fake_chat)
 
         # Mock 任务锁，避免 Redis 依赖
-        monkeypatch.setattr("app.services.task_lifecycle.acquire_task_lock_async", AsyncMock(return_value=True))
+        monkeypatch.setattr(
+            "app.services.task_lifecycle.acquire_task_lock_async", AsyncMock(return_value=True)
+        )
         monkeypatch.setattr("app.services.task_lifecycle.release_task_lock_async", AsyncMock())
-        monkeypatch.setattr("app.services.task_lifecycle.refresh_task_lock_async", AsyncMock(return_value=True))
+        monkeypatch.setattr(
+            "app.services.task_lifecycle.refresh_task_lock_async", AsyncMock(return_value=True)
+        )
 
         # 将 commit 重定向为 flush，避免污染共享的内存 SQLite 测试库
         monkeypatch.setattr(db_session, "commit", db_session.flush)
@@ -146,6 +161,7 @@ class TestAgentRuntimeFlag:
 
         # 验证 7 个主 step 均 completed
         from app.services.task_lifecycle import load_task_steps
+
         steps = await load_task_steps(db_session, task.id)
         completed_steps = [s for s in steps if s.status == "completed"]
         completed_phases = {s.step_type for s in completed_steps}
@@ -191,7 +207,8 @@ class TestAgentRuntimeFlag:
 
         # 验证 memory_tool 曾被调用且不破坏 phase 推进；参数已脱敏不暴露具体内容
         memory_actions = [
-            e for e in sse.events
+            e
+            for e in sse.events
             if e["event"] == EVENT_AGENT_ACTION and e["data"].get("tool_name") == "memory_tool"
         ]
         assert len(memory_actions) == 1
@@ -210,7 +227,9 @@ class TestAgentRuntimeFlag:
         action_entries = [e for e in memory_entries if e.entry_type == "action"]
         assert all(e.content.get("observation") is not None for e in action_entries)
         # 所有主 phase tool 调用都有 step_id（memory_tool 除外）
-        phase_action_entries = [e for e in action_entries if e.content.get("tool_name") != "memory_tool"]
+        phase_action_entries = [
+            e for e in action_entries if e.content.get("tool_name") != "memory_tool"
+        ]
         assert len(phase_action_entries) == len(phase_order)
         assert all(e.step_id is not None for e in phase_action_entries)
 
@@ -237,7 +256,14 @@ class TestAgentRuntimeFlag:
             execution_context={
                 "agent_context": {
                     "current_phase": "render",
-                    "completed_phases": ["planning", "search", "fetch", "rerank", "synthesis", "evidence_graph"],
+                    "completed_phases": [
+                        "planning",
+                        "search",
+                        "fetch",
+                        "rerank",
+                        "synthesis",
+                        "evidence_graph",
+                    ],
                     "iteration_count": 6,
                     "last_step_id": None,
                 }
@@ -248,28 +274,35 @@ class TestAgentRuntimeFlag:
 
         # 预置前 6 个 phase 的 completed steps，使 resume 后只剩 render
         from app.models.research_step import ResearchStep
+
         for phase in ["planning", "search", "fetch", "rerank", "synthesis", "evidence_graph"]:
-            db_session.add(ResearchStep(
-                task_id=task.id,
-                step_type=phase,
-                status="completed",
-                started_at=datetime.now(timezone.utc),
-                completed_at=datetime.now(timezone.utc),
-            ))
+            db_session.add(
+                ResearchStep(
+                    task_id=task.id,
+                    step_type=phase,
+                    status="completed",
+                    started_at=datetime.now(timezone.utc),
+                    completed_at=datetime.now(timezone.utc),
+                )
+            )
         await db_session.flush()
 
         # 预置一条历史 memory entry，模拟断点续跑前已持久化的 ReAct Trace
         from app.services import agent_memory_service
         from app.agent.memory import ReActEntry
+
         await agent_memory_service.create_memory_entry(
-            db_session, task.id,
+            db_session,
+            task.id,
             ReActEntry(iteration=1, phase="planning", thought="历史思考"),
         )
         await db_session.flush()
 
         # 模拟 Redis
         fake_redis = FakeRedis()
-        monkeypatch.setattr("app.pipeline.sse_bridge.get_async_redis", AsyncMock(return_value=fake_redis))
+        monkeypatch.setattr(
+            "app.pipeline.sse_bridge.get_async_redis", AsyncMock(return_value=fake_redis)
+        )
 
         # 模拟 LLM：直接调用 render_tool 完成最后 phase
         async def fake_chat(messages, tools=None, tool_choice=None, **kwargs):
@@ -285,9 +318,13 @@ class TestAgentRuntimeFlag:
         monkeypatch.setattr("app.agent.loop.chat_completion", fake_chat)
 
         # Mock 任务锁
-        monkeypatch.setattr("app.services.task_lifecycle.acquire_task_lock_async", AsyncMock(return_value=True))
+        monkeypatch.setattr(
+            "app.services.task_lifecycle.acquire_task_lock_async", AsyncMock(return_value=True)
+        )
         monkeypatch.setattr("app.services.task_lifecycle.release_task_lock_async", AsyncMock())
-        monkeypatch.setattr("app.services.task_lifecycle.refresh_task_lock_async", AsyncMock(return_value=True))
+        monkeypatch.setattr(
+            "app.services.task_lifecycle.refresh_task_lock_async", AsyncMock(return_value=True)
+        )
 
         # 将 commit 重定向为 flush
         monkeypatch.setattr(db_session, "commit", db_session.flush)
@@ -315,7 +352,11 @@ class TestAgentRuntimeFlag:
         thought_entries = [e for e in memory_entries if e.entry_type == "thought"]
         assert any(e.content.get("thought") == "历史思考" for e in thought_entries)
         # render_tool 对应的 action entry 携带 reasoning_content
-        render_action = [e for e in memory_entries if e.entry_type == "action" and e.content.get("tool_name") == "render_tool"]
+        render_action = [
+            e
+            for e in memory_entries
+            if e.entry_type == "action" and e.content.get("tool_name") == "render_tool"
+        ]
         assert len(render_action) == 1
         assert render_action[0].content.get("thought") == "完成 render"
 

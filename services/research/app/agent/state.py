@@ -36,7 +36,10 @@ class PhaseController:
 
     def _ensure_current_phase(self) -> None:
         """确保 current_phase 指向第一个未完成的 phase。"""
-        if self._ctx.current_phase is not None and self._ctx.current_phase not in self._ctx.completed_phases:
+        if (
+            self._ctx.current_phase is not None
+            and self._ctx.current_phase not in self._ctx.completed_phases
+        ):
             return
         for phase in self.PHASE_ORDER:
             if phase not in self._ctx.completed_phases:

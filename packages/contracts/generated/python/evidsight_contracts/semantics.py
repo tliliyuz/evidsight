@@ -8,6 +8,7 @@ Knowledge Provider 复用，保证双方对同一规则理解一致。
 约定：每个函数接收完整文档（dict），返回违反描述列表；空列表表示通过。
 文档不是 dict 或字段类型不符合时返回空列表（结构校验由 Schema 负责）。
 """
+
 from __future__ import annotations
 
 from typing import Callable, Dict, List, Union

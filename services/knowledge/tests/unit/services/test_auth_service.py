@@ -1,4 +1,5 @@
 """认证 Service 单元测试 — Mock DB session"""
+
 from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, timezone
 
@@ -18,12 +19,14 @@ from app.models.user import User
 @pytest.fixture
 def mock_db():
     session = AsyncMock(spec=AsyncSession)
+
     # Mock refresh 模拟 DB 回填 id/role/status/created_at（status 由 DB server_default 置为 active）
     async def _refresh(instance):
         instance.id = instance.id or 1
         instance.role = instance.role or "user"
         instance.status = instance.status or "active"
         instance.created_at = instance.created_at or datetime.now(timezone.utc)
+
     session.refresh.side_effect = _refresh
     return session
 
@@ -79,6 +82,7 @@ class TestLogin:
     @pytest.mark.asyncio
     async def test_login_success(self, mock_db):
         from app.core.security import hash_password
+
         user = User(
             id=1,
             platform_user_id="550e8400-e29b-41d4-a716-446655440000",
@@ -92,6 +96,7 @@ class TestLogin:
         assert isinstance(result, TokenResponse)
         # 验证 token 可解码且 claims 正确（非仅 truthy 断言）
         from app.core.security import decode_access_token
+
         access_payload = decode_access_token(result.access_token)
         assert access_payload["sub"] is not None
         assert "exp" in access_payload
@@ -101,6 +106,7 @@ class TestLogin:
     @pytest.mark.asyncio
     async def test_login_wrong_password(self, mock_db):
         from app.core.security import hash_password
+
         user = User(username="test", password_hash=hash_password("correct"))
         mock_db.execute.return_value = _make_mock_result(user)
 
@@ -120,6 +126,7 @@ class TestLogin:
     async def test_login_token_jwt_format(self, mock_db):
         """验证 access_token 和 refresh_token 为合法 JWT 格式"""
         from app.core.security import hash_password, decode_access_token
+
         user = User(
             id=1,
             platform_user_id="550e8400-e29b-41d4-a716-446655440000",
@@ -141,6 +148,7 @@ class TestLogin:
         assert "." in result.refresh_token
         assert len(result.refresh_token) > 20
         from app.core.security import decode_refresh_token
+
         refresh_payload = decode_refresh_token(result.refresh_token)
         assert "sub" in refresh_payload
 
@@ -187,6 +195,7 @@ class TestGetCurrentUserProfile:
     async def test_active_user_returns_db_fields(self, mock_db):
         """UserSummary 的 id/username/role/status 均来自数据库当前状态，不拼装 Token Claim。"""
         import uuid
+
         user = User(
             platform_user_id=self.PLATFORM_UUID,
             username="db-user",

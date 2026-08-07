@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 # ==================== 生命周期 ====================
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：启动时初始化日志 + ChromaDB + Redis 预连接 + 配置安全检查"""
@@ -45,7 +46,11 @@ async def lifespan(app: FastAPI):
         _default_executor = getattr(_loop, "_default_executor", None)
         if _default_executor is not None:
             _max_workers = getattr(_default_executor, "_max_workers", "?")
-            logger.info("线程池诊断: max_workers=%s, type=%s", _max_workers, type(_default_executor).__name__)
+            logger.info(
+                "线程池诊断: max_workers=%s, type=%s",
+                _max_workers,
+                type(_default_executor).__name__,
+            )
         else:
             logger.info("线程池诊断: 未找到 _default_executor（可能在首次 to_thread 调用时才创建）")
     except Exception as _e:
@@ -67,8 +72,7 @@ async def lifespan(app: FastAPI):
             )
         else:
             raise RuntimeError(
-                "JWT_SECRET_KEY 未设置或仍为默认值，"
-                "请通过 .env 文件设置 JWT_SECRET_KEY"
+                "JWT_SECRET_KEY 未设置或仍为默认值，请通过 .env 文件设置 JWT_SECRET_KEY"
             )
 
     # 生产配置校验：必填项缺失拒绝启动（fail-fast，对齐 CONFIGURATION.md 生产必填）
@@ -125,14 +129,17 @@ app.include_router(internal_router)
 
 # ==================== 全局异常处理器 ====================
 
+
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
     """业务异常 → 扁平错误响应，与 AuthMiddleware 格式统一"""
     rid = get_request_id()
     logger.info(
         "业务异常: %s %s → %s %s",
-        request.method, request.url.path,
-        exc.error_code, exc.error_message,
+        request.method,
+        request.url.path,
+        exc.error_code,
+        exc.error_message,
         extra={"error_code": exc.error_code, "status_code": exc.status_code},
     )
     response = JSONResponse(
@@ -156,7 +163,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     rid = get_request_id()
     logger.info(
         "参数校验失败: %s %s",
-        request.method, request.url.path,
+        request.method,
+        request.url.path,
         extra={"errors": str(exc.errors())},
     )
     return JSONResponse(
@@ -175,7 +183,9 @@ async def global_exception_handler(request: Request, exc: Exception):
     # 结构化日志：记录完整异常信息（含 traceback）
     logger.error(
         "未捕获异常: %s %s → %s",
-        request.method, request.url.path, type(exc).__name__,
+        request.method,
+        request.url.path,
+        type(exc).__name__,
         exc_info=True,
         extra={"exc_type": type(exc).__name__},
     )

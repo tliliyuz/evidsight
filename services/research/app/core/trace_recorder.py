@@ -128,10 +128,13 @@ class TraceRecorder:
         cost_usd = calculate_cost_usd(input_tokens, output_tokens, model_name)
         self._total_cost_usd += cost_usd
 
-        breakdown = self._phase_cost.setdefault(phase, {
-            "tokens": 0,
-            "cost": 0.0,
-        })
+        breakdown = self._phase_cost.setdefault(
+            phase,
+            {
+                "tokens": 0,
+                "cost": 0.0,
+            },
+        )
         breakdown["tokens"] = int(breakdown["tokens"]) + input_tokens + output_tokens
         breakdown["cost"] = float(breakdown["cost"]) + cost_usd
 
@@ -476,7 +479,9 @@ class TraceRecorder:
 
         logger.info(
             "Trace 已收集: task_id=%s status=%s total_ms=%d phases=%d",
-            self.task_id, self._status, trace["total_duration_ms"],
+            self.task_id,
+            self._status,
+            trace["total_duration_ms"],
             sum(1 for v in trace["phases"].values() if v is not None),
         )
 

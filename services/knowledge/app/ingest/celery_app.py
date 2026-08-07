@@ -6,6 +6,7 @@ import sys
 from celery import Celery
 from app.core.chroma_client import init_chroma
 from app.config import settings
+
 # Worker 启动时初始化 ChromaDB（独立进程，不走 FastAPI lifespan）
 from celery.signals import worker_process_init
 

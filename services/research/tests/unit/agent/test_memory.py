@@ -24,12 +24,14 @@ class TestReActEntry:
 
     def test_from_dict_恢复时间(self):
         ts = datetime.now(timezone.utc)
-        entry = ReActEntry.from_dict({
-            "iteration": 2,
-            "phase": "search",
-            "tool_name": "search_tool",
-            "timestamp": ts.isoformat(),
-        })
+        entry = ReActEntry.from_dict(
+            {
+                "iteration": 2,
+                "phase": "search",
+                "tool_name": "search_tool",
+                "timestamp": ts.isoformat(),
+            }
+        )
         assert entry.iteration == 2
         assert entry.phase == "search"
         assert entry.tool_name == "search_tool"
@@ -47,14 +49,16 @@ class TestWorkingMemory:
 
     def test_to_messages_格式化记录(self):
         memory = WorkingMemory()
-        memory.add(ReActEntry(
-            iteration=1,
-            phase="planning",
-            thought="思考1",
-            tool_name="plan_tool",
-            arguments={"x": 1},
-            observation="观察1",
-        ))
+        memory.add(
+            ReActEntry(
+                iteration=1,
+                phase="planning",
+                thought="思考1",
+                tool_name="plan_tool",
+                arguments={"x": 1},
+                observation="观察1",
+            )
+        )
         messages = memory.to_messages()
         assert len(messages) == 1
         assert messages[0]["role"] == "assistant"
@@ -72,7 +76,9 @@ class TestWorkingMemory:
         assert restored.recent()[0].thought == "t"
 
     def test_from_dict_list_过滤非dict(self):
-        restored = WorkingMemory.from_dict_list([None, {"iteration": 1, "phase": "p"}], max_entries=5)
+        restored = WorkingMemory.from_dict_list(
+            [None, {"iteration": 1, "phase": "p"}], max_entries=5
+        )
         assert len(restored.recent()) == 1
 
     def test_add_后进入pending队列(self):
@@ -90,6 +96,8 @@ class TestWorkingMemory:
         assert len(memory.recent()) == 1
 
     def test_from_dict_list_不进入pending队列(self):
-        memory = WorkingMemory.from_dict_list([{"iteration": 1, "phase": "planning"}], max_entries=5)
+        memory = WorkingMemory.from_dict_list(
+            [{"iteration": 1, "phase": "planning"}], max_entries=5
+        )
         assert memory.pending_entries() == []
         assert len(memory.recent()) == 1

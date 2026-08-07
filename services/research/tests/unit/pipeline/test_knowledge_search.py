@@ -9,6 +9,7 @@
 
 SDD 门禁：RED —— 目标行为（策略感知检索）当前缺失。
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -92,21 +93,24 @@ def _retrieval_response(hits: list[dict]):
     return RetrievalSearchResult(
         contract_version="1.0.0",
         request_id="req-1",
-        results=[RetrievalHit(
-            hit_id=str(h["hit_id"]),
-            knowledge_base_id=str(h["knowledge_base_id"]),
-            document_id=str(h["document_id"]),
-            document_version_id=str(h["document_version_id"]),
-            segment_id=str(h["segment_id"]),
-            document_display_name=str(h.get("document_display_name") or ""),
-            section_title=h.get("section_title"),
-            location=h.get("location") or {},
-            minimal_excerpt=str(h.get("minimal_excerpt") or ""),
-            scores=h.get("scores") or [],
-            source_updated_at=str(h.get("source_updated_at") or ""),
-            retrieved_at=str(h.get("retrieved_at") or ""),
-            access_scope=str(h.get("access_scope") or "internal"),
-        ) for h in hits],
+        results=[
+            RetrievalHit(
+                hit_id=str(h["hit_id"]),
+                knowledge_base_id=str(h["knowledge_base_id"]),
+                document_id=str(h["document_id"]),
+                document_version_id=str(h["document_version_id"]),
+                segment_id=str(h["segment_id"]),
+                document_display_name=str(h.get("document_display_name") or ""),
+                section_title=h.get("section_title"),
+                location=h.get("location") or {},
+                minimal_excerpt=str(h.get("minimal_excerpt") or ""),
+                scores=h.get("scores") or [],
+                source_updated_at=str(h.get("source_updated_at") or ""),
+                retrieved_at=str(h.get("retrieved_at") or ""),
+                access_scope=str(h.get("access_scope") or "internal"),
+            )
+            for h in hits
+        ],
         returned_count=len(hits),
         has_more=False,
     )
@@ -141,10 +145,10 @@ def _setup_search_session(
     existing_result.all.return_value = [(url,) for url in (existing_urls or [])]
 
     session.execute.side_effect = [
-        planning_result,   # knowledge 通道：_load_sub_questions
-        kb_result,         # knowledge 通道：_load_kb_ids
-        planning_result,   # web 通道：_load_sub_questions（hybrid）
-        existing_result,   # web 通道：既有 URL 查询（hybrid）
+        planning_result,  # knowledge 通道：_load_sub_questions
+        kb_result,  # knowledge 通道：_load_kb_ids
+        planning_result,  # web 通道：_load_sub_questions（hybrid）
+        existing_result,  # web 通道：既有 URL 查询（hybrid）
     ]
 
 
@@ -168,18 +172,22 @@ class TestKnowledgeStrategySearch:
 
     @pytest.mark.asyncio
     async def test_knowledge_策略_调用InternalRetrieval且不调用Tavily(self):
-        mock_retrieval = AsyncMock(return_value=_retrieval_response(
-            [_hit("h1", "doc-1")]
-        ))
-        with patch(
-            "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
-            mock_retrieval,
-        ), patch(
-            "app.pipeline.searcher._call_tavily",
-            AsyncMock(side_effect=AssertionError("knowledge 策略不得调用 Tavily")),
-        ) as mock_tavily:
+        mock_retrieval = AsyncMock(return_value=_retrieval_response([_hit("h1", "doc-1")]))
+        with (
+            patch(
+                "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
+                mock_retrieval,
+            ),
+            patch(
+                "app.pipeline.searcher._call_tavily",
+                AsyncMock(side_effect=AssertionError("knowledge 策略不得调用 Tavily")),
+            ) as mock_tavily,
+        ):
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
         assert output["strategy"] == "knowledge"
@@ -192,17 +200,22 @@ class TestKnowledgeStrategySearch:
 
     @pytest.mark.asyncio
     async def test_knowledge_策略_候选含稳定身份且不含excerpt持久化(self):
-        mock_retrieval = AsyncMock(return_value=_retrieval_response(
-            [_hit("h1", "doc-1")]
-        ))
-        with patch(
-            "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
-            mock_retrieval,
-        ), patch(
-            "app.pipeline.searcher._call_tavily", AsyncMock(),
+        mock_retrieval = AsyncMock(return_value=_retrieval_response([_hit("h1", "doc-1")]))
+        with (
+            patch(
+                "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
+                mock_retrieval,
+            ),
+            patch(
+                "app.pipeline.searcher._call_tavily",
+                AsyncMock(),
+            ),
         ):
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
         candidate = output["internal_candidates"][0]
@@ -219,18 +232,23 @@ class TestKnowledgeStrategySearch:
 
     @pytest.mark.asyncio
     async def test_knowledge_策略_KB_FORBIDDEN_fail_closed不降级Web(self):
-        mock_retrieval = AsyncMock(
-            side_effect=InternalKnowledgeForbiddenException("KB 无权")
-        )
-        with patch(
-            "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
-            mock_retrieval,
-        ), patch(
-            "app.pipeline.searcher._call_tavily", AsyncMock(),
-        ) as mock_tavily:
+        mock_retrieval = AsyncMock(side_effect=InternalKnowledgeForbiddenException("KB 无权"))
+        with (
+            patch(
+                "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
+                mock_retrieval,
+            ),
+            patch(
+                "app.pipeline.searcher._call_tavily",
+                AsyncMock(),
+            ) as mock_tavily,
+        ):
             with pytest.raises(InternalKnowledgeForbiddenException):
                 await run_search(
-                    self.task, self.step, self.db_session, self.sse_bridge,
+                    self.task,
+                    self.step,
+                    self.db_session,
+                    self.sse_bridge,
                 )
 
         # 授权失败关闭：绝不降级调用 Web
@@ -238,23 +256,28 @@ class TestKnowledgeStrategySearch:
 
     @pytest.mark.asyncio
     async def test_knowledge_策略_不创建WebResearchSource(self):
-        mock_retrieval = AsyncMock(return_value=_retrieval_response(
-            [_hit("h1", "doc-1")]
-        ))
-        with patch(
-            "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
-            mock_retrieval,
-        ), patch(
-            "app.pipeline.searcher._call_tavily", AsyncMock(),
+        mock_retrieval = AsyncMock(return_value=_retrieval_response([_hit("h1", "doc-1")]))
+        with (
+            patch(
+                "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
+                mock_retrieval,
+            ),
+            patch(
+                "app.pipeline.searcher._call_tavily",
+                AsyncMock(),
+            ),
         ):
             await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
         from app.models.research_source import ResearchSource
+
         add_calls = [
-            c for c in self.db_session.add.call_args_list
-            if isinstance(c[0][0], ResearchSource)
+            c for c in self.db_session.add.call_args_list if isinstance(c[0][0], ResearchSource)
         ]
         assert add_calls == []
 
@@ -273,19 +296,31 @@ class TestWebStrategySearch:
     @pytest.mark.asyncio
     async def test_web_策略_调用Tavily不调用InternalRetrieval(self):
         async def _fake_tavily(query: str, api_key: str):
-            return {"results": [{
-                "url": f"https://a.com/{len(query)}", "title": "t", "score": 0.9,
-            }]}
+            return {
+                "results": [
+                    {
+                        "url": f"https://a.com/{len(query)}",
+                        "title": "t",
+                        "score": 0.9,
+                    }
+                ]
+            }
 
-        with patch(
-            "app.pipeline.searcher._call_tavily",
-            AsyncMock(side_effect=_fake_tavily),
-        ) as mock_tavily, patch(
-            "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
-            AsyncMock(),
-        ) as mock_retrieval:
+        with (
+            patch(
+                "app.pipeline.searcher._call_tavily",
+                AsyncMock(side_effect=_fake_tavily),
+            ) as mock_tavily,
+            patch(
+                "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
+                AsyncMock(),
+            ) as mock_retrieval,
+        ):
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
         assert mock_tavily.await_count == 3
@@ -306,29 +341,39 @@ class TestHybridStrategySearch:
 
     @pytest.mark.asyncio
     async def test_hybrid_策略_同时调用内部检索与Web搜索(self):
-        mock_retrieval = AsyncMock(return_value=_retrieval_response(
-            [_hit("h1", "doc-1")]
-        ))
+        mock_retrieval = AsyncMock(return_value=_retrieval_response([_hit("h1", "doc-1")]))
 
         async def _fake_tavily(query: str, api_key: str):
-            return {"results": [{
-                "url": f"https://a.com/{len(query)}", "title": "t", "score": 0.9,
-            }]}
+            return {
+                "results": [
+                    {
+                        "url": f"https://a.com/{len(query)}",
+                        "title": "t",
+                        "score": 0.9,
+                    }
+                ]
+            }
 
-        with patch(
-            "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
-            mock_retrieval,
-        ), patch(
-            "app.pipeline.searcher._call_tavily",
-            AsyncMock(side_effect=_fake_tavily),
-        ) as mock_tavily:
+        with (
+            patch(
+                "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
+                mock_retrieval,
+            ),
+            patch(
+                "app.pipeline.searcher._call_tavily",
+                AsyncMock(side_effect=_fake_tavily),
+            ) as mock_tavily,
+        ):
             output = await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
         assert output["strategy"] == "hybrid"
         assert mock_retrieval.await_count == 3  # 每子问题一次内部检索
-        assert mock_tavily.await_count == 3    # 每子问题一次 Web 搜索
+        assert mock_tavily.await_count == 3  # 每子问题一次 Web 搜索
         assert len(output["internal_candidates"]) == 3
         assert output["after_dedup"] == 3
 
@@ -340,18 +385,26 @@ class TestHybridStrategySearch:
             captured_queries.append(query)
             return {"results": [{"url": "https://a.com/1", "title": "t", "score": 0.9}]}
 
-        mock_retrieval = AsyncMock(return_value=_retrieval_response(
-            [_hit("h1", "doc-1", excerpt="内部权限设计文档决定 READ 判定")]
-        ))
-        with patch(
-            "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
-            mock_retrieval,
-        ), patch(
-            "app.pipeline.searcher._call_tavily",
-            AsyncMock(side_effect=_fake_tavily),
+        mock_retrieval = AsyncMock(
+            return_value=_retrieval_response(
+                [_hit("h1", "doc-1", excerpt="内部权限设计文档决定 READ 判定")]
+            )
+        )
+        with (
+            patch(
+                "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
+                mock_retrieval,
+            ),
+            patch(
+                "app.pipeline.searcher._call_tavily",
+                AsyncMock(side_effect=_fake_tavily),
+            ),
         ):
             await run_search(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
         # Web Query 必须只来自公开子问题（与内部结果同源于规划阶段），
@@ -363,18 +416,23 @@ class TestHybridStrategySearch:
 
     @pytest.mark.asyncio
     async def test_hybrid_KB_FORBIDDEN_fail_closed_不降级为纯Web(self):
-        mock_retrieval = AsyncMock(
-            side_effect=InternalKnowledgeForbiddenException("KB 无权")
-        )
-        with patch(
-            "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
-            mock_retrieval,
-        ), patch(
-            "app.pipeline.searcher._call_tavily", AsyncMock(),
-        ) as mock_tavily:
+        mock_retrieval = AsyncMock(side_effect=InternalKnowledgeForbiddenException("KB 无权"))
+        with (
+            patch(
+                "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
+                mock_retrieval,
+            ),
+            patch(
+                "app.pipeline.searcher._call_tavily",
+                AsyncMock(),
+            ) as mock_tavily,
+        ):
             with pytest.raises(InternalKnowledgeForbiddenException):
                 await run_search(
-                    self.task, self.step, self.db_session, self.sse_bridge,
+                    self.task,
+                    self.step,
+                    self.db_session,
+                    self.sse_bridge,
                 )
 
         # 授权失败关闭：不允许 Web 掩盖授权问题

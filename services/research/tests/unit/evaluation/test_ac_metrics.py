@@ -17,6 +17,8 @@ from app.evaluation.ac_metrics import (
     evaluate_citation_validity,
     extract_citations,
 )
+
+
 class TestExtractCitations:
     """正文 [来源N] 引用提取。"""
 
@@ -80,9 +82,7 @@ class TestEvaluateCitationValidity:
 
     def test_无引用_rate为0(self):
         sections = [{"id": 1, "content": "无引用正文"}]
-        valid, total, rate = evaluate_citation_validity(
-            sections, {1: [101]}, {101: 0}
-        )
+        valid, total, rate = evaluate_citation_validity(sections, {1: [101]}, {101: 0})
         assert valid == 0
         assert total == 0
         assert rate == 0.0
@@ -92,22 +92,26 @@ class TestComputeTaskSuccessRate:
     """AC-003 成功率：completed + partially_completed 为成功，canceled 从分母排除。"""
 
     def test_达标(self):
-        success, denominator, rate = compute_task_success_rate({
-            "completed": 90,
-            "partially_completed": 5,
-            "failed": 5,
-            "canceled": 3,  # 用户主动取消，排除
-        })
+        success, denominator, rate = compute_task_success_rate(
+            {
+                "completed": 90,
+                "partially_completed": 5,
+                "failed": 5,
+                "canceled": 3,  # 用户主动取消，排除
+            }
+        )
         assert success == 95
         assert denominator == 100
         assert rate == pytest.approx(0.95)
 
     def test_全部成功(self):
-        _, _, rate = compute_task_success_rate({
-            "completed": 20,
-            "partially_completed": 0,
-            "failed": 0,
-        })
+        _, _, rate = compute_task_success_rate(
+            {
+                "completed": 20,
+                "partially_completed": 0,
+                "failed": 0,
+            }
+        )
         assert rate == pytest.approx(1.0)
 
     def test_空样本_rate为0(self):
@@ -115,12 +119,14 @@ class TestComputeTaskSuccessRate:
         assert rate == 0.0
 
     def test_取消不进入分母(self):
-        _, denominator, _ = compute_task_success_rate({
-            "completed": 0,
-            "partially_completed": 0,
-            "failed": 1,
-            "canceled": 100,
-        })
+        _, denominator, _ = compute_task_success_rate(
+            {
+                "completed": 0,
+                "partially_completed": 0,
+                "failed": 1,
+                "canceled": 100,
+            }
+        )
         assert denominator == 1
 
 
@@ -150,65 +156,71 @@ class TestCheckEvidenceTraceability:
     """AC-010 可追溯性：source_type 存在；internal 可定位，web 展示 URL 与获取时间。"""
 
     def test_internal_完整可追溯(self):
-        traceable, total, problems = check_evidence_traceability([
-            {
-                "source_type": "internal",
-                "knowledge_base_id": "kb-1",
-                "document_id": "doc-1",
-                "document_version_id": "ver-1",
-                "segment_id": "seg-1",
-                "location_summary": "第 1 页",
-                "canonical_url_snapshot": None,
-                "fetched_at_snapshot": None,
-            }
-        ])
+        traceable, total, problems = check_evidence_traceability(
+            [
+                {
+                    "source_type": "internal",
+                    "knowledge_base_id": "kb-1",
+                    "document_id": "doc-1",
+                    "document_version_id": "ver-1",
+                    "segment_id": "seg-1",
+                    "location_summary": "第 1 页",
+                    "canonical_url_snapshot": None,
+                    "fetched_at_snapshot": None,
+                }
+            ]
+        )
         assert traceable == 1
         assert total == 1
         assert problems == []
 
     def test_internal_缺定位_不可追溯(self):
-        traceable, total, problems = check_evidence_traceability([
-            {
-                "source_type": "internal",
-                "knowledge_base_id": "kb-1",
-                "document_id": None,  # 缺 document_id
-                "document_version_id": "ver-1",
-                "segment_id": "seg-1",
-                "location_summary": None,  # 缺位置
-            }
-        ])
+        traceable, total, problems = check_evidence_traceability(
+            [
+                {
+                    "source_type": "internal",
+                    "knowledge_base_id": "kb-1",
+                    "document_id": None,  # 缺 document_id
+                    "document_version_id": "ver-1",
+                    "segment_id": "seg-1",
+                    "location_summary": None,  # 缺位置
+                }
+            ]
+        )
         assert traceable == 0
         assert total == 1
         assert len(problems) == 1
 
     def test_web_完整可追溯(self):
-        traceable, total, _ = check_evidence_traceability([
-            {
-                "source_type": "web",
-                "canonical_url_snapshot": "https://example.com/a",
-                "fetched_at_snapshot": "2026-01-01T00:00:00Z",
-            }
-        ])
+        traceable, total, _ = check_evidence_traceability(
+            [
+                {
+                    "source_type": "web",
+                    "canonical_url_snapshot": "https://example.com/a",
+                    "fetched_at_snapshot": "2026-01-01T00:00:00Z",
+                }
+            ]
+        )
         assert traceable == 1
         assert total == 1
 
     def test_web_缺获取时间_不可追溯(self):
         # PRD AC-010：外部证据必须展示 URL 与获取时间，fetched_at 缺失即不可追溯
-        traceable, total, problems = check_evidence_traceability([
-            {
-                "source_type": "web",
-                "canonical_url_snapshot": "https://example.com/a",
-                "fetched_at_snapshot": None,
-            }
-        ])
+        traceable, total, problems = check_evidence_traceability(
+            [
+                {
+                    "source_type": "web",
+                    "canonical_url_snapshot": "https://example.com/a",
+                    "fetched_at_snapshot": None,
+                }
+            ]
+        )
         assert traceable == 0
         assert total == 1
         assert len(problems) == 1
 
     def test_未知来源类型_不可追溯(self):
-        traceable, total, _ = check_evidence_traceability([
-            {"source_type": None}
-        ])
+        traceable, total, _ = check_evidence_traceability([{"source_type": None}])
         assert traceable == 0
         assert total == 1
 
@@ -226,7 +238,9 @@ class TestFrozenEvalSet:
         from pathlib import Path
 
         eval_set_path = (
-            Path(__file__).resolve().parent.parent.parent.parent / "tests" / "eval"
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "tests"
+            / "eval"
             / "research_eval_set.json"
         )
         assert eval_set_path.exists(), f"冻结评估集缺失: {eval_set_path}"
@@ -238,7 +252,4 @@ class TestFrozenEvalSet:
         for entry in data:
             assert entry.get("id") is not None
             assert entry.get("topic")
-            assert entry.get("task_type") in {
-                "comparison", "explainer", "analysis"
-            }
-
+            assert entry.get("task_type") in {"comparison", "explainer", "analysis"}

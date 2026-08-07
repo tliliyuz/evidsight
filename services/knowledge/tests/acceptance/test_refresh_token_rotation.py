@@ -75,9 +75,7 @@ async def test_ia003_刷新锁定旧token并只建立一个已记录的后继():
     )
     db = AsyncMock()
     db.add = MagicMock()
-    db.execute = AsyncMock(
-        side_effect=[_scalar_result(old_token), _scalar_result(_user())]
-    )
+    db.execute = AsyncMock(side_effect=[_scalar_result(old_token), _scalar_result(_user())])
     db.get = AsyncMock(return_value=family)
 
     result = await refresh(db, old_token_text)
@@ -85,9 +83,7 @@ async def test_ia003_刷新锁定旧token并只建立一个已记录的后继():
     statement = db.execute.call_args_list[0].args[0]
     assert statement._for_update_arg is not None
     successors = [
-        call.args[0]
-        for call in db.add.call_args_list
-        if isinstance(call.args[0], RefreshToken)
+        call.args[0] for call in db.add.call_args_list if isinstance(call.args[0], RefreshToken)
     ]
     assert len(successors) == 1
     successor = successors[0]
@@ -123,9 +119,7 @@ async def test_ia004_重放已轮换token撤销family并记录安全事件():
     )
     db = AsyncMock()
     db.add = MagicMock()
-    db.execute = AsyncMock(
-        side_effect=[_scalar_result(old_token), _scalar_result(family)]
-    )
+    db.execute = AsyncMock(side_effect=[_scalar_result(old_token), _scalar_result(family)])
 
     request_id_token = request_id_var.set("ia004-request-id")
     try:
@@ -137,9 +131,7 @@ async def test_ia004_重放已轮换token撤销family并记录安全事件():
     assert family.revoked_at is not None
     assert family.revoke_reason == "refresh_token_replay"
     added = [call.args[0] for call in db.add.call_args_list]
-    audit_events = [
-        item for item in added if type(item).__name__ == "IdentityAuditEvent"
-    ]
+    audit_events = [item for item in added if type(item).__name__ == "IdentityAuditEvent"]
     assert len(audit_events) == 1
     event = audit_events[0]
     assert event.user_id == PLATFORM_USER_ID

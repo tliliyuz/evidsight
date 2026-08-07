@@ -9,11 +9,7 @@ from app.main import app
 
 def test_ia001b_research不暴露身份写接口():
     """注册、登录、刷新、退出和改密只能由 Knowledge 身份模块提供。"""
-    auth_paths = {
-        route.path
-        for route in app.routes
-        if route.path.startswith("/api/auth")
-    }
+    auth_paths = {route.path for route in app.routes if route.path.startswith("/api/auth")}
 
     assert auth_paths == set()
 

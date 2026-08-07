@@ -23,45 +23,157 @@ INTENT_DIRECT_ANSWER = "direct_answer"
 # ── 规则快路径词表 ──────────────────────────────────────────────
 
 _DIRECT_GREETINGS_ZH = {
-    "你好", "您好", "嗨", "哈喽", "早上好", "晚上好", "中午好", "下午好",
-    "大家好", "在吗", "有人吗", "喂", "嗨嗨", "哈喽啊",
+    "你好",
+    "您好",
+    "嗨",
+    "哈喽",
+    "早上好",
+    "晚上好",
+    "中午好",
+    "下午好",
+    "大家好",
+    "在吗",
+    "有人吗",
+    "喂",
+    "嗨嗨",
+    "哈喽啊",
 }
 _DIRECT_GREETINGS_EN = {
-    "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
-    "how are you", "how are u", "what's up", "whats up", "sup", "greetings",
-    "howdy", "yo",
+    "hello",
+    "hi",
+    "hey",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "how are you",
+    "how are u",
+    "what's up",
+    "whats up",
+    "sup",
+    "greetings",
+    "howdy",
+    "yo",
 }
 _DIRECT_THANKS_ZH = {"谢谢", "谢谢你", "感谢", "多谢", "谢了"}
 _DIRECT_THANKS_EN = {"thanks", "thank you", "thx", "thank u"}
 _DIRECT_FAREWELLS_ZH = {"再见", "拜拜", "bye bye", "拜拜了", "回头见"}
 _DIRECT_FAREWELLS_EN = {"bye", "goodbye", "see you", "see ya", "later"}
 _DIRECT_SELF_INTRO = {
-    "你是谁", "你是什么", "你是干嘛的", "你能做什么", "你会什么", "介绍下自己",
-    "who are you", "what are you", "what can you do", "help", "帮助",
+    "你是谁",
+    "你是什么",
+    "你是干嘛的",
+    "你能做什么",
+    "你会什么",
+    "介绍下自己",
+    "who are you",
+    "what are you",
+    "what can you do",
+    "help",
+    "帮助",
 }
 
 _RESEARCH_KEYWORDS_ZH = {
-    "对比", "比较", "vs", "v.s", "分析", "影响", "机制", "原理", "研究", "调研",
-    "方案", "应用", "趋势", "评价", "评估", "差异", "区别", "优劣", "现状",
-    "案例", "挑战", "机遇", "策略", "问题", "总结", "综述", "查询", "测试",
-    "技术", "产品", "工具", "框架", "模型", "算法", "系统", "平台", "事件",
-    "历史", "前景", "发展", "改进", "创新", "方法", "流程", "效果", "性能",
+    "对比",
+    "比较",
+    "vs",
+    "v.s",
+    "分析",
+    "影响",
+    "机制",
+    "原理",
+    "研究",
+    "调研",
+    "方案",
+    "应用",
+    "趋势",
+    "评价",
+    "评估",
+    "差异",
+    "区别",
+    "优劣",
+    "现状",
+    "案例",
+    "挑战",
+    "机遇",
+    "策略",
+    "问题",
+    "总结",
+    "综述",
+    "查询",
+    "测试",
+    "技术",
+    "产品",
+    "工具",
+    "框架",
+    "模型",
+    "算法",
+    "系统",
+    "平台",
+    "事件",
+    "历史",
+    "前景",
+    "发展",
+    "改进",
+    "创新",
+    "方法",
+    "流程",
+    "效果",
+    "性能",
 }
 _RESEARCH_KEYWORDS_EN = {
-    "compare", "comparison", "vs", "versus", "analysis", "analyze", "impact",
-    "mechanism", "principle", "research", "study", "review", "survey", "solution",
-    "application", "trends", "trend", "evaluate", "assessment", "difference",
-    "differences", "pros and cons", "advantages", "disadvantages", "status",
-    "case", "cases", "challenges", "opportunities", "strategy", "strategies",
-    "technology", "product", "tool", "framework", "model", "algorithm", "system",
-    "platform", "event", "history", "future", "development", "improvement",
-    "innovation", "method", "process", "performance", "effect",
+    "compare",
+    "comparison",
+    "vs",
+    "versus",
+    "analysis",
+    "analyze",
+    "impact",
+    "mechanism",
+    "principle",
+    "research",
+    "study",
+    "review",
+    "survey",
+    "solution",
+    "application",
+    "trends",
+    "trend",
+    "evaluate",
+    "assessment",
+    "difference",
+    "differences",
+    "pros and cons",
+    "advantages",
+    "disadvantages",
+    "status",
+    "case",
+    "cases",
+    "challenges",
+    "opportunities",
+    "strategy",
+    "strategies",
+    "technology",
+    "product",
+    "tool",
+    "framework",
+    "model",
+    "algorithm",
+    "system",
+    "platform",
+    "event",
+    "history",
+    "future",
+    "development",
+    "improvement",
+    "innovation",
+    "method",
+    "process",
+    "performance",
+    "effect",
 }
 
 # 标点与常见语气词，用于规则归一化
-_PUNCTUATION_CHARS = set(
-    "！？。，、；：“”‘’（）【】…—~!?,;:\"'()[]…—~`"
-)
+_PUNCTUATION_CHARS = set("！？。，、；：“”‘’（）【】…—~!?,;:\"'()[]…—~`")
 _MODAL_PARTICLES = ["啊", "呀", "呢", "吧", "了", "哦", "哈", "哇", "喽", "嘛"]
 
 # LLM 回退长度阈值：超过该长度默认视为研究意图，不再调用 LLM
@@ -268,7 +380,9 @@ async def classify_intent(topic: str) -> IntentResult:
     if rule_result is not None:
         logger.debug(
             "意图识别规则命中: intent=%s, reason=%s, topic=%s",
-            rule_result.intent, rule_result.reason, topic[:50]
+            rule_result.intent,
+            rule_result.reason,
+            topic[:50],
         )
         return rule_result
 
@@ -278,7 +392,10 @@ async def classify_intent(topic: str) -> IntentResult:
 
     # LLM 回退
     messages = [
-        {"role": "system", "content": "你是 ResearchMind 的意图识别器。你只输出 JSON，不要任何解释。"},
+        {
+            "role": "system",
+            "content": "你是 ResearchMind 的意图识别器。你只输出 JSON，不要任何解释。",
+        },
         {"role": "user", "content": _INTENT_PROMPT + topic.strip()},
     ]
     try:
@@ -291,12 +408,11 @@ async def classify_intent(topic: str) -> IntentResult:
         parsed = _parse_llm_result(llm_result.content)
         logger.info(
             "意图识别 LLM 判定: intent=%s, reason=%s, topic=%s",
-            parsed.intent, parsed.reason, topic[:50]
+            parsed.intent,
+            parsed.reason,
+            topic[:50],
         )
         return parsed
     except Exception as e:
-        logger.warning(
-            "意图识别 LLM 失败，降级为 research: topic=%s, error=%s",
-            topic[:50], e
-        )
+        logger.warning("意图识别 LLM 失败，降级为 research: topic=%s, error=%s", topic[:50], e)
         return IntentResult(INTENT_RESEARCH, "", "LLM异常降级")

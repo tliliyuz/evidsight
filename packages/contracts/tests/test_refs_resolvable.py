@@ -1,4 +1,5 @@
 """Schema 自检：所有 $ref 可解析，加载后能以 jsonschema Validator 构造。"""
+
 import pytest
 
 from conftest import SCHEMAS_DIR
@@ -40,4 +41,6 @@ def test_no_relative_refs_after_load():
             return refs
 
         refs = _collect(schema)
-        assert all(not r.startswith("./") for r in refs), f"{name} 存在未重写为绝对路径的相对 $ref: {refs}"
+        assert all(not r.startswith("./") for r in refs), (
+            f"{name} 存在未重写为绝对路径的相对 $ref: {refs}"
+        )

@@ -3,6 +3,7 @@
 契约测试通过 referencing.Registry 预注册全部 Schema（以 file:// 检索 URI），
 使 jsonschema 的 Draft202012Validator 能解析跨文件 $ref，且不触发远程拉取。
 """
+
 import json
 from functools import lru_cache
 from pathlib import Path

@@ -9,7 +9,14 @@ from decimal import Decimal
 SEARCH_RECALL_K = 5
 
 # Rerank 分数分箱边界（左闭右开，最后一档闭区间）
-SCORE_BINS = [Decimal("0.00"), Decimal("0.20"), Decimal("0.40"), Decimal("0.60"), Decimal("0.80"), Decimal("1.00")]
+SCORE_BINS = [
+    Decimal("0.00"),
+    Decimal("0.20"),
+    Decimal("0.40"),
+    Decimal("0.60"),
+    Decimal("0.80"),
+    Decimal("1.00"),
+]
 
 # 高质量证据阈值
 HIGH_QUALITY_THRESHOLD = Decimal("0.60")

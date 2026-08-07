@@ -10,6 +10,7 @@
 
 SDD 门禁：RED —— 目标行为（Internal Retrieval Consumer）当前缺失。
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -94,7 +95,9 @@ class TestInternalRetrievalClient:
         priv_file.write_text(private_pem, encoding="utf-8")
 
         monkeypatch.setattr(settings, "EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID", "test-kid")
-        monkeypatch.setattr(settings, "EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE", str(priv_file))
+        monkeypatch.setattr(
+            settings, "EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE", str(priv_file)
+        )
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS", 60)
         monkeypatch.setattr(settings, "EVIDSIGHT_KNOWLEDGE_INTERNAL_BASE_URL", BASE_URL)
         monkeypatch.setattr(settings, "EVIDSIGHT_INTERNAL_RETRIEVAL_TIMEOUT_SECONDS", 5)
@@ -145,8 +148,10 @@ class TestInternalRetrievalClient:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = _ok_response(
-            [_ok_hit("550e8400-e29b-41d4-a716-446655440100"),
-             _ok_hit("550e8400-e29b-41d4-a716-446655440101")],
+            [
+                _ok_hit("550e8400-e29b-41d4-a716-446655440100"),
+                _ok_hit("550e8400-e29b-41d4-a716-446655440101"),
+            ],
             has_more=True,
         )
 
@@ -306,7 +311,9 @@ class TestInternalResolveClient:
         priv_file.write_text(private_pem, encoding="utf-8")
 
         monkeypatch.setattr(settings, "EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID", "test-kid")
-        monkeypatch.setattr(settings, "EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE", str(priv_file))
+        monkeypatch.setattr(
+            settings, "EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE", str(priv_file)
+        )
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS", 60)
         monkeypatch.setattr(settings, "EVIDSIGHT_KNOWLEDGE_INTERNAL_BASE_URL", BASE_URL)
         monkeypatch.setattr(settings, "EVIDSIGHT_INTERNAL_RETRIEVAL_TIMEOUT_SECONDS", 5)

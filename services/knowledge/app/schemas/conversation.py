@@ -10,12 +10,14 @@ from pydantic import BaseModel, Field
 
 class ConversationCreate(BaseModel):
     """POST /api/conversations 请求体"""
+
     kb_uuid: str = Field(..., description="关联知识库 UUID")
     title: str | None = Field(None, max_length=256, description="会话标题，不传则默认'新对话'")
 
 
 class ConversationUpdate(BaseModel):
     """PUT /api/conversations/{uuid} 请求体"""
+
     title: str = Field(..., min_length=1, max_length=256, description="新标题")
 
 
@@ -24,6 +26,7 @@ class ConversationUpdate(BaseModel):
 
 class MessageResponse(BaseModel):
     """消息响应（Message 不改造，保持 integer id）"""
+
     id: int
     role: str
     content: str
@@ -35,6 +38,7 @@ class MessageResponse(BaseModel):
 
 class ConversationResponse(BaseModel):
     """会话响应（列表项 + 详情共用）"""
+
     uuid: str
     owner_user_id: str = Field(description="owner 用户 Platform User UUID（非内部 users.id）")
     kb_uuid: str | None = Field(
@@ -44,12 +48,12 @@ class ConversationResponse(BaseModel):
     kb_status: str | None = Field(
         None,
         description="关联知识库状态：active=正常 / deleted=已删除 / unavailable=不可访问。"
-                    "kb_id 为 null 且 original_kb_uuid 非 null 时为 deleted",
+        "kb_id 为 null 且 original_kb_uuid 非 null 时为 deleted",
     )
     kb_name: str | None = Field(
         None,
         description="关联知识库名称（含已删除/不可访问的），前端用于孤儿会话提示。"
-                    "孤儿会话从 original_kb_name 读取",
+        "孤儿会话从 original_kb_name 读取",
     )
     original_kb_uuid: str | None = Field(
         None,
@@ -65,8 +69,7 @@ class ConversationResponse(BaseModel):
     updated_at: datetime
     last_message_at: datetime | None = Field(
         None,
-        description="最后一次产生消息的时间，列表排序字段。"
-                    "新创建尚无消息的会话为 null",
+        description="最后一次产生消息的时间，列表排序字段。新创建尚无消息的会话为 null",
     )
 
     model_config = {"from_attributes": True}
@@ -74,11 +77,13 @@ class ConversationResponse(BaseModel):
 
 class ConversationDetailResponse(ConversationResponse):
     """会话详情响应（含消息列表）"""
+
     messages: list[MessageResponse] = Field(default_factory=list)
 
 
 class ConversationListResponse(BaseModel):
     """会话列表分页响应"""
+
     total: int
     page: int
     page_size: int

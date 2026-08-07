@@ -104,10 +104,12 @@ class WorkingMemory:
                 lines.append(f"观察：{entry.observation}")
             if not lines:
                 continue
-            messages.append({
-                "role": "assistant",
-                "content": "\n".join(lines),
-            })
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": "\n".join(lines),
+                }
+            )
         return messages
 
     def to_dict_list(self) -> list[dict[str, Any]]:
@@ -115,7 +117,9 @@ class WorkingMemory:
         return [entry.to_dict() for entry in self._entries]
 
     @classmethod
-    def from_dict_list(cls, items: list[dict[str, Any]] | None, max_entries: int = 20) -> "WorkingMemory":
+    def from_dict_list(
+        cls, items: list[dict[str, Any]] | None, max_entries: int = 20
+    ) -> "WorkingMemory":
         """从 dict 列表重建 WorkingMemory（已持久化数据，不进入 pending 队列）。"""
         memory = cls(max_entries=max_entries)
         if not items:

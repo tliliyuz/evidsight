@@ -118,7 +118,9 @@ async def _search_one_sub_question(
             results = response.get("results", [])
             logger.info(
                 "Search 子问题 %d 完成: query=%r, results=%d",
-                index, sub_question[:60], len(results),
+                index,
+                sub_question[:60],
+                len(results),
             )
             return results
 
@@ -128,7 +130,9 @@ async def _search_one_sub_question(
             if 400 <= e.response.status_code < 500:
                 logger.warning(
                     "Search 子问题 %d 客户端错误 %d，不重试: %s",
-                    index, e.response.status_code, e,
+                    index,
+                    e.response.status_code,
+                    e,
                 )
                 raise
             # 5xx 可重试
@@ -136,7 +140,11 @@ async def _search_one_sub_question(
                 delay = _SEARCH_RETRY_DELAYS[retry]
                 logger.warning(
                     "Search 子问题 %d 服务端错误，第 %d/%d 次重试，等待 %.1fs: %s",
-                    index, retry + 1, _SEARCH_RETRY_MAX, delay, e,
+                    index,
+                    retry + 1,
+                    _SEARCH_RETRY_MAX,
+                    delay,
+                    e,
                 )
                 await asyncio.sleep(delay)
                 continue
@@ -148,7 +156,11 @@ async def _search_one_sub_question(
                 delay = _SEARCH_RETRY_DELAYS[retry]
                 logger.warning(
                     "Search 子问题 %d 超时/连接错误，第 %d/%d 次重试，等待 %.1fs: %s",
-                    index, retry + 1, _SEARCH_RETRY_MAX, delay, e,
+                    index,
+                    retry + 1,
+                    _SEARCH_RETRY_MAX,
+                    delay,
+                    e,
                 )
                 await asyncio.sleep(delay)
                 continue
@@ -160,7 +172,11 @@ async def _search_one_sub_question(
                 delay = _SEARCH_RETRY_DELAYS[retry]
                 logger.warning(
                     "Search 子问题 %d 未知错误，第 %d/%d 次重试，等待 %.1fs: %s",
-                    index, retry + 1, _SEARCH_RETRY_MAX, delay, e,
+                    index,
+                    retry + 1,
+                    _SEARCH_RETRY_MAX,
+                    delay,
+                    e,
                 )
                 await asyncio.sleep(delay)
                 continue
@@ -250,11 +266,14 @@ async def _run_knowledge_search(
     if not kb_ids:
         # 已被 Worker fail-closed 守卫兜底（E3114）；此处再防御一层，防止路径绕过
         from app.core.exceptions import KnowledgeBasesMissingException
+
         raise KnowledgeBasesMissingException()
 
     logger.info(
         "Knowledge Search 开始: task_id=%s, sub_questions=%d, kb_ids=%d",
-        task_id, len(sub_questions), len(kb_ids),
+        task_id,
+        len(sub_questions),
+        len(kb_ids),
     )
 
     internal_candidates: list[dict] = []
@@ -264,17 +283,23 @@ async def _run_knowledge_search(
 
     for i, sq in enumerate(sub_questions, 1):
         child_step = await _create_child_step(
-            session, task, step, step_type="search",
+            session,
+            task,
+            step,
+            step_type="search",
             label=f"内部检索子问题 {i}: {sq[:80]}",
         )
         child_step_id = str(child_step.id)
 
-        await sse_bridge.publish(EVENT_STEP_STARTED, {
-            "step_id": child_step_id,
-            "step_type": "search",
-            "label": child_step.label,
-            "parent_step_id": root_step_id,
-        })
+        await sse_bridge.publish(
+            EVENT_STEP_STARTED,
+            {
+                "step_id": child_step_id,
+                "step_type": "search",
+                "label": child_step.label,
+                "parent_step_id": root_step_id,
+            },
+        )
 
         try:
             result = await internal_retrieval_client.search_retrieval(
@@ -290,22 +315,28 @@ async def _run_knowledge_search(
         ):
             logger.warning(
                 "Knowledge Search fail-closed 错误，整次中止: task_id=%s, sq_index=%d",
-                task_id, i,
+                task_id,
+                i,
             )
             raise
         except Exception as e:
             logger.warning("Knowledge Search 子问题 %d 失败: %s", i, e)
             await _finish_child_step(session, child_step, "skipped")
-            await sse_bridge.publish(EVENT_STEP_SKIPPED, {
-                "step_id": child_step_id,
-                "reason": f"子问题 {i} 内部检索失败: {e}",
-            })
-            sub_results.append({
-                "sub_question": sq,
-                "index": i,
-                "status": "skipped",
-                "step_id": child_step_id,
-            })
+            await sse_bridge.publish(
+                EVENT_STEP_SKIPPED,
+                {
+                    "step_id": child_step_id,
+                    "reason": f"子问题 {i} 内部检索失败: {e}",
+                },
+            )
+            sub_results.append(
+                {
+                    "sub_question": sq,
+                    "index": i,
+                    "status": "skipped",
+                    "step_id": child_step_id,
+                }
+            )
             continue
 
         hits = result.results
@@ -314,10 +345,13 @@ async def _run_knowledge_search(
         if hit_count > 0:
             all_skipped = False
 
-        await sse_bridge.publish(EVENT_STEP_PROGRESS, {
-            "step_id": child_step_id,
-            "results_found": hit_count,
-        })
+        await sse_bridge.publish(
+            EVENT_STEP_PROGRESS,
+            {
+                "step_id": child_step_id,
+                "results_found": hit_count,
+            },
+        )
 
         for hit in hits:
             safe = hit.to_safe_dict()
@@ -329,24 +363,27 @@ async def _run_knowledge_search(
             "results_found": hit_count,
         }
         await _finish_child_step(session, child_step, "completed", child_output)
-        await sse_bridge.publish(EVENT_STEP_COMPLETED, {
-            "step_id": child_step_id,
-            "results_count": hit_count,
-        })
+        await sse_bridge.publish(
+            EVENT_STEP_COMPLETED,
+            {
+                "step_id": child_step_id,
+                "results_count": hit_count,
+            },
+        )
 
-        sub_results.append({
-            "sub_question": sq,
-            "index": i,
-            "results_count": hit_count,
-            "status": "completed" if hit_count > 0 else "skipped",
-            "step_id": child_step_id,
-        })
+        sub_results.append(
+            {
+                "sub_question": sq,
+                "index": i,
+                "results_count": hit_count,
+                "status": "completed" if hit_count > 0 else "skipped",
+                "step_id": child_step_id,
+            }
+        )
 
     if all_skipped and len(sub_results) > 0:
         # 全部子问题 0 命中：knowledge 策略没有 Web 可降级，直接失败
-        raise SearchFailedException(
-            detail=f"全部 {len(sub_results)} 个子问题内部检索均无结果"
-        )
+        raise SearchFailedException(detail=f"全部 {len(sub_results)} 个子问题内部检索均无结果")
 
     output = {
         "strategy": STRATEGY_KNOWLEDGE,
@@ -357,7 +394,9 @@ async def _run_knowledge_search(
 
     logger.info(
         "Knowledge Search 完成: task_id=%s, total_hits=%d, candidates=%d",
-        task_id, total_hits, len(internal_candidates),
+        task_id,
+        total_hits,
+        len(internal_candidates),
     )
     return output
 
@@ -386,7 +425,8 @@ async def _run_hybrid_search(
     if internal_titles:
         logger.info(
             "Hybrid 内部文档标题不进入 Web Query: task_id=%s, titles=%d",
-            task.id, len(internal_titles),
+            task.id,
+            len(internal_titles),
         )
 
     web_output = await _run_web_search(task, step, session, sse_bridge)
@@ -396,9 +436,7 @@ async def _run_hybrid_search(
         "strategy": STRATEGY_HYBRID,
         "internal_candidates": knowledge_output.get("internal_candidates", []),
         "total_internal_hits": knowledge_output.get("total_internal_hits", 0),
-        "knowledge_sub_question_results": knowledge_output.get(
-            "sub_question_results", []
-        ),
+        "knowledge_sub_question_results": knowledge_output.get("sub_question_results", []),
     }
     return merged
 
@@ -452,18 +490,24 @@ async def _run_web_search(
     for i, sq in enumerate(sub_questions, 1):
         # 创建子 step
         child_step = await _create_child_step(
-            session, task, step, step_type="search",
+            session,
+            task,
+            step,
+            step_type="search",
             label=f"搜索子问题 {i}: {sq[:80]}",
         )
         child_step_id = str(child_step.id)
 
         # 发射子 step.started
-        await sse_bridge.publish(EVENT_STEP_STARTED, {
-            "step_id": child_step_id,
-            "step_type": "search",
-            "label": child_step.label,
-            "parent_step_id": root_step_id,
-        })
+        await sse_bridge.publish(
+            EVENT_STEP_STARTED,
+            {
+                "step_id": child_step_id,
+                "step_type": "search",
+                "label": child_step.label,
+                "parent_step_id": root_step_id,
+            },
+        )
 
         try:
             results = await _search_one_sub_question(sq, i, api_key)
@@ -471,40 +515,53 @@ async def _run_web_search(
             logger.warning("Search 子问题 %d 失败: %s", i, e)
             # 子 step → skipped
             await _finish_child_step(session, child_step, "skipped")
-            await sse_bridge.publish(EVENT_STEP_SKIPPED, {
-                "step_id": child_step_id,
-                "reason": f"子问题 {i} 搜索失败: {e}",
-            })
-            sub_results.append({
-                "sub_question": sq,
-                "index": i,
-                "results_count": 0,
-                "status": "skipped",
-                "step_id": child_step_id,
-                "error": str(e),
-            })
+            await sse_bridge.publish(
+                EVENT_STEP_SKIPPED,
+                {
+                    "step_id": child_step_id,
+                    "reason": f"子问题 {i} 搜索失败: {e}",
+                },
+            )
+            sub_results.append(
+                {
+                    "sub_question": sq,
+                    "index": i,
+                    "results_count": 0,
+                    "status": "skipped",
+                    "step_id": child_step_id,
+                    "error": str(e),
+                }
+            )
             continue
 
         results_count = len(results)
-        await sse_bridge.publish(EVENT_STEP_PROGRESS, {
-            "step_id": child_step_id,
-            "results_found": results_count,
-        })
+        await sse_bridge.publish(
+            EVENT_STEP_PROGRESS,
+            {
+                "step_id": child_step_id,
+                "results_found": results_count,
+            },
+        )
 
         if results_count == 0:
             # 子 step → skipped（0 结果）
             await _finish_child_step(session, child_step, "skipped")
-            await sse_bridge.publish(EVENT_STEP_SKIPPED, {
-                "step_id": child_step_id,
-                "reason": f"子问题 {i} 搜索返回 0 结果",
-            })
-            sub_results.append({
-                "sub_question": sq,
-                "index": i,
-                "results_count": 0,
-                "status": "skipped",
-                "step_id": child_step_id,
-            })
+            await sse_bridge.publish(
+                EVENT_STEP_SKIPPED,
+                {
+                    "step_id": child_step_id,
+                    "reason": f"子问题 {i} 搜索返回 0 结果",
+                },
+            )
+            sub_results.append(
+                {
+                    "sub_question": sq,
+                    "index": i,
+                    "results_count": 0,
+                    "status": "skipped",
+                    "step_id": child_step_id,
+                }
+            )
             continue
 
         # 标记为非全跳过
@@ -536,38 +593,45 @@ async def _run_web_search(
             "urls": [r["url"] for r in selected_results],
         }
         await _finish_child_step(session, child_step, "completed", child_output)
-        await sse_bridge.publish(EVENT_STEP_COMPLETED, {
-            "step_id": child_step_id,
-            "results_count": results_count,
-            "selected": len(selected_results),
-        })
+        await sse_bridge.publish(
+            EVENT_STEP_COMPLETED,
+            {
+                "step_id": child_step_id,
+                "results_count": results_count,
+                "selected": len(selected_results),
+            },
+        )
 
-        sub_results.append({
-            "sub_question": sq,
-            "index": i,
-            "results_count": results_count,
-            "selected": len(selected_results),
-            "status": "completed",
-            "step_id": child_step_id,
-            "urls": [r["url"] for r in selected_results],
-        })
+        sub_results.append(
+            {
+                "sub_question": sq,
+                "index": i,
+                "results_count": results_count,
+                "selected": len(selected_results),
+                "status": "completed",
+                "step_id": child_step_id,
+                "urls": [r["url"] for r in selected_results],
+            }
+        )
 
         # 总结果截断
         if len(all_results) >= settings.TAVILY_TOTAL_RESULTS_LIMIT:
-            logger.info("Search 达到总结果上限 %d，停止搜索: task_id=%s", settings.TAVILY_TOTAL_RESULTS_LIMIT, task_id)
+            logger.info(
+                "Search 达到总结果上限 %d，停止搜索: task_id=%s",
+                settings.TAVILY_TOTAL_RESULTS_LIMIT,
+                task_id,
+            )
             break
 
     # 3. 全部失败检查
     if all_skipped and len(sub_results) > 0:
-        raise SearchFailedException(
-            detail=f"全部 {len(sub_results)} 个子问题搜索失败或返回 0 结果"
-        )
+        raise SearchFailedException(detail=f"全部 {len(sub_results)} 个子问题搜索失败或返回 0 结果")
 
     # 4. 按 Tavily score 降序排序并截断至 25 条
     all_results.sort(key=lambda r: float(r.get("score") or 0.0), reverse=True)
     after_dedup = len(all_results)
     if after_dedup > settings.TAVILY_TOTAL_RESULTS_LIMIT:
-        all_results = all_results[:settings.TAVILY_TOTAL_RESULTS_LIMIT]
+        all_results = all_results[: settings.TAVILY_TOTAL_RESULTS_LIMIT]
         after_dedup = settings.TAVILY_TOTAL_RESULTS_LIMIT
 
     final_urls = {r["url"] for r in all_results}
@@ -585,14 +649,17 @@ async def _run_web_search(
         if url in existing_urls:
             logger.debug(
                 "Source URL 已存在，跳过写入: task_id=%s, url=%s",
-                task_id, url,
+                task_id,
+                url,
             )
             continue
         url_key = _url_unique_key(url)
         if url_key in existing_url_keys:
             logger.debug(
                 "Source URL 前 %d 字符与已有记录冲突，跳过写入: task_id=%s, url=%s",
-                _URL_UNIQUE_PREFIX_LEN, task_id, url,
+                _URL_UNIQUE_PREFIX_LEN,
+                task_id,
+                url,
             )
             continue
         source = ResearchSource(
@@ -609,11 +676,14 @@ async def _run_web_search(
 
     # 6. 低结果数警告（不阻断）
     if after_dedup < 3:
-        await sse_bridge.publish(EVENT_TASK_WARNING, {
-            "step_id": root_step_id,
-            "error_type": "search_low_results",
-            "error_description": f"去重后搜索结果仅 {after_dedup} 条，少于 3 条，可能影响后续报告质量",
-        })
+        await sse_bridge.publish(
+            EVENT_TASK_WARNING,
+            {
+                "step_id": root_step_id,
+                "error_type": "search_low_results",
+                "error_description": f"去重后搜索结果仅 {after_dedup} 条，少于 3 条，可能影响后续报告质量",
+            },
+        )
 
     # 7. 修正各子问题的 selected 数量（全局截断后可能减少）
     for sr in sub_results:
@@ -639,7 +709,10 @@ async def _run_web_search(
 
     logger.info(
         "Search 完成: task_id=%s, total=%d, deduped=%d, sources=%d",
-        task_id, output["total_results"], after_dedup, sources_created,
+        task_id,
+        output["total_results"],
+        after_dedup,
+        sources_created,
     )
     return output
 

@@ -5,6 +5,7 @@ Schema 与 Fixture，不依赖 Knowledge 端点、数据库或服务导入。
 SDD 门禁：GREEN 目标——Research 能消费全部有效 Fixture 并拒绝全部无效 Fixture；
 契约 Schema 由 packages/contracts 维护，本文件只证明 Consumer 侧解读一致。
 """
+
 import pytest
 
 from evidsight_contracts import semantics
@@ -22,11 +23,7 @@ NEW_SCHEMAS = [
 
 
 def _all_invalid(schemas):
-    return [
-        (name, fixture)
-        for name in schemas
-        for fixture in list_fixtures(name, "invalid")
-    ]
+    return [(name, fixture) for name in schemas for fixture in list_fixtures(name, "invalid")]
 
 
 class TestRetrievalEvidenceConsumer:
@@ -70,5 +67,7 @@ class TestRetrievalEvidenceConsumer:
             validator = validator_for(name)
             assert validator.schema.get("additionalProperties") is False
         # 两类来源身份严格互斥（oneOf）体现在 Schema 结构上
-        source_identity = validator_for("evidence-reference").schema["properties"]["source_identity"]
+        source_identity = validator_for("evidence-reference").schema["properties"][
+            "source_identity"
+        ]
         assert "oneOf" in source_identity

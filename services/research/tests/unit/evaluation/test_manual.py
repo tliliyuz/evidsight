@@ -12,7 +12,11 @@ from app.evaluation.manual import (
     load_manual_records,
     validate_manual_record,
 )
-from app.evaluation.models import ManualAggregationResult, ManualDimensionScore, ManualEvaluationRecord
+from app.evaluation.models import (
+    ManualAggregationResult,
+    ManualDimensionScore,
+    ManualEvaluationRecord,
+)
 
 
 class TestValidateManualRecord:
@@ -213,40 +217,44 @@ class TestCompareRounds:
     """测试人工评估轮次对比。"""
 
     def test_第二轮较第一轮提升(self):
-        baseline = aggregate_manual_records([
-            ManualEvaluationRecord(
-                round=1,
-                task_id="task-1",
-                topic="T1",
-                task_type="analysis",
-                rater="a",
-                scores=[
-                    ManualDimensionScore("结构完整性", 3),
-                    ManualDimensionScore("引用准确性", 3),
-                    ManualDimensionScore("综合质量", 3),
-                    ManualDimensionScore("可读性", 3),
-                ],
-                overall_score=3.0,
-                evaluated_at=datetime.now(timezone.utc),
-            ),
-        ])
-        current = aggregate_manual_records([
-            ManualEvaluationRecord(
-                round=2,
-                task_id="task-1",
-                topic="T1",
-                task_type="analysis",
-                rater="a",
-                scores=[
-                    ManualDimensionScore("结构完整性", 4),
-                    ManualDimensionScore("引用准确性", 4),
-                    ManualDimensionScore("综合质量", 4),
-                    ManualDimensionScore("可读性", 4),
-                ],
-                overall_score=4.0,
-                evaluated_at=datetime.now(timezone.utc),
-            ),
-        ])
+        baseline = aggregate_manual_records(
+            [
+                ManualEvaluationRecord(
+                    round=1,
+                    task_id="task-1",
+                    topic="T1",
+                    task_type="analysis",
+                    rater="a",
+                    scores=[
+                        ManualDimensionScore("结构完整性", 3),
+                        ManualDimensionScore("引用准确性", 3),
+                        ManualDimensionScore("综合质量", 3),
+                        ManualDimensionScore("可读性", 3),
+                    ],
+                    overall_score=3.0,
+                    evaluated_at=datetime.now(timezone.utc),
+                ),
+            ]
+        )
+        current = aggregate_manual_records(
+            [
+                ManualEvaluationRecord(
+                    round=2,
+                    task_id="task-1",
+                    topic="T1",
+                    task_type="analysis",
+                    rater="a",
+                    scores=[
+                        ManualDimensionScore("结构完整性", 4),
+                        ManualDimensionScore("引用准确性", 4),
+                        ManualDimensionScore("综合质量", 4),
+                        ManualDimensionScore("可读性", 4),
+                    ],
+                    overall_score=4.0,
+                    evaluated_at=datetime.now(timezone.utc),
+                ),
+            ]
+        )
 
         comparison = compare_rounds(current, baseline)
 
@@ -278,7 +286,9 @@ class TestLoadManualRecords:
 
     def test_加载单个对象文件(self, tmp_path):
         record_file = tmp_path / "analysis_task1_rater-a.json"
-        record_file.write_text(json.dumps(self._build_valid_record(), ensure_ascii=False), encoding="utf-8")
+        record_file.write_text(
+            json.dumps(self._build_valid_record(), ensure_ascii=False), encoding="utf-8"
+        )
 
         records = load_manual_records(tmp_path)
 
@@ -289,7 +299,10 @@ class TestLoadManualRecords:
     def test_加载数组文件(self, tmp_path):
         array_file = tmp_path / "round_records.json"
         array_file.write_text(
-            json.dumps([self._build_valid_record("task-1"), self._build_valid_record("task-2")], ensure_ascii=False),
+            json.dumps(
+                [self._build_valid_record("task-1"), self._build_valid_record("task-2")],
+                ensure_ascii=False,
+            ),
             encoding="utf-8",
         )
 
@@ -301,7 +314,9 @@ class TestLoadManualRecords:
 
     def test_跳过无效JSON文件(self, tmp_path):
         valid_file = tmp_path / "valid.json"
-        valid_file.write_text(json.dumps(self._build_valid_record(), ensure_ascii=False), encoding="utf-8")
+        valid_file.write_text(
+            json.dumps(self._build_valid_record(), ensure_ascii=False), encoding="utf-8"
+        )
         invalid_file = tmp_path / "invalid.json"
         invalid_file.write_text("not json", encoding="utf-8")
 
@@ -312,7 +327,9 @@ class TestLoadManualRecords:
 
     def test_跳过校验失败记录(self, tmp_path):
         valid_file = tmp_path / "valid.json"
-        valid_file.write_text(json.dumps(self._build_valid_record(), ensure_ascii=False), encoding="utf-8")
+        valid_file.write_text(
+            json.dumps(self._build_valid_record(), ensure_ascii=False), encoding="utf-8"
+        )
         invalid_file = tmp_path / "invalid_score.json"
         bad_record = self._build_valid_record()
         bad_record["scores"][0]["score"] = 10

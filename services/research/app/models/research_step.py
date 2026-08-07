@@ -20,9 +20,7 @@ class ResearchStep(Base):
 
     __tablename__ = "research_steps"
 
-    id: Mapped[str] = mapped_column(
-        sa.String(36), primary_key=True, default=new_uuid
-    )
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=new_uuid)
     task_id: Mapped[str] = mapped_column(
         sa.String(36),
         sa.ForeignKey("research_tasks.id", ondelete="CASCADE"),
@@ -50,35 +48,49 @@ class ResearchStep(Base):
 
     # ── 标签（前端展示用）──
     label: Mapped[str | None] = mapped_column(
-        sa.String(200), default=None, server_default=sa.text("NULL"),
+        sa.String(200),
+        default=None,
+        server_default=sa.text("NULL"),
         comment='如 "搜索子问题 2：NIST PQC 标准进展"',
     )
 
     # ── 输入输出 ──
     input: Mapped[dict | None] = mapped_column(
-        sa.JSON, default=None, server_default=sa.text("NULL"),
+        sa.JSON,
+        default=None,
+        server_default=sa.text("NULL"),
         comment="Step 输入参数",
     )
     output: Mapped[dict | None] = mapped_column(
-        sa.JSON, default=None, server_default=sa.text("NULL"),
+        sa.JSON,
+        default=None,
+        server_default=sa.text("NULL"),
         comment="Step 产出",
     )
 
     # ── 重试 ──
     retry_count: Mapped[int] = mapped_column(
-        sa.Integer, default=0, server_default=sa.text("0"),
+        sa.Integer,
+        default=0,
+        server_default=sa.text("0"),
     )
     max_retries: Mapped[int] = mapped_column(
-        sa.Integer, default=0, server_default=sa.text("0"),
+        sa.Integer,
+        default=0,
+        server_default=sa.text("0"),
         comment="0 = 使用阶段默认值",
     )
 
     # ── 错误 ──
     error_code: Mapped[str | None] = mapped_column(
-        sa.String(50), default=None, server_default=sa.text("NULL"),
+        sa.String(50),
+        default=None,
+        server_default=sa.text("NULL"),
     )
     error_message: Mapped[str | None] = mapped_column(
-        sa.Text, default=None, server_default=sa.text("NULL"),
+        sa.Text,
+        default=None,
+        server_default=sa.text("NULL"),
     )
 
     # ── 成本 ──
@@ -91,7 +103,9 @@ class ResearchStep(Base):
 
     # ── 性能 ──
     duration_ms: Mapped[int | None] = mapped_column(
-        sa.Integer, default=None, server_default=sa.text("NULL"),
+        sa.Integer,
+        default=None,
+        server_default=sa.text("NULL"),
         comment="执行耗时（毫秒）",
     )
 
@@ -122,15 +136,16 @@ class ResearchStep(Base):
 
     # ── 关联 ──
     task = relationship("ResearchTask", back_populates="steps")
-    parent_step = relationship(
-        "ResearchStep", remote_side="ResearchStep.id", backref="child_steps"
+    parent_step = relationship("ResearchStep", remote_side="ResearchStep.id", backref="child_steps")
+    evidence_items = relationship(
+        "EvidenceItem", back_populates="step", lazy="selectin", passive_deletes=True
     )
-    evidence_items = relationship("EvidenceItem", back_populates="step", lazy="selectin",
-                                  passive_deletes=True)
-    agent_memory_entries = relationship("AgentMemoryEntry", back_populates="step", lazy="selectin",
-                                        passive_deletes=True)
-    agent_events = relationship("AgentEvent", back_populates="step", lazy="selectin",
-                                passive_deletes=True)
+    agent_memory_entries = relationship(
+        "AgentMemoryEntry", back_populates="step", lazy="selectin", passive_deletes=True
+    )
+    agent_events = relationship(
+        "AgentEvent", back_populates="step", lazy="selectin", passive_deletes=True
+    )
 
     def __repr__(self):
         return f"<ResearchStep(id={self.id}, type={self.step_type}, status={self.status})>"

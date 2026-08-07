@@ -22,9 +22,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async def get_current_user(
-    request: Request, db: AsyncSession = Depends(get_db)
-) -> dict:
+async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
     """从 request.state 中获取已认证用户信息（由 AuthMiddleware 注入），
     并校验用户 status 是否被禁用。
 
@@ -32,9 +30,7 @@ async def get_current_user(
     路由中通过 Depends(get_current_user) 使用。
     """
     platform_user_id = request.state.platform_user_id
-    result = await db.execute(
-        select(User).where(User.platform_user_id == platform_user_id)
-    )
+    result = await db.execute(select(User).where(User.platform_user_id == platform_user_id))
     user = result.scalar_one_or_none()
     if user is None or user.status == "disabled":
         raise UserDisabledException()

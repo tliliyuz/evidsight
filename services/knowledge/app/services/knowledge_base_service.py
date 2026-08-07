@@ -47,9 +47,7 @@ def _pool_status() -> str:
         return "pool[unavailable]"
 
 
-async def _get_real_chunk_counts(
-    db: AsyncSession, kb_ids: list[int]
-) -> dict[int, int]:
+async def _get_real_chunk_counts(db: AsyncSession, kb_ids: list[int]) -> dict[int, int]:
     """查询指定 KB 的实时分块总数（从 Chunk 表 COUNT，非 KB 表缓存列）。
 
     只统计各 Document 当前 Active Version 的 chunks（对齐 ADR-007 / P1 重算语义），
@@ -75,14 +73,14 @@ async def _get_real_chunk_counts(
     if t > 0.1:
         logger.warning(
             "_get_real_chunk_counts kb_ids=%s SLOW=%.3fs %s",
-            kb_ids, t, _pool_status(),
+            kb_ids,
+            t,
+            _pool_status(),
         )
     return counts
 
 
-async def _get_real_doc_counts(
-    db: AsyncSession, kb_ids: list[int]
-) -> dict[int, int]:
+async def _get_real_doc_counts(db: AsyncSession, kb_ids: list[int]) -> dict[int, int]:
     """查询指定 KB 的实时文档总数（从 Document 表 COUNT，非 KB 表缓存列）。
 
     用于替代 KnowledgeBase.doc_count 静态缓存列，避免批量上传中
@@ -104,7 +102,9 @@ async def _get_real_doc_counts(
     if t > 0.1:
         logger.warning(
             "_get_real_doc_counts kb_ids=%s SLOW=%.3fs %s",
-            kb_ids, t, _pool_status(),
+            kb_ids,
+            t,
+            _pool_status(),
         )
     return counts
 
@@ -185,7 +185,11 @@ async def get_kb(
     if t_total > 0.3:
         logger.warning(
             "get_kb kb_id=%d SLOW SELECT=%.3fs CHUNK=%.3fs TOTAL=%.3fs %s",
-            kb_id, t_select, t_chunk, t_total, _pool_status(),
+            kb_id,
+            t_select,
+            t_chunk,
+            t_total,
+            _pool_status(),
         )
 
     return kb
@@ -196,7 +200,9 @@ async def list_kbs(
 ) -> KnowledgeBaseListResponse:
     """获取用户的知识库列表（分页）"""
     # 总数
-    count_q = select(func.count()).select_from(KnowledgeBase).where(KnowledgeBase.user_id == user_id)
+    count_q = (
+        select(func.count()).select_from(KnowledgeBase).where(KnowledgeBase.user_id == user_id)
+    )
     total = (await db.execute(count_q)).scalar()
 
     # 分页数据
@@ -256,8 +262,7 @@ async def list_public_kbs(
 
     # 分页数据
     q = (
-        base_q
-        .order_by(KnowledgeBase.created_at.desc())
+        base_q.order_by(KnowledgeBase.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )

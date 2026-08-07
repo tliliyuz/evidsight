@@ -31,7 +31,8 @@
 - Research 无 Knowledge DB、Chroma、上传卷或 `app` import；
 - Nginx 不暴露 `/internal/v1`、`/metrics` 和数据服务；
 - Redis Key、队列和 Metric 带服务命名空间；
-- 文档相对链接、OpenAPI、JSON Schema 和 `$ref` 可解析。
+- 文档相对链接、OpenAPI、JSON Schema 和 `$ref` 可解析；
+- Python 代码通过 ruff 静态检查（规则集 `E4,E7,E9,F,I`，行宽 100，配置见根 `pyproject.toml`）；lint 只报告，不改文件。
 
 ### 3.2 身份与权限
 
@@ -123,6 +124,8 @@ cd services/research && python -m pytest tests/contract
 ## 6. Monorepo 基线验证命令
 
 ```bash
+uvx ruff check services/ scripts/ tests/ packages/contracts/
+uvx ruff format --check services/ scripts/ tests/ packages/contracts/
 python3.12 -m pytest tests/architecture -v
 uv run --project services/knowledge pytest
 uv run --project services/research pytest

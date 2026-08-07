@@ -228,9 +228,7 @@ def repair_broken_unicode(text: str) -> str:
 # ==================== 组合管线 ====================
 
 
-def clean_text(
-    text: str, *, normalize_space: bool = True, repair_unicode: bool = True
-) -> str:
+def clean_text(text: str, *, normalize_space: bool = True, repair_unicode: bool = True) -> str:
     """单段文本确定性清洗管线。
 
     顺序敏感：先修复 Unicode（避免 mojibake 在空白折叠时被粘合），

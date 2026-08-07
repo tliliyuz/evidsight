@@ -6,6 +6,7 @@
 3. finish() 合并所有阶段（preloaded + newly recorded）
 4. phase_durations_ms / breakdown / phases 完整性
 """
+
 import pytest
 from app.core.trace_recorder import TraceRecorder
 
@@ -141,8 +142,13 @@ class TestCrashRecoveryTraceMerge:
         # === 断言：phase_durations_ms 包含全部 7 个阶段 ===
         durations = final_trace["phase_durations_ms"]
         expected_phases = [
-            "planning", "search", "fetch", "rerank",
-            "synthesis", "evidence_graph", "render",
+            "planning",
+            "search",
+            "fetch",
+            "rerank",
+            "synthesis",
+            "evidence_graph",
+            "render",
         ]
         for phase_name in expected_phases:
             assert phase_name in durations, (
@@ -167,9 +173,7 @@ class TestCrashRecoveryTraceMerge:
         # === 断言：breakdown 包含全部 7 个阶段 ===
         breakdown = final_trace["breakdown"]
         for phase_name in expected_phases:
-            assert phase_name in breakdown, (
-                f"{phase_name} 缺失于 breakdown"
-            )
+            assert phase_name in breakdown, f"{phase_name} 缺失于 breakdown"
 
         # === 断言：token 总计正确 ===
         # planning: 800+200=1000, search: 0 (no tokens), fetch: 0,
@@ -217,7 +221,9 @@ class TestCrashRecoveryTraceMerge:
     def test_previous_trace_none_handled_gracefully(self):
         """previous_trace=None 时不崩溃"""
         rec = TraceRecorder(
-            task_id="t1", user_id=1, topic="test",
+            task_id="t1",
+            user_id=1,
+            topic="test",
             previous_trace=None,
         )
         rec.record_planning(duration_ms=1000, input_tokens=100, output_tokens=50, model="gpt-4")
@@ -228,7 +234,9 @@ class TestCrashRecoveryTraceMerge:
     def test_previous_trace_empty_dict_handled(self):
         """previous_trace={} 不崩溃"""
         rec = TraceRecorder(
-            task_id="t1", user_id=1, topic="test",
+            task_id="t1",
+            user_id=1,
+            topic="test",
             previous_trace={},
         )
         rec.record_planning(duration_ms=1000, input_tokens=100, output_tokens=50, model="gpt-4")
@@ -238,7 +246,9 @@ class TestCrashRecoveryTraceMerge:
     def test_previous_trace_stale_format(self):
         """old-format previous_trace (no phases key) 不崩溃"""
         rec = TraceRecorder(
-            task_id="t1", user_id=1, topic="test",
+            task_id="t1",
+            user_id=1,
+            topic="test",
             previous_trace={"total_duration_ms": 5000},
         )
         rec.record_planning(duration_ms=1000, input_tokens=100, output_tokens=50, model="gpt-4")
@@ -252,8 +262,10 @@ class TestCrashRecoveryTraceMerge:
         prev_trace = {
             "phases": {
                 "planning": {
-                    "duration_ms": 1000, "input_tokens": 100,
-                    "output_tokens": 50, "model": "gpt-4",
+                    "duration_ms": 1000,
+                    "input_tokens": 100,
+                    "output_tokens": 50,
+                    "model": "gpt-4",
                 },
             },
             "breakdown": {
@@ -261,7 +273,9 @@ class TestCrashRecoveryTraceMerge:
             },
         }
         rec = TraceRecorder(
-            task_id="t2", user_id=1, topic="test",
+            task_id="t2",
+            user_id=1,
+            topic="test",
             previous_trace=prev_trace,
         )
         # 第一次 finish
@@ -277,13 +291,41 @@ class TestCrashRecoveryTraceMerge:
     def test_full_pipeline_crash_at_every_phase(self):
         """参数化：在任一 Phase 崩溃，恢复后 trace 均完整"""
         all_phases = [
-            ("planning", "record_planning", {"duration_ms": 1000, "input_tokens": 100, "output_tokens": 50, "model": "gpt-4"}),
-            ("search", "record_search", {"duration_ms": 500, "total_results": 10, "cost_usd": 0.01}),
-            ("fetch", "record_fetch", {"duration_ms": 2000, "total_urls": 5, "success_count": 4, "cost_usd": 0.02}),
-            ("rerank", "record_rerank", {"duration_ms": 800, "input_tokens": 200, "output_tokens": 30, "model": "gpt-4"}),
-            ("synthesis", "record_synthesis", {"duration_ms": 3000, "input_tokens": 1000, "output_tokens": 400, "model": "gpt-4"}),
-            ("evidence_graph", "record_evidence_graph", {"duration_ms": 100, "evidence_count": 10, "source_count": 5}),
-            ("render", "record_render", {"duration_ms": 1500, "input_tokens": 500, "output_tokens": 200, "model": "gpt-4"}),
+            (
+                "planning",
+                "record_planning",
+                {"duration_ms": 1000, "input_tokens": 100, "output_tokens": 50, "model": "gpt-4"},
+            ),
+            (
+                "search",
+                "record_search",
+                {"duration_ms": 500, "total_results": 10, "cost_usd": 0.01},
+            ),
+            (
+                "fetch",
+                "record_fetch",
+                {"duration_ms": 2000, "total_urls": 5, "success_count": 4, "cost_usd": 0.02},
+            ),
+            (
+                "rerank",
+                "record_rerank",
+                {"duration_ms": 800, "input_tokens": 200, "output_tokens": 30, "model": "gpt-4"},
+            ),
+            (
+                "synthesis",
+                "record_synthesis",
+                {"duration_ms": 3000, "input_tokens": 1000, "output_tokens": 400, "model": "gpt-4"},
+            ),
+            (
+                "evidence_graph",
+                "record_evidence_graph",
+                {"duration_ms": 100, "evidence_count": 10, "source_count": 5},
+            ),
+            (
+                "render",
+                "record_render",
+                {"duration_ms": 1500, "input_tokens": 500, "output_tokens": 200, "model": "gpt-4"},
+            ),
         ]
 
         for crash_after_index in range(len(all_phases)):
@@ -299,7 +341,9 @@ class TestCrashRecoveryTraceMerge:
 
             # 恢复：从 checkpoint 开始，执行剩余阶段
             rec2 = TraceRecorder(
-                task_id="t-crash", user_id=1, topic="test",
+                task_id="t-crash",
+                user_id=1,
+                topic="test",
                 previous_trace=checkpoint_trace,
             )
             for i in range(crash_after_index + 1, len(all_phases)):

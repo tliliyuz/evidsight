@@ -35,13 +35,18 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AC-005 固定文档集入库成功率验证")
     parser.add_argument("--kb-uuid", required=True, help="目标知识库 UUID")
     parser.add_argument("--token", required=True, help="外部 API Bearer Token")
-    parser.add_argument("--base-url", default="http://localhost:8000",
-                        help="Knowledge API 基地址（默认 http://localhost:8000）")
-    parser.add_argument("--docs-dir", default="knowledge_samples/samples_1",
-                        help="固定文档集目录（默认 knowledge_samples/samples_1）")
+    parser.add_argument(
+        "--base-url",
+        default="http://localhost:8000",
+        help="Knowledge API 基地址（默认 http://localhost:8000）",
+    )
+    parser.add_argument(
+        "--docs-dir",
+        default="knowledge_samples/samples_1",
+        help="固定文档集目录（默认 knowledge_samples/samples_1）",
+    )
     parser.add_argument("--poll-interval", type=int, default=5, help="轮询间隔（秒）")
-    parser.add_argument("--timeout", type=int, default=600,
-                        help="单文档状态轮询超时（秒）")
+    parser.add_argument("--timeout", type=int, default=600, help="单文档状态轮询超时（秒）")
     return parser.parse_args()
 
 
@@ -64,7 +69,8 @@ def _list_documents(api_base: str, kb_uuid: str, token: str) -> dict[str, str]:
     headers = {"Authorization": f"Bearer {token}"}
     resp = httpx.get(
         f"{api_base}/api/knowledge-bases/{kb_uuid}/documents",
-        headers=headers, timeout=30,
+        headers=headers,
+        timeout=30,
     )
     resp.raise_for_status()
     # 列表接口返回 {data: {total, page, page_size, items: [...]}}，
@@ -125,8 +131,7 @@ def main() -> int:
     # 3. 统计（排除上传失败未产生状态的文档；用户主动取消由执行者记录）
     # 注意：files 为 Path 对象，而 final_status/failures 以 fp.name 字符串为键，
     # 必须统一按文件名比较，否则 Path != str 导致状态查询全部落空。
-    evaluated = [fp.name for fp in files
-                 if fp.name not in {f for f, _ in failures}]
+    evaluated = [fp.name for fp in files if fp.name not in {f for f, _ in failures}]
     successes = [n for n in evaluated if final_status.get(n) in SUCCESS_STATUSES]
     failed_ingest = [n for n in evaluated if final_status.get(n) in FAILED_STATUSES]
     success_rate = (len(successes) / len(evaluated)) if evaluated else 0.0
@@ -142,7 +147,8 @@ def main() -> int:
     # 4. 发布记录模板（TESTING.md §7）
     try:
         commit = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], text=True,
+            ["git", "rev-parse", "--short", "HEAD"],
+            text=True,
         ).strip()
     except Exception:  # noqa: BLE001
         commit = "unknown"

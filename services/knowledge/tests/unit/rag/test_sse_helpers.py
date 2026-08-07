@@ -74,6 +74,7 @@ class TestStreamWithHeartbeat:
     @pytest.mark.asyncio
     async def test_正常事件序列输出(self):
         """U7.80 — 事件应按顺序输出"""
+
         async def event_gen():
             yield format_sse_event("meta", {"conversation_id": 1})
             yield format_sse_event("message", {"delta": "你好"})
@@ -100,6 +101,7 @@ class TestStreamWithHeartbeat:
     @pytest.mark.asyncio
     async def test_空事件流(self):
         """空事件流应正常结束，不抛异常"""
+
         async def empty_gen():
             return
             yield  # noqa: 使成为 async generator
@@ -134,6 +136,7 @@ class TestStreamWithHeartbeat:
         使用短心跳间隔 (0.05s) 和慢速事件生成器 (0.15s 间隔)，
         验证心跳帧在事件间隙被 yield 输出。
         """
+
         async def slow_event_gen():
             yield format_sse_event("meta", {"conversation_id": 1})
             await asyncio.sleep(0.15)  # 超过心跳间隔，应触发心跳
@@ -160,13 +163,12 @@ class TestStreamWithHeartbeat:
         # 所有心跳帧应在 meta 之后、message 之前
         for i, e in enumerate(events):
             if e == ": ping\n\n":
-                assert meta_idx < i < msg_idx, (
-                    f"心跳帧应在 meta 和 message 之间，实际位置: {i}"
-                )
+                assert meta_idx < i < msg_idx, f"心跳帧应在 meta 和 message 之间，实际位置: {i}"
 
     @pytest.mark.asyncio
     async def test_事件流结束后无多余心跳(self):
         """事件流结束时应正常停止，不残留未完成的心跳任务"""
+
         async def quick_gen():
             yield format_sse_event("meta", {"conversation_id": 1})
             yield format_sse_event("finish", {"message_id": 1})
@@ -248,14 +250,18 @@ class TestBuildSources:
 
         results = [
             RetrievalResult(
-                doc_id=1, chunk_index=0,
+                doc_id=1,
+                chunk_index=0,
                 content="这是第一段检索内容" * 20,
-                score=0.95, page=1,
+                score=0.95,
+                page=1,
             ),
             RetrievalResult(
-                doc_id=2, chunk_index=1,
+                doc_id=2,
+                chunk_index=1,
                 content="第二段内容",
-                score=0.80, page=None,
+                score=0.80,
+                page=None,
             ),
         ]
         reranked_output = RetrievalOutput(results=results, total=2)
@@ -305,7 +311,7 @@ class TestBuildSources:
         # highlight 区间精确覆盖 matched_sentence
         assert sources[0].highlight_start is not None
         assert sources[0].highlight_end is not None
-        highlighted = sources[0].preview_text[sources[0].highlight_start:sources[0].highlight_end]
+        highlighted = sources[0].preview_text[sources[0].highlight_start : sources[0].highlight_end]
         assert highlighted == matched.results[0].matched_sentence
 
     def test_智能预览降级(self):
@@ -346,13 +352,20 @@ class TestBuildSources:
 
         results = [
             RetrievalResult(
-                doc_id=1, chunk_index=0, content="SSE 事件格式详解", score=0.95,
+                doc_id=1,
+                chunk_index=0,
+                content="SSE 事件格式详解",
+                score=0.95,
                 section_title="§6.1 SSE 事件完整格式",
                 section_path="RAG Pipeline > §6 SSE 事件流",
             ),
             RetrievalResult(
-                doc_id=2, chunk_index=0, content="限流配置", score=0.8,
-                section_title=None, section_path=None,
+                doc_id=2,
+                chunk_index=0,
+                content="限流配置",
+                score=0.8,
+                section_title=None,
+                section_path=None,
             ),
         ]
         sources = build_sources(results, {1: "API.md", 2: "ARCHITECTURE.md"})
@@ -392,8 +405,10 @@ class TestFinishEventData:
         }
         assert finish_data["message_id"] == 42
         assert finish_data["title"] == "测试标题"
-        assert finish_data["token_usage"]["prompt"] + finish_data["token_usage"]["completion"] == \
-               finish_data["token_usage"]["total"]
+        assert (
+            finish_data["token_usage"]["prompt"] + finish_data["token_usage"]["completion"]
+            == finish_data["token_usage"]["total"]
+        )
 
     def test_finish首轮无title时title为None(self):
         """非首轮 finish 事件 title 应为 None"""

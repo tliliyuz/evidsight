@@ -12,11 +12,10 @@ class ChatRequest(BaseModel):
     - question: 用户问题（≤2000 字符）
     - deep_thinking: 是否启用深度思考模式
     """
+
     conversation_id: str | None = Field(None, description="会话 UUID，新对话传 null")
     kb_id: str = Field(..., description="目标知识库 UUID")
-    question: str = Field(
-        ..., min_length=1, max_length=2000, description="用户问题"
-    )
+    question: str = Field(..., min_length=1, max_length=2000, description="用户问题")
     deep_thinking: bool = Field(False, description="是否启用深度思考模式")
 
 
@@ -25,6 +24,7 @@ class PreviewRange(BaseModel):
 
     对齐 ARCHITECTURE.md §5.1.7：前端根据此范围在完整 content 中高亮引用片段
     """
+
     start: int = Field(description="预览窗口起始位置（含）")
     end: int = Field(description="预览窗口结束位置（不含）")
 
@@ -34,18 +34,27 @@ class ChatSourceChunk(BaseModel):
 
     对齐 API.md §6.1 event: sources + ARCHITECTURE.md §5.1.7 sources 智能预览
     """
+
     chunk_index: int = Field(description="来源编号，与 LLM 回答中的 [来源N] 一一对应")
     doc_id: int
     doc_name: str
     content: str = Field(description="分块文本（完整内容）")
     score: float
     page: int | None = None
-    section_title: str | None = Field(None, description="当前所属章节标题（如 §6.1 SSE 事件完整格式）")
-    section_path: str | None = Field(None, description="章节路径（如 RAG Pipeline > §6 SSE 事件流）")
+    section_title: str | None = Field(
+        None, description="当前所属章节标题（如 §6.1 SSE 事件完整格式）"
+    )
+    section_path: str | None = Field(
+        None, description="章节路径（如 RAG Pipeline > §6 SSE 事件流）"
+    )
     preview_text: str | None = Field(None, description="定位后的预览文本（200 字符上下文窗口）")
     preview_range: PreviewRange | None = Field(None, description="预览窗口在 content 中的起止位置")
-    highlight_start: int | None = Field(None, description="高亮区间在 preview_text 内的起始偏移（含）")
-    highlight_end: int | None = Field(None, description="高亮区间在 preview_text 内的结束偏移（不含）")
+    highlight_start: int | None = Field(
+        None, description="高亮区间在 preview_text 内的起始偏移（含）"
+    )
+    highlight_end: int | None = Field(
+        None, description="高亮区间在 preview_text 内的结束偏移（不含）"
+    )
 
 
 class TokenUsage(BaseModel):
@@ -53,6 +62,7 @@ class TokenUsage(BaseModel):
 
     对齐 API.md §6.1 event: finish
     """
+
     prompt: int = Field(0, description="Prompt 消耗 Token 数")
     completion: int = Field(0, description="生成内容消耗 Token 数")
     total: int = Field(0, description="总 Token 消耗")
@@ -63,6 +73,7 @@ class ChatFinishData(BaseModel):
 
     对齐 API.md §6.1 event: finish
     """
+
     message_id: int
     title: str | None = Field(None, description="自动生成的对话标题（仅首轮返回）")
     token_usage: TokenUsage = Field(default_factory=TokenUsage, description="Token 消耗统计")
@@ -70,6 +81,7 @@ class ChatFinishData(BaseModel):
 
 class SelectableKBItem(BaseModel):
     """KB 选择器中的单个知识库项"""
+
     uuid: str
     name: str
     visibility: str = "private"
@@ -82,5 +94,6 @@ class SelectableKBResponse(BaseModel):
 
     对齐 API.md §3：返回 {mine, public} 分组
     """
+
     mine: list[SelectableKBItem] = Field(default_factory=list)
     public: list[SelectableKBItem] = Field(default_factory=list)

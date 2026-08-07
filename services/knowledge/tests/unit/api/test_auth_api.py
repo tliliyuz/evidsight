@@ -1,4 +1,5 @@
 """认证 API 接口测试 — 使用 TestClient 走完整 HTTP 链路"""
+
 import uuid
 from http.cookies import SimpleCookie
 from unittest.mock import AsyncMock, patch
@@ -26,14 +27,13 @@ def _cookies_from_response(response):
 
 
 def _make_user_response(username="testuser"):
-    return UserResponse(
-        id=1, username=username, role="user",
-        created_at=datetime.now(timezone.utc)
-    )
+    return UserResponse(id=1, username=username, role="user", created_at=datetime.now(timezone.utc))
 
 
 def _make_token_response():
-    return TokenResponse(access_token="fake-token", refresh_token="fake-refresh-token", expires_in=900)
+    return TokenResponse(
+        access_token="fake-token", refresh_token="fake-refresh-token", expires_in=900
+    )
 
 
 class TestRegisterAPI:
@@ -43,8 +43,7 @@ class TestRegisterAPI:
             mock_reg.return_value = _make_user_response("newuser")
 
             response = await async_client.post(
-                "/api/auth/register",
-                json={"username": "newuser", "password": "123456"}
+                "/api/auth/register", json={"username": "newuser", "password": "123456"}
             )
 
         assert response.status_code == 201
@@ -60,8 +59,7 @@ class TestRegisterAPI:
             mock_reg.side_effect = UsernameExistsException("existing")
 
             response = await async_client.post(
-                "/api/auth/register",
-                json={"username": "existing", "password": "123456"}
+                "/api/auth/register", json={"username": "existing", "password": "123456"}
             )
 
         assert response.status_code == 409
@@ -71,8 +69,7 @@ class TestRegisterAPI:
     @pytest.mark.asyncio
     async def test_register_username_too_short(self, async_client):
         response = await async_client.post(
-            "/api/auth/register",
-            json={"username": "a", "password": "123456"}
+            "/api/auth/register", json={"username": "a", "password": "123456"}
         )
         assert response.status_code == 422
         body = response.json()
@@ -81,26 +78,19 @@ class TestRegisterAPI:
     @pytest.mark.asyncio
     async def test_register_password_too_short(self, async_client):
         response = await async_client.post(
-            "/api/auth/register",
-            json={"username": "test", "password": "123"}
+            "/api/auth/register", json={"username": "test", "password": "123"}
         )
         assert response.status_code == 422
         assert response.json()["code"] == "E9003"
 
     @pytest.mark.asyncio
     async def test_register_missing_username(self, async_client):
-        response = await async_client.post(
-            "/api/auth/register",
-            json={"password": "123456"}
-        )
+        response = await async_client.post("/api/auth/register", json={"password": "123456"})
         assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_register_missing_password(self, async_client):
-        response = await async_client.post(
-            "/api/auth/register",
-            json={"username": "test"}
-        )
+        response = await async_client.post("/api/auth/register", json={"username": "test"})
         assert response.status_code == 422
 
 
@@ -111,8 +101,7 @@ class TestLoginAPI:
             mock_login.return_value = _make_token_response()
 
             response = await async_client.post(
-                "/api/auth/login",
-                json={"username": "testuser", "password": "correct"}
+                "/api/auth/login", json={"username": "testuser", "password": "correct"}
             )
 
         assert response.status_code == 200
@@ -130,8 +119,7 @@ class TestLoginAPI:
             mock_login.side_effect = InvalidCredentialsException()
 
             response = await async_client.post(
-                "/api/auth/login",
-                json={"username": "testuser", "password": "wrongpw"}
+                "/api/auth/login", json={"username": "testuser", "password": "wrongpw"}
             )
 
         assert response.status_code == 401
@@ -142,8 +130,7 @@ class TestLoginAPI:
     async def test_login_empty_username(self, async_client):
         """空用户名被 LoginRequest min_length=2 拒绝"""
         response = await async_client.post(
-            "/api/auth/login",
-            json={"username": "", "password": "correct"}
+            "/api/auth/login", json={"username": "", "password": "correct"}
         )
 
         assert response.status_code == 422
@@ -151,10 +138,7 @@ class TestLoginAPI:
 
     @pytest.mark.asyncio
     async def test_login_missing_password(self, async_client):
-        response = await async_client.post(
-            "/api/auth/login",
-            json={"username": "test"}
-        )
+        response = await async_client.post("/api/auth/login", json={"username": "test"})
         assert response.status_code == 422
 
 
@@ -172,7 +156,10 @@ class TestV1RegisterAPI:
     async def test_v1_register_returns_uuid_user_summary(self, async_client):
         with patch("app.api.auth.register_v1", new_callable=AsyncMock, create=True) as mock_reg:
             mock_reg.return_value = UserSummary(
-                id=self.V1_UUID, username="newuser", role="user", status="active",
+                id=self.V1_UUID,
+                username="newuser",
+                role="user",
+                status="active",
             )
             response = await async_client.post(
                 "/api/v1/auth/register",
@@ -205,8 +192,7 @@ class TestV1RegisterAPI:
     @pytest.mark.asyncio
     async def test_v1_register_username_too_short(self, async_client):
         response = await async_client.post(
-            "/api/v1/auth/register",
-            json={"username": "a", "password": "123456"}
+            "/api/v1/auth/register", json={"username": "a", "password": "123456"}
         )
         assert response.status_code == 422
 
@@ -326,8 +312,13 @@ class TestV1RefreshAPI:
     CSRF_TOKEN = "test-csrf-token"
 
     def _post_refresh(
-        self, async_client, *,
-        refresh_token="old-refresh-token", csrf_header=True, csrf_cookie=True, origin=None,
+        self,
+        async_client,
+        *,
+        refresh_token="old-refresh-token",
+        csrf_header=True,
+        csrf_cookie=True,
+        origin=None,
     ):
         cookies = {}
         if csrf_cookie:
@@ -405,7 +396,10 @@ class TestV1RefreshAPI:
         with patch("app.api.auth.refresh", new_callable=AsyncMock, create=True) as mock_refresh:
             response = await async_client.post(
                 "/api/v1/auth/refresh",
-                cookies={self.CSRF_COOKIE: "cookie-token", self.REFRESH_COOKIE: "old-refresh-token"},
+                cookies={
+                    self.CSRF_COOKIE: "cookie-token",
+                    self.REFRESH_COOKIE: "old-refresh-token",
+                },
                 headers={"X-CSRF-Token": "header-token"},
             )
 
@@ -493,8 +487,13 @@ class TestV1LogoutAPI:
     CSRF_TOKEN = "test-csrf-token"
 
     def _post_logout(
-        self, async_client, headers=None, *,
-        refresh_token="old-refresh-token", csrf_header=True, csrf_cookie=True,
+        self,
+        async_client,
+        headers=None,
+        *,
+        refresh_token="old-refresh-token",
+        csrf_header=True,
+        csrf_cookie=True,
     ):
         cookies = {}
         if csrf_cookie:
@@ -527,7 +526,9 @@ class TestV1LogoutAPI:
     async def test_logout_no_refresh_cookie_idempotent_204(self, async_client, auth_headers):
         """无 Refresh Cookie 时仍幂等返回 204，并清除可能残留的 Cookie。"""
         with patch("app.api.auth.logout", new_callable=AsyncMock, create=True) as mock_logout:
-            response = await self._post_logout(async_client, headers=auth_headers, refresh_token=None)
+            response = await self._post_logout(
+                async_client, headers=auth_headers, refresh_token=None
+            )
 
         assert response.status_code == 204
         mock_logout.assert_not_awaited()
@@ -548,7 +549,9 @@ class TestV1LogoutAPI:
     @pytest.mark.asyncio
     async def test_logout_csrf_header_missing_401_no_revoke(self, async_client, auth_headers):
         with patch("app.api.auth.logout", new_callable=AsyncMock, create=True) as mock_logout:
-            response = await self._post_logout(async_client, headers=auth_headers, csrf_header=False)
+            response = await self._post_logout(
+                async_client, headers=auth_headers, csrf_header=False
+            )
 
         assert response.status_code == 401
         assert response.json()["code"] == "E5004"
@@ -583,7 +586,9 @@ class TestCompatAPI:
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT", True)
         with patch("app.api.auth.refresh", new_callable=AsyncMock, create=True) as mock_refresh:
             mock_refresh.return_value = TokenResponse(
-                access_token="new-access-token", refresh_token="new-refresh-token", expires_in=900,
+                access_token="new-access-token",
+                refresh_token="new-refresh-token",
+                expires_in=900,
             )
             with patch("app.api.auth.logger", create=True) as mock_logger:
                 response = await async_client.post(
@@ -611,7 +616,9 @@ class TestCompatAPI:
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT", True)
         with patch("app.api.auth.refresh", new_callable=AsyncMock, create=True) as mock_refresh:
             mock_refresh.return_value = TokenResponse(
-                access_token="new-access-token", refresh_token="new-refresh-token", expires_in=900,
+                access_token="new-access-token",
+                refresh_token="new-refresh-token",
+                expires_in=900,
             )
             response = await async_client.post(
                 "/api/v1/auth/refresh",
@@ -644,7 +651,9 @@ class TestCompatAPI:
         mock_refresh.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_logout_body_compat_enabled_success(self, async_client, auth_headers, monkeypatch):
+    async def test_logout_body_compat_enabled_success(
+        self, async_client, auth_headers, monkeypatch
+    ):
         """compat 开启 + Cookie 缺失 + body → logout 使用 body token 并 204。"""
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT", True)
         with patch("app.api.auth.logout", new_callable=AsyncMock, create=True) as mock_logout:
@@ -724,8 +733,7 @@ class TestAuthMiddleware:
     @pytest.mark.asyncio
     async def test_invalid_token_returns_401(self, async_client):
         response = await async_client.get(
-            "/api/knowledge-bases",
-            headers={"Authorization": "Bearer invalid.token.here"}
+            "/api/knowledge-bases", headers={"Authorization": "Bearer invalid.token.here"}
         )
         assert response.status_code == 401
         body = response.json()

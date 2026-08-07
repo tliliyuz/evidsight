@@ -55,7 +55,8 @@ async def _recover_stale_tasks() -> None:
         if recovered:
             logger.warning(
                 "启动恢复：已重新投递 %d 个过时 running 任务: %s",
-                len(recovered), recovered,
+                len(recovered),
+                recovered,
             )
     except Exception:
         logger.exception("启动时过时任务恢复失败，不阻塞应用启动")
@@ -87,9 +88,7 @@ async def _mark_task_worker_timeout(task_id: str) -> None:
         updated = result.rowcount > 0
 
     if not updated:
-        logger.warning(
-            "Worker 超时标记失败 CAS 未命中，任务已非 running: task_id=%s", task_id
-        )
+        logger.warning("Worker 超时标记失败 CAS 未命中，任务已非 running: task_id=%s", task_id)
         return
 
     logger.warning("Worker 超时，任务已标记为 failed: task_id=%s", task_id)
@@ -149,9 +148,7 @@ async def _mark_task_pending_timeout(task_id: str) -> None:
         updated = result.rowcount > 0
 
     if not updated:
-        logger.warning(
-            "Pending 超时标记失败 CAS 未命中，任务已非 pending: task_id=%s", task_id
-        )
+        logger.warning("Pending 超时标记失败 CAS 未命中，任务已非 pending: task_id=%s", task_id)
         return
 
     logger.warning("Pending 任务超时，已标记为 failed: task_id=%s", task_id)
@@ -186,8 +183,9 @@ async def _check_worker_timeouts() -> None:
     try:
         async with async_session_factory() as session:
             result = await session.execute(
-                sa_select(ResearchTask.id, ResearchTask.started_at)
-                .where(ResearchTask.status == "running")
+                sa_select(ResearchTask.id, ResearchTask.started_at).where(
+                    ResearchTask.status == "running"
+                )
             )
             running_tasks = list(result.all())
 
@@ -195,8 +193,7 @@ async def _check_worker_timeouts() -> None:
             # started_at 在 create_task / retry_task 时设置为 now，
             # 若 PENDING_TASK_TIMEOUT_SECONDS 后仍为 pending，说明无 Worker 在线
             pending_result = await session.execute(
-                sa_select(ResearchTask.id)
-                .where(
+                sa_select(ResearchTask.id).where(
                     ResearchTask.status == "pending",
                     ResearchTask.started_at.is_not(None),
                     ResearchTask.started_at < pending_threshold,
@@ -278,7 +275,9 @@ async def _run_worker_timeout_watcher() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用启动 / 关闭时的生命周期事件。"""
-    logger.info(f"🚀 {settings.APP_NAME} v0.1.0 启动中... (env={settings.ENV}, debug={settings.DEBUG})")
+    logger.info(
+        f"🚀 {settings.APP_NAME} v0.1.0 启动中... (env={settings.ENV}, debug={settings.DEBUG})"
+    )
     await setup_metrics()
     await _recover_stale_tasks()
     watcher_task = asyncio.create_task(_run_worker_timeout_watcher())
@@ -330,15 +329,19 @@ app.add_middleware(RateLimitMiddleware)
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     """Pydantic 请求校验失败 → E9003 (422)。"""
     errors = []
     for error in exc.errors():
-        errors.append({
-            "field": ".".join(str(loc) for loc in error["loc"]),
-            "message": error["msg"],
-            "type": error["type"],
-        })
+        errors.append(
+            {
+                "field": ".".join(str(loc) for loc in error["loc"]),
+                "message": error["msg"],
+                "type": error["type"],
+            }
+        )
     return JSONResponse(
         status_code=422,
         content={
@@ -363,7 +366,9 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
     """
     logger.warning(
         "业务异常: code=%s, message=%s, status=%d",
-        exc.error_code, exc.error_message, exc.status_code,
+        exc.error_code,
+        exc.error_message,
+        exc.status_code,
     )
     return JSONResponse(
         status_code=exc.status_code,

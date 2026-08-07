@@ -84,8 +84,11 @@ def _make_stateful_store():
                 doc_id = cond["doc_id"]
             elif "version" in cond and isinstance(cond["version"], int):
                 version = cond["version"]
-        return [cid for (d, v, cid) in added
-                if (doc_id is None or d == doc_id) and (version is None or v == version)]
+        return [
+            cid
+            for (d, v, cid) in added
+            if (doc_id is None or d == doc_id) and (version is None or v == version)
+        ]
 
     store.add = AsyncMock(side_effect=_add)
     store.get_ids = AsyncMock(side_effect=_get_ids)
@@ -191,9 +194,13 @@ def _make_chunking_result(count=2):
     return ChunkingResult(
         sections=[
             SectionResult(
-                title="章节一", path="章节一", level=1,
-                start_offset=0, end_offset=100,
-                start_chunk_index=0, end_chunk_index=count - 1,
+                title="章节一",
+                path="章节一",
+                level=1,
+                start_offset=0,
+                end_offset=100,
+                start_chunk_index=0,
+                end_chunk_index=count - 1,
             )
         ],
         chunks=chunks,
@@ -203,14 +210,14 @@ def _make_chunking_result(count=2):
 
 def _make_embed_result(count=2):
     from tests.helpers import make_mock_embed_result
+
     return make_mock_embed_result(count)
 
 
 def _chunks_from_db(db):
     """从 db.add 调用参数中抽取 Chunk 对象列表"""
     return [
-        call[0][0] for call in db.add.call_args_list
-        if call[0][0].__class__.__name__ == "Chunk"
+        call[0][0] for call in db.add.call_args_list if call[0][0].__class__.__name__ == "Chunk"
     ]
 
 
@@ -228,8 +235,11 @@ class TestVersionLock:
         db = _make_db(doc, version, kb)
 
         with patch("app.ingest.tasks.async_session", return_value=_session_ctx(db)):
-            with patch("app.ingest.tasks.acquire_version_lock_async", return_value=False) as mock_lock:
+            with patch(
+                "app.ingest.tasks.acquire_version_lock_async", return_value=False
+            ) as mock_lock:
                 from app.ingest.tasks import _ingest_version_async
+
                 result = await _ingest_version_async(99)
 
         # 幂等键必须是 Version UUID，而非 doc_id
@@ -256,17 +266,29 @@ class TestVersionedFullPipeline:
         with patch("app.ingest.tasks.async_session", return_value=_session_ctx(db)):
             with patch("app.ingest.tasks.acquire_version_lock_async", return_value=True):
                 with patch("app.ingest.tasks.release_version_lock_async"):
-                    with patch("app.ingest.tasks.parse_document", return_value=_make_parse_result()):
-                        with patch("app.ingest.tasks.chunk_document", return_value=_make_chunking_result(2)):
-                            with patch("app.ingest.tasks.embed_chunks",
-                                      AsyncMock(return_value=_make_embed_result(2))):
-                                with patch("app.ingest.tasks.get_vector_store",
-                                          return_value=mock_store):
-                                    with patch("app.ingest.tasks.write_staging_artifact",
-                                              AsyncMock(return_value=staging_key)):
-                                        with patch("app.ingest.versioning.invalidate_bm25_cache_async",
-                                                   AsyncMock()) as mock_invalidate:
+                    with patch(
+                        "app.ingest.tasks.parse_document", return_value=_make_parse_result()
+                    ):
+                        with patch(
+                            "app.ingest.tasks.chunk_document", return_value=_make_chunking_result(2)
+                        ):
+                            with patch(
+                                "app.ingest.tasks.embed_chunks",
+                                AsyncMock(return_value=_make_embed_result(2)),
+                            ):
+                                with patch(
+                                    "app.ingest.tasks.get_vector_store", return_value=mock_store
+                                ):
+                                    with patch(
+                                        "app.ingest.tasks.write_staging_artifact",
+                                        AsyncMock(return_value=staging_key),
+                                    ):
+                                        with patch(
+                                            "app.ingest.versioning.invalidate_bm25_cache_async",
+                                            AsyncMock(),
+                                        ) as mock_invalidate:
                                             from app.ingest.tasks import _ingest_version_async
+
                                             result = await _ingest_version_async(99)
 
         assert result["status"] == "completed"
@@ -293,16 +315,29 @@ class TestVersionedFullPipeline:
         with patch("app.ingest.tasks.async_session", return_value=_session_ctx(db)):
             with patch("app.ingest.tasks.acquire_version_lock_async", return_value=True):
                 with patch("app.ingest.tasks.release_version_lock_async"):
-                    with patch("app.ingest.tasks.parse_document", return_value=_make_parse_result()):
-                        with patch("app.ingest.tasks.chunk_document", return_value=_make_chunking_result(2)):
-                            with patch("app.ingest.tasks.embed_chunks",
-                                      AsyncMock(return_value=_make_embed_result(2))):
-                                with patch("app.ingest.tasks.get_vector_store", return_value=mock_store):
-                                    with patch("app.ingest.tasks.write_staging_artifact",
-                                              AsyncMock(return_value="uploads/staging/1/ver-uuid-2.json")):
-                                        with patch("app.ingest.versioning.invalidate_bm25_cache_async",
-                                                   AsyncMock()):
+                    with patch(
+                        "app.ingest.tasks.parse_document", return_value=_make_parse_result()
+                    ):
+                        with patch(
+                            "app.ingest.tasks.chunk_document", return_value=_make_chunking_result(2)
+                        ):
+                            with patch(
+                                "app.ingest.tasks.embed_chunks",
+                                AsyncMock(return_value=_make_embed_result(2)),
+                            ):
+                                with patch(
+                                    "app.ingest.tasks.get_vector_store", return_value=mock_store
+                                ):
+                                    with patch(
+                                        "app.ingest.tasks.write_staging_artifact",
+                                        AsyncMock(return_value="uploads/staging/1/ver-uuid-2.json"),
+                                    ):
+                                        with patch(
+                                            "app.ingest.versioning.invalidate_bm25_cache_async",
+                                            AsyncMock(),
+                                        ):
                                             from app.ingest.tasks import _ingest_version_async
+
                                             await _ingest_version_async(99)
 
         chunks = _chunks_from_db(db)
@@ -326,16 +361,29 @@ class TestVersionedFullPipeline:
         with patch("app.ingest.tasks.async_session", return_value=_session_ctx(db)):
             with patch("app.ingest.tasks.acquire_version_lock_async", return_value=True):
                 with patch("app.ingest.tasks.release_version_lock_async"):
-                    with patch("app.ingest.tasks.parse_document", return_value=_make_parse_result()):
-                        with patch("app.ingest.tasks.chunk_document", return_value=_make_chunking_result(2)):
-                            with patch("app.ingest.tasks.embed_chunks",
-                                      AsyncMock(return_value=_make_embed_result(2))):
-                                with patch("app.ingest.tasks.get_vector_store", return_value=mock_store):
-                                    with patch("app.ingest.tasks.write_staging_artifact",
-                                              AsyncMock(return_value="uploads/staging/1/ver-uuid-3.json")):
-                                        with patch("app.ingest.versioning.invalidate_bm25_cache_async",
-                                                   AsyncMock()):
+                    with patch(
+                        "app.ingest.tasks.parse_document", return_value=_make_parse_result()
+                    ):
+                        with patch(
+                            "app.ingest.tasks.chunk_document", return_value=_make_chunking_result(2)
+                        ):
+                            with patch(
+                                "app.ingest.tasks.embed_chunks",
+                                AsyncMock(return_value=_make_embed_result(2)),
+                            ):
+                                with patch(
+                                    "app.ingest.tasks.get_vector_store", return_value=mock_store
+                                ):
+                                    with patch(
+                                        "app.ingest.tasks.write_staging_artifact",
+                                        AsyncMock(return_value="uploads/staging/1/ver-uuid-3.json"),
+                                    ):
+                                        with patch(
+                                            "app.ingest.versioning.invalidate_bm25_cache_async",
+                                            AsyncMock(),
+                                        ):
                                             from app.ingest.tasks import _ingest_version_async
+
                                             await _ingest_version_async(99)
 
         add_kwargs = mock_store.add.await_args.kwargs
@@ -364,10 +412,13 @@ class TestVersionedFailure:
         with patch("app.ingest.tasks.async_session", return_value=_session_ctx(db)):
             with patch("app.ingest.tasks.acquire_version_lock_async", return_value=True):
                 with patch("app.ingest.tasks.release_version_lock_async"):
-                    with patch("app.ingest.tasks.embed_chunks",
-                              AsyncMock(side_effect=RuntimeError("embed api down"))):
+                    with patch(
+                        "app.ingest.tasks.embed_chunks",
+                        AsyncMock(side_effect=RuntimeError("embed api down")),
+                    ):
                         with patch("app.ingest.tasks.get_vector_store", return_value=AsyncMock()):
                             from app.ingest.tasks import _ingest_version_async
+
                             result = await _ingest_version_async(99)
 
         assert result["status"] == "failed"
@@ -388,6 +439,7 @@ class TestVersionedFailure:
             with patch("app.ingest.tasks.acquire_version_lock_async", return_value=True):
                 with patch("app.ingest.tasks.release_version_lock_async"):
                     from app.ingest.tasks import _ingest_version_async
+
                     result = await _ingest_version_async(99)
 
         assert result["status"] == "failed"

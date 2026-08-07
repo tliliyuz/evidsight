@@ -50,7 +50,9 @@ def validate_manual_record(data: dict[str, Any]) -> ManualEvaluationRecord:
             raise ValueError(f"未知评估维度: {dimension}")
         if dimension in seen_dimensions:
             raise ValueError(f"重复评估维度: {dimension}")
-        if not isinstance(score, (int, float)) or not (MIN_MANUAL_SCORE <= score <= MAX_MANUAL_SCORE):
+        if not isinstance(score, (int, float)) or not (
+            MIN_MANUAL_SCORE <= score <= MAX_MANUAL_SCORE
+        ):
             raise ValueError(
                 f"维度 {dimension} 的评分 {score} 不在 [{MIN_MANUAL_SCORE}, {MAX_MANUAL_SCORE}] 范围内"
             )
@@ -95,15 +97,9 @@ def aggregate_manual_records(records: list[ManualEvaluationRecord]) -> ManualAgg
         round_scores[record.round].append(record.overall_score)
         overall_scores.append(record.overall_score)
 
-    dimension_means = {
-        d: mean(scores) if scores else 0.0 for d, scores in dimension_scores.items()
-    }
-    task_type_means = {
-        t: mean(scores) if scores else 0.0 for t, scores in task_type_scores.items()
-    }
-    round_means = {
-        r: mean(scores) if scores else 0.0 for r, scores in round_scores.items()
-    }
+    dimension_means = {d: mean(scores) if scores else 0.0 for d, scores in dimension_scores.items()}
+    task_type_means = {t: mean(scores) if scores else 0.0 for t, scores in task_type_scores.items()}
+    round_means = {r: mean(scores) if scores else 0.0 for r, scores in round_scores.items()}
 
     min_dimension = min(dimension_means, key=lambda k: dimension_means[k])
     min_dimension_mean = dimension_means[min_dimension]
@@ -189,7 +185,9 @@ def load_manual_records(directory: Path | str) -> list[ManualEvaluationRecord]:
     return records
 
 
-def load_all_manual_rounds(base_directory: Path | str = "eval/manual") -> list[ManualEvaluationRecord]:
+def load_all_manual_rounds(
+    base_directory: Path | str = "eval/manual",
+) -> list[ManualEvaluationRecord]:
     """加载 base_directory 下所有 round* 子目录的人工评估记录。
 
     Args:

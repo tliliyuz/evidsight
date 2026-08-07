@@ -20,7 +20,7 @@ def estimate_tokens(text: str) -> int:
     if not text:
         return 1
 
-    chinese_chars = sum(1 for c in text if '一' <= c <= '鿿')
+    chinese_chars = sum(1 for c in text if "一" <= c <= "鿿")
     ratio = (
         settings.TOKEN_CHINESE_RATIO
         if chinese_chars / len(text) > settings.TOKEN_CHINESE_THRESHOLD

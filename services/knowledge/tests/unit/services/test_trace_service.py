@@ -105,9 +105,14 @@ def _make_trace_record(
     return trace
 
 
-def _make_list_row(trace=None, username="testuser", kb_name="测试KB", kb_uuid="kb-uuid-10",
-                   conversation_uuid="conv-uuid-100",
-                   platform_user_id="550e8400-e29b-41d4-a716-446655440001"):
+def _make_list_row(
+    trace=None,
+    username="testuser",
+    kb_name="测试KB",
+    kb_uuid="kb-uuid-10",
+    conversation_uuid="conv-uuid-100",
+    platform_user_id="550e8400-e29b-41d4-a716-446655440001",
+):
     """构造 list_traces 查询结果行（6-tuple: trace, username, kb_name, kb_uuid, conversation_uuid, platform_user_id）"""
     if trace is None:
         trace = _make_trace_record()
@@ -637,7 +642,12 @@ class TestGetTraceDetail:
 
         result_mock = MagicMock()
         result_mock.first.return_value = (
-            trace, "testuser", "测试KB", "kb-uuid-10", "报销流程咨询", "conv-uuid-100",
+            trace,
+            "testuser",
+            "测试KB",
+            "kb-uuid-10",
+            "报销流程咨询",
+            "conv-uuid-100",
             "550e8400-e29b-41d4-a716-446655440001",
         )
         db.execute = AsyncMock(return_value=result_mock)
@@ -717,10 +727,15 @@ class TestGetTraceStats:
         response_dist_result = MagicMock()
         response_dist_result.all.return_value = []
 
-        db.execute = AsyncMock(side_effect=[
-            trend_result, latency_result, tokens_result,
-            intent_dist_result, response_dist_result,
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                trend_result,
+                latency_result,
+                tokens_result,
+                intent_dist_result,
+                response_dist_result,
+            ]
+        )
 
         result = await get_trace_stats(db, days=7)
 
@@ -761,10 +776,15 @@ class TestGetTraceStats:
         response_dist_result = MagicMock()
         response_dist_result.all.return_value = []
 
-        db.execute = AsyncMock(side_effect=[
-            trend_result, latency_result, tokens_result,
-            intent_dist_result, response_dist_result,
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                trend_result,
+                latency_result,
+                tokens_result,
+                intent_dist_result,
+                response_dist_result,
+            ]
+        )
 
         result = await get_trace_stats(db, days=7)
 
@@ -802,10 +822,15 @@ class TestGetTraceStats:
         response_dist_result = MagicMock()
         response_dist_result.all.return_value = []
 
-        db.execute = AsyncMock(side_effect=[
-            trend_result, latency_result, tokens_result,
-            intent_dist_result, response_dist_result,
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                trend_result,
+                latency_result,
+                tokens_result,
+                intent_dist_result,
+                response_dist_result,
+            ]
+        )
 
         result = await get_trace_stats(db, days=7)
 
@@ -844,10 +869,15 @@ class TestGetTraceStats:
         response_dist_result = MagicMock()
         response_dist_result.all.return_value = []
 
-        db.execute = AsyncMock(side_effect=[
-            trend_result, latency_result, tokens_result,
-            intent_dist_result, response_dist_result,
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                trend_result,
+                latency_result,
+                tokens_result,
+                intent_dist_result,
+                response_dist_result,
+            ]
+        )
 
         result = await get_trace_stats(db, days=7)
 
@@ -886,10 +916,15 @@ class TestGetTraceStats:
         response_dist_result = MagicMock()
         response_dist_result.all.return_value = [response_row1, response_row2]
 
-        db.execute = AsyncMock(side_effect=[
-            trend_result, latency_result, tokens_result,
-            intent_dist_result, response_dist_result,
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                trend_result,
+                latency_result,
+                tokens_result,
+                intent_dist_result,
+                response_dist_result,
+            ]
+        )
 
         result = await get_trace_stats(db, days=7)
 
@@ -907,10 +942,15 @@ class TestGetTraceStats:
         empty_result = MagicMock()
         empty_result.all.return_value = []
 
-        db.execute = AsyncMock(side_effect=[
-            empty_result, empty_result, empty_result,
-            empty_result, empty_result,
-        ])
+        db.execute = AsyncMock(
+            side_effect=[
+                empty_result,
+                empty_result,
+                empty_result,
+                empty_result,
+                empty_result,
+            ]
+        )
 
         result = await get_trace_stats(db, days=1)
 

@@ -5,6 +5,7 @@ SDD 门禁：本文件只证明 Provider 构造的响应符合契约 Schema 与�
 `/internal/v1/retrieval/*` 端点与实时授权（服务身份 → Contract → 用户 active →
 逐 KB READ → 检索）的端到端验收在权限感知 Provider 切片落地，届时补端点级测试。
 """
+
 import pytest
 
 from evidsight_contracts.loader import validator_for
@@ -67,7 +68,14 @@ class TestRetrievalProvider:
     def test_provider_hit_exposes_no_internal_leak_fields(self):
         """§7：命中对象不得包含调试信息、查询计划、数据库字段、文件路径或缓存信息。"""
         hit = _canonical_hit()
-        forbidden = {"query_plan", "chunk_text", "file_path", "cache_key", "embedding", "collection"}
+        forbidden = {
+            "query_plan",
+            "chunk_text",
+            "file_path",
+            "cache_key",
+            "embedding",
+            "collection",
+        }
         assert not (set(hit) & forbidden)
         errors = list(validator_for("retrieval-hit").iter_errors(hit))
         assert not errors, f"Provider 构造的命中不符合契约:\n{errors}"

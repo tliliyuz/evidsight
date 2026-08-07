@@ -6,7 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.uuid_helpers import resolve_user_uuid, resolve_uuid_to_id
 from app.dependencies import get_current_user, get_db
 from app.models.knowledge_base import KnowledgeBase
-from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseResponse, KnowledgeBaseUpdate
+from app.schemas.knowledge_base import (
+    KnowledgeBaseCreate,
+    KnowledgeBaseResponse,
+    KnowledgeBaseUpdate,
+)
 from app.services.chat_service import get_selectable_kbs
 from app.services.knowledge_base_service import (
     create_kb,
@@ -81,18 +85,22 @@ async def get_knowledge_base(
     kb = await get_kb(db, kb_id, current_user["user_id"], current_user["role"])
     # B 类：owner 输出 Platform User UUID，不暴露内部 users.id
     owner_uuid = await resolve_user_uuid(db, kb.user_id)
-    return {"code": "0", "message": "ok", "data": KnowledgeBaseResponse(
-        uuid=kb.uuid,
-        name=kb.name,
-        description=kb.description,
-        owner=owner_uuid,
-        visibility=kb.visibility,
-        status=kb.status,
-        doc_count=kb.doc_count,
-        chunk_count=kb.chunk_count,
-        created_at=kb.created_at,
-        updated_at=kb.updated_at,
-    ).model_dump()}
+    return {
+        "code": "0",
+        "message": "ok",
+        "data": KnowledgeBaseResponse(
+            uuid=kb.uuid,
+            name=kb.name,
+            description=kb.description,
+            owner=owner_uuid,
+            visibility=kb.visibility,
+            status=kb.status,
+            doc_count=kb.doc_count,
+            chunk_count=kb.chunk_count,
+            created_at=kb.created_at,
+            updated_at=kb.updated_at,
+        ).model_dump(),
+    }
 
 
 @router.put("/{kb_uuid}")

@@ -5,6 +5,7 @@
 - 200 → 放行；403 AUTH_USER_DISABLED → UserDisabledException（E1010）；
 - 503 INTERNAL_IDENTITY_UNAVAILABLE / 网络 / 超时 → ServiceUnavailableException（E9002），失败关闭。
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -55,7 +56,9 @@ class TestIdentityStatusClient:
         priv_file.write_text(private_pem, encoding="utf-8")
 
         monkeypatch.setattr(settings, "EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID", "test-kid")
-        monkeypatch.setattr(settings, "EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE", str(priv_file))
+        monkeypatch.setattr(
+            settings, "EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE", str(priv_file)
+        )
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS", 60)
         monkeypatch.setattr(settings, "EVIDSIGHT_KNOWLEDGE_INTERNAL_BASE_URL", BASE_URL)
         monkeypatch.setattr(settings, "EVIDSIGHT_IDENTITY_STATUS_TIMEOUT_SECONDS", 5)
@@ -71,7 +74,9 @@ class TestIdentityStatusClient:
         }
         mock_get = AsyncMock(return_value=mock_resp)
 
-        with patch("app.core.identity_status_client.httpx.AsyncClient", return_value=_client_ctx(mock_get)) as mock_cls:
+        with patch(
+            "app.core.identity_status_client.httpx.AsyncClient", return_value=_client_ctx(mock_get)
+        ) as mock_cls:
             await identity_status_client.check_user_status(PLATFORM_UUID)
 
         # AsyncClient(timeout=5) 构造

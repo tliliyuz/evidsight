@@ -23,9 +23,19 @@ logger = logging.getLogger(__name__)
 # 歧义信号词列表：代词/指示词/上下文引用
 # 仅当 question 包含其中任一信号词时才触发 rewrite，不使用短问题阈值
 AMBIGUOUS_SIGNALS = [
-    "它", "这个", "那个", "该", "此", "呢", "那",
-    "他们", "这些", "那些",
-    "上面", "前面说的", "刚才",
+    "它",
+    "这个",
+    "那个",
+    "该",
+    "此",
+    "呢",
+    "那",
+    "他们",
+    "这些",
+    "那些",
+    "上面",
+    "前面说的",
+    "刚才",
 ]
 
 REWRITE_SYSTEM_PROMPT = """你是一个查询改写助手。根据对话历史，将用户的最新问题改写为一个完整、独立、可直接用于检索的问题。
@@ -51,8 +61,10 @@ class RewriteResult:
     - metadata.model: 使用的 LLM 模型名（未触发重写时为 None）
     - metadata.input_tokens / output_tokens: Token 消耗（未触发重写时为 0）
     """
+
     rewritten: str
     metadata: dict
+
 
 # 引号字符集（用于剥离 LLM 可能输出的引号包裹，含 ASCII 引号 + 中文双/单引号）
 _QUOTE_CHARS = "\"'“”‘’"
@@ -82,7 +94,6 @@ def needs_rewrite(question: str, history: list[dict[str, str]] | None) -> bool:
     return any(s in question for s in AMBIGUOUS_SIGNALS)
 
 
-
 async def rewrite_query(
     question: str,
     history: list[dict[str, str]],
@@ -102,18 +113,20 @@ async def rewrite_query(
 
     # 格式化历史为纯文本
     history_text = "\n".join(
-        f"{'用户' if m['role'] == 'user' else '助手'}: {m['content']}"
-        for m in recent
+        f"{'用户' if m['role'] == 'user' else '助手'}: {m['content']}" for m in recent
     )
 
     try:
         result = await chat_completion(
             messages=[
                 {"role": "system", "content": REWRITE_SYSTEM_PROMPT},
-                {"role": "user", "content": REWRITE_USER_TEMPLATE.format(
-                    history=history_text,
-                    question=question,
-                )},
+                {
+                    "role": "user",
+                    "content": REWRITE_USER_TEMPLATE.format(
+                        history=history_text,
+                        question=question,
+                    ),
+                },
             ],
             deep_thinking=False,  # 改写不需要深度思考
         )

@@ -1,4 +1,5 @@
 """依赖注入单元测试 —— get_current_user / require_task_accessible。"""
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

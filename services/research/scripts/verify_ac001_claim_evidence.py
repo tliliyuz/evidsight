@@ -43,10 +43,10 @@ THRESHOLD = 0.90
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AC-001 关键结论有效引用率验证")
     parser.add_argument("--task-id", help="单个任务 UUID")
-    parser.add_argument("--all-completed", action="store_true",
-                        help="评估全部已发布报告的任务")
-    parser.add_argument("--limit", type=int, default=50,
-                        help="--all-completed 时最多评估任务数（默认 50）")
+    parser.add_argument("--all-completed", action="store_true", help="评估全部已发布报告的任务")
+    parser.add_argument(
+        "--limit", type=int, default=50, help="--all-completed 时最多评估任务数（默认 50）"
+    )
     return parser.parse_args()
 
 
@@ -66,17 +66,16 @@ async def _load_section_evidence(
     if not section_ids:
         return mapping
     result = await session.execute(
-        select(SectionEvidence.section_id, SectionEvidence.evidence_id)
-        .where(SectionEvidence.section_id.in_(section_ids))
+        select(SectionEvidence.section_id, SectionEvidence.evidence_id).where(
+            SectionEvidence.section_id.in_(section_ids)
+        )
     )
     for section_id, evidence_id in result.all():
         mapping.setdefault(section_id, []).append(evidence_id)
     return mapping
 
 
-async def _load_evidence_index(
-    session: AsyncSession, task_id: str
-) -> dict[int, int]:
+async def _load_evidence_index(session: AsyncSession, task_id: str) -> dict[int, int]:
     """evidence_item_id -> Evidence Graph index（来自 evidence_graph step output）。"""
     stmt = (
         select(ResearchStep)
@@ -104,31 +103,50 @@ async def _evaluate_task(session: AsyncSession, task_id: str) -> dict:
     """评估单个任务的引用闭合率。"""
     task = await session.get(ResearchTask, task_id)
     if task is None:
-        return {"task_id": task_id, "ok": False, "reason": "任务不存在",
-                "valid": 0, "total": 0, "rate": 0.0}
+        return {
+            "task_id": task_id,
+            "ok": False,
+            "reason": "任务不存在",
+            "valid": 0,
+            "total": 0,
+            "rate": 0.0,
+        }
     if task.status not in TERMINAL_STATUSES:
-        return {"task_id": task_id, "ok": False,
-                "reason": f"任务非终态（{task.status}）",
-                "valid": 0, "total": 0, "rate": 0.0}
+        return {
+            "task_id": task_id,
+            "ok": False,
+            "reason": f"任务非终态（{task.status}）",
+            "valid": 0,
+            "total": 0,
+            "rate": 0.0,
+        }
 
     sections = await _load_sections(session, task_id)
     if not sections:
-        return {"task_id": task_id, "ok": False, "reason": "无报告章节",
-                "valid": 0, "total": 0, "rate": 0.0}
+        return {
+            "task_id": task_id,
+            "ok": False,
+            "reason": "无报告章节",
+            "valid": 0,
+            "total": 0,
+            "rate": 0.0,
+        }
 
-    section_evidence = await _load_section_evidence(
-        session, [s.id for s in sections]
-    )
+    section_evidence = await _load_section_evidence(session, [s.id for s in sections])
     evidence_index = await _load_evidence_index(session, task_id)
 
     section_dicts = [{"id": s.id, "content": s.content} for s in sections]
-    valid, total, rate = evaluate_citation_validity(
-        section_dicts, section_evidence, evidence_index
-    )
+    valid, total, rate = evaluate_citation_validity(section_dicts, section_evidence, evidence_index)
     ok = total > 0 and rate >= THRESHOLD
     reason = "" if ok else "引用闭合率低于门槛或无可评估引用"
-    return {"task_id": task_id, "ok": ok, "reason": reason,
-            "valid": valid, "total": total, "rate": rate}
+    return {
+        "task_id": task_id,
+        "ok": ok,
+        "reason": reason,
+        "valid": valid,
+        "total": total,
+        "rate": rate,
+    }
 
 
 async def _collect_task_ids(session: AsyncSession, args: argparse.Namespace) -> list[str]:
@@ -168,12 +186,12 @@ async def run() -> int:
     print(f"  引用总数: {total}，有效引用: {valid}")
     print(f"  有效引用率: {rate:.2%}（门槛 ≥ {THRESHOLD:.0%}）")
     for r in failed:
-        print(f"  - {r['task_id']}: 引用 {r['valid']}/{r['total']} "
-              f"({r['rate']:.2%}) {r['reason']}")
+        print(f"  - {r['task_id']}: 引用 {r['valid']}/{r['total']} ({r['rate']:.2%}) {r['reason']}")
 
     try:
         commit = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], text=True,
+            ["git", "rev-parse", "--short", "HEAD"],
+            text=True,
         ).strip()
     except Exception:  # noqa: BLE001
         commit = "unknown"

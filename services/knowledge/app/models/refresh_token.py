@@ -18,7 +18,8 @@ class RefreshToken(Base):
         nullable=False,
     )
     token_hash: Mapped[str] = mapped_column(
-        String(256), nullable=False,
+        String(256),
+        nullable=False,
         comment="refresh_token 的 SHA-256 哈希，不存明文",
     )
     issued_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
@@ -32,7 +33,9 @@ class RefreshToken(Base):
         nullable=True,
     )
     revoked_at: Mapped[datetime | None] = mapped_column(
-        UTCDateTime, nullable=True, server_default=text("NULL"),
+        UTCDateTime,
+        nullable=True,
+        server_default=text("NULL"),
         comment="吊销时间（NULL=有效，非NULL=已吊销，UTC）",
     )
     created_at: Mapped[datetime] = mapped_column(

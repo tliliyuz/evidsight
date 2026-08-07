@@ -56,7 +56,9 @@ async def evaluate_task(
 
     effective_targets = dict(targets if targets is not None else TARGETS)
 
-    search_output = await load_step_output(session, task_id, "search", output_key="sub_question_results")
+    search_output = await load_step_output(
+        session, task_id, "search", output_key="sub_question_results"
+    )
     fetch_output = await load_step_output(session, task_id, "fetch", output_key="fetched")
     evidence_items = await load_evidence_items(session, task_id)
 
@@ -166,9 +168,7 @@ def aggregate_reports(
         "rerank": {
             "mean_mean_score": _mean([r.mean_score for r in rerank_reports]),
             "mean_median_score": _mean([r.median_score for r in rerank_reports]),
-            "mean_high_quality_ratio": _mean(
-                [r.high_quality_ratio for r in rerank_reports]
-            ),
+            "mean_high_quality_ratio": _mean([r.high_quality_ratio for r in rerank_reports]),
         },
         "pass_rate": passed_count / len(reports),
     }

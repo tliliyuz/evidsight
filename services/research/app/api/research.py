@@ -143,11 +143,14 @@ async def cancel_research_task(
 
     sse = SSEBridge(task.id)
     try:
-        await sse.publish(EVENT_TASK_CANCELED, {
-            "task_id": str(task.id),
-            "status": task.status,
-            "cancel_requested": True,
-        })
+        await sse.publish(
+            EVENT_TASK_CANCELED,
+            {
+                "task_id": str(task.id),
+                "status": task.status,
+                "cancel_requested": True,
+            },
+        )
     except Exception:
         logger.exception("取消任务后发送 SSE 事件失败: task_id=%s", task.id)
 
@@ -322,9 +325,7 @@ async def _build_snapshot(
         if s.status == "completed" and s.output:
             # 根据 step_type 提取关键摘要字段
             if s.step_type == "planning":
-                summary["sub_questions_count"] = len(
-                    s.output.get("sub_questions", [])
-                )
+                summary["sub_questions_count"] = len(s.output.get("sub_questions", []))
             elif s.step_type == "search":
                 summary["after_dedup"] = s.output.get("after_dedup")
                 summary["sources_created"] = s.output.get("sources_created")

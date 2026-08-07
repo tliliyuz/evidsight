@@ -24,19 +24,29 @@ from app.rag.retriever import RetrievalOutput
 logger = logging.getLogger(__name__)
 
 # 中文句子分隔符
-_SENTENCE_SEP = re.compile(r'[。！？!?\n]+')
+_SENTENCE_SEP = re.compile(r"[。！？!?\n]+")
 
 # ==================== 句级修辞角色过滤（§3.3） ====================
 
 # 引用性句子显式标记模式（高置信度，零成本）
 _REFERENTIAL_PATTERNS = [
-    re.compile(p) for p in [
-        r'示例[：:]', r'例如[：:，,]', r'举例[：:]',
-        r'测试[目场用]', r'测试数据', r'测试用例',
-        r'用户提问[：:]', r'历史问答', r'系统返回[：:]',
-        r'如果用户问', r'假设.*场景',
-        r'TODO', r'FIXME',
-        r'会议.*讨论', r'上次.*提到',
+    re.compile(p)
+    for p in [
+        r"示例[：:]",
+        r"例如[：:，,]",
+        r"举例[：:]",
+        r"测试[目场用]",
+        r"测试数据",
+        r"测试用例",
+        r"用户提问[：:]",
+        r"历史问答",
+        r"系统返回[：:]",
+        r"如果用户问",
+        r"假设.*场景",
+        r"TODO",
+        r"FIXME",
+        r"会议.*讨论",
+        r"上次.*提到",
     ]
 ]
 
@@ -44,9 +54,10 @@ _REFERENTIAL_PATTERNS = [
 @dataclass
 class FilterStats:
     """句级修辞过滤统计信息（供 EvidenceReview 复用，避免重复切句+角色判定）。"""
-    total_sentences: int = 0        # 过滤前总句子数
-    assertive_count: int = 0        # 保留的断言性句子数
-    referential_count: int = 0      # 被过滤的引用性句子数
+
+    total_sentences: int = 0  # 过滤前总句子数
+    assertive_count: int = 0  # 保留的断言性句子数
+    referential_count: int = 0  # 被过滤的引用性句子数
 
 
 def detect_sentence_role(sentence: str) -> str:
@@ -74,7 +85,7 @@ def detect_sentence_role(sentence: str) -> str:
             return "referential"
 
     # 结构层：JSON/代码块内容 → 大概率是示例
-    if s.startswith('{') or s.startswith('"') or '```' in s:
+    if s.startswith("{") or s.startswith('"') or "```" in s:
         return "referential"
 
     # 默认为陈述（宁可放过，不可错杀）
@@ -126,10 +137,11 @@ def filter_chunk_sentences(chunk_content: str) -> tuple[str, FilterStats]:
     if len(filtered) < len(sentences):
         logger.debug(
             "句级修辞过滤: %d/%d 句子保留",
-            len(filtered), len(sentences),
+            len(filtered),
+            len(sentences),
         )
 
-    return '。'.join(filtered) + '。', stats
+    return "。".join(filtered) + "。", stats
 
 
 def match_sentences(output: RetrievalOutput, question: str) -> RetrievalOutput:

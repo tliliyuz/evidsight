@@ -54,11 +54,11 @@ def _make_output(
 
 # 简化的 4 维向量（便于手算验证余弦相似度）
 QV = [1.0, 0.0, 0.0, 0.0]  # query vector — 沿 x 轴
-EMB_SAME = [1.0, 0.0, 0.0, 0.0]    # 完全相同 → cosine_sim = 1.0
-EMB_ORTH = [0.0, 1.0, 0.0, 0.0]    # 正交 → cosine_sim = 0.0
-EMB_OPPO = [-1.0, 0.0, 0.0, 0.0]   # 相反 → cosine_sim = -1.0
-EMB_45DEG = [1.0, 1.0, 0.0, 0.0]   # 45° → cosine_sim ≈ 0.7071
-EMB_60DEG = [0.5, 0.866, 0.0, 0.0] # 60° → cosine_sim ≈ 0.5
+EMB_SAME = [1.0, 0.0, 0.0, 0.0]  # 完全相同 → cosine_sim = 1.0
+EMB_ORTH = [0.0, 1.0, 0.0, 0.0]  # 正交 → cosine_sim = 0.0
+EMB_OPPO = [-1.0, 0.0, 0.0, 0.0]  # 相反 → cosine_sim = -1.0
+EMB_45DEG = [1.0, 1.0, 0.0, 0.0]  # 45° → cosine_sim ≈ 0.7071
+EMB_60DEG = [0.5, 0.866, 0.0, 0.0]  # 60° → cosine_sim ≈ 0.5
 
 
 # ==================== 正常过滤测试 ====================
@@ -76,16 +76,16 @@ class TestCoarseRankerNormalFilter:
 
         ranker = CoarseRanker()
         results = [
-            _make_result(1, 0, "高相关", score=1.0, embedding=EMB_SAME),   # sim=1.0 ✓
+            _make_result(1, 0, "高相关", score=1.0, embedding=EMB_SAME),  # sim=1.0 ✓
             _make_result(2, 0, "中相关", score=0.8, embedding=EMB_45DEG),  # sim≈0.707 ✓
             _make_result(3, 0, "低相关", score=0.5, embedding=EMB_60DEG),  # sim=0.5 ✓
-            _make_result(4, 0, "正交", score=0.3, embedding=EMB_ORTH),      # sim≈0.0 ✗
-            _make_result(5, 0, "相反", score=0.1, embedding=EMB_OPPO),      # sim=-1.0 ✗
+            _make_result(4, 0, "正交", score=0.3, embedding=EMB_ORTH),  # sim≈0.0 ✗
+            _make_result(5, 0, "相反", score=0.1, embedding=EMB_OPPO),  # sim=-1.0 ✗
             _make_result(6, 0, "高相关2", score=0.9, embedding=EMB_45DEG),  # sim≈0.707 ✓
-            _make_result(7, 0, "无embedding", score=0.6, embedding=None),   # sim=阈值 ✓
-            _make_result(8, 0, "低相关2", score=0.4, embedding=EMB_ORTH),   # sim≈0.0 ✗
+            _make_result(7, 0, "无embedding", score=0.6, embedding=None),  # sim=阈值 ✓
+            _make_result(8, 0, "低相关2", score=0.4, embedding=EMB_ORTH),  # sim≈0.0 ✗
             _make_result(9, 0, "中相关2", score=0.7, embedding=EMB_60DEG),  # sim=0.5 ✓
-            _make_result(10, 0, "高相关3", score=0.85, embedding=EMB_SAME), # sim=1.0 ✓
+            _make_result(10, 0, "高相关3", score=0.85, embedding=EMB_SAME),  # sim=1.0 ✓
         ]
 
         output = _make_output(results, query_embedding=QV)
@@ -118,7 +118,7 @@ class TestCoarseRankerNormalFilter:
         ranker = CoarseRanker()
         results = [
             _make_result(1, 0, "A", score=0.8, embedding=EMB_45DEG),  # sim≈0.707
-            _make_result(2, 0, "B", score=0.9, embedding=EMB_SAME),   # sim=1.0
+            _make_result(2, 0, "B", score=0.9, embedding=EMB_SAME),  # sim=1.0
             _make_result(3, 0, "C", score=0.7, embedding=EMB_60DEG),  # sim=0.5
         ]
 
@@ -256,7 +256,7 @@ class TestCoarseRankerBoundary:
         ranker = CoarseRanker()
         results = [
             _make_result(1, 0, "A", score=0.8, embedding=EMB_OPPO),  # sim=-1.0
-            _make_result(2, 0, "B", score=0.9, embedding=EMB_SAME),   # sim=1.0
+            _make_result(2, 0, "B", score=0.9, embedding=EMB_SAME),  # sim=1.0
             _make_result(3, 0, "C", score=0.7, embedding=EMB_45DEG),  # sim≈0.707
         ]
 
@@ -278,11 +278,11 @@ class TestCoarseRankerBoundary:
 
         ranker = CoarseRanker()
         results = [
-            _make_result(1, 0, "最低", score=0.1, embedding=EMB_OPPO),   # sim=-1.0
+            _make_result(1, 0, "最低", score=0.1, embedding=EMB_OPPO),  # sim=-1.0
             _make_result(2, 0, "中等", score=0.6, embedding=EMB_60DEG),  # sim=0.5
-            _make_result(3, 0, "最高", score=0.9, embedding=EMB_SAME),   # sim=1.0
+            _make_result(3, 0, "最高", score=0.9, embedding=EMB_SAME),  # sim=1.0
             _make_result(4, 0, "偏高", score=0.8, embedding=EMB_45DEG),  # sim≈0.707
-            _make_result(5, 0, "零", score=0.3, embedding=EMB_ORTH),     # sim≈0.0
+            _make_result(5, 0, "零", score=0.3, embedding=EMB_ORTH),  # sim≈0.0
         ]
 
         output = _make_output(results, query_embedding=QV)
@@ -296,7 +296,7 @@ class TestCoarseRankerBoundary:
 
         # 严格降序
         for i in range(len(sims) - 1):
-            assert sims[i] >= sims[i + 1], f"索引 {i} ({sims[i]}) 不小于 {i+1} ({sims[i+1]})"
+            assert sims[i] >= sims[i + 1], f"索引 {i} ({sims[i]}) 不小于 {i + 1} ({sims[i + 1]})"
 
         # 第一个应该是最高的
         assert result.results[0].doc_id == 3  # sim=1.0
@@ -310,11 +310,11 @@ class TestCoarseRankerBoundary:
 
         ranker = CoarseRanker()
         results = [
-            _make_result(1, 0, "A", score=0.9, embedding=EMB_SAME),   # sim=1.0 ✓
+            _make_result(1, 0, "A", score=0.9, embedding=EMB_SAME),  # sim=1.0 ✓
             _make_result(2, 0, "B", score=0.8, embedding=EMB_45DEG),  # sim≈0.707 ✓
             _make_result(3, 0, "C", score=0.7, embedding=EMB_60DEG),  # sim=0.5 ✗
-            _make_result(4, 0, "D", score=0.6, embedding=EMB_ORTH),   # sim≈0.0 ✗
-            _make_result(5, 0, "E", score=0.5, embedding=EMB_OPPO),   # sim=-1.0 ✗
+            _make_result(4, 0, "D", score=0.6, embedding=EMB_ORTH),  # sim≈0.0 ✗
+            _make_result(5, 0, "E", score=0.5, embedding=EMB_OPPO),  # sim=-1.0 ✗
         ]
 
         output = _make_output(results, query_embedding=QV)
@@ -380,7 +380,7 @@ class TestCoarseRankerDataIntegrity:
         ranker = CoarseRanker()
         results = [
             _make_result(1, 0, "A", score=0.6, embedding=EMB_60DEG),  # sim=0.5
-            _make_result(2, 0, "B", score=0.9, embedding=EMB_SAME),   # sim=1.0
+            _make_result(2, 0, "B", score=0.9, embedding=EMB_SAME),  # sim=1.0
             _make_result(3, 0, "C", score=0.7, embedding=EMB_45DEG),  # sim≈0.707
             _make_result(4, 0, "D", score=0.8, embedding=EMB_45DEG),  # sim≈0.707
             _make_result(5, 0, "E", score=0.5, embedding=EMB_60DEG),  # sim=0.5

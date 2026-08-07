@@ -44,23 +44,32 @@ logger = logging.getLogger(__name__)
 # ==================== §8.8 章节号检测正则 ====================
 
 # § 符号引导的章节号（§3.2, § 4.7, §8.2.1, §6.1.2）
-_SECTION_SYMBOL_PATTERN = re.compile(r'§\s*(\d+(?:\.\d+)*)')
+_SECTION_SYMBOL_PATTERN = re.compile(r"§\s*(\d+(?:\.\d+)*)")
 
 # 中文章节表述（第四章, 第三节, 第十二章）
-_CN_CHAPTER_PATTERN = re.compile(r'第([一二三四五六七八九十百千]+)[章节]')
+_CN_CHAPTER_PATTERN = re.compile(r"第([一二三四五六七八九十百千]+)[章节]")
 
 # 显式节编号（"第4.7节", "第8.2.1节", "第3.2 节"）
-_EXPLICIT_SECTION_PATTERN = re.compile(r'第\s*(\d+(?:\.\d+)+)\s*节')
+_EXPLICIT_SECTION_PATTERN = re.compile(r"第\s*(\d+(?:\.\d+)+)\s*节")
 
 # 裸数字章节号（4.7, 8.2.1）— 至少 2 段数字，避免匹配单版本号如 "3.0"
 # 且不包含字母前缀（排除 v4.7.0 等版本号）
-_BARE_SECTION_NUM_PATTERN = re.compile(r'(?<![a-zA-Z§第])(\d+\.[\d.]+)(?![a-zA-Z])')
+_BARE_SECTION_NUM_PATTERN = re.compile(r"(?<![a-zA-Z§第])(\d+\.[\d.]+)(?![a-zA-Z])")
 
 # 中文数字 → int 转换表
 _CN_DIGIT_MAP = {
-    '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
-    '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
-    '百': 100, '千': 1000,
+    "一": 1,
+    "二": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
+    "百": 100,
+    "千": 1000,
 }
 
 # Redis key 模式：bm25_tokens:{kb_id}
@@ -80,6 +89,7 @@ def _get_memory_mb() -> float:
     """返回当前进程 RSS 内存（MB），psutil 不可用时返回 -1"""
     try:
         import psutil
+
         return psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
     except Exception:
         return -1.0
@@ -212,8 +222,14 @@ def match_section_numbers(
         if num in search_text:
             return True
         # 单个数字：同时检查以 "§数字" 或 ".数字" 开头的片段
-        if '.' not in num:
-            if f"§{num}" in search_text or f".{num}" in search_text or f" {num}." in search_text or f" {num} " in search_text or search_text.startswith(f"{num} "):
+        if "." not in num:
+            if (
+                f"§{num}" in search_text
+                or f".{num}" in search_text
+                or f" {num}." in search_text
+                or f" {num} " in search_text
+                or search_text.startswith(f"{num} ")
+            ):
                 return True
 
     return False
@@ -249,12 +265,15 @@ def _set_local_cache(
     if len(doc_ids) > settings.BM25_LOCAL_CACHE_MAX_CHUNKS:
         logger.info(
             "BM25 跳过进程内缓存（chunks=%d > max=%d）: kb_id=%d",
-            len(doc_ids), settings.BM25_LOCAL_CACHE_MAX_CHUNKS, kb_id,
+            len(doc_ids),
+            settings.BM25_LOCAL_CACHE_MAX_CHUNKS,
+            kb_id,
         )
         return
 
     _local_cache[kb_id] = (
-        bm25, doc_ids,
+        bm25,
+        doc_ids,
         section_info if section_info is not None else [],
         time.time() + _LOCAL_TTL,
     )
@@ -315,10 +334,12 @@ class BM25Retriever:
 
             if not doc_ids or bm25 is None:
                 logger.info("KB %d 无文档数据，BM25 检索返回空", kb_id)
-                return RetrievalOutput(stats={
-                    "redis_cache": cache_type,
-                    "tokenize_ms": int((t_tokenize - t0) * 1000),
-                })
+                return RetrievalOutput(
+                    stats={
+                        "redis_cache": cache_type,
+                        "tokenize_ms": int((t_tokenize - t0) * 1000),
+                    }
+                )
 
             # 3. BM25 评分
             scores = bm25.get_scores(query_tokens)
@@ -349,13 +370,15 @@ class BM25Retriever:
                 if boosted_count:
                     logger.info(
                         "BM25 章节号 boost: %d/%d chunks 加权 (x%.1f/÷%.1f), 章节号=%s",
-                        boosted_count, len(scores), boost, boost, section_numbers,
+                        boosted_count,
+                        len(scores),
+                        boost,
+                        boost,
+                        section_numbers,
                     )
 
             # 4. 按分数降序排列，过滤低于阈值的 chunk
-            ranked_indices = sorted(
-                range(len(scores)), key=lambda i: scores[i], reverse=True
-            )
+            ranked_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
 
             candidate_count = len(scores)
             top_k_pairs: list[tuple[int, int]] = []
@@ -379,15 +402,19 @@ class BM25Retriever:
 
             # 6. 组装结果
             results: list[RetrievalResult] = []
-            for (doc_id, chunk_index), score, si in zip(top_k_pairs, top_k_scores, top_k_section_info):
-                results.append(RetrievalResult(
-                    doc_id=doc_id,
-                    chunk_index=chunk_index,
-                    content=content_map.get((doc_id, chunk_index), ""),
-                    score=score,
-                    section_title=si.get("section_title") or None,
-                    section_path=si.get("section_path") or None,
-                ))
+            for (doc_id, chunk_index), score, si in zip(
+                top_k_pairs, top_k_scores, top_k_section_info
+            ):
+                results.append(
+                    RetrievalResult(
+                        doc_id=doc_id,
+                        chunk_index=chunk_index,
+                        content=content_map.get((doc_id, chunk_index), ""),
+                        score=score,
+                        section_title=si.get("section_title") or None,
+                        section_path=si.get("section_path") or None,
+                    )
+                )
 
             logger.info("BM25 检索完成: kb_id=%d, %d 条结果", kb_id, len(results))
             return RetrievalOutput(
@@ -428,8 +455,9 @@ class BM25Retriever:
 
         async with self._session_factory() as db:
             result = await db.execute(
-                select(Chunk.doc_id, Chunk.chunk_index, Chunk.content)
-                .where(tuple_(Chunk.doc_id, Chunk.chunk_index).in_(pairs))
+                select(Chunk.doc_id, Chunk.chunk_index, Chunk.content).where(
+                    tuple_(Chunk.doc_id, Chunk.chunk_index).in_(pairs)
+                )
             )
             rows = result.all()
 
@@ -466,14 +494,17 @@ class BM25Retriever:
             if len(doc_ids) > settings.BM25_MAX_CHUNKS:
                 logger.warning(
                     "BM25 本地缓存超限，清除: kb_id=%d chunks=%d max=%d",
-                    kb_id, len(doc_ids), settings.BM25_MAX_CHUNKS,
+                    kb_id,
+                    len(doc_ids),
+                    settings.BM25_MAX_CHUNKS,
                 )
                 del _local_cache[kb_id]
             else:
                 t_local = time.perf_counter()
                 logger.info(
                     "BM25_PERF cache=local_hit chunks=%d cost=%.3fms",
-                    len(doc_ids), (t_local - t0) * 1000,
+                    len(doc_ids),
+                    (t_local - t0) * 1000,
                 )
                 return bm25, doc_ids, section_info, "local_hit"
 
@@ -497,7 +528,8 @@ class BM25Retriever:
                 if data.get("skipped"):
                     logger.info(
                         "BM25 跳过（Redis 缓存标记）: kb_id=%d chunks=%d",
-                        kb_id, data.get("chunk_count", 0),
+                        kb_id,
+                        data.get("chunk_count", 0),
                     )
                     return None, [], [], "redis_hit"
                 tokens = data["tokens"]
@@ -505,7 +537,9 @@ class BM25Retriever:
                 if chunk_count > settings.BM25_MAX_CHUNKS:
                     logger.warning(
                         "BM25 跳过（chunk 数超限）: kb_id=%d chunks=%d max=%d",
-                        kb_id, chunk_count, settings.BM25_MAX_CHUNKS,
+                        kb_id,
+                        chunk_count,
+                        settings.BM25_MAX_CHUNKS,
                     )
                     return None, [], [], "redis_hit"
 
@@ -556,6 +590,7 @@ class BM25Retriever:
         # 0. 快速 COUNT 检查（避免超大 KB 触发 OOM）
         #    只统计 Active Version 的 chunks（对齐 ADR-007：BM25 只索引当前可检索版本）
         from sqlalchemy import func
+
         async with self._session_factory() as db:
             count_result = await db.execute(
                 select(func.count())
@@ -571,14 +606,26 @@ class BM25Retriever:
         if chunk_count > settings.BM25_MAX_CHUNKS:
             logger.warning(
                 "BM25 跳过（chunk 数超限）: kb_id=%d chunks=%d max=%d mem=%.1fMB",
-                kb_id, chunk_count, settings.BM25_MAX_CHUNKS, _get_memory_mb(),
+                kb_id,
+                chunk_count,
+                settings.BM25_MAX_CHUNKS,
+                _get_memory_mb(),
             )
             # 缓存跳过标记（短 TTL），避免反复 COUNT 同一超大 KB
             try:
-                await self._async_redis.setex(cache_key, 60, json.dumps({
-                    "doc_ids": [], "tokens": [], "section_info": [],
-                    "chunk_count": chunk_count, "skipped": True,
-                }))
+                await self._async_redis.setex(
+                    cache_key,
+                    60,
+                    json.dumps(
+                        {
+                            "doc_ids": [],
+                            "tokens": [],
+                            "section_info": [],
+                            "chunk_count": chunk_count,
+                            "skipped": True,
+                        }
+                    ),
+                )
             except Exception:
                 pass
             return None, [], []
@@ -599,16 +646,28 @@ class BM25Retriever:
         mem_mysql = _get_memory_mb()
         logger.info(
             "BM25_LOAD mysql_done kb_id=%d rows=%d time=%.3fs mem=%.1fMB",
-            kb_id, len(rows), t_mysql - t0, mem_mysql,
+            kb_id,
+            len(rows),
+            t_mysql - t0,
+            mem_mysql,
         )
 
         if not rows:
             logger.info("KB %d 无 chunk 数据", kb_id)
             # 空结果也缓存（避免反复查 MySQL），短 TTL
             try:
-                await self._async_redis.setex(cache_key, 60, json.dumps({
-                    "doc_ids": [], "tokens": [], "section_info": [], "chunk_count": 0,
-                }))
+                await self._async_redis.setex(
+                    cache_key,
+                    60,
+                    json.dumps(
+                        {
+                            "doc_ids": [],
+                            "tokens": [],
+                            "section_info": [],
+                            "chunk_count": 0,
+                        }
+                    ),
+                )
             except Exception:
                 pass
             # BM25Okapi 不接受空语料，返回 None + 空列表
@@ -623,25 +682,33 @@ class BM25Retriever:
             doc_ids.append((row.doc_id, row.chunk_index))
             tokenized_corpus.append(_tokenize(row.content))
             meta = row.metadata_ or {}
-            section_info.append({
-                "section_title": meta.get("section_title", ""),
-                "section_path": meta.get("section_path", ""),
-            })
+            section_info.append(
+                {
+                    "section_title": meta.get("section_title", ""),
+                    "section_path": meta.get("section_path", ""),
+                }
+            )
         t_jieba = time.perf_counter()
         mem_jieba = _get_memory_mb()
         logger.info(
             "BM25_LOAD jieba_done kb_id=%d chunks=%d time=%.3fs mem=%.1fMB",
-            kb_id, len(doc_ids), t_jieba - t_mysql, mem_jieba,
+            kb_id,
+            len(doc_ids),
+            t_jieba - t_mysql,
+            mem_jieba,
         )
 
         # 写入 Redis 缓存（仅 tokens + doc_ids + section_info，不存 chunk 原文）
         try:
-            cache_data = json.dumps({
-                "doc_ids": doc_ids,
-                "tokens": tokenized_corpus,
-                "section_info": section_info,
-                "chunk_count": len(doc_ids),
-            }, ensure_ascii=False)
+            cache_data = json.dumps(
+                {
+                    "doc_ids": doc_ids,
+                    "tokens": tokenized_corpus,
+                    "section_info": section_info,
+                    "chunk_count": len(doc_ids),
+                },
+                ensure_ascii=False,
+            )
             await self._async_redis.setex(cache_key, settings.BM25_CACHE_TTL, cache_data)
             logger.info("BM25 缓存已写入: kb_id=%d, %d chunks", kb_id, len(doc_ids))
         except Exception as e:
@@ -653,7 +720,10 @@ class BM25Retriever:
         mem_build = _get_memory_mb()
         logger.info(
             "BM25_LOAD bm25_done kb_id=%d chunks=%d time=%.3fs mem=%.1fMB",
-            kb_id, len(doc_ids), t_build - t_redis, mem_build,
+            kb_id,
+            len(doc_ids),
+            t_build - t_redis,
+            mem_build,
         )
 
         # 写入进程内缓存（超阈值则跳过，仅存 BM25Okapi + doc_ids + section_info）
@@ -663,13 +733,16 @@ class BM25Retriever:
             "BM25_LOAD done kb_id=%d chunks=%d "
             "mysql=%.3fs jieba=%.3fs redis_write=%.3fs build=%.3fs total=%.3fs "
             "mem_start=%.1fMB mem_end=%.1fMB delta=%.1fMB",
-            kb_id, len(rows),
+            kb_id,
+            len(rows),
             t_mysql - t0,
             t_jieba - t_mysql,
             t_redis - t_jieba,
             t_build - t_redis,
             t_build - t0,
-            mem0, mem_build, mem_build - mem0,
+            mem0,
+            mem_build,
+            mem_build - mem0,
         )
         return bm25, doc_ids, section_info
 
@@ -713,7 +786,8 @@ def invalidate_bm25_cache(kb_id: int) -> None:
         keys = list(sync_redis.scan_iter(match=pattern))
         if keys:
             sync_redis.delete(*keys)
-        logger.info("BM25 Redis 缓存已清除（同步）: kb_id=%d pattern=%s keys=%d",
-                    kb_id, pattern, len(keys))
+        logger.info(
+            "BM25 Redis 缓存已清除（同步）: kb_id=%d pattern=%s keys=%d", kb_id, pattern, len(keys)
+        )
     except Exception as e:
         logger.warning("BM25 Redis 缓存清除失败（非致命）: kb_id=%d, error=%s", kb_id, e)

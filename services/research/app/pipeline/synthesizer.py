@@ -84,6 +84,7 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一个研究综合专家。请基于以下研
 @dataclass
 class ConflictPosition:
     """冲突中的一方立场。"""
+
     summary: str
     evidence_indices: list[int]
 
@@ -91,6 +92,7 @@ class ConflictPosition:
 @dataclass
 class SynthesisCluster:
     """观点聚类。"""
+
     theme: str
     summary: str
     consensus_level: str  # strong / moderate / weak
@@ -101,6 +103,7 @@ class SynthesisCluster:
 @dataclass
 class SynthesisConflict:
     """冲突发现。"""
+
     topic: str
     position_a: ConflictPosition
     position_b: ConflictPosition
@@ -109,6 +112,7 @@ class SynthesisConflict:
 @dataclass
 class SynthesisNotes:
     """Synthesis 阶段最终输出。"""
+
     clusters: list[SynthesisCluster]
     conflicts: list[SynthesisConflict]
     knowledge_gaps: list[str]
@@ -134,7 +138,7 @@ def _extract_json_from_text(text: str) -> str:
     if brace_end == -1:
         return text
 
-    return text[brace_start:brace_end + 1]
+    return text[brace_start : brace_end + 1]
 
 
 def _format_evidence_items(
@@ -198,7 +202,9 @@ def _format_evidence_items(
             if count_limit < min(max_sources, len(sorted_items)) or content_limit < 1500:
                 logger.warning(
                     "Synthesis Evidence 截断: %d→%d 条, content_limit=%d",
-                    len(sorted_items), count_limit, content_limit,
+                    len(sorted_items),
+                    count_limit,
+                    content_limit,
                 )
             return formatted, selected
 
@@ -258,7 +264,9 @@ def _validate_indices(indices: list[Any], expected_count: int, field_name: str) 
         if 0 <= idx < expected_count:
             valid.append(idx)
         else:
-            logger.warning("%s 越界索引被过滤: %d（有效范围 0-%d）", field_name, idx, expected_count - 1)
+            logger.warning(
+                "%s 越界索引被过滤: %d（有效范围 0-%d）", field_name, idx, expected_count - 1
+            )
     return valid
 
 
@@ -306,13 +314,15 @@ def _parse_synthesis_output(raw_text: str, expected_count: int) -> SynthesisNote
             f"clusters[{i}].conflicting_evidence_indices",
         )
 
-        clusters.append(SynthesisCluster(
-            theme=theme.strip(),
-            summary=summary.strip(),
-            consensus_level=consensus_level,
-            supporting_evidence_indices=supporting,
-            conflicting_evidence_indices=conflicting,
-        ))
+        clusters.append(
+            SynthesisCluster(
+                theme=theme.strip(),
+                summary=summary.strip(),
+                consensus_level=consensus_level,
+                supporting_evidence_indices=supporting,
+                conflicting_evidence_indices=conflicting,
+            )
+        )
 
     # conflicts 允许 null → 空数组
     conflicts_raw = data.get("conflicts")
@@ -352,11 +362,13 @@ def _parse_synthesis_output(raw_text: str, expected_count: int) -> SynthesisNote
             ),
         )
 
-        conflicts.append(SynthesisConflict(
-            topic=topic.strip(),
-            position_a=pos_a,
-            position_b=pos_b,
-        ))
+        conflicts.append(
+            SynthesisConflict(
+                topic=topic.strip(),
+                position_a=pos_a,
+                position_b=pos_b,
+            )
+        )
 
     # knowledge_gaps 允许空数组
     gaps_raw = data.get("knowledge_gaps", [])
@@ -425,10 +437,7 @@ async def _resolve_internal_evidence(
         for ev in internal
     ]
     resolved = await resolve_retrieval(user_id=str(task.user_id), references=references)
-    return {
-        ev.id: getattr(ref, "minimal_excerpt", "") or ""
-        for ev, ref in zip(internal, resolved)
-    }
+    return {ev.id: getattr(ref, "minimal_excerpt", "") or "" for ev, ref in zip(internal, resolved)}
 
 
 # ── LLM 综合 ──────────────────────────────────────────────────
@@ -482,10 +491,12 @@ async def _llm_synthesize(
             logger.warning("Synthesis LLM 输出解析失败 (attempt %d): %s", attempt, e)
             if attempt < max_retries:
                 messages.append({"role": "assistant", "content": result.content if result else ""})
-                messages.append({
-                    "role": "user",
-                    "content": f"输出格式错误：{e}。请重新输出严格 JSON，确保 clusters 格式正确。",
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": f"输出格式错误：{e}。请重新输出严格 JSON，确保 clusters 格式正确。",
+                    }
+                )
                 continue
             break
 
@@ -555,7 +566,9 @@ async def run_synthesis(
     task_type = requirements.get("task_type", "explainer")
     max_sources = int(requirements.get("max_sources", 10))
 
-    logger.info("Synthesis 开始: task_id=%s, task_type=%s, max_sources=%d", task_id, task_type, max_sources)
+    logger.info(
+        "Synthesis 开始: task_id=%s, task_type=%s, max_sources=%d", task_id, task_type, max_sources
+    )
 
     # 1. 读取上游 Evidence
     evidence_items = await _load_evidence(session, task)
@@ -575,15 +588,20 @@ async def run_synthesis(
 
     logger.info(
         "Synthesis Evidence 准备完成: task_id=%s, total=%d, selected=%d",
-        task_id, len(evidence_items), evidence_count,
+        task_id,
+        len(evidence_items),
+        evidence_count,
     )
 
-    await sse_bridge.publish(EVENT_STEP_PROGRESS, {
-        "step_id": step_id,
-        "phase": "synthesizing",
-        "label": f"正在对 {evidence_count} 条来源进行跨源综合...",
-        "evidence_count": evidence_count,
-    })
+    await sse_bridge.publish(
+        EVENT_STEP_PROGRESS,
+        {
+            "step_id": step_id,
+            "phase": "synthesizing",
+            "label": f"正在对 {evidence_count} 条来源进行跨源综合...",
+            "evidence_count": evidence_count,
+        },
+    )
 
     # 4. 调用 LLM 综合
     notes, prompt_tokens, completion_tokens, retry_count = await _llm_synthesize(
@@ -594,21 +612,28 @@ async def run_synthesis(
     )
 
     # 4. 进度事件（聚类完成）
-    await sse_bridge.publish(EVENT_STEP_PROGRESS, {        "step_id": step_id,
-        "phase": "synthesizing",
-        "label": f"综合完成，生成 {len(notes.clusters)} 个观点聚类",
-        "clusters_count": len(notes.clusters),
-    })
+    await sse_bridge.publish(
+        EVENT_STEP_PROGRESS,
+        {
+            "step_id": step_id,
+            "phase": "synthesizing",
+            "label": f"综合完成，生成 {len(notes.clusters)} 个观点聚类",
+            "clusters_count": len(notes.clusters),
+        },
+    )
 
     # 5. 完成事件
-    await sse_bridge.publish(EVENT_STEP_COMPLETED, {
-        "step_id": step_id,
-        "clusters": [_cluster_to_dict(c) for c in notes.clusters],
-        "conflicts": [_conflict_to_dict(c) for c in notes.conflicts],
-        "clusters_count": len(notes.clusters),
-        "conflicts_count": len(notes.conflicts),
-        "gaps_count": len(notes.knowledge_gaps),
-    })
+    await sse_bridge.publish(
+        EVENT_STEP_COMPLETED,
+        {
+            "step_id": step_id,
+            "clusters": [_cluster_to_dict(c) for c in notes.clusters],
+            "conflicts": [_conflict_to_dict(c) for c in notes.conflicts],
+            "clusters_count": len(notes.clusters),
+            "conflicts_count": len(notes.conflicts),
+            "gaps_count": len(notes.knowledge_gaps),
+        },
+    )
 
     output = {
         "clusters": [_cluster_to_dict(c) for c in notes.clusters],
@@ -627,7 +652,11 @@ async def run_synthesis(
 
     logger.info(
         "Synthesis 完成: task_id=%s, clusters=%d, conflicts=%d, gaps=%d, retries=%d",
-        task_id, len(notes.clusters), len(notes.conflicts), len(notes.knowledge_gaps), retry_count,
+        task_id,
+        len(notes.clusters),
+        len(notes.conflicts),
+        len(notes.knowledge_gaps),
+        retry_count,
     )
 
     return output

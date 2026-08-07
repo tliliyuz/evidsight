@@ -293,7 +293,9 @@ async def run_cli(argv: list[str] | None = None) -> int:
 
         task_ids = await _load_completed_task_ids(session, args.limit)
         reports = await evaluate_tasks(session, task_ids, targets=TARGETS)
-        system = await evaluate_system_reliability(session, targets=TARGETS) if args.system else None
+        system = (
+            await evaluate_system_reliability(session, targets=TARGETS) if args.system else None
+        )
         aggregate = aggregate_reports(reports, system=system)
         if args.json:
             print(json.dumps(aggregate, ensure_ascii=False, indent=2))

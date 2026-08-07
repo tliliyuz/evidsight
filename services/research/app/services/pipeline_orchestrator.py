@@ -106,9 +106,9 @@ STEP_TYPE_TO_PHASE: dict[str, str] = {
 
 # 致命 Phase：这些阶段一旦发生非 AppException 的未知异常，不应降级继续，
 # 必须终止 Pipeline，避免错误被延迟到后续阶段才暴露。
-FATAL_STEP_TYPES: frozenset[str] = frozenset({
-    "planning", "search", "rerank", "synthesis", "evidence_graph", "render"
-})
+FATAL_STEP_TYPES: frozenset[str] = frozenset(
+    {"planning", "search", "rerank", "synthesis", "evidence_graph", "render"}
+)
 
 
 # ═════════════════════════════════════════════════════════════
@@ -201,10 +201,13 @@ class PipelineOrchestrator:
                     if self._task.completed_at is None:
                         self._task.completed_at = datetime.now(timezone.utc)
                     await self._session.commit()
-                    await self._sse.publish(EVENT_TASK_CANCELED, {
-                        "task_id": task_id,
-                        "status": "canceled",
-                    })
+                    await self._sse.publish(
+                        EVENT_TASK_CANCELED,
+                        {
+                            "task_id": task_id,
+                            "status": "canceled",
+                        },
+                    )
                     return
 
                 await self._run_phase(step_type)
@@ -311,7 +314,8 @@ class PipelineOrchestrator:
         else:
             logger.warning(
                 "任务状态不支持启动: task_id=%s, status=%s",
-                task_id, current_status,
+                task_id,
+                current_status,
             )
             return False
 
@@ -322,18 +326,29 @@ class PipelineOrchestrator:
             await self._session.commit()
             logger.info(
                 "修正 total_steps: task_id=%s, old=%s → new=%d",
-                task_id, old_total, len(PHASE_ORDER),
+                task_id,
+                old_total,
+                len(PHASE_ORDER),
             )
 
         # 仅正常路径发送 task.created
         if current_status == "pending":
-            await self._sse.publish(EVENT_TASK_CREATED, {
-                "task_id": str(self._task.id),
-                "status": "running",
-                "created_at": self._task.created_at.isoformat() if self._task.created_at else None,
-            })
+            await self._sse.publish(
+                EVENT_TASK_CREATED,
+                {
+                    "task_id": str(self._task.id),
+                    "status": "running",
+                    "created_at": self._task.created_at.isoformat()
+                    if self._task.created_at
+                    else None,
+                },
+            )
 
-        logger.info("任务启动: task_id=%s, mode=%s", self._task.id, "recovery" if current_status == "running" else "normal")
+        logger.info(
+            "任务启动: task_id=%s, mode=%s",
+            self._task.id,
+            "recovery" if current_status == "running" else "normal",
+        )
         return True
 
     async def _acquire_task_lock(self, task_id: str) -> bool:
@@ -376,7 +391,8 @@ class PipelineOrchestrator:
         self._task_lock_refresh_task = asyncio.create_task(_refresh_loop())
         logger.debug(
             "启动任务级锁租约刷新: task_id=%s, interval=%ss",
-            task_id, refresh_interval,
+            task_id,
+            refresh_interval,
         )
 
     def _stop_task_lock_refresh(self) -> None:
@@ -415,25 +431,27 @@ class PipelineOrchestrator:
             True: 获取成功；False: 获取失败（锁确被其他 Worker 占用）
         """
         locked = await acquire_step_lock_async(
-            task_id, step_type,
+            task_id,
+            step_type,
             ttl=settings.CELERY_IDEMPOTENCY_LOCK_TTL,
         )
         if locked:
             return True
 
-        should_force_release = (
-            step.status in ("pending", "running")
-            and self._task_lock_acquired
-        )
+        should_force_release = step.status in ("pending", "running") and self._task_lock_acquired
         if should_force_release:
             logger.warning(
                 "检测到遗留 Step 锁（任务级锁已持有），强制释放并重新获取: "
                 "task_id=%s, step_type=%s, step_id=%s, step_status=%s",
-                task_id, step_type, step.id, step.status,
+                task_id,
+                step_type,
+                step.id,
+                step.status,
             )
             await release_step_lock_async(task_id, step_type)
             locked = await acquire_step_lock_async(
-                task_id, step_type,
+                task_id,
+                step_type,
                 ttl=settings.CELERY_IDEMPOTENCY_LOCK_TTL,
             )
 
@@ -460,18 +478,23 @@ class PipelineOrchestrator:
         if step.status in TERMINAL_STATUSES:
             logger.info(
                 "Step 已处于终态，跳过执行: step_id=%s, type=%s, status=%s",
-                step_id, step_type, step.status,
+                step_id,
+                step_type,
+                step.status,
             )
             return
 
         # 2. 幂等锁检查（恢复模式下自动清理遗留锁）
         locked = await self._acquire_step_lock_with_recovery(
-            task_id, step_type, step,
+            task_id,
+            step_type,
+            step,
         )
         if not locked:
             logger.warning(
                 "Step 幂等锁已被占用，跳过: task_id=%s, step_type=%s",
-                task_id, step_type,
+                task_id,
+                step_type,
             )
             step.status = "skipped"
             step.output = {"reason": "幂等锁已被占用（可能重复入队）"}
@@ -482,7 +505,9 @@ class PipelineOrchestrator:
             # 3. 检查 handler 是否存在
             handler = self._handlers.get(step_type)
             if handler is None:
-                await self._skip_phase(step, phase_name, reason=f"Phase 函数未注册（等待 Phase 3 实现）")
+                await self._skip_phase(
+                    step, phase_name, reason=f"Phase 函数未注册（等待 Phase 3 实现）"
+                )
                 return
 
             # 4. 更新 Step + Phase 状态 → running
@@ -558,18 +583,14 @@ class PipelineOrchestrator:
 
         def _main_step_filter(query):
             """为主 Step 查询添加过滤条件。"""
-            return (
-                query
-                .outerjoin(
-                    parent_step,
-                    ResearchStep.parent_step_id == parent_step.id,
-                )
-                .where(
-                    or_(
-                        ResearchStep.parent_step_id.is_(None),
-                        parent_step.step_type != ResearchStep.step_type,
-                    ),
-                )
+            return query.outerjoin(
+                parent_step,
+                ResearchStep.parent_step_id == parent_step.id,
+            ).where(
+                or_(
+                    ResearchStep.parent_step_id.is_(None),
+                    parent_step.step_type != ResearchStep.step_type,
+                ),
             )
 
         # 1. 断点续跑：复用已完成 Step（仅主 Step）
@@ -589,7 +610,9 @@ class PipelineOrchestrator:
         if existing_terminal is not None:
             logger.debug(
                 "Step 复用（已完成）: step_id=%s, type=%s, status=%s",
-                existing_terminal.id, step_type, existing_terminal.status,
+                existing_terminal.id,
+                step_type,
+                existing_terminal.status,
             )
             return existing_terminal
 
@@ -610,7 +633,9 @@ class PipelineOrchestrator:
         if existing_step is not None:
             logger.debug(
                 "Step 复用（待执行）: step_id=%s, type=%s, status=%s",
-                existing_step.id, step_type, existing_step.status,
+                existing_step.id,
+                step_type,
+                existing_step.status,
             )
             return existing_step
 
@@ -646,17 +671,23 @@ class PipelineOrchestrator:
         await self._session.flush()
 
         if previous_phase != phase_name:
-            await self._sse.publish(EVENT_PHASE_STARTED, {
-                "phase": phase_name,
-                "timestamp": now.isoformat(),
-            })
+            await self._sse.publish(
+                EVENT_PHASE_STARTED,
+                {
+                    "phase": phase_name,
+                    "timestamp": now.isoformat(),
+                },
+            )
 
-        await self._sse.publish(EVENT_STEP_STARTED, {
-            "step_id": str(step.id),
-            "step_type": step.step_type,
-            "label": step.label,
-            "timestamp": now.isoformat(),
-        })
+        await self._sse.publish(
+            EVENT_STEP_STARTED,
+            {
+                "step_id": str(step.id),
+                "step_type": step.step_type,
+                "label": step.label,
+                "timestamp": now.isoformat(),
+            },
+        )
 
     async def _complete_step(
         self,
@@ -685,32 +716,44 @@ class PipelineOrchestrator:
         await self._update_execution_context(step, phase_name)
 
         # SSE 事件
-        await self._sse.publish(EVENT_STEP_COMPLETED, {
-            "step_id": str(step.id),
-            "output": step.output,
-        })
+        await self._sse.publish(
+            EVENT_STEP_COMPLETED,
+            {
+                "step_id": str(step.id),
+                "output": step.output,
+            },
+        )
 
-        await self._sse.publish(EVENT_PHASE_COMPLETED, {
-            "phase": phase_name,
-            "duration_ms": duration_ms,
-        })
+        await self._sse.publish(
+            EVENT_PHASE_COMPLETED,
+            {
+                "phase": phase_name,
+                "duration_ms": duration_ms,
+            },
+        )
 
         # 全局进度
         total = self._task.total_steps or 1
         completed = self._task.completed_steps or 0
         progress = round(completed / total, 2) if total > 0 else 0.0
-        await self._sse.publish(EVENT_TASK_PROGRESS, {
-            "completed_steps": completed,
-            "total_steps": total,
-            "progress": progress,
-        })
+        await self._sse.publish(
+            EVENT_TASK_PROGRESS,
+            {
+                "completed_steps": completed,
+                "total_steps": total,
+                "progress": progress,
+            },
+        )
 
         # Checkpoint
-        await self._sse.publish(EVENT_CHECKPOINT_SAVED, {
-            "phase": phase_name,
-            "last_completed_step_id": str(step.id),
-            "saved_at": now.isoformat(),
-        })
+        await self._sse.publish(
+            EVENT_CHECKPOINT_SAVED,
+            {
+                "phase": phase_name,
+                "last_completed_step_id": str(step.id),
+                "saved_at": now.isoformat(),
+            },
+        )
 
         # Trace 埋点（Planning / Search / Fetch / Rerank / Synthesis / Evidence Graph / Render）
         if isinstance(output, dict):
@@ -740,7 +783,8 @@ class PipelineOrchestrator:
             elif step_type == "fetch":
                 fetched = output.get("fetched", [])
                 total_content_bytes = sum(
-                    item.get("content_length", 0) for item in fetched
+                    item.get("content_length", 0)
+                    for item in fetched
                     if isinstance(item.get("content_length"), int)
                 )
                 self._trace.record_fetch(
@@ -795,7 +839,9 @@ class PipelineOrchestrator:
 
         logger.info(
             "Step 完成: step_id=%s, type=%s, duration_ms=%s",
-            step.id, step.step_type, duration_ms,
+            step.id,
+            step.step_type,
+            duration_ms,
         )
 
     async def _skip_phase(
@@ -815,25 +861,37 @@ class PipelineOrchestrator:
 
         await self._update_execution_context(step, phase_name)
 
-        await self._sse.publish(EVENT_STEP_STARTED, {
-            "step_id": str(step.id),
-            "step_type": step.step_type,
-            "label": step.label,
-            "timestamp": now.isoformat(),
-        })
-        await self._sse.publish(EVENT_STEP_SKIPPED, {
-            "step_id": str(step.id),
-            "reason": reason,
-        })
-        await self._sse.publish(EVENT_PHASE_COMPLETED, {
-            "phase": phase_name,
-            "duration_ms": 0,
-        })
-        await self._sse.publish(EVENT_CHECKPOINT_SAVED, {
-            "phase": phase_name,
-            "last_completed_step_id": str(step.id),
-            "saved_at": now.isoformat(),
-        })
+        await self._sse.publish(
+            EVENT_STEP_STARTED,
+            {
+                "step_id": str(step.id),
+                "step_type": step.step_type,
+                "label": step.label,
+                "timestamp": now.isoformat(),
+            },
+        )
+        await self._sse.publish(
+            EVENT_STEP_SKIPPED,
+            {
+                "step_id": str(step.id),
+                "reason": reason,
+            },
+        )
+        await self._sse.publish(
+            EVENT_PHASE_COMPLETED,
+            {
+                "phase": phase_name,
+                "duration_ms": 0,
+            },
+        )
+        await self._sse.publish(
+            EVENT_CHECKPOINT_SAVED,
+            {
+                "phase": phase_name,
+                "last_completed_step_id": str(step.id),
+                "saved_at": now.isoformat(),
+            },
+        )
 
         logger.info("Phase 跳过: step_type=%s, reason=%s", step.step_type, reason)
 
@@ -850,7 +908,9 @@ class PipelineOrchestrator:
         # 原始异常仅记录服务端日志，便于排查
         logger.warning(
             "Step 执行异常（服务端记录）: step_id=%s, type=%s, error=%s",
-            step.id, step.step_type, str(error),
+            step.id,
+            step.step_type,
+            str(error),
         )
 
         # 获取错误码（如果异常是 AppException 子类）
@@ -875,9 +935,7 @@ class PipelineOrchestrator:
                 if refreshed_step is not None:
                     step = refreshed_step
             except Exception:
-                logger.exception(
-                    "Step 错误处理时 session 回滚失败: task_id=%s", task_id
-                )
+                logger.exception("Step 错误处理时 session 回滚失败: task_id=%s", task_id)
 
         step.status = "failed"
         step.completed_at = now
@@ -888,10 +946,13 @@ class PipelineOrchestrator:
             step.duration_ms = int(delta.total_seconds() * 1000)
         await self._session.flush()
 
-        await self._sse.publish(EVENT_STEP_FAILED, {
-            "step_id": str(step.id),
-            "error_type": error.__class__.__name__,
-        })
+        await self._sse.publish(
+            EVENT_STEP_FAILED,
+            {
+                "step_id": str(step.id),
+                "error_type": error.__class__.__name__,
+            },
+        )
 
         # 判断是否致命
         is_known_fatal = error_code and error_code in FATAL_STEP_ERROR_CODES
@@ -910,14 +971,19 @@ class PipelineOrchestrator:
             raise  # 重新抛出，由 run() 的顶层 try/except 处理
 
         # 可降级失败 → warning
-        await self._sse.publish(EVENT_TASK_WARNING, {
-            "step_id": str(step.id),
-            "error_description": error_msg,
-        })
+        await self._sse.publish(
+            EVENT_TASK_WARNING,
+            {
+                "step_id": str(step.id),
+                "error_description": error_msg,
+            },
+        )
 
         logger.warning(
             "Step 失败（可降级）: step_id=%s, type=%s, error=%s",
-            step.id, step.step_type, error_msg,
+            step.id,
+            step.step_type,
+            error_msg,
         )
 
     # ── Execution Context ────────────────────────────────────
@@ -969,7 +1035,9 @@ class PipelineOrchestrator:
 
         # 统计当前 Phase 内的 Step 数量（通过 step_type 列，即 phase 标识）
         count_result = await self._session.execute(
-            sa_select(func.count()).select_from(ResearchStep).where(
+            sa_select(func.count())
+            .select_from(ResearchStep)
+            .where(
                 ResearchStep.task_id == self._task.id,
                 ResearchStep.step_type == step.step_type,
             )
@@ -977,7 +1045,9 @@ class PipelineOrchestrator:
         phase_total = count_result.scalar() or 1
         # 统计已完成数量
         completed_result = await self._session.execute(
-            sa_select(func.count()).select_from(ResearchStep).where(
+            sa_select(func.count())
+            .select_from(ResearchStep)
+            .where(
                 ResearchStep.task_id == self._task.id,
                 ResearchStep.step_type == step.step_type,
                 ResearchStep.status.in_(["completed", "skipped"]),
@@ -1033,7 +1103,8 @@ class PipelineOrchestrator:
         except Exception as exc:
             logger.debug(
                 "显式查询 Step 失败，回退到 task.steps: task_id=%s, error=%s",
-                self._task.id, exc,
+                self._task.id,
+                exc,
             )
 
         # 兜底：显式查询未返回 Step 时（测试 mock 或查询为空），回退到 task.steps
@@ -1053,7 +1124,9 @@ class PipelineOrchestrator:
         evidence_count = self._task.total_evidence or 0
 
         new_status, error_info = self._resolver.resolve(
-            self._task, steps, evidence_count,
+            self._task,
+            steps,
+            evidence_count,
         )
 
         if new_status == "failed" and error_info:
@@ -1080,7 +1153,8 @@ class PipelineOrchestrator:
                 await self._session.refresh(self._task, ["status"])
                 logger.warning(
                     "CAS 失败：提前终止时任务状态已变更: task_id=%s, current_status=%s",
-                    task_id, self._task.status,
+                    task_id,
+                    self._task.status,
                 )
                 return
 
@@ -1105,7 +1179,9 @@ class PipelineOrchestrator:
         evidence_count = self._task.total_evidence or 0
 
         new_status, error_info = self._resolver.resolve(
-            self._task, steps, evidence_count,
+            self._task,
+            steps,
+            evidence_count,
         )
 
         now = datetime.now(timezone.utc)
@@ -1141,34 +1217,40 @@ class PipelineOrchestrator:
             await self._session.refresh(self._task, ["status"])
             logger.warning(
                 "CAS 失败：最终化时任务状态已非 running: task_id=%s, current_status=%s",
-                task_id, self._task.status,
+                task_id,
+                self._task.status,
             )
             if self._task.status == "running":
-                raise RuntimeError(
-                    f"CAS 更新失败但任务仍为 running: task_id={task_id}"
-                )
+                raise RuntimeError(f"CAS 更新失败但任务仍为 running: task_id={task_id}")
             return
 
         # SSE 最终事件
         if new_status == "completed":
-            await self._sse.publish(EVENT_TASK_COMPLETED, {
-                "task_id": task_id,
-                "status": "completed",
-                "trace": {
-                    "total_duration_ms": (
-                        int((now - task_started_at).total_seconds() * 1000)
-                        if task_started_at else 0
-                    ),
-                    "sources": task_total_sources or 0,
-                    "evidence": task_total_evidence or 0,
+            await self._sse.publish(
+                EVENT_TASK_COMPLETED,
+                {
+                    "task_id": task_id,
+                    "status": "completed",
+                    "trace": {
+                        "total_duration_ms": (
+                            int((now - task_started_at).total_seconds() * 1000)
+                            if task_started_at
+                            else 0
+                        ),
+                        "sources": task_total_sources or 0,
+                        "evidence": task_total_evidence or 0,
+                    },
                 },
-            })
+            )
         elif new_status == "partially_completed":
-            await self._sse.publish(EVENT_TASK_COMPLETED, {
-                "task_id": task_id,
-                "status": "partially_completed",
-                "trace": task_trace,
-            })
+            await self._sse.publish(
+                EVENT_TASK_COMPLETED,
+                {
+                    "task_id": task_id,
+                    "status": "partially_completed",
+                    "trace": task_trace,
+                },
+            )
         elif new_status == "failed":
             payload = self._build_task_failed_payload(
                 task_id=task_id,
@@ -1181,7 +1263,10 @@ class PipelineOrchestrator:
 
         logger.info(
             "Pipeline 完成: task_id=%s, status=%s, steps=%d, evidence=%d",
-            task_id, new_status, len(steps), evidence_count,
+            task_id,
+            new_status,
+            len(steps),
+            evidence_count,
         )
 
     async def _handle_fatal_error(self, error: Exception) -> None:
@@ -1252,7 +1337,8 @@ class PipelineOrchestrator:
                 logger.exception("查询任务状态时异常: task_id=%s", task_id)
             logger.warning(
                 "CAS 失败：致命错误处理时任务状态已非 running: task_id=%s, current_status=%s",
-                task_id, current_status,
+                task_id,
+                current_status,
             )
             return
 
@@ -1277,6 +1363,7 @@ class PipelineOrchestrator:
 
 class TaskFatalException(Exception):
     """任务致命错误（不可恢复），用于提前终止 Pipeline。"""
+
     pass
 
 

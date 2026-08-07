@@ -11,40 +11,42 @@ from app.models._types import UTCDateTime
 
 class Document(Base):
     __tablename__ = "documents"
-    __table_args__ = (
-        Index("idx_kb_filename", "kb_id", "filename"),
-    )
+    __table_args__ = (Index("idx_kb_filename", "kb_id", "filename"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     uuid: Mapped[str] = mapped_column(
-        String(36), nullable=False, unique=True,
+        String(36),
+        nullable=False,
+        unique=True,
         server_default=text("(UUID())"),
-        comment="外部暴露标识符（UUID），API/URL 使用"
+        comment="外部暴露标识符（UUID），API/URL 使用",
     )
     kb_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
-        nullable=False, index=True, comment="所属知识库"
+        BigInteger,
+        ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="所属知识库",
     )
     filename: Mapped[str] = mapped_column(String(256), nullable=False)
     display_name: Mapped[str | None] = mapped_column(
         String(256), comment="用户可见名称；缺失时回退为 filename"
     )
-    file_type: Mapped[str] = mapped_column(
-        String(32), nullable=False, comment="pdf/docx/md/txt"
-    )
+    file_type: Mapped[str] = mapped_column(String(32), nullable=False, comment="pdf/docx/md/txt")
     file_path: Mapped[str | None] = mapped_column(
         String(512), comment="文件存储路径：uploads/{kb_id}/{doc_id}/{uuid}_{sanitized_filename}"
     )
     file_size: Mapped[int | None] = mapped_column(BigInteger, comment="bytes")
     status: Mapped[DocumentStatus] = mapped_column(
-        Enum(DocumentStatus, name="document_status",
-             values_callable=lambda obj: [e.value for e in obj]),
+        Enum(
+            DocumentStatus,
+            name="document_status",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=DocumentStatus.QUEUED,
         server_default=text("'queued'"),
     )
-    chunk_count: Mapped[int] = mapped_column(
-        Integer, default=0, server_default=text("0")
-    )
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     active_version: Mapped[int | None] = mapped_column(
         Integer, comment="当前可检索版本号，可空；检索只读该版本"
     )
@@ -53,7 +55,10 @@ class Document(Base):
         String(32), comment="当前处理阶段，用于断点恢复"
     )
     last_success_batch: Mapped[int] = mapped_column(
-        Integer, default=0, server_default=text("0"), comment="最后成功的批次号，用于批次级 checkpoint"
+        Integer,
+        default=0,
+        server_default=text("0"),
+        comment="最后成功的批次号，用于批次级 checkpoint",
     )
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, server_default=func.current_timestamp()

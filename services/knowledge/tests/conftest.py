@@ -1,4 +1,5 @@
 """pytest 配置与共享 fixtures"""
+
 import pytest
 from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient, ASGITransport
@@ -43,19 +44,23 @@ async def _mock_get_current_user(request: Request):
     get_current_user 改为 async + DB 查询后，测试中需 override 避免真实 DB 调用。
     """
     from app.core.security import decode_access_token
+
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         from app.core.exceptions import InvalidTokenException
+
         raise InvalidTokenException("缺少 Authorization header")
     token = auth_header[7:]
     payload = decode_access_token(token)
     if not payload:
         from app.core.exceptions import InvalidTokenException
+
         raise InvalidTokenException("Token 解析失败")
     try:
         platform_user_id = payload["sub"]
     except (KeyError, ValueError, TypeError):
         from app.core.exceptions import InvalidTokenException
+
         raise InvalidTokenException("Token payload 异常")
     # 内部 user_id 由 Platform UUID 尾号推导，使各 fixture（...0001/0002/0003）
     # 映射到 user_id 1/2/3，从而 test_不能禁用自己 的自禁检查（user_id == 当前用户）能命中。

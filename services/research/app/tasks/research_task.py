@@ -187,7 +187,8 @@ async def _enforce_strategy_dependency(session, task: ResearchTask) -> bool:
 
     logger.warning(
         "来源策略为 %s 但任务缺少知识库选择，失败关闭: task_id=%s",
-        task.source_strategy, task.id,
+        task.source_strategy,
+        task.id,
     )
     await emergency_fail_task(
         session,
@@ -226,7 +227,8 @@ async def _run_pipeline(task_id: str) -> dict:
         elif task.status != "pending":
             logger.warning(
                 "任务非 pending/running 状态，跳过执行: task_id=%s, status=%s",
-                task_id, task.status,
+                task_id,
+                task.status,
             )
             return {"status": "skipped", "task_id": task_id, "reason": f"status={task.status}"}
 
@@ -280,7 +282,9 @@ async def _run_pipeline(task_id: str) -> dict:
 # ── 紧急失败写入 ────────────────────────────────────────────
 
 
-async def _emergency_fail(task_id: str, error_msg: str | None = None, recoverable: bool = False) -> bool:
+async def _emergency_fail(
+    task_id: str, error_msg: str | None = None, recoverable: bool = False
+) -> bool:
     """兜底：在 Pipeline 完全崩溃时写入失败状态。
 
     独立 session，不依赖 Orchestrator 或任何可能出错的对象。
@@ -315,7 +319,8 @@ async def _emergency_fail(task_id: str, error_msg: str | None = None, recoverabl
             if error_msg:
                 logger.warning(
                     "紧急失败原始信息（服务端记录）: task_id=%s, error=%s",
-                    task_id, error_msg[:1000],
+                    task_id,
+                    error_msg[:1000],
                 )
         else:
             logger.warning("紧急失败写入 CAS 失败，任务已非 pending/running: task_id=%s", task_id)

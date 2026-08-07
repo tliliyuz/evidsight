@@ -1,4 +1,5 @@
 """Celery research_task 单元测试 —— _run_pipeline 幂等分支与 _emergency_fail CAS。"""
+
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -69,8 +70,10 @@ class _SessionContextManager:
 
 def _emergency_fail_session_factory(db_session):
     """返回一个 session_factory，让 _emergency_fail 复用测试 db_session。"""
+
     def factory():
         return _SessionContextManager(db_session)
+
     return factory
 
 
@@ -157,7 +160,9 @@ class TestEmergencyFail:
             "app.tasks.research_task.async_session_factory",
             new=_emergency_fail_session_factory(db_session),
         ):
-            updated = await _emergency_fail(str(task.id), str(original_error), recoverable=recoverable)
+            updated = await _emergency_fail(
+                str(task.id), str(original_error), recoverable=recoverable
+            )
 
         assert updated is True
         await db_session.refresh(task)
@@ -179,7 +184,10 @@ class TestRunPipelineStatusBranches:
     async def test_pending状态_正常执行(self, db_session):
         task = await _seed_user_and_task(db_session, "pending")
 
-        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
             with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 mock_runtime = MagicMock()
                 mock_runtime.run = AsyncMock()
@@ -197,7 +205,10 @@ class TestRunPipelineStatusBranches:
         task.started_at = datetime.now(timezone.utc) - timedelta(seconds=10)
         await db_session.flush()
 
-        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
             with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 mock_runtime = MagicMock()
                 mock_runtime.run = AsyncMock()
@@ -219,7 +230,10 @@ class TestRunPipelineStatusBranches:
             task.completed_at = datetime.now(timezone.utc)
         await db_session.flush()
 
-        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
             with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 result = await _run_pipeline(str(task.id))
 
@@ -229,7 +243,10 @@ class TestRunPipelineStatusBranches:
 
     @pytest.mark.asyncio
     async def test_任务不存在_返回error(self, db_session):
-        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
             with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 result = await _run_pipeline("00000000-0000-0000-0000-000000000000")
 
@@ -256,7 +273,10 @@ class TestRunPipelineStrategyGuard:
         task = await _seed_user_and_task(db_session, source_strategy="knowledge")
         await _seed_kb_row(db_session, task.id)
 
-        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
             with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 mock_runtime = MagicMock()
                 mock_runtime.run = AsyncMock()
@@ -271,7 +291,10 @@ class TestRunPipelineStrategyGuard:
     async def test_knowledge_无KB_失败关闭(self, db_session):
         task = await _seed_user_and_task(db_session, source_strategy="knowledge")
 
-        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
             with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 result = await _run_pipeline(str(task.id))
 
@@ -289,7 +312,10 @@ class TestRunPipelineStrategyGuard:
         task = await _seed_user_and_task(db_session, source_strategy="hybrid")
         await _seed_kb_row(db_session, task.id)
 
-        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
             with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 mock_runtime = MagicMock()
                 mock_runtime.run = AsyncMock()
@@ -304,7 +330,10 @@ class TestRunPipelineStrategyGuard:
     async def test_hybrid_无KB_失败关闭(self, db_session):
         task = await _seed_user_and_task(db_session, source_strategy="hybrid")
 
-        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
             with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 result = await _run_pipeline(str(task.id))
 
@@ -320,7 +349,10 @@ class TestRunPipelineStrategyGuard:
     async def test_web_无KB_不受守卫影响(self, db_session):
         task = await _seed_user_and_task(db_session, source_strategy="web")
 
-        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
             with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 mock_runtime = MagicMock()
                 mock_runtime.run = AsyncMock()
@@ -337,7 +369,10 @@ class TestRunPipelineStrategyGuard:
         await _seed_kb_row(db_session, task.id, "22222222-2222-4222-8222-222222222222", 1)
         await _seed_kb_row(db_session, task.id, "33333333-3333-4333-8333-333333333333", 2)
 
-        with patch("app.tasks.research_task.async_session_factory", new=_emergency_fail_session_factory(db_session)):
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
             with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
                 mock_runtime = MagicMock()
                 mock_runtime.run = AsyncMock()
@@ -368,7 +403,12 @@ class TestBuildTraceFromSteps:
             status="completed",
             duration_ms=4500,
             output={"prompt_tokens": 800, "completion_tokens": 200, "model": "gpt-4"},
-            cost={"input_tokens": 800, "output_tokens": 200, "estimated_cost_usd": 0.015, "model": "gpt-4"},
+            cost={
+                "input_tokens": 800,
+                "output_tokens": 200,
+                "estimated_cost_usd": 0.015,
+                "model": "gpt-4",
+            },
         )
         step_search = ResearchStep(
             task_id=task.id,

@@ -56,7 +56,7 @@ class TestRetryDelay:
     """重试延迟计算"""
 
     def test_rate_limit_指数退避(self):
-        assert _retry_delay(1, LLMRateLimitException) == 5.0   # 5 * 2^0
+        assert _retry_delay(1, LLMRateLimitException) == 5.0  # 5 * 2^0
         assert _retry_delay(2, LLMRateLimitException) == 10.0  # 5 * 2^1
 
     def test_timeout_固定翻倍(self):
@@ -111,6 +111,7 @@ class TestStreamChatCompletion:
 
     def _make_stream_chunks(self, contents):
         """生成模拟的流式 chunk 列表"""
+
         async def mock_stream():
             for content in contents:
                 choice = MagicMock()
@@ -129,6 +130,7 @@ class TestStreamChatCompletion:
             chunk = MagicMock()
             chunk.choices = [choice]
             yield chunk
+
         return mock_stream()
 
     async def test_正常流式调用_逐chunk返回content(self):
@@ -210,7 +212,9 @@ class TestChatCompletion:
     def _setup(self, mock_llm_client):
         self.mock_client = mock_llm_client
 
-    def _make_response(self, content="response", prompt_tokens=10, completion_tokens=5, total_tokens=15):
+    def _make_response(
+        self, content="response", prompt_tokens=10, completion_tokens=5, total_tokens=15
+    ):
         choice = MagicMock()
         choice.message = MagicMock()
         choice.message.content = content
@@ -227,7 +231,10 @@ class TestChatCompletion:
     async def test_正常调用_返回LLMResult含token统计(self):
         messages = [{"role": "user", "content": "Test"}]
         self.mock_client.chat.completions.create.return_value = self._make_response(
-            content="The answer", prompt_tokens=50, completion_tokens=20, total_tokens=70,
+            content="The answer",
+            prompt_tokens=50,
+            completion_tokens=20,
+            total_tokens=70,
         )
 
         result = await chat_completion(messages)
@@ -251,9 +258,7 @@ class TestChatCompletion:
 
     async def test_timeout错误_重试3次后抛异常(self):
         messages = [{"role": "user", "content": "Test"}]
-        self.mock_client.chat.completions.create.side_effect = Exception(
-            "Operation timed out"
-        )
+        self.mock_client.chat.completions.create.side_effect = Exception("Operation timed out")
 
         with pytest.raises(LLMTimeoutException):
             await chat_completion(messages)
@@ -262,9 +267,7 @@ class TestChatCompletion:
 
     async def test_auth错误_0次重试(self):
         messages = [{"role": "user", "content": "Test"}]
-        self.mock_client.chat.completions.create.side_effect = Exception(
-            "Authentication failed"
-        )
+        self.mock_client.chat.completions.create.side_effect = Exception("Authentication failed")
 
         with pytest.raises(LLMAuthFailedException):
             await chat_completion(messages)

@@ -8,9 +8,12 @@ from pydantic import BaseModel, Field, field_validator
 
 class KnowledgeBaseCreate(BaseModel):
     """创建知识库请求"""
+
     name: str = Field(..., min_length=2, max_length=128, description="知识库名称")
     description: str | None = Field(None, max_length=2000, description="知识库描述")
-    visibility: str = Field("private", pattern="^(private|public)$", description="可见性：private / public")
+    visibility: str = Field(
+        "private", pattern="^(private|public)$", description="可见性：private / public"
+    )
 
     @field_validator("name")
     @classmethod
@@ -26,9 +29,12 @@ class KnowledgeBaseCreate(BaseModel):
 
 class KnowledgeBaseUpdate(BaseModel):
     """更新知识库请求"""
+
     name: str | None = Field(None, min_length=2, max_length=128, description="知识库名称")
     description: str | None = Field(None, max_length=2000, description="知识库描述")
-    visibility: str | None = Field(None, pattern="^(private|public)$", description="可见性：private / public")
+    visibility: str | None = Field(
+        None, pattern="^(private|public)$", description="可见性：private / public"
+    )
 
     @field_validator("name")
     @classmethod
@@ -46,6 +52,7 @@ class KnowledgeBaseUpdate(BaseModel):
 
 class KnowledgeBaseResponse(BaseModel):
     """知识库响应"""
+
     uuid: str
     name: str
     description: str | None
@@ -62,6 +69,7 @@ class KnowledgeBaseResponse(BaseModel):
 
 class KnowledgeBaseListResponse(BaseModel):
     """知识库列表分页数据"""
+
     total: int
     page: int
     page_size: int
@@ -70,12 +78,14 @@ class KnowledgeBaseListResponse(BaseModel):
 
 class KnowledgeBaseDeleteResponse(BaseModel):
     """知识库删除响应数据"""
+
     kb_uuid: str
     status: str
 
 
 class PublicKnowledgeBaseResponse(BaseModel):
     """公共知识库响应（含 owner 用户名）"""
+
     uuid: str
     name: str
     description: str | None
@@ -93,6 +103,7 @@ class PublicKnowledgeBaseResponse(BaseModel):
 
 class PublicKnowledgeBaseListResponse(BaseModel):
     """公共知识库列表分页数据"""
+
     total: int
     page: int
     page_size: int

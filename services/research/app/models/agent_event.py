@@ -20,9 +20,7 @@ class AgentEvent(Base):
 
     __tablename__ = "agent_events"
 
-    id: Mapped[str] = mapped_column(
-        sa.String(36), primary_key=True, default=new_uuid
-    )
+    id: Mapped[str] = mapped_column(sa.String(36), primary_key=True, default=new_uuid)
     task_id: Mapped[str] = mapped_column(
         sa.String(36),
         sa.ForeignKey("research_tasks.id", ondelete="CASCADE"),
@@ -47,11 +45,15 @@ class AgentEvent(Base):
         comment="阶段进入/Tool 请求/Tool 结果/重试/预算停止/恢复等白名单枚举",
     )
     tool_name: Mapped[str | None] = mapped_column(
-        sa.String(100), default=None, server_default=sa.text("NULL"),
+        sa.String(100),
+        default=None,
+        server_default=sa.text("NULL"),
         comment="受控 Tool 标识，可空",
     )
     provider_name: Mapped[str | None] = mapped_column(
-        sa.String(100), default=None, server_default=sa.text("NULL"),
+        sa.String(100),
+        default=None,
+        server_default=sa.text("NULL"),
         comment="受控 Provider/模型标识，可空",
     )
     input_summary: Mapped[dict | None] = mapped_column(
@@ -67,15 +69,21 @@ class AgentEvent(Base):
         comment="Schema 化安全摘要：计数、稳定 ID、策略结果、公开错误码",
     )
     request_id: Mapped[str | None] = mapped_column(
-        sa.String(64), default=None, server_default=sa.text("NULL"),
+        sa.String(64),
+        default=None,
+        server_default=sa.text("NULL"),
         comment="调用链关联，不含凭证",
     )
     trace_id: Mapped[str | None] = mapped_column(
-        sa.String(64), default=None, server_default=sa.text("NULL"),
+        sa.String(64),
+        default=None,
+        server_default=sa.text("NULL"),
         comment="调用链关联，不含凭证",
     )
     duration_ms: Mapped[int | None] = mapped_column(
-        sa.Integer, default=None, server_default=sa.text("NULL"),
+        sa.Integer,
+        default=None,
+        server_default=sa.text("NULL"),
         comment="事件耗时（毫秒），观测字段",
     )
     cost_summary: Mapped[dict | None] = mapped_column(

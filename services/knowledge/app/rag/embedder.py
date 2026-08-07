@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EmbedResult:
     """单批次 Embedding 结果"""
+
     embeddings: list[list[float]] = field(default_factory=list)
     token_counts: list[int] = field(default_factory=list)
     total_tokens: int = 0
@@ -68,18 +69,22 @@ async def _call_embed_api(texts: list[str], text_type: str = "document") -> Embe
                 last_error = f"HTTP {response.status_code}: {_safe_truncate(response.text)}"
                 logger.warning(
                     "Embedding API 调用失败 (尝试 %d/%d): %s",
-                    attempt + 1, settings.EMBED_MAX_RETRIES, last_error,
+                    attempt + 1,
+                    settings.EMBED_MAX_RETRIES,
+                    last_error,
                 )
 
         except (httpx.RequestError, httpx.TimeoutException, json.JSONDecodeError) as e:
             last_error = str(e)
             logger.warning(
                 "Embedding API 网络异常 (尝试 %d/%d): %s",
-                attempt + 1, settings.EMBED_MAX_RETRIES, e,
+                attempt + 1,
+                settings.EMBED_MAX_RETRIES,
+                e,
             )
 
         if attempt < settings.EMBED_MAX_RETRIES - 1:
-            delay = settings.EMBED_BASE_DELAY * (2 ** attempt)  # 1, 2, 4, 8, 16
+            delay = settings.EMBED_BASE_DELAY * (2**attempt)  # 1, 2, 4, 8, 16
             await asyncio.sleep(delay)
 
     raise EmbeddingTimeoutException(
@@ -165,8 +170,7 @@ async def embed_chunks(texts: list[str], text_type: str = "document") -> EmbedRe
     result = await _call_embed_api(texts, text_type)
     logger.info(
         "Embedding 完成: %d 条, total_tokens=%d",
-        len(texts), result.total_tokens,
+        len(texts),
+        result.total_tokens,
     )
     return result
-
-

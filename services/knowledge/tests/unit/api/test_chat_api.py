@@ -78,16 +78,31 @@ def _make_sse_thinking(delta="思考过程"):
 
 
 def _make_sse_sources():
-    return format_sse_event("sources", {"chunks": [
-        {"doc_id": 1, "doc_name": "文档.pdf", "content": "相关内容", "score": 0.95, "page": 1},
-    ]})
+    return format_sse_event(
+        "sources",
+        {
+            "chunks": [
+                {
+                    "doc_id": 1,
+                    "doc_name": "文档.pdf",
+                    "content": "相关内容",
+                    "score": 0.95,
+                    "page": 1,
+                },
+            ]
+        },
+    )
 
 
 def _make_sse_finish(message_id=11, title="测试标题"):
-    return format_sse_event("finish", {
-        "message_id": message_id, "title": title,
-        "token_usage": {"prompt": 100, "completion": 50, "total": 150},
-    })
+    return format_sse_event(
+        "finish",
+        {
+            "message_id": message_id,
+            "title": title,
+            "token_usage": {"prompt": 100, "completion": 50, "total": 150},
+        },
+    )
 
 
 def _make_sse_error(code="E4002", message="LLM 调用失败"):
@@ -118,7 +133,8 @@ class TestChatNormalQA:
             )
 
             async with async_client.stream(
-                "POST", "/api/chat",
+                "POST",
+                "/api/chat",
                 json={"kb_id": _TEST_KB_UUID, "question": "测试问题"},
                 headers=auth_headers,
             ) as response:
@@ -150,8 +166,13 @@ class TestChatNormalQA:
             )
 
             async with async_client.stream(
-                "POST", "/api/chat",
-                json={"kb_id": _TEST_KB_UUID, "question": "追加问题", "conversation_id": _TEST_CONV_UUID},
+                "POST",
+                "/api/chat",
+                json={
+                    "kb_id": _TEST_KB_UUID,
+                    "question": "追加问题",
+                    "conversation_id": _TEST_CONV_UUID,
+                },
                 headers=auth_headers,
             ) as response:
                 events = await _collect_sse_events(response)
@@ -234,7 +255,8 @@ class TestChatSSEErrors:
             )
 
             async with async_client.stream(
-                "POST", "/api/chat",
+                "POST",
+                "/api/chat",
                 json={"kb_id": _TEST_KB_UUID, "question": "测试问题"},
                 headers=auth_headers,
             ) as response:
@@ -264,7 +286,8 @@ class TestChatVisibility:
             )
 
             async with async_client.stream(
-                "POST", "/api/chat",
+                "POST",
+                "/api/chat",
                 json={"kb_id": _TEST_KB2_UUID, "question": "公共问题"},
                 headers=other_user_auth_headers,
             ) as response:
@@ -299,7 +322,8 @@ class TestChatHeartbeat:
 
             raw_lines = []
             async with async_client.stream(
-                "POST", "/api/chat",
+                "POST",
+                "/api/chat",
                 json={"kb_id": _TEST_KB_UUID, "question": "测试问题"},
                 headers=auth_headers,
             ) as response:

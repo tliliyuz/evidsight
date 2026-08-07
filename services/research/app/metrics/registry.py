@@ -14,6 +14,7 @@ import os
 # process_collector 本身在 Windows 下不可用，本模块也不使用它。
 try:
     import resource
+
     if not hasattr(resource, "getpagesize"):
         resource.getpagesize = lambda: 4096  # noqa: B010
 except ImportError:
@@ -60,8 +61,21 @@ phase_duration_histogram = Histogram(
     "Pipeline 阶段耗时",
     ["phase", "status"],
     buckets=[
-        0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
-        1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0,
+        0.005,
+        0.01,
+        0.025,
+        0.05,
+        0.1,
+        0.25,
+        0.5,
+        1.0,
+        2.5,
+        5.0,
+        10.0,
+        30.0,
+        60.0,
+        120.0,
+        300.0,
     ],
     registry=REGISTRY,
 )
@@ -115,12 +129,14 @@ celery_worker_tasks_active = Gauge(
 
 # ── 输出 ──────────────────────────────────────────────────
 
+
 def get_metrics_output() -> bytes:
     """生成 Prometheus 抓取格式的字节流。"""
     return generate_latest(REGISTRY)
 
 
 # ── 测试辅助 ──────────────────────────────────────────────
+
 
 def _reset_for_testing() -> None:
     """测试专用：将 Registry 中所有指标数值归零。

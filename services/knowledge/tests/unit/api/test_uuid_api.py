@@ -45,40 +45,71 @@ NOW = datetime.now(timezone.utc)
 # ==================== 辅助函数 ====================
 
 
-def _make_kb_response(uuid=VALID_KB_UUID, name="测试KB", owner="550e8400-e29b-41d4-a716-446655440001",
-                      visibility="private", status="active"):
+def _make_kb_response(
+    uuid=VALID_KB_UUID,
+    name="测试KB",
+    owner="550e8400-e29b-41d4-a716-446655440001",
+    visibility="private",
+    status="active",
+):
     return KnowledgeBaseResponse(
-        uuid=uuid, name=name, description=None, owner=owner,
-        visibility=visibility, status=status, doc_count=0, chunk_count=0,
-        created_at=NOW, updated_at=NOW,
+        uuid=uuid,
+        name=name,
+        description=None,
+        owner=owner,
+        visibility=visibility,
+        status=status,
+        doc_count=0,
+        chunk_count=0,
+        created_at=NOW,
+        updated_at=NOW,
     )
 
 
-def _make_kb_orm(uuid=VALID_KB_UUID, name="测试KB", user_id=1,
-                 visibility="private", status="active"):
+def _make_kb_orm(
+    uuid=VALID_KB_UUID, name="测试KB", user_id=1, visibility="private", status="active"
+):
     """构造真实 KnowledgeBase ORM 实例（详情路由读 kb.user_id，需 ORM 对象而非 DTO）"""
     from app.models.knowledge_base import KnowledgeBase
 
     return KnowledgeBase(
-        id=1, uuid=uuid, name=name, description=None, user_id=user_id,
-        visibility=visibility, status=status, doc_count=0, chunk_count=0,
-        created_at=NOW, updated_at=NOW,
+        id=1,
+        uuid=uuid,
+        name=name,
+        description=None,
+        user_id=user_id,
+        visibility=visibility,
+        status=status,
+        doc_count=0,
+        chunk_count=0,
+        created_at=NOW,
+        updated_at=NOW,
     )
 
 
 def _make_doc_response(uuid=VALID_DOC_UUID, kb_uuid=VALID_KB_UUID, filename="test.pdf"):
     return DocumentResponse(
-        uuid=uuid, kb_uuid=kb_uuid, filename=filename, file_type="pdf",
-        status="completed", chunk_count=10, created_at=NOW, updated_at=NOW,
+        uuid=uuid,
+        kb_uuid=kb_uuid,
+        filename=filename,
+        file_type="pdf",
+        status="completed",
+        chunk_count=10,
+        created_at=NOW,
+        updated_at=NOW,
     )
 
 
 def _make_conv_response(uuid=VALID_CONV_UUID, user_id=1, kb_uuid=VALID_KB_UUID, title="新对话"):
     return ConversationResponse(
-        uuid=uuid, owner_user_id=f"550e8400-e29b-41d4-a716-4466554400{user_id:02d}",
+        uuid=uuid,
+        owner_user_id=f"550e8400-e29b-41d4-a716-4466554400{user_id:02d}",
         kb_uuid=kb_uuid,
-        title=title, message_count=0,
-        created_at=NOW, updated_at=NOW, last_message_at=NOW,
+        title=title,
+        message_count=0,
+        created_at=NOW,
+        updated_at=NOW,
+        last_message_at=NOW,
     )
 
 
@@ -97,9 +128,13 @@ class TestKBUuidAPI:
     @pytest.mark.asyncio
     async def test_get_kb_by_uuid(self, async_client, auth_headers):
         """A10.1: GET /{uuid} 有效 uuid → 200 + 响应含 uuid 不含 id"""
-        with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get, \
-             patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner:
+        with (
+            patch(
+                "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get,
+            patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner,
+        ):
             mock_resolve.return_value = 1
             mock_get.return_value = _make_kb_orm()
             mock_owner.return_value = "550e8400-e29b-41d4-a716-446655440001"
@@ -126,7 +161,9 @@ class TestKBUuidAPI:
     @pytest.mark.asyncio
     async def test_get_kb_nonexistent_uuid(self, async_client, auth_headers):
         """A10.3: GET /{uuid} 合法格式但不存在 → 404, E1001"""
-        with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve:
+        with patch(
+            "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
+        ) as mock_resolve:
             mock_resolve.side_effect = KnowledgeBaseNotFoundException(VALID_KB_UUID)
 
             response = await async_client.get(
@@ -141,8 +178,12 @@ class TestKBUuidAPI:
     @pytest.mark.asyncio
     async def test_update_kb_by_uuid(self, async_client, auth_headers):
         """A10.4: PUT /{uuid} 有效 uuid → 200"""
-        with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.knowledge_base.update_kb", new_callable=AsyncMock) as mock_update:
+        with (
+            patch(
+                "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.knowledge_base.update_kb", new_callable=AsyncMock) as mock_update,
+        ):
             mock_resolve.return_value = 1
             mock_update.return_value = _make_response = _make_kb_response(name="更新后KB")
 
@@ -159,11 +200,16 @@ class TestKBUuidAPI:
     @pytest.mark.asyncio
     async def test_delete_kb_by_uuid(self, async_client, auth_headers):
         """A10.5: DELETE /{uuid} 有效 uuid → 202"""
-        with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.knowledge_base.delete_kb", new_callable=AsyncMock) as mock_delete:
+        with (
+            patch(
+                "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.knowledge_base.delete_kb", new_callable=AsyncMock) as mock_delete,
+        ):
             mock_resolve.return_value = 1
             mock_delete.return_value = KnowledgeBaseDeleteResponse(
-                kb_uuid=VALID_KB_UUID, status="deleting",
+                kb_uuid=VALID_KB_UUID,
+                status="deleting",
             )
 
             response = await async_client.delete(
@@ -178,8 +224,12 @@ class TestKBUuidAPI:
     @pytest.mark.asyncio
     async def test_private_kb_non_owner_denied(self, async_client, other_user_auth_headers):
         """A10.20: GET /{uuid} private KB 非 owner → 403, E5005"""
-        with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get:
+        with (
+            patch(
+                "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get,
+        ):
             mock_resolve.return_value = 1
             mock_get.side_effect = PermissionDeniedException()
 
@@ -195,9 +245,13 @@ class TestKBUuidAPI:
     @pytest.mark.asyncio
     async def test_admin_can_access_any_kb(self, async_client, admin_auth_headers):
         """A10.21: GET /{uuid} admin 访问他人 KB → 200"""
-        with patch("app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get, \
-             patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner:
+        with (
+            patch(
+                "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get,
+            patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner,
+        ):
             mock_resolve.return_value = 1
             mock_get.return_value = _make_kb_orm(user_id=999, visibility="private")
             mock_owner.return_value = "550e8400-e29b-41d4-a716-446655440099"
@@ -219,8 +273,10 @@ class TestDocumentUuidAPI:
     @pytest.mark.asyncio
     async def test_list_docs_by_kb_uuid(self, async_client, auth_headers):
         """A10.6: GET /{kb_uuid}/documents 有效 kb_uuid → 200"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.document.list_documents", new_callable=AsyncMock) as mock_list:
+        with (
+            patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve,
+            patch("app.api.document.list_documents", new_callable=AsyncMock) as mock_list,
+        ):
             mock_resolve.return_value = 1
             mock_list.return_value = _make_doc_list()
 
@@ -237,8 +293,10 @@ class TestDocumentUuidAPI:
     @pytest.mark.asyncio
     async def test_get_doc_by_uuid(self, async_client, auth_headers):
         """A10.7: GET /{kb_uuid}/documents/{doc_uuid} 有效 → 200 + 响应含 uuid"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.document.get_document", new_callable=AsyncMock) as mock_get:
+        with (
+            patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve,
+            patch("app.api.document.get_document", new_callable=AsyncMock) as mock_get,
+        ):
             mock_resolve.side_effect = [1, 10]  # kb_id, doc_id
             mock_get.return_value = _make_doc_response()
 
@@ -255,11 +313,14 @@ class TestDocumentUuidAPI:
     @pytest.mark.asyncio
     async def test_delete_doc_by_uuid(self, async_client, auth_headers):
         """A10.9: DELETE /{kb_uuid}/documents/{doc_uuid} → 202"""
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.document.delete_document", new_callable=AsyncMock) as mock_delete:
+        with (
+            patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve,
+            patch("app.api.document.delete_document", new_callable=AsyncMock) as mock_delete,
+        ):
             mock_resolve.side_effect = [1, 10]
             mock_delete.return_value = DocumentDeleteResponse(
-                doc_uuid=VALID_DOC_UUID, status="deleting",
+                doc_uuid=VALID_DOC_UUID,
+                status="deleting",
             )
 
             response = await async_client.delete(
@@ -282,8 +343,10 @@ class TestDocumentUuidAPI:
             file_size=1024,
             status="queued",
         )
-        with patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.document.upload_document", new_callable=AsyncMock) as mock_upload:
+        with (
+            patch("app.api.document.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve,
+            patch("app.api.document.upload_document", new_callable=AsyncMock) as mock_upload,
+        ):
             mock_resolve.return_value = 1
             mock_upload.return_value = mock_upload_response
 
@@ -313,8 +376,14 @@ class TestConversationUuidAPI:
     @pytest.mark.asyncio
     async def test_get_conv_by_uuid(self, async_client, auth_headers):
         """A10.10: GET /{conv_uuid} 有效 → 200 + 响应含 uuid"""
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.conversation.get_conversation_detail", new_callable=AsyncMock) as mock_get:
+        with (
+            patch(
+                "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch(
+                "app.api.conversation.get_conversation_detail", new_callable=AsyncMock
+            ) as mock_get,
+        ):
             mock_resolve.return_value = 1
             mock_get.return_value = _make_conv_response()
 
@@ -331,8 +400,14 @@ class TestConversationUuidAPI:
     @pytest.mark.asyncio
     async def test_rename_conv_by_uuid(self, async_client, auth_headers):
         """A10.11: PUT /{conv_uuid} 有效 → 200"""
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.conversation.rename_conversation", new_callable=AsyncMock) as mock_rename:
+        with (
+            patch(
+                "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch(
+                "app.api.conversation.rename_conversation", new_callable=AsyncMock
+            ) as mock_rename,
+        ):
             mock_resolve.return_value = 1
             mock_rename.return_value = _make_conv_response(title="新标题")
 
@@ -349,8 +424,14 @@ class TestConversationUuidAPI:
     @pytest.mark.asyncio
     async def test_delete_conv_by_uuid(self, async_client, auth_headers):
         """A10.12: DELETE /{conv_uuid} 有效 → 200"""
-        with patch("app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock) as mock_resolve, \
-             patch("app.api.conversation.delete_conversation", new_callable=AsyncMock) as mock_delete:
+        with (
+            patch(
+                "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch(
+                "app.api.conversation.delete_conversation", new_callable=AsyncMock
+            ) as mock_delete,
+        ):
             mock_resolve.return_value = 1
             mock_delete.return_value = None
 
@@ -387,7 +468,9 @@ class TestChatUuidAPI:
     async def test_chat_with_kb_uuid(self, async_client, auth_headers):
         """A10.13: POST /api/chat kb_id=UUID → SSE 流正常"""
         sse_events = [
-            'event: meta\ndata: {"conversation_id": "' + VALID_CONV_UUID + '", "task_id": "t1"}\n\n',
+            'event: meta\ndata: {"conversation_id": "'
+            + VALID_CONV_UUID
+            + '", "task_id": "t1"}\n\n',
             'event: message\ndata: {"delta": "回答"}\n\n',
             'event: finish\ndata: {"message_id": 1, "title": "测试", "token_usage": {"prompt": 10, "completion": 5, "total": 15}}\n\n',
         ]
@@ -398,7 +481,8 @@ class TestChatUuidAPI:
             )
 
             async with async_client.stream(
-                "POST", "/api/chat",
+                "POST",
+                "/api/chat",
                 json={"kb_id": VALID_KB_UUID, "question": "测试问题"},
                 headers=auth_headers,
             ) as response:
@@ -410,7 +494,9 @@ class TestChatUuidAPI:
     async def test_chat_meta_event_has_uuid(self, async_client, auth_headers):
         """A10.16: SSE meta 事件 conversation_id 为 UUID 格式"""
         sse_events = [
-            'event: meta\ndata: {"conversation_id": "' + VALID_CONV_UUID + '", "task_id": "t1"}\n\n',
+            'event: meta\ndata: {"conversation_id": "'
+            + VALID_CONV_UUID
+            + '", "task_id": "t1"}\n\n',
             'event: finish\ndata: {"message_id": 1, "token_usage": {"prompt": 0, "completion": 0, "total": 0}}\n\n',
         ]
         with patch("app.api.chat.chat") as mock_chat:
@@ -421,7 +507,8 @@ class TestChatUuidAPI:
 
             collected = []
             async with async_client.stream(
-                "POST", "/api/chat",
+                "POST",
+                "/api/chat",
                 json={"kb_id": VALID_KB_UUID, "question": "测试"},
                 headers=auth_headers,
             ) as response:
@@ -450,7 +537,9 @@ class TestChatUuidAPI:
     async def test_chat_with_conversation_id_uuid(self, async_client, auth_headers):
         """A10.14: POST /api/chat conversation_id=UUID → 加载历史 + SSE 流正常"""
         sse_events = [
-            'event: meta\ndata: {"conversation_id": "' + VALID_CONV_UUID + '", "task_id": "t2"}\n\n',
+            'event: meta\ndata: {"conversation_id": "'
+            + VALID_CONV_UUID
+            + '", "task_id": "t2"}\n\n',
             'event: message\ndata: {"delta": "基于历史回答"}\n\n',
             'event: finish\ndata: {"message_id": 2, "title": None, "token_usage": {"prompt": 20, "completion": 5, "total": 25}}\n\n',
         ]
@@ -461,7 +550,8 @@ class TestChatUuidAPI:
             )
 
             async with async_client.stream(
-                "POST", "/api/chat",
+                "POST",
+                "/api/chat",
                 json={
                     "kb_id": VALID_KB_UUID,
                     "question": "追问问题",
@@ -493,7 +583,13 @@ class TestSelectableKBUUID:
                 {"uuid": VALID_KB_UUID, "name": "我的KB", "visibility": "private", "doc_count": 5},
             ],
             "public": [
-                {"uuid": "aaa-bbb-ccc", "name": "公共KB", "visibility": "public", "doc_count": 10, "username": "other"},
+                {
+                    "uuid": "aaa-bbb-ccc",
+                    "name": "公共KB",
+                    "visibility": "public",
+                    "doc_count": 10,
+                    "username": "other",
+                },
             ],
         }
         with patch("app.api.knowledge_base.get_selectable_kbs", new_callable=AsyncMock) as mock:
@@ -523,8 +619,12 @@ class TestTraceUUIDClean:
     async def test_trace_list_no_auto_id(self, async_client, admin_auth_headers):
         """A10.18: GET /admin/traces → 响应不含自增 id"""
         mock_trace = TraceListItem(
-            trace_id="trace-abc-123", owner_user_id="550e8400-e29b-41d4-a716-446655440001",
-            username="testuser", question="测试问题", status="success", created_at=NOW,
+            trace_id="trace-abc-123",
+            owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            username="testuser",
+            question="测试问题",
+            status="success",
+            created_at=NOW,
         )
         mock_data = TraceListResponse(total=1, page=1, page_size=20, items=[mock_trace])
 
@@ -546,8 +646,12 @@ class TestTraceUUIDClean:
     async def test_trace_detail_no_auto_id(self, async_client, admin_auth_headers):
         """A10.19: GET /admin/traces/{trace_id} → 响应不含自增 id"""
         mock_detail = TraceDetailResponse(
-            trace_id="trace-abc-123", owner_user_id="550e8400-e29b-41d4-a716-446655440001",
-            username="testuser", question="测试问题", status="success", created_at=NOW,
+            trace_id="trace-abc-123",
+            owner_user_id="550e8400-e29b-41d4-a716-446655440001",
+            username="testuser",
+            question="测试问题",
+            status="success",
+            created_at=NOW,
         )
 
         with patch("app.api.admin.get_trace_detail", new_callable=AsyncMock) as mock:

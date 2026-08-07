@@ -24,7 +24,10 @@ class TestRetrievalResult:
 
     def test_正常创建(self):
         r = RetrievalResult(
-            doc_id=1, chunk_index=0, content="测试内容", score=0.85,
+            doc_id=1,
+            chunk_index=0,
+            content="测试内容",
+            score=0.85,
         )
         assert r.doc_id == 1
         assert r.chunk_index == 0
@@ -35,8 +38,12 @@ class TestRetrievalResult:
 
     def test_带页码和文档名(self):
         r = RetrievalResult(
-            doc_id=2, chunk_index=3, content="内容", score=0.7,
-            page=5, doc_name="文档.pdf",
+            doc_id=2,
+            chunk_index=3,
+            content="内容",
+            score=0.7,
+            page=5,
+            doc_name="文档.pdf",
         )
         assert r.page == 5
         assert r.doc_name == "文档.pdf"
@@ -123,6 +130,7 @@ class TestVectorRetrieverSearch:
 
         with patch("app.rag.retriever.embed_chunks", new_callable=AsyncMock) as mock_embed:
             from app.rag.embedder import EmbedResult
+
             mock_embed.return_value = EmbedResult()
             output = await retriever.search("问题", kb_id=1)
 
@@ -156,7 +164,9 @@ class TestVectorRetrieverSearch:
     async def test_top_k参数传递(self):
         """验证 top_k 参数正确传递给 ChromaDB"""
         mock_store = AsyncMock()
-        mock_store.search.return_value = make_mock_chroma_results(ids=[[]], documents=[[]], distances=[[]], metadatas=[[]])
+        mock_store.search.return_value = make_mock_chroma_results(
+            ids=[[]], documents=[[]], distances=[[]], metadatas=[[]]
+        )
         retriever = VectorRetriever(vector_store=mock_store)
 
         with patch("app.rag.retriever.embed_chunks", new_callable=AsyncMock) as mock_embed:
@@ -171,7 +181,9 @@ class TestVectorRetrieverSearch:
     async def test_kb_id为int类型(self):
         """验证 kb_id 以 int 类型传入 ChromaDB where（Decision #21）"""
         mock_store = AsyncMock()
-        mock_store.search.return_value = make_mock_chroma_results(ids=[[]], documents=[[]], distances=[[]], metadatas=[[]])
+        mock_store.search.return_value = make_mock_chroma_results(
+            ids=[[]], documents=[[]], distances=[[]], metadatas=[[]]
+        )
         retriever = VectorRetriever(vector_store=mock_store)
 
         with patch("app.rag.retriever.embed_chunks", new_callable=AsyncMock) as mock_embed:
@@ -192,7 +204,7 @@ class TestVectorRetrieverSearch:
             ids=[["doc_1_chunk_0"]],
             documents=[["测试内容"]],
             distances=[[0.3]],
-            metadatas=[[{"kb_id": 1, "doc_id": 1, "chunk_index": 0}]]
+            metadatas=[[{"kb_id": 1, "doc_id": 1, "chunk_index": 0}]],
         )
         retriever = VectorRetriever(vector_store=mock_store)
 
@@ -218,12 +230,18 @@ class TestVectorRetrieverSearch:
             ids=[["doc_1_chunk_0"]],
             documents=[["SSE 事件格式详解"]],
             distances=[[0.2]],
-            metadatas=[[{
-                "kb_id": 1, "doc_id": 1, "chunk_index": 0,
-                "section_title": "§6.1 SSE 事件完整格式",
-                "section_path": "RAG Pipeline > §6 SSE 事件流",
-                "page": 3,
-            }]]
+            metadatas=[
+                [
+                    {
+                        "kb_id": 1,
+                        "doc_id": 1,
+                        "chunk_index": 0,
+                        "section_title": "§6.1 SSE 事件完整格式",
+                        "section_path": "RAG Pipeline > §6 SSE 事件流",
+                        "page": 3,
+                    }
+                ]
+            ],
         )
         retriever = VectorRetriever(vector_store=mock_store)
 
@@ -245,7 +263,7 @@ class TestVectorRetrieverSearch:
             ids=[["doc_1_chunk_0"]],
             documents=[["普通内容"]],
             distances=[[0.5]],
-            metadatas=[[{"kb_id": 1, "doc_id": 1, "chunk_index": 0}]]
+            metadatas=[[{"kb_id": 1, "doc_id": 1, "chunk_index": 0}]],
         )
         retriever = VectorRetriever(vector_store=mock_store)
 
@@ -267,11 +285,17 @@ class TestVectorRetrieverSearch:
             ids=[["doc_1_chunk_0"]],
             documents=[["内容"]],
             distances=[[0.3]],
-            metadatas=[[{
-                "kb_id": 1, "doc_id": 1, "chunk_index": 0,
-                "section_title": "",
-                "section_path": "",
-            }]]
+            metadatas=[
+                [
+                    {
+                        "kb_id": 1,
+                        "doc_id": 1,
+                        "chunk_index": 0,
+                        "section_title": "",
+                        "section_path": "",
+                    }
+                ]
+            ],
         )
         retriever = VectorRetriever(vector_store=mock_store)
 

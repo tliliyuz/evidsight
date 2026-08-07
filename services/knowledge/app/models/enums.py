@@ -6,11 +6,13 @@ queued | processing | completed | partial | failed | deleting。
 直接作为 DocumentStatus 泄漏，统一由 app/ingest/versioning.map_document_status
 映射为 processing。
 """
+
 from enum import Enum
 
 
 class DocumentStatus(str, Enum):
     """文档入库状态（对齐 API.md §6.2 与 ADR-007 对外映射）"""
+
     QUEUED = "queued"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -19,11 +21,13 @@ class DocumentStatus(str, Enum):
     DELETING = "deleting"
 
 
-TERMINAL_STATUSES: frozenset[str] = frozenset({
-    DocumentStatus.COMPLETED,
-    DocumentStatus.PARTIAL,
-    DocumentStatus.FAILED,
-})
+TERMINAL_STATUSES: frozenset[str] = frozenset(
+    {
+        DocumentStatus.COMPLETED,
+        DocumentStatus.PARTIAL,
+        DocumentStatus.FAILED,
+    }
+)
 
 
 def is_terminal(status: str) -> bool:

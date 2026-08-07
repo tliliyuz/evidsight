@@ -23,12 +23,14 @@ def _make_chunks(*contents_and_docs: tuple[str, int]) -> list[RetrievalResult]:
     """快捷构造 RetrievalResult 列表"""
     results = []
     for i, (content, doc_id) in enumerate(contents_and_docs):
-        results.append(RetrievalResult(
-            doc_id=doc_id,
-            chunk_index=i,
-            content=content,
-            score=0.9 - i * 0.1,
-        ))
+        results.append(
+            RetrievalResult(
+                doc_id=doc_id,
+                chunk_index=i,
+                content=content,
+                score=0.9 - i * 0.1,
+            )
+        )
     return results
 
 
@@ -81,7 +83,9 @@ class TestSourceConsistency:
     def test_单文档来源_consistent(self):
         """所有引用来自同一文档 → consistent"""
         chunks = _make_chunks(
-            ("内容A", 1), ("内容B", 1), ("内容C", 1),
+            ("内容A", 1),
+            ("内容B", 1),
+            ("内容C", 1),
         )
         result = EvidenceAuditResult()
         result.has_citation = True
@@ -93,7 +97,8 @@ class TestSourceConsistency:
     def test_两文档来源_acceptable(self):
         """引用来自 2 个文档 → acceptable"""
         chunks = _make_chunks(
-            ("内容A", 1), ("内容B", 2),
+            ("内容A", 1),
+            ("内容B", 2),
         )
         result = EvidenceAuditResult()
         result.has_citation = True
@@ -105,7 +110,9 @@ class TestSourceConsistency:
     def test_三文档以上_dispersed(self):
         """引用来自 3+ 个文档 → dispersed"""
         chunks = _make_chunks(
-            ("内容A", 1), ("内容B", 2), ("内容C", 3),
+            ("内容A", 1),
+            ("内容B", 2),
+            ("内容C", 3),
         )
         result = EvidenceAuditResult()
         result.has_citation = True
@@ -122,7 +129,9 @@ class TestSourceConsistency:
 
     def test_引用索引越界_忽略越界引用(self):
         """[来源N] 编号超出 used_chunks 范围时安全忽略"""
-        chunks = _make_chunks(("内容A", 1),)
+        chunks = _make_chunks(
+            ("内容A", 1),
+        )
         result = EvidenceAuditResult()
         result.has_citation = True
         result.cited_indices = [1, 5, 99]  # 5 和 99 越界
@@ -173,8 +182,7 @@ class TestSentenceEvidence:
         )
         result = EvidenceAuditResult()
         _check_sentence_evidence(
-            "差旅报销需提交申请单。审批流程通常需要三到五个工作日。"
-            "需要部门经理签字确认。",
+            "差旅报销需提交申请单。审批流程通常需要三到五个工作日。需要部门经理签字确认。",
             chunks,
             result,
         )
@@ -184,7 +192,9 @@ class TestSentenceEvidence:
 
     def test_跳过引用句(self):
         """以「来源」开头的句子不计入事实句"""
-        chunks = _make_chunks(("测试内容", 1),)
+        chunks = _make_chunks(
+            ("测试内容", 1),
+        )
         result = EvidenceAuditResult()
         _check_sentence_evidence("根据来源1的规定。报销需提交申请单。", chunks, result)
         # "根据来源1的规定" 被跳过，仅 "报销需提交申请单" 计入
@@ -192,7 +202,9 @@ class TestSentenceEvidence:
 
     def test_跳过短句(self):
         """过短的句子（<8 字符）不计入事实句"""
-        chunks = _make_chunks(("测试内容", 1),)
+        chunks = _make_chunks(
+            ("测试内容", 1),
+        )
         result = EvidenceAuditResult()
         _check_sentence_evidence("好的。没问题。就这样。", chunks, result)
         assert result.total_factual_sentences == 0
@@ -206,7 +218,9 @@ class TestSentenceEvidence:
 
     def test_空答案_supported(self):
         """空答案默认 supported"""
-        chunks = _make_chunks(("内容", 1),)
+        chunks = _make_chunks(
+            ("内容", 1),
+        )
         result = EvidenceAuditResult()
         _check_sentence_evidence("", chunks, result)
         assert result.evidence_status == "supported"
@@ -301,7 +315,9 @@ class TestAuditEvidenceIntegration:
 
     def test_审计结果结构完整(self):
         """审计结果包含所有预期字段"""
-        chunks = _make_chunks(("测试内容", 1),)
+        chunks = _make_chunks(
+            ("测试内容", 1),
+        )
         result = audit_evidence("测试回答[来源1]", chunks)
         assert isinstance(result, EvidenceAuditResult)
         assert hasattr(result, "has_citation")

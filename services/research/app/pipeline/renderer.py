@@ -77,17 +77,10 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一个专业研究报告撰写专家。请基
 
 _TEMPLATE_DESCRIPTIONS: dict[str, str] = {
     "comparison": (
-        "1. 概述 → 2. 候选对象简介 → 3. 对比维度矩阵 → "
-        "4. 逐维度深度分析 → 5. 总结与建议"
+        "1. 概述 → 2. 候选对象简介 → 3. 对比维度矩阵 → 4. 逐维度深度分析 → 5. 总结与建议"
     ),
-    "explainer": (
-        "1. 背景介绍 → 2-N. 按研究方向/证据聚类组织章节 → "
-        "N+1. 争议与前沿 → 最后. 总结"
-    ),
-    "analysis": (
-        "1. 现状概述 → 2. 威胁/原因分析 → 3. 影响推演 → "
-        "4. 应对策略 → 5. 时间线预估"
-    ),
+    "explainer": ("1. 背景介绍 → 2-N. 按研究方向/证据聚类组织章节 → N+1. 争议与前沿 → 最后. 总结"),
+    "analysis": ("1. 现状概述 → 2. 威胁/原因分析 → 3. 影响推演 → 4. 应对策略 → 5. 时间线预估"),
 }
 
 # ── 数据类型 ──────────────────────────────────────────────────
@@ -139,8 +132,7 @@ def _format_evidence_items(items: list[dict]) -> str:
     确保 Prompt 不超过软上限。
     """
     valid_items = [
-        item for item in items
-        if isinstance(item, dict) and item.get("index") is not None
+        item for item in items if isinstance(item, dict) and item.get("index") is not None
     ]
 
     content_limit = 1500
@@ -178,7 +170,9 @@ def _format_evidence_items(items: list[dict]) -> str:
             if count_limit < len(valid_items) or content_limit < 1500:
                 logger.warning(
                     "Render Evidence 截断: %d→%d 条, content_limit=%d",
-                    len(valid_items), count_limit, content_limit,
+                    len(valid_items),
+                    count_limit,
+                    content_limit,
                 )
             return formatted
 
@@ -256,14 +250,14 @@ def _build_render_prompt(
 
     evidence_items_formatted = _format_evidence_items(items)
 
-    sections_schema = '''{
+    sections_schema = """{
   "sections": [
     {
       "heading": "1. 章节标题",
       "content": "Markdown 正文，每个事实性陈述后使用 [来源N] 标注引用，N 为证据详情中的 0-based 编号"
     }
   ]
-}'''
+}"""
 
     system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
         topic=topic,
@@ -513,12 +507,9 @@ async def _update_evidence_used_in_sections(
         return
 
     evidence_ids = list(usage.keys())
-    stmt = (
-        select(EvidenceItem)
-        .where(
-            EvidenceItem.id.in_(evidence_ids),
-            EvidenceItem.task_id == task_id,
-        )
+    stmt = select(EvidenceItem).where(
+        EvidenceItem.id.in_(evidence_ids),
+        EvidenceItem.task_id == task_id,
     )
     result = await session.execute(stmt)
     items = result.scalars().all()
@@ -649,13 +640,16 @@ async def run_render(
         "explainer": 4,
         "analysis": 5,
     }.get(task_type, 4)
-    await sse.publish(EVENT_STEP_PROGRESS, {
-        "step_id": step_id,
-        "phase": "rendering",
-        "label": f"正在渲染报告（预计 {expected_sections} 个章节）...",
-        "sections_completed": 0,
-        "total_sections": expected_sections,
-    })
+    await sse.publish(
+        EVENT_STEP_PROGRESS,
+        {
+            "step_id": step_id,
+            "phase": "rendering",
+            "label": f"正在渲染报告（预计 {expected_sections} 个章节）...",
+            "sections_completed": 0,
+            "total_sections": expected_sections,
+        },
+    )
 
     # 4. 调用 LLM（含重试）
     raw_text, llm_result, retry_count = await _call_llm_render(messages)
@@ -675,18 +669,24 @@ async def run_render(
 
     # 8. 发布进度与完成事件
     citations_count = sum(len(s.sources) for s in sections)
-    await sse.publish(EVENT_STEP_PROGRESS, {
-        "step_id": step_id,
-        "phase": "rendering",
-        "label": f"报告渲染完成：{len(sections)} 个章节，{citations_count} 处引用",
-        "sections_completed": len(sections),
-        "total_sections": len(sections),
-    })
-    await sse.publish(EVENT_STEP_COMPLETED, {
-        "step_id": step_id,
-        "sections_count": len(sections),
-        "citations_count": citations_count,
-    })
+    await sse.publish(
+        EVENT_STEP_PROGRESS,
+        {
+            "step_id": step_id,
+            "phase": "rendering",
+            "label": f"报告渲染完成：{len(sections)} 个章节，{citations_count} 处引用",
+            "sections_completed": len(sections),
+            "total_sections": len(sections),
+        },
+    )
+    await sse.publish(
+        EVENT_STEP_COMPLETED,
+        {
+            "step_id": step_id,
+            "sections_count": len(sections),
+            "citations_count": citations_count,
+        },
+    )
 
     output = {
         "sections_count": len(sections),

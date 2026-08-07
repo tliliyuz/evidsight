@@ -10,6 +10,7 @@ class TraceListItem(BaseModel):
 
     对齐 API.md §7.5：列表项（不含 JSON 详情字段）
     """
+
     trace_id: str
     owner_user_id: str = Field(description="用户 Platform User UUID（非内部 users.id）")
     username: str = Field(description="用户名")
@@ -27,6 +28,7 @@ class TraceListItem(BaseModel):
 
 class TraceListSummary(BaseModel):
     """Trace 列表概览统计（基于全量筛选结果，非单页）"""
+
     success: int = 0
     error: int = 0
     running: int = Field(0, description="partial 状态数量")
@@ -40,6 +42,7 @@ class TraceListResponse(BaseModel):
 
     对齐 API.md §7.5：分页 Trace 列表
     """
+
     total: int
     page: int
     page_size: int
@@ -49,14 +52,18 @@ class TraceListResponse(BaseModel):
 
 class TraceSpanBase(BaseModel):
     """各阶段 JSON 通用字段"""
+
     span_name: str
-    start_time: str | None = Field(None, description="阶段开始时间（ISO 8601，由 TraceRecorder 从 perf_counter 推算）")
+    start_time: str | None = Field(
+        None, description="阶段开始时间（ISO 8601，由 TraceRecorder 从 perf_counter 推算）"
+    )
     duration_ms: int | None = None
     status: str = "success"
 
 
 class IntentSpan(TraceSpanBase):
     """意图识别阶段详情"""
+
     intent_type: str | None = None
     method: str | None = None
     metadata: dict | None = None
@@ -64,6 +71,7 @@ class IntentSpan(TraceSpanBase):
 
 class RewriteSpan(TraceSpanBase):
     """问题重写阶段详情"""
+
     original_question: str | None = None
     rewritten_question: str | None = None
     metadata: dict | None = None
@@ -71,6 +79,7 @@ class RewriteSpan(TraceSpanBase):
 
 class RetrieveSpan(TraceSpanBase):
     """检索阶段详情 — 细粒度拆分"""
+
     vector: dict | None = None
     bm25: dict | None = None
     fusion: dict | None = None
@@ -79,6 +88,7 @@ class RetrieveSpan(TraceSpanBase):
 
 class RerankSpan(TraceSpanBase):
     """Rerank 阶段详情"""
+
     input_count: int | None = None
     output_count: int | None = None
     metadata: dict | None = None
@@ -86,6 +96,7 @@ class RerankSpan(TraceSpanBase):
 
 class GenerateSpan(TraceSpanBase):
     """LLM 生成阶段详情（不存 output）"""
+
     model: str | None = None
     ttft_ms: int | None = None
     input_tokens: int | None = None
@@ -95,6 +106,7 @@ class GenerateSpan(TraceSpanBase):
 
 class EvidenceReviewSpan(TraceSpanBase):
     """证据审查阶段详情（chunk 分类 + REJECT 决策 + post-LLM 审计结果）"""
+
     summary: dict | None = None
     chunk_decisions: list[dict] | None = None
     sentence_review: list[dict] | None = None
@@ -106,6 +118,7 @@ class TraceDetailResponse(BaseModel):
 
     对齐 API.md §7.5：Trace 详情（含各阶段 JSON 详情）
     """
+
     trace_id: str
     owner_user_id: str = Field(description="用户 Platform User UUID（非内部 users.id）")
     username: str = Field(description="用户名")
@@ -131,6 +144,7 @@ class TraceDetailResponse(BaseModel):
 
 class TraceTrendItem(BaseModel):
     """趋势数据项"""
+
     date: str = Field(description="日期（YYYY-MM-DD 或 YYYY-MM-DD HH:00）")
     success: int = 0
     error: int = 0
@@ -139,6 +153,7 @@ class TraceTrendItem(BaseModel):
 
 class TraceLatencyItem(BaseModel):
     """延迟分位数项"""
+
     date: str
     p50: int = Field(description="P50 延迟（毫秒）")
     p95: int = Field(description="P95 延迟（毫秒）")
@@ -147,6 +162,7 @@ class TraceLatencyItem(BaseModel):
 
 class TraceTokenItem(BaseModel):
     """Token 使用统计项"""
+
     date: str
     input: int = Field(description="输入 Token 总数")
     output: int = Field(description="输出 Token 总数")
@@ -154,12 +170,14 @@ class TraceTokenItem(BaseModel):
 
 class TraceIntentDistItem(BaseModel):
     """意图分布项"""
+
     type: str = Field(description="意图类型")
     count: int
 
 
 class TraceResponseDistItem(BaseModel):
     """响应模式分布项"""
+
     mode: str = Field(description="响应模式")
     count: int
 
@@ -169,6 +187,7 @@ class TraceStatsResponse(BaseModel):
 
     对齐 API.md §7.6：Trace 统计数据，用于 ECharts 图表渲染
     """
+
     trend: list[TraceTrendItem]
     latency: list[TraceLatencyItem]
     tokens: list[TraceTokenItem]

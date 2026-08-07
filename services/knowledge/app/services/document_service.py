@@ -1,4 +1,5 @@
 """文档业务逻辑 — 上传/批量上传/列表/详情/分块/删除/重新处理"""
+
 import logging
 import time
 import uuid as uuid_lib
@@ -64,6 +65,7 @@ def _pool_status() -> str:
     except Exception:
         return "pool[unavailable]"
 
+
 # 允许的排序字段
 SORT_ALLOWED_FIELDS = {"created_at", "updated_at", "filename", "file_size", "status"}
 
@@ -80,9 +82,7 @@ LEGACY_STATUS_ALIASES = {
 
 # 从 settings 解析允许的文件类型（逗号分隔 → set）
 ALLOWED_EXTENSIONS = set(
-    ext.strip().lower()
-    for ext in settings.ALLOWED_EXTENSIONS.split(",")
-    if ext.strip()
+    ext.strip().lower() for ext in settings.ALLOWED_EXTENSIONS.split(",") if ext.strip()
 )
 
 
@@ -129,7 +129,10 @@ def validate_file(file: UploadFile) -> None:
 
 
 async def _check_kb_ownership(
-    db: AsyncSession, kb_id: int, user_id: int, role: str,
+    db: AsyncSession,
+    kb_id: int,
+    user_id: int,
+    role: str,
     *,
     owner_only: bool = False,
     allow_public_read: bool = False,
@@ -307,7 +310,6 @@ async def upload_document(
     )
 
 
-
 async def batch_upload_documents(
     db: AsyncSession,
     kb_id: int,
@@ -346,9 +348,7 @@ async def batch_upload_documents(
                     reason += f"（{detail}）"
             else:
                 reason = str(e)
-            failed.append(
-                DocumentBatchUploadFailedItem(filename=filename, reason=reason)
-            )
+            failed.append(DocumentBatchUploadFailedItem(filename=filename, reason=reason))
 
     return DocumentBatchUploadResponse(success=success, failed=failed)
 
@@ -399,11 +399,7 @@ async def list_documents(
         conditions.append(Document.filename.like(f"%{escape_like(filename)}%", escape="\\"))
 
     # 总数
-    count_q = (
-        select(func.count())
-        .select_from(Document)
-        .where(*conditions)
-    )
+    count_q = select(func.count()).select_from(Document).where(*conditions)
     t0 = time.time()
     total = (await db.execute(count_q)).scalar() or 0
     t_count = time.time() - t0
@@ -428,7 +424,14 @@ async def list_documents(
     t_total = time.time() - t_start
     logger.info(
         "list_documents kb=%d page=%d %s → PERM=%.3fs COUNT=%.3fs SELECT=%.3fs SERIALIZE=%.3fs TOTAL=%.3fs %s",
-        kb_id, page, _pool_status(), t_perm, t_count, t_select, t_serialize, t_total,
+        kb_id,
+        page,
+        _pool_status(),
+        t_perm,
+        t_count,
+        t_select,
+        t_serialize,
+        t_total,
         f"({total} docs, {len(items)} items)" if t_total > 0.3 else "",
     )
 
@@ -449,9 +452,7 @@ async def get_document(
     return _build_document_response(doc)
 
 
-async def _get_doc_in_kb(
-    db: AsyncSession, kb_id: int, doc_id: int
-) -> Document:
+async def _get_doc_in_kb(db: AsyncSession, kb_id: int, doc_id: int) -> Document:
     """按 kb_id + doc_id 查文档，不存在抛 DocumentNotFoundException"""
     result = await db.execute(
         select(Document)
@@ -498,7 +499,7 @@ async def get_document_chunks(
         if settings.DEBUG_CHUNK_FULL:
             preview = full_content
         else:
-            preview = full_content[:settings.CHUNK_PREVIEW_LENGTH]
+            preview = full_content[: settings.CHUNK_PREVIEW_LENGTH]
         items.append(
             DocumentChunkResponse(
                 id=r.id,
@@ -509,9 +510,7 @@ async def get_document_chunks(
             )
         )
 
-    return DocumentChunkListResponse(
-        total=total, page=page, page_size=page_size, items=items
-    )
+    return DocumentChunkListResponse(total=total, page=page, page_size=page_size, items=items)
 
 
 async def delete_document(
@@ -557,8 +556,7 @@ async def reprocess_document(
 
     if not is_terminal(doc.status):
         raise ReprocessFailedException(
-            f"文档 {doc_id} 当前状态为 {doc.status}，"
-            f"仅终态（completed/partial/failed）允许重新处理"
+            f"文档 {doc_id} 当前状态为 {doc.status}，仅终态（completed/partial/failed）允许重新处理"
         )
 
     # 创建新版本（version=next+1）；旧版本继续服务直到发布切换

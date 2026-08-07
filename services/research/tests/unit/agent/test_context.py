@@ -49,14 +49,16 @@ class TestAgentContext:
         assert data["finished"] is False
 
     def test_from_dict_恢复状态(self):
-        ctx = AgentContext.from_dict({
-            "current_phase": "fetch",
-            "completed_phases": ["planning", "search"],
-            "iteration_count": 5,
-            "last_step_id": "step-2",
-            "finished": True,
-            "finish_reason": "done",
-        })
+        ctx = AgentContext.from_dict(
+            {
+                "current_phase": "fetch",
+                "completed_phases": ["planning", "search"],
+                "iteration_count": 5,
+                "last_step_id": "step-2",
+                "finished": True,
+                "finish_reason": "done",
+            }
+        )
         assert ctx.current_phase == "fetch"
         assert ctx.completed_phases == {"planning", "search"}
         assert ctx.iteration_count == 5
@@ -65,9 +67,11 @@ class TestAgentContext:
         assert ctx.finish_reason == "done"
 
     def test_from_dict_非法phase被过滤(self):
-        ctx = AgentContext.from_dict({
-            "completed_phases": ["planning", "invalid_phase"],
-        })
+        ctx = AgentContext.from_dict(
+            {
+                "completed_phases": ["planning", "invalid_phase"],
+            }
+        )
         assert ctx.completed_phases == {"planning"}
 
 

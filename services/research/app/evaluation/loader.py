@@ -72,9 +72,7 @@ async def load_sources_by_fetch_status(
     task_id: str,
 ) -> list[ResearchSource]:
     """加载指定任务的全部 ResearchSource。"""
-    result = await session.execute(
-        select(ResearchSource).where(ResearchSource.task_id == task_id)
-    )
+    result = await session.execute(select(ResearchSource).where(ResearchSource.task_id == task_id))
     return list(result.scalars().all())
 
 
@@ -90,11 +88,7 @@ async def load_task_terminal_status_counts(
 
     result = await session.execute(
         select(ResearchTask.status, func.count(ResearchTask.id))
-        .where(
-            ResearchTask.status.in_(
-                ["completed", "partially_completed", "failed", "canceled"]
-            )
-        )
+        .where(ResearchTask.status.in_(["completed", "partially_completed", "failed", "canceled"]))
         .group_by(ResearchTask.status)
     )
     counts: dict[str, int] = {

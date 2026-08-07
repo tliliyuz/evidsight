@@ -28,29 +28,33 @@ PHASE_ORDER = list(STEP_TYPE_ENUM)
 # 这些错误一旦发生，Pipeline 立即停止，Task 判定 FAILED。
 # 但"致命停止"≠"不可恢复"：recoverable 由异常自身携带，orchestrator 据实传播。
 # 定义来源：ARCHITECTURE.md §5.5 Failure Model + API.md §5.3
-FATAL_STEP_ERROR_CODES = frozenset({
-    "E3101",   # PlanningFailed — LLM 无法拆解研究主题
-    "E3102",   # SearchFailed — Tavily API 完全不可用（全部搜索失败）
-    "E3104",   # SynthesisFailed — LLM 综合失败
-    "E3105",   # RerankFailed — Rerank 输入格式错误或计算失败
-    "E3106",   # EvidenceGraphBuildFailed — Evidence Graph 构建失败
-    "E3107",   # RenderFailed — 报告渲染失败
-    "E3108",   # LLMTimeout — LLM 调用超时
-    "E3109",   # LLMRateLimit — LLM API 限流
-    "E3110",   # LLMAuthFailed — LLM 认证失败（重试无意义）
-    "E3111",   # LLMUnknown — LLM 调用返回未预期错误
-})
+FATAL_STEP_ERROR_CODES = frozenset(
+    {
+        "E3101",  # PlanningFailed — LLM 无法拆解研究主题
+        "E3102",  # SearchFailed — Tavily API 完全不可用（全部搜索失败）
+        "E3104",  # SynthesisFailed — LLM 综合失败
+        "E3105",  # RerankFailed — Rerank 输入格式错误或计算失败
+        "E3106",  # EvidenceGraphBuildFailed — Evidence Graph 构建失败
+        "E3107",  # RenderFailed — 报告渲染失败
+        "E3108",  # LLMTimeout — LLM 调用超时
+        "E3109",  # LLMRateLimit — LLM API 限流
+        "E3110",  # LLMAuthFailed — LLM 认证失败（重试无意义）
+        "E3111",  # LLMUnknown — LLM 调用返回未预期错误
+    }
+)
 
 # ── recoverable=true 的 Step 错误码（API.md §5 recoverable 列）────────────────
 # 这些错误虽导致 Pipeline 致命停止，但用户可在修复外部原因后断点续跑 / 重试。
-RECOVERABLE_STEP_ERROR_CODES = frozenset({
-    "E3102",   # SearchFailed
-    "E3104",   # SynthesisFailed
-    "E3107",   # RenderFailed
-    "E3108",   # LLMTimeout
-    "E3109",   # LLMRateLimit
-    "E3111",   # LLMUnknown
-})
+RECOVERABLE_STEP_ERROR_CODES = frozenset(
+    {
+        "E3102",  # SearchFailed
+        "E3104",  # SynthesisFailed
+        "E3107",  # RenderFailed
+        "E3108",  # LLMTimeout
+        "E3109",  # LLMRateLimit
+        "E3111",  # LLMUnknown
+    }
+)
 
 
 class TaskStateResolver:
@@ -71,9 +75,9 @@ class TaskStateResolver:
 
     def resolve(
         self,
-        task: Any,              # ResearchTask ORM 实例
-        steps: list[Any],       # ResearchStep ORM 实例列表
-        evidence_count: int,    # evidence_items 已收集数量
+        task: Any,  # ResearchTask ORM 实例
+        steps: list[Any],  # ResearchStep ORM 实例列表
+        evidence_count: int,  # evidence_items 已收集数量
     ) -> tuple[str, dict | None]:
         """推导 Task 最终状态。
 
@@ -105,9 +109,7 @@ class TaskStateResolver:
         cancel_requested = bool(getattr(task, "cancel_requested_at", None))
 
         # 2. 是否携带 phase 信息
-        has_phase_info = any(
-            getattr(s, "step_type", None) in PHASE_ORDER for s in steps
-        )
+        has_phase_info = any(getattr(s, "step_type", None) in PHASE_ORDER for s in steps)
 
         if not has_phase_info:
             # 旧测试 / 旧数据：没有 step_type 时回退到原行为
@@ -128,7 +130,10 @@ class TaskStateResolver:
             attempted_phases = self._get_attempted_phases(steps)
             if attempted_phases != set(PHASE_ORDER):
                 return self._evaluate_cancel_or_partial(
-                    task, steps, evidence_count, cancel_requested,
+                    task,
+                    steps,
+                    evidence_count,
+                    cancel_requested,
                 )
 
         attempted_phases = self._get_attempted_phases(steps)
@@ -219,19 +224,13 @@ class TaskStateResolver:
     def _get_completed_phases(steps: list[Any]) -> set[str]:
         """返回所有存在 completed Step 的 phase 集合。"""
         return {
-            s.step_type
-            for s in steps
-            if s.status == "completed" and s.step_type in PHASE_ORDER
+            s.step_type for s in steps if s.status == "completed" and s.step_type in PHASE_ORDER
         }
 
     @staticmethod
     def _get_attempted_phases(steps: list[Any]) -> set[str]:
         """返回所有已经产生 Step 的 phase 集合（无论 Step 状态）。"""
-        return {
-            s.step_type
-            for s in steps
-            if getattr(s, "step_type", None) in PHASE_ORDER
-        }
+        return {s.step_type for s in steps if getattr(s, "step_type", None) in PHASE_ORDER}
 
     @staticmethod
     def _all_steps_terminal(steps: list[Any]) -> bool:
@@ -260,7 +259,8 @@ class TaskStateResolver:
         """
         terminal_statuses = {"completed", "failed", "skipped"}
         return [
-            s for s in steps
+            s
+            for s in steps
             if getattr(s, "step_type", None) in PHASE_ORDER
             and s.step_type not in completed_phases
             and s.status not in terminal_statuses

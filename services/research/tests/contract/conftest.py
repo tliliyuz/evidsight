@@ -1,4 +1,5 @@
 """Research Service 契约测试共享配置：复用 packages/contracts 的 loader。"""
+
 import sys
 from pathlib import Path
 

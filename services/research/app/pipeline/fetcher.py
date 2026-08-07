@@ -57,8 +57,12 @@ async def _fetch_one_url(
     # 初始 URL 安全检查
     safety_error = await check_url_safety(url)
     if safety_error:
-        return {"status": "blocked", "content": None, "content_length": None,
-                "error": f"安全拦截: {safety_error}"}
+        return {
+            "status": "blocked",
+            "content": None,
+            "content_length": None,
+            "error": f"安全拦截: {safety_error}",
+        }
 
     timeout_config = httpx.Timeout(
         connect=10.0,
@@ -84,50 +88,86 @@ async def _fetch_one_url(
                 if 300 <= response.status_code < 400:
                     redirect_count += 1
                     if redirect_count > max_redirects:
-                        return {"status": "blocked", "content": None, "content_length": None,
-                                "error": "重定向次数超过上限"}
+                        return {
+                            "status": "blocked",
+                            "content": None,
+                            "content_length": None,
+                            "error": "重定向次数超过上限",
+                        }
 
                     location = response.headers.get("location")
                     if not location:
-                        return {"status": "blocked", "content": None, "content_length": None,
-                                "error": "重定向响应缺少 Location 头"}
+                        return {
+                            "status": "blocked",
+                            "content": None,
+                            "content_length": None,
+                            "error": "重定向响应缺少 Location 头",
+                        }
 
                     current_url = urljoin(str(response.url), location)
                     safety_error = await check_url_safety(current_url)
                     if safety_error:
-                        return {"status": "blocked", "content": None, "content_length": None,
-                                "error": f"重定向后安全拦截: {safety_error}"}
+                        return {
+                            "status": "blocked",
+                            "content": None,
+                            "content_length": None,
+                            "error": f"重定向后安全拦截: {safety_error}",
+                        }
                     continue
 
                 break
 
             # HTTP 状态码检查
             if response.status_code == 403:
-                return {"status": "blocked", "content": None, "content_length": None,
-                        "error": "HTTP 403 Forbidden"}
+                return {
+                    "status": "blocked",
+                    "content": None,
+                    "content_length": None,
+                    "error": "HTTP 403 Forbidden",
+                }
             if response.status_code == 404:
-                return {"status": "blocked", "content": None, "content_length": None,
-                        "error": "HTTP 404 Not Found"}
+                return {
+                    "status": "blocked",
+                    "content": None,
+                    "content_length": None,
+                    "error": "HTTP 404 Not Found",
+                }
             if response.status_code >= 500:
-                return {"status": "blocked", "content": None, "content_length": None,
-                        "error": f"HTTP {response.status_code} Server Error"}
+                return {
+                    "status": "blocked",
+                    "content": None,
+                    "content_length": None,
+                    "error": f"HTTP {response.status_code} Server Error",
+                }
             if response.status_code != 200:
-                return {"status": "blocked", "content": None, "content_length": None,
-                        "error": f"HTTP {response.status_code}"}
+                return {
+                    "status": "blocked",
+                    "content": None,
+                    "content_length": None,
+                    "error": f"HTTP {response.status_code}",
+                }
 
             # 检查响应体大小（Content-Length 头作为早期拦截）
             content_length_header = response.headers.get("content-length")
             if content_length_header and int(content_length_header) > settings.FETCH_MAX_BODY_SIZE:
-                return {"status": "blocked", "content": None, "content_length": None,
-                        "error": f"响应体过大: {content_length_header} bytes"}
+                return {
+                    "status": "blocked",
+                    "content": None,
+                    "content_length": None,
+                    "error": f"响应体过大: {content_length_header} bytes",
+                }
 
             # 流式读取并限制最大字节数，防止 Content-Length 缺失时内存耗尽
             content_bytes = b""
             async for chunk in response.aiter_bytes(chunk_size=64 * 1024):
                 content_bytes += chunk
                 if len(content_bytes) > settings.FETCH_MAX_BODY_SIZE:
-                    return {"status": "blocked", "content": None, "content_length": None,
-                            "error": f"响应体超过 {settings.FETCH_MAX_BODY_SIZE} bytes 上限"}
+                    return {
+                        "status": "blocked",
+                        "content": None,
+                        "content_length": None,
+                        "error": f"响应体超过 {settings.FETCH_MAX_BODY_SIZE} bytes 上限",
+                    }
 
             try:
                 html_content = content_bytes.decode("utf-8", errors="replace")
@@ -138,22 +178,34 @@ async def _fetch_one_url(
         if retry_on_timeout:
             logger.info("Fetch 超时，重试 1 次: url=%s", url)
             return await _fetch_one_url(url, retry_on_timeout=False)
-        return {"status": "timeout", "content": None, "content_length": None,
-                "error": "请求超时（重试后仍失败）"}
+        return {
+            "status": "timeout",
+            "content": None,
+            "content_length": None,
+            "error": "请求超时（重试后仍失败）",
+        }
     except (httpx.ConnectError, socket.gaierror) as e:
-        return {"status": "dns_error", "content": None, "content_length": None,
-                "error": f"DNS 解析/连接失败: {e}"}
+        return {
+            "status": "dns_error",
+            "content": None,
+            "content_length": None,
+            "error": f"DNS 解析/连接失败: {e}",
+        }
     except Exception as e:
-        return {"status": "blocked", "content": None, "content_length": None,
-                "error": f"请求异常: {e}"}
+        return {
+            "status": "blocked",
+            "content": None,
+            "content_length": None,
+            "error": f"请求异常: {e}",
+        }
 
     # 正文提取（trafilatura）
     if not html_content or not html_content.strip():
-        return {"status": "empty", "content": None, "content_length": None,
-                "error": "响应体为空"}
+        return {"status": "empty", "content": None, "content_length": None, "error": "响应体为空"}
 
     try:
         import trafilatura
+
         extracted = trafilatura.extract(
             html_content,
             output_format="markdown",
@@ -162,19 +214,22 @@ async def _fetch_one_url(
         )
     except Exception as e:
         logger.warning("trafilatura 提取异常: url=%s, error=%s", url, e)
-        return {"status": "empty", "content": None, "content_length": None,
-                "error": f"正文提取异常: {e}"}
+        return {
+            "status": "empty",
+            "content": None,
+            "content_length": None,
+            "error": f"正文提取异常: {e}",
+        }
 
     if not extracted or not extracted.strip():
-        return {"status": "empty", "content": None, "content_length": None,
-                "error": "正文提取为空"}
+        return {"status": "empty", "content": None, "content_length": None, "error": "正文提取为空"}
 
     original_length = len(extracted)
 
     # 内容截断（100KB）
     if original_length > settings.FETCH_MAX_CONTENT_LENGTH:
         # 按字符边界截断（避免截断多字节 UTF-8 字符）
-        truncated = extracted[:settings.FETCH_MAX_CONTENT_LENGTH]
+        truncated = extracted[: settings.FETCH_MAX_CONTENT_LENGTH]
         # 回退到最后一个完整段落
         last_para = truncated.rfind("\n\n")
         if last_para > settings.FETCH_MAX_CONTENT_LENGTH // 2:
@@ -231,12 +286,9 @@ async def run_fetch(
     root_step_id = str(step.id)
 
     # 1. 读取待抓取的 URL 列表
-    stmt = (
-        select(ResearchSource)
-        .where(
-            ResearchSource.task_id == task.id,
-            ResearchSource.fetch_status.is_(None),
-        )
+    stmt = select(ResearchSource).where(
+        ResearchSource.task_id == task.id,
+        ResearchSource.fetch_status.is_(None),
     )
     result = await session.execute(stmt)
     sources: list[ResearchSource] = list(result.scalars().all())
@@ -256,9 +308,10 @@ async def run_fetch(
     if original_source_count > settings.FETCH_MAX_URLS_PER_TASK:
         logger.warning(
             "Fetch URL 数量超过每任务硬限制 %d，截断处理: task_id=%s",
-            settings.FETCH_MAX_URLS_PER_TASK, task_id,
+            settings.FETCH_MAX_URLS_PER_TASK,
+            task_id,
         )
-        sources = sources[:settings.FETCH_MAX_URLS_PER_TASK]
+        sources = sources[: settings.FETCH_MAX_URLS_PER_TASK]
 
     logger.info("Fetch 开始: task_id=%s, urls=%d", task_id, len(sources))
 
@@ -275,18 +328,24 @@ async def run_fetch(
 
         # 创建子 step
         child_step = await _create_fetch_child_step(
-            session, task, step, label=f"抓取: {url[:100]}",
+            session,
+            task,
+            step,
+            label=f"抓取: {url[:100]}",
         )
         child_step_id = str(child_step.id)
 
         # 发射子 step.started
-        await sse_bridge.publish(EVENT_STEP_STARTED, {
-            "step_id": child_step_id,
-            "step_type": "fetch",
-            "label": child_step.label,
-            "url": url,
-            "parent_step_id": root_step_id,
-        })
+        await sse_bridge.publish(
+            EVENT_STEP_STARTED,
+            {
+                "step_id": child_step_id,
+                "step_type": "fetch",
+                "label": child_step.label,
+                "url": url,
+                "parent_step_id": root_step_id,
+            },
+        )
 
         # a. 安全检查
         safety_error = await check_url_safety(url)
@@ -294,11 +353,14 @@ async def run_fetch(
             logger.warning("Fetch URL 安全拦截: url=%s, reason=%s", url, safety_error)
             source.fetch_status = "blocked"
             await _finish_fetch_child_step(session, child_step, "skipped")
-            await sse_bridge.publish(EVENT_STEP_SKIPPED, {
-                "step_id": child_step_id,
-                "url": url,
-                "reason": safety_error,
-            })
+            await sse_bridge.publish(
+                EVENT_STEP_SKIPPED,
+                {
+                    "step_id": child_step_id,
+                    "url": url,
+                    "reason": safety_error,
+                },
+            )
             skipped_safety += 1
             fetched_results.append({"url": url, "status": "blocked", "error": safety_error})
             await session.flush()
@@ -313,7 +375,8 @@ async def run_fetch(
 
         if fetch_result["status"] == "success":
             source.title = _extract_title_from_content(
-                fetch_result.get("content", ""), url,
+                fetch_result.get("content", ""),
+                url,
             )[:500]
             source.domain = _extract_domain(url)[:255]
             source.content = fetch_result["content"]
@@ -327,28 +390,36 @@ async def run_fetch(
                 "content_length": fetch_result["content_length"],
             }
             await _finish_fetch_child_step(session, child_step, "completed", child_output)
-            await sse_bridge.publish(EVENT_STEP_COMPLETED, {
-                "step_id": child_step_id,
-                "url": url,
-                "content_length": fetch_result["content_length"],
-            })
+            await sse_bridge.publish(
+                EVENT_STEP_COMPLETED,
+                {
+                    "step_id": child_step_id,
+                    "url": url,
+                    "content_length": fetch_result["content_length"],
+                },
+            )
         else:
             failed += 1
             await _finish_fetch_child_step(session, child_step, "skipped")
-            await sse_bridge.publish(EVENT_STEP_SKIPPED, {
-                "step_id": child_step_id,
-                "url": url,
-                "reason": fetch_result.get("error", "未知错误"),
-            })
+            await sse_bridge.publish(
+                EVENT_STEP_SKIPPED,
+                {
+                    "step_id": child_step_id,
+                    "url": url,
+                    "reason": fetch_result.get("error", "未知错误"),
+                },
+            )
 
-        fetched_results.append({
-            "url": url,
-            "source_id": source_id,
-            "step_id": child_step_id,
-            "status": fetch_result["status"],
-            "content_length": fetch_result.get("content_length"),
-            "error": fetch_result.get("error"),
-        })
+        fetched_results.append(
+            {
+                "url": url,
+                "source_id": source_id,
+                "step_id": child_step_id,
+                "status": fetch_result["status"],
+                "content_length": fetch_result.get("content_length"),
+                "error": fetch_result.get("error"),
+            }
+        )
 
         await session.flush()
 
@@ -370,7 +441,10 @@ async def run_fetch(
 
     logger.info(
         "Fetch 完成: task_id=%s, success=%d, failed=%d, safety_skip=%d",
-        task_id, successful, failed, skipped_safety,
+        task_id,
+        successful,
+        failed,
+        skipped_safety,
     )
     return output
 

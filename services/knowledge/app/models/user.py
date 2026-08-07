@@ -47,9 +47,13 @@ class User(Base):
     # lazy="raise"：禁止隐式加载关联数据，需显式 selectinload()/joinedload()
     # 避免 get_current_user() 仅检查 status 时意外加载全部关联记录
     knowledge_bases = relationship(
-        "KnowledgeBase", back_populates="owner", lazy="raise",
+        "KnowledgeBase",
+        back_populates="owner",
+        lazy="raise",
     )
     conversations = relationship(
-        "Conversation", back_populates="user", passive_deletes=True,
+        "Conversation",
+        back_populates="user",
+        passive_deletes=True,
         lazy="raise",
     )

@@ -151,7 +151,5 @@ async def delete_doc(
     """删除文档（标记 deleting → Celery 异步清理向量+文件+记录）"""
     kb_id = await resolve_uuid_to_id(db, KnowledgeBase, kb_uuid)
     doc_id = await resolve_uuid_to_id(db, Document, doc_uuid)
-    data = await delete_document(
-        db, kb_id, doc_id, current_user["user_id"], current_user["role"]
-    )
+    data = await delete_document(db, kb_id, doc_id, current_user["user_id"], current_user["role"])
     return {"code": "0", "message": "文档删除任务已提交", "data": data.model_dump()}

@@ -54,15 +54,32 @@ class JSONFormatter(logging.Formatter):
 
         # 附加 extra 字段（排除标准字段和内部字段）
         _standard = {
-            "name", "msg", "args", "created", "relativeCreated",
-            "exc_info", "exc_text", "stack_info", "lineno", "funcName",
-            "pathname", "filename", "module", "levelno", "levelname",
-            "msecs", "thread", "threadName", "processName", "process",
-            "request_id", "user_id", "message",
+            "name",
+            "msg",
+            "args",
+            "created",
+            "relativeCreated",
+            "exc_info",
+            "exc_text",
+            "stack_info",
+            "lineno",
+            "funcName",
+            "pathname",
+            "filename",
+            "module",
+            "levelno",
+            "levelname",
+            "msecs",
+            "thread",
+            "threadName",
+            "processName",
+            "process",
+            "request_id",
+            "user_id",
+            "message",
         }
         extra = {
-            k: v for k, v in record.__dict__.items()
-            if k not in _standard and not k.startswith("_")
+            k: v for k, v in record.__dict__.items() if k not in _standard and not k.startswith("_")
         }
         if extra:
             log_entry["extra"] = extra

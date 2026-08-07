@@ -1,4 +1,5 @@
 """JWT & 密码哈希单元测试"""
+
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt
@@ -125,6 +126,7 @@ class TestJWT:
         """验证 token 过期时间在 now + TTL 附近（UTC）"""
         import time
         from app.config import settings
+
         token = create_access_token(self.PLATFORM_USER_ID, "user")
         payload = decode_access_token(token)
         expected_exp = int(time.time()) + settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60

@@ -158,9 +158,7 @@ def test_release_step_lock_删除对应key(mock_get_redis):
     mock_get_redis.return_value = mock_redis
 
     release_step_lock("task-1", "planning")
-    mock_redis.delete.assert_called_once_with(
-        f"{KEY_PREFIX}:task-1:planning"
-    )
+    mock_redis.delete.assert_called_once_with(f"{KEY_PREFIX}:task-1:planning")
 
 
 @patch("app.tasks.lock.get_redis")
@@ -198,9 +196,7 @@ def test_check_step_lock_锁存在_返回True(mock_get_redis):
     mock_get_redis.return_value = mock_redis
 
     assert check_step_lock("task-1", "planning") is True
-    mock_redis.exists.assert_called_once_with(
-        f"{KEY_PREFIX}:task-1:planning"
-    )
+    mock_redis.exists.assert_called_once_with(f"{KEY_PREFIX}:task-1:planning")
 
 
 @patch("app.tasks.lock.get_redis")
@@ -258,14 +254,17 @@ def test_并发获取_第二个请求被拒绝(mock_get_redis):
 
 def _make_async_mock_set(return_value):
     """构造一个 awaitable mock：set 方法返回 coroutine"""
+
     async def _set(*args, **kwargs):
         return return_value
+
     return _set
 
 
 def _make_async_mock_delete():
     async def _delete(*args, **kwargs):
         return None
+
     return _delete
 
 

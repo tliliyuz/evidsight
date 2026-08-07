@@ -41,9 +41,7 @@ def _pool_status() -> str:
         return "pool[unavailable]"
 
 
-async def _get_owned_conversation(
-    db: AsyncSession, conv_id: int, user_id: int
-) -> Conversation:
+async def _get_owned_conversation(db: AsyncSession, conv_id: int, user_id: int) -> Conversation:
     """获取会话并校验所有权，不存在/非 owner 抛异常"""
     conv = await db.get(Conversation, conv_id)
     if conv is None:
@@ -141,11 +139,7 @@ async def list_conversations(
     t_start = time.time()
 
     # 总数
-    count_q = (
-        select(func.count())
-        .select_from(Conversation)
-        .where(Conversation.user_id == user_id)
-    )
+    count_q = select(func.count()).select_from(Conversation).where(Conversation.user_id == user_id)
     t0 = time.time()
     total = (await db.execute(count_q)).scalar() or 0
     t_count = time.time() - t0
@@ -177,7 +171,13 @@ async def list_conversations(
     t_total = time.time() - t_start
     logger.info(
         "list_conversations user=%d page=%d %s → COUNT=%.3fs SELECT=%.3fs SERIALIZE=%.3fs TOTAL=%.3fs %s",
-        user_id, page, _pool_status(), t_count, t_select, t_serialize, t_total,
+        user_id,
+        page,
+        _pool_status(),
+        t_count,
+        t_select,
+        t_serialize,
+        t_total,
         f"({total} rows, {len(items)} items)" if t_total > 0.5 else "",
     )
 
@@ -207,9 +207,7 @@ async def get_conversation_detail(
 
     # 查询消息（按创建时间正序）
     msg_q = (
-        select(Message)
-        .where(Message.conversation_id == conv_id)
-        .order_by(Message.created_at.asc())
+        select(Message).where(Message.conversation_id == conv_id).order_by(Message.created_at.asc())
     )
     messages = (await db.execute(msg_q)).scalars().all()
 
@@ -238,9 +236,7 @@ async def rename_conversation(
     return resp
 
 
-async def delete_conversation(
-    db: AsyncSession, conv_id: int, user_id: int
-) -> None:
+async def delete_conversation(db: AsyncSession, conv_id: int, user_id: int) -> None:
     """硬删除会话及其全部消息
 
     依赖 messages 表 FK ON DELETE CASCADE 自动级联删除。

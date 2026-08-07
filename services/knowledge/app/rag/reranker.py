@@ -105,7 +105,10 @@ class DashScopeReranker(BaseReranker):
 
         logger.info(
             "DashScopeReranker: 发起重排序请求 model=%s query_len=%d documents=%d top_n=%d",
-            self._model, len(query), input_count, effective_top_n,
+            self._model,
+            len(query),
+            input_count,
+            effective_top_n,
         )
 
         try:
@@ -115,9 +118,7 @@ class DashScopeReranker(BaseReranker):
                 top_n=effective_top_n,
             )
         except Exception:
-            logger.exception(
-                "DashScope Rerank API 调用失败，降级回退到原始 RRF 排序"
-            )
+            logger.exception("DashScope Rerank API 调用失败，降级回退到原始 RRF 排序")
             # 降级：保持原始 RRF 排序，仅截取 top_k
             fallback_results = retrieval_output.results[:top_k]
             return RetrievalOutput(
@@ -130,7 +131,9 @@ class DashScopeReranker(BaseReranker):
 
         logger.info(
             "DashScopeReranker: %d 条输入 → API 精排 → top_%d → %d 条输出",
-            input_count, top_k, len(reranked),
+            input_count,
+            top_k,
+            len(reranked),
         )
 
         return RetrievalOutput(
@@ -177,9 +180,7 @@ class DashScopeReranker(BaseReranker):
         last_error = None
         for attempt in range(self._max_retries):
             try:
-                async with httpx.AsyncClient(
-                    timeout=httpx.Timeout(self._timeout)
-                ) as client:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(self._timeout)) as client:
                     response = await client.post(url, json=payload, headers=headers)
 
                     if response.status_code == 200:
@@ -189,18 +190,22 @@ class DashScopeReranker(BaseReranker):
                     last_error = f"HTTP {response.status_code}: {_safe_truncate(response.text)}"
                     logger.warning(
                         "Rerank API 调用失败 (尝试 %d/%d): %s",
-                        attempt + 1, self._max_retries, last_error,
+                        attempt + 1,
+                        self._max_retries,
+                        last_error,
                     )
 
             except (httpx.RequestError, httpx.TimeoutException, json.JSONDecodeError) as e:
                 last_error = str(e)
                 logger.warning(
                     "Rerank API 网络异常 (尝试 %d/%d): %s",
-                    attempt + 1, self._max_retries, e,
+                    attempt + 1,
+                    self._max_retries,
+                    e,
                 )
 
             if attempt < self._max_retries - 1:
-                delay = 1 * (2 ** attempt)  # 1, 2, 4
+                delay = 1 * (2**attempt)  # 1, 2, 4
                 await asyncio.sleep(delay)
 
         raise RuntimeError(
@@ -232,20 +237,18 @@ class DashScopeReranker(BaseReranker):
         for item in results:
             idx = item.get("index")
             if idx is None:
-                raise ValueError(
-                    f"Rerank API 响应格式异常: 结果项缺少 index 字段: {item}"
-                )
+                raise ValueError(f"Rerank API 响应格式异常: 结果项缺少 index 字段: {item}")
             if not isinstance(idx, int) or idx < 0 or idx >= doc_count:
-                raise ValueError(
-                    f"Rerank API 返回的索引越界: {idx} (文档数: {doc_count})"
-                )
+                raise ValueError(f"Rerank API 返回的索引越界: {idx} (文档数: {doc_count})")
             indices.append(idx)
 
         usage = data.get("usage", {})
         total_tokens = usage.get("total_tokens", 0)
         logger.info(
             "Rerank API 完成: %d 条输入 → %d 条输出, total_tokens=%d",
-            doc_count, len(indices), total_tokens,
+            doc_count,
+            len(indices),
+            total_tokens,
         )
 
         return indices

@@ -44,8 +44,10 @@ class _SessionContextManager:
 
 def _session_factory(db_session):
     """返回一个复用测试 db_session 的 session_factory。"""
+
     def factory():
         return _SessionContextManager(db_session)
+
     return factory
 
 

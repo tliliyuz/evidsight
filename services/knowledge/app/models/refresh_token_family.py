@@ -15,9 +15,7 @@ class RefreshTokenFamily(Base):
 
     __tablename__ = "refresh_token_families"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("users.platform_user_id", ondelete="CASCADE"),

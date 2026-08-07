@@ -61,6 +61,7 @@ class TestJSONFormatter:
             raise ValueError("LLM 调用超时")
         except ValueError:
             import sys
+
             record = logging.LogRecord(
                 name="app.pipeline.planner",
                 level=logging.WARNING,
@@ -163,8 +164,13 @@ class TestRequestIDFilter:
         try:
             filt = RequestIDFilter()
             record = logging.LogRecord(
-                name="test", level=logging.INFO, pathname="t.py", lineno=1,
-                msg="test", args=(), exc_info=None,
+                name="test",
+                level=logging.INFO,
+                pathname="t.py",
+                lineno=1,
+                msg="test",
+                args=(),
+                exc_info=None,
             )
 
             result = filt.filter(record)
@@ -181,8 +187,13 @@ class TestRequestIDFilter:
         # ContextVar 默认值由构造函数的 default 参数决定
         filt = RequestIDFilter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="t.py", lineno=1,
-            msg="test", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="t.py",
+            lineno=1,
+            msg="test",
+            args=(),
+            exc_info=None,
         )
 
         filt.filter(record)
@@ -208,8 +219,13 @@ class TestSetupLogging:
 
         # 输出人类可读日志以验证
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="t.py", lineno=1,
-            msg="开发环境日志", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="t.py",
+            lineno=1,
+            msg="开发环境日志",
+            args=(),
+            exc_info=None,
         )
         output = formatter.format(record)
         assert "开发环境日志" in output

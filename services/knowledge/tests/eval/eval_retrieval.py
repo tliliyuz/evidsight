@@ -45,39 +45,43 @@ logger = logging.getLogger(__name__)
 # 数据结构
 # ============================================================================
 
+
 @dataclass
 class EvalResult:
     """单题评估结果"""
+
     question_id: int
     question: str
     expected_docs: list[str]
-    retrieved_docs: list[str]          # 检索到的文档名（去重）
-    recalled_docs: list[str]            # 命中的期望文档名
-    recall_5: float                     # Recall@5
-    recall_10: float                    # Recall@10
-    mrr: float                          # 第一个相关 chunk 的倒数排名
-    precision_5: float                  # Precision@5
+    retrieved_docs: list[str]  # 检索到的文档名（去重）
+    recalled_docs: list[str]  # 命中的期望文档名
+    recall_5: float  # Recall@5
+    recall_10: float  # Recall@10
+    mrr: float  # 第一个相关 chunk 的倒数排名
+    precision_5: float  # Precision@5
     rank_of_first_relevant: int | None  # 第一个相关结果的排名（1-based）
 
 
 @dataclass
 class RetrieverEvalSummary:
     """单个检索器的评估汇总"""
+
     name: str
     results: list[EvalResult] = field(default_factory=list)
     recall_5_avg: float = 0.0
     recall_10_avg: float = 0.0
     mrr_avg: float = 0.0
     precision_5_avg: float = 0.0
-    recall_5_pass: bool = False   # ≥ 0.85
+    recall_5_pass: bool = False  # ≥ 0.85
     recall_10_pass: bool = False  # ≥ 0.90
-    mrr_pass: bool = False        # ≥ 0.70
+    mrr_pass: bool = False  # ≥ 0.70
     precision_5_pass: bool = False  # ≥ 0.60
 
 
 # ============================================================================
 # 评估引擎
 # ============================================================================
+
 
 class RetrievalEvaluator:
     """离线检索评估器
@@ -115,19 +119,18 @@ class RetrievalEvaluator:
         """从 MySQL 加载 kb_id 下所有文档的 filename → doc_id 映射"""
         async with async_session() as db:
             result = await db.execute(
-                select(Document.id, Document.filename)
-                .where(Document.kb_id == self.kb_id)
+                select(Document.id, Document.filename).where(Document.kb_id == self.kb_id)
             )
             rows = result.all()
 
         self._filename_to_doc_id = {row.filename: row.id for row in rows}
         logger.info(
             "文档映射已加载: kb_id=%d, %d 个文档",
-            self.kb_id, len(self._filename_to_doc_id),
+            self.kb_id,
+            len(self._filename_to_doc_id),
         )
         if self._filename_to_doc_id:
-            logger.debug("文档列表:\n  %s",
-                         "\n  ".join(self._filename_to_doc_id.keys()))
+            logger.debug("文档列表:\n  %s", "\n  ".join(self._filename_to_doc_id.keys()))
 
     def _resolve_expected_doc_ids(self, expected_docs: list[str]) -> list[int]:
         """将期望文档文件名列表解析为 doc_id 列表。
@@ -308,11 +311,11 @@ class RetrievalEvaluator:
                 self.kb_id,
             )
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"  离线检索评估 — kb_id={self.kb_id}, top_k={self.top_k}")
         print(f"  测试集: {len(EVAL_TEST_SET)} 题")
         print(f"  知识库文档数: {len(self._filename_to_doc_id)}")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
         # 向量检索
         print("🔍 运行向量检索评估...")
@@ -352,10 +355,14 @@ class RetrievalEvaluator:
 
             try:
                 vector_out = await self.vector_retriever.search(
-                    item["question"], self.kb_id, top_k=self.top_k,
+                    item["question"],
+                    self.kb_id,
+                    top_k=self.top_k,
                 )
                 bm25_out = await bm25.search(
-                    item["question"], self.kb_id, top_k=self.top_k,
+                    item["question"],
+                    self.kb_id,
+                    top_k=self.top_k,
                 )
                 fused = rrf_fusion(vector_out, bm25_out)
             except Exception:
@@ -410,9 +417,9 @@ def _pass_fail(value: float, target: float) -> str:
 
 def print_summary_table(summaries: dict[str, RetrieverEvalSummary]) -> None:
     """打印汇总对比表"""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("  评估结果汇总")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     header = f"{'指标':<18} {'目标':<10} {'向量检索':<14} {'BM25':<14} {'RRF融合':<14}"
     print(header)
@@ -446,9 +453,9 @@ def print_summary_table(summaries: dict[str, RetrieverEvalSummary]) -> None:
 
 def print_per_question_table(summaries: dict[str, RetrieverEvalSummary]) -> None:
     """打印逐题明细表"""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("  逐题 Recall@5 明细")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     header = f"{'ID':<4} {'难度':<12} {'类型':<16} {'向量':<8} {'BM25':<8} {'RRF':<8} {'期望文档'}"
     print(header)
@@ -459,7 +466,9 @@ def print_per_question_table(summaries: dict[str, RetrieverEvalSummary]) -> None
         bm25_r = summaries["bm25"].results[i]
         rrf_r = summaries["rrf"].results[i]
 
-        expected_str = ", ".join(item["expected_docs"]) if item["expected_docs"] else "(无—超出范围)"
+        expected_str = (
+            ", ".join(item["expected_docs"]) if item["expected_docs"] else "(无—超出范围)"
+        )
         row = (
             f"{item['id']:<4} {item['difficulty']:<12} {item['type']:<16} "
             f"{vec_r.recall_5:.4f}  {bm25_r.recall_5:.4f}  {rrf_r.recall_5:.4f}  "
@@ -472,9 +481,9 @@ def print_per_question_table(summaries: dict[str, RetrieverEvalSummary]) -> None
 
 def print_failure_detail(summaries: dict[str, RetrieverEvalSummary]) -> None:
     """打印未召回期望文档的题目详情"""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("  未完全召回分析（Recall@5 < 1.0 的题目）")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     for retriever_key, label in [("vector", "向量检索"), ("bm25", "BM25"), ("rrf", "RRF 融合")]:
         summary = summaries[retriever_key]
@@ -495,6 +504,7 @@ def print_failure_detail(summaries: dict[str, RetrieverEvalSummary]) -> None:
 # ============================================================================
 # CLI 入口
 # ============================================================================
+
 
 async def main_async(kb_id: int, top_k: int) -> None:
     """异步主流程"""
@@ -523,11 +533,15 @@ def main() -> None:
         description="DocMind 离线检索评估 — BM25 vs 向量 vs RRF 融合对比",
     )
     parser.add_argument(
-        "--kb-id", type=int, required=True,
+        "--kb-id",
+        type=int,
+        required=True,
         help="目标知识库 ID",
     )
     parser.add_argument(
-        "--top-k", type=int, default=10,
+        "--top-k",
+        type=int,
+        default=10,
         help="检索返回数量（默认 10）",
     )
     args = parser.parse_args()

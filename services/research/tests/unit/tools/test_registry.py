@@ -43,11 +43,27 @@ class TestToolRegistry:
         assert "finish_tool" in names
 
     def test_build_default_tool_registry_包含9个tool(self):
-        handlers = {phase: AsyncMock() for phase in ["planning", "search", "fetch", "rerank", "synthesis", "evidence_graph", "render"]}
+        handlers = {
+            phase: AsyncMock()
+            for phase in [
+                "planning",
+                "search",
+                "fetch",
+                "rerank",
+                "synthesis",
+                "evidence_graph",
+                "render",
+            ]
+        }
         reg = build_default_tool_registry(handlers)
         expected_names = [
-            "plan_tool", "search_tool", "fetch_tool", "rerank_tool",
-            "synthesis_tool", "evidence_graph_tool", "render_tool",
+            "plan_tool",
+            "search_tool",
+            "fetch_tool",
+            "rerank_tool",
+            "synthesis_tool",
+            "evidence_graph_tool",
+            "render_tool",
         ]
         for name in expected_names:
             assert reg.get(name) is not None

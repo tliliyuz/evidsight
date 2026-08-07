@@ -33,13 +33,14 @@ CHUNK_SEPARATORS = ["\n\n", "\n", "。", "！", "？", ".", "!", "?", " ", ""]
 
 # Markdown ATX 标题正则（行首 # 开头，支持 # 至 ######）
 # 使用 [^\S\n] 替代 \s：排除换行符，避免将 "# \n内容" 误判为标题
-_MD_HEADING_PATTERN = re.compile(r'^(#{1,6})[^\S\n]+(.+)$', re.MULTILINE)
+_MD_HEADING_PATTERN = re.compile(r"^(#{1,6})[^\S\n]+(.+)$", re.MULTILINE)
 _SYNTHETIC_SECTION_TITLE = "全文"
 
 
 @dataclass
 class SectionResult:
     """单个章节结果"""
+
     title: str
     path: str
     level: int
@@ -53,18 +54,20 @@ class SectionResult:
 @dataclass
 class ChunkResult:
     """单个分块结果"""
+
     content: str
     chunk_index: int
     page_number: int | None
     estimated_tokens: int
     section_index: int | None = None
-    section_title: str | None = None   # 当前所属章节标题（如 "§6.1 SSE 事件格式"）
-    section_path: str | None = None    # 章节路径（如 "RAG Pipeline > §6. SSE 事件流"）
+    section_title: str | None = None  # 当前所属章节标题（如 "§6.1 SSE 事件格式"）
+    section_path: str | None = None  # 章节路径（如 "RAG Pipeline > §6. SSE 事件流"）
 
 
 @dataclass
 class ChunkingResult:
     """分块聚合结果"""
+
     sections: list[SectionResult] = field(default_factory=list)
     chunks: list[ChunkResult] = field(default_factory=list)
     total_chunks: int = 0
@@ -110,7 +113,7 @@ def chunk_document(
     sections: list[SectionResult] = []
     chunks: list[ChunkResult] = []
     for raw_section in raw_sections:
-        section_text = text[raw_section.start_offset:raw_section.end_offset].strip()
+        section_text = text[raw_section.start_offset : raw_section.end_offset].strip()
         if not section_text:
             continue
 
@@ -133,26 +136,30 @@ def chunk_document(
 
             page_number = resolve_page_number(start_offset, page_offset_map)
             estimated_tokens = estimate_tokens(chunk_text)
-            chunks.append(ChunkResult(
-                content=chunk_text,
-                chunk_index=len(chunks),
-                page_number=page_number,
-                estimated_tokens=estimated_tokens,
-                section_index=section_index,
-                section_title=None if raw_section.synthetic else raw_section.title,
-                section_path=None if raw_section.synthetic else raw_section.path,
-            ))
+            chunks.append(
+                ChunkResult(
+                    content=chunk_text,
+                    chunk_index=len(chunks),
+                    page_number=page_number,
+                    estimated_tokens=estimated_tokens,
+                    section_index=section_index,
+                    section_title=None if raw_section.synthetic else raw_section.title,
+                    section_path=None if raw_section.synthetic else raw_section.path,
+                )
+            )
 
-        sections.append(SectionResult(
-            title=raw_section.title,
-            path=raw_section.path,
-            level=raw_section.level,
-            start_offset=raw_section.start_offset,
-            end_offset=raw_section.end_offset,
-            start_chunk_index=start_chunk_index,
-            end_chunk_index=len(chunks) - 1,
-            synthetic=raw_section.synthetic,
-        ))
+        sections.append(
+            SectionResult(
+                title=raw_section.title,
+                path=raw_section.path,
+                level=raw_section.level,
+                start_offset=raw_section.start_offset,
+                end_offset=raw_section.end_offset,
+                start_chunk_index=start_chunk_index,
+                end_chunk_index=len(chunks) - 1,
+                synthetic=raw_section.synthetic,
+            )
+        )
 
     logger.info("文档分块完成: %d 个 section, %d 块", len(sections), len(chunks))
     return ChunkingResult(sections=sections, chunks=chunks, total_chunks=len(chunks))
@@ -191,30 +198,34 @@ def _build_section_ranges(text: str) -> list[SectionResult]:
     """
     headings = detect_sections(text)
     if not headings:
-        return [SectionResult(
-            title=_SYNTHETIC_SECTION_TITLE,
-            path=_SYNTHETIC_SECTION_TITLE,
-            level=1,
-            start_offset=0,
-            end_offset=len(text),
-            start_chunk_index=0,
-            end_chunk_index=0,
-            synthetic=True,
-        )]
+        return [
+            SectionResult(
+                title=_SYNTHETIC_SECTION_TITLE,
+                path=_SYNTHETIC_SECTION_TITLE,
+                level=1,
+                start_offset=0,
+                end_offset=len(text),
+                start_chunk_index=0,
+                end_chunk_index=0,
+                synthetic=True,
+            )
+        ]
 
     sections: list[SectionResult] = []
     first_heading_offset = headings[0][0]
     if text[:first_heading_offset].strip():
-        sections.append(SectionResult(
-            title=_SYNTHETIC_SECTION_TITLE,
-            path=_SYNTHETIC_SECTION_TITLE,
-            level=1,
-            start_offset=0,
-            end_offset=first_heading_offset,
-            start_chunk_index=0,
-            end_chunk_index=0,
-            synthetic=True,
-        ))
+        sections.append(
+            SectionResult(
+                title=_SYNTHETIC_SECTION_TITLE,
+                path=_SYNTHETIC_SECTION_TITLE,
+                level=1,
+                start_offset=0,
+                end_offset=first_heading_offset,
+                start_chunk_index=0,
+                end_chunk_index=0,
+                synthetic=True,
+            )
+        )
 
     level_stack: list[tuple[int, str]] = []
     for i, (offset, level, title) in enumerate(headings):
@@ -222,16 +233,18 @@ def _build_section_ranges(text: str) -> list[SectionResult]:
             level_stack.pop()
         level_stack.append((level, title))
         next_offset = headings[i + 1][0] if i + 1 < len(headings) else len(text)
-        sections.append(SectionResult(
-            title=title,
-            path=" > ".join(item_title for _, item_title in level_stack),
-            level=level,
-            start_offset=offset,
-            end_offset=next_offset,
-            start_chunk_index=0,
-            end_chunk_index=0,
-            synthetic=False,
-        ))
+        sections.append(
+            SectionResult(
+                title=title,
+                path=" > ".join(item_title for _, item_title in level_stack),
+                level=level,
+                start_offset=offset,
+                end_offset=next_offset,
+                start_chunk_index=0,
+                end_chunk_index=0,
+                synthetic=False,
+            )
+        )
 
     return sections
 
@@ -330,7 +343,9 @@ def resolve_section(
 
     # 构建路径：父标题 > 子标题
     path_parts = [t for _, t in level_stack]
-    section_path = " > ".join(path_parts) if len(path_parts) > 1 else path_parts[0] if path_parts else None
+    section_path = (
+        " > ".join(path_parts) if len(path_parts) > 1 else path_parts[0] if path_parts else None
+    )
 
     return section_title, section_path
 
@@ -344,7 +359,7 @@ def estimate_tokens(text: str) -> int:
     if not text:
         return 1
 
-    chinese_chars = sum(1 for c in text if '一' <= c <= '鿿')
+    chinese_chars = sum(1 for c in text if "一" <= c <= "鿿")
     ratio = (
         settings.TOKEN_CHINESE_RATIO
         if chinese_chars / len(text) > settings.TOKEN_CHINESE_THRESHOLD

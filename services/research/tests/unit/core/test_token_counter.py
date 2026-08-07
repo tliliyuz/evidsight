@@ -39,7 +39,7 @@ class TestEstimateTokens:
         text = "你好hello this is a long english sentence"
         result = estimate_tokens(text)
         # 中文占比应 < 30%
-        chinese_chars = sum(1 for c in text if '一' <= c <= '鿿')
+        chinese_chars = sum(1 for c in text if "一" <= c <= "鿿")
         assert chinese_chars / len(text) <= 0.3
         expected = max(1, int(len(text) / 4.0))
         assert result == expected
@@ -48,7 +48,7 @@ class TestEstimateTokens:
         """中文占比恰好 30%（≤ threshold）→ 使用英文 ratio"""
         # 10 字符中 3 个中文 = 30%
         text = "abc一二三efgh"
-        chinese_chars = sum(1 for c in text if '一' <= c <= '鿿')
+        chinese_chars = sum(1 for c in text if "一" <= c <= "鿿")
         assert chinese_chars / len(text) == 0.3
         result = estimate_tokens(text)
         expected = max(1, int(len(text) / 4.0))

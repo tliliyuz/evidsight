@@ -50,28 +50,32 @@ class ToolRegistry:
         schemas: list[dict[str, Any]] = []
         names: set[str] = set()
         for tool in self.list_tools(phase):
-            schemas.append({
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": tool.parameters_schema,
-                },
-            })
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters_schema,
+                    },
+                }
+            )
             names.add(tool.name)
 
         # 全局 Tool 始终可用
         for global_tool in (self._finish_tool, self.get(MemoryTool.name)):
             if global_tool is None or global_tool.name in names:
                 continue
-            schemas.append({
-                "type": "function",
-                "function": {
-                    "name": global_tool.name,
-                    "description": global_tool.description,
-                    "parameters": global_tool.parameters_schema,
-                },
-            })
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": global_tool.name,
+                        "description": global_tool.description,
+                        "parameters": global_tool.parameters_schema,
+                    },
+                }
+            )
             names.add(global_tool.name)
         return schemas
 
@@ -87,6 +91,7 @@ def build_default_tool_registry(phase_handlers: dict[str, Any] | None = None) ->
     """
     if phase_handlers is None:
         from app.services.pipeline_orchestrator import build_default_phase_handlers
+
         phase_handlers = build_default_phase_handlers()
 
     registry = ToolRegistry()
@@ -96,7 +101,11 @@ def build_default_tool_registry(phase_handlers: dict[str, Any] | None = None) ->
         ("fetch_tool", "fetch", "Fetch 阶段：抓取并提取网页正文内容"),
         ("rerank_tool", "rerank", "Rerank 阶段：对候选来源进行粗筛精排，输出 Evidence 列表"),
         ("synthesis_tool", "synthesis", "Synthesis 阶段：跨来源综合、发现冲突与知识缺口"),
-        ("evidence_graph_tool", "evidence_graph", "Evidence Graph 阶段：构建结构化的来源与证据图谱"),
+        (
+            "evidence_graph_tool",
+            "evidence_graph",
+            "Evidence Graph 阶段：构建结构化的来源与证据图谱",
+        ),
         ("render_tool", "render", "Render 阶段：将综合结果渲染为最终 Markdown 报告"),
     ]
 
@@ -104,12 +113,14 @@ def build_default_tool_registry(phase_handlers: dict[str, Any] | None = None) ->
         handler = phase_handlers.get(phase)
         if handler is None:
             continue
-        registry.register(PhaseHandlerTool(
-            name=name,
-            description=description,
-            mapped_phase=phase,
-            handler=handler,
-        ))
+        registry.register(
+            PhaseHandlerTool(
+                name=name,
+                description=description,
+                mapped_phase=phase,
+                handler=handler,
+            )
+        )
 
     # memory_tool 全局可用，无 phase 映射
     registry.register(MemoryTool())

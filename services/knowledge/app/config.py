@@ -4,9 +4,11 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
+
 class Settings(BaseSettings):
     """pydantic-settings 自动从 CWD 读取 .env，将变量名匹配到以下字段。
     这里声明的值仅作「默认值」，.env 中存在同名变量时会被覆盖。"""
+
     model_config = {
         "env_file": Path(__file__).parent.parent / ".env",  # 相对 config.py 定位
         "env_file_encoding": "utf-8",
@@ -69,13 +71,17 @@ class Settings(BaseSettings):
     EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SAMESITE: str = "lax"  # 跨站部署用 none 且必须 Secure
     EVIDSIGHT_PLATFORM_CSRF_COOKIE_NAME: str = "evidsight_csrf"
     EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS: str = ""  # csv string，生产必填（严格 Origin 校验）
-    EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT: bool = False  # M1 迁移期 body refresh_token 兼容入口
+    EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT: bool = (
+        False  # M1 迁移期 body refresh_token 兼容入口
+    )
 
     # ── Service JWT（服务间认证，对齐 CONFIGURATION.md §3）──
     EVIDSIGHT_PLATFORM_SERVICE_JWT_ISSUER: str = "evidsight-platform"
     EVIDSIGHT_PLATFORM_SERVICE_JWT_ALGORITHM: str = "RS256"
     EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE: str = "knowledge-internal"
-    EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: int = Field(default=60, ge=10, le=300)  # 范围 10—300
+    EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: int = Field(
+        default=60, ge=10, le=300
+    )  # 范围 10—300
     EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE: str = ""  # path, sensitive；必填
 
     @property
@@ -124,15 +130,15 @@ class Settings(BaseSettings):
     # ── Chunking ──
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 150
-    TOKEN_CHINESE_RATIO: float = 1.5       # 中文场景 token/字符 比率
-    TOKEN_ENGLISH_RATIO: float = 4.0       # 英文场景 token/字符 比率
-    TOKEN_CHINESE_THRESHOLD: float = 0.3   # 中文占比阈值（超过则使用中文比率）
+    TOKEN_CHINESE_RATIO: float = 1.5  # 中文场景 token/字符 比率
+    TOKEN_ENGLISH_RATIO: float = 4.0  # 英文场景 token/字符 比率
+    TOKEN_CHINESE_THRESHOLD: float = 0.3  # 中文占比阈值（超过则使用中文比率）
 
     # ── Cleaning（M2 RAG 数据清洗）──
-    CLEAN_ENABLED: bool = True               # 总开关：False 则跳过 Clean 阶段（行为与现状一致）
-    CLEAN_STRIP_BOILERPLATE: bool = True     # 页码/页眉页脚去除
+    CLEAN_ENABLED: bool = True  # 总开关：False 则跳过 Clean 阶段（行为与现状一致）
+    CLEAN_STRIP_BOILERPLATE: bool = True  # 页码/页眉页脚去除
     CLEAN_NORMALIZE_WHITESPACE: bool = True  # 空白规整 + 安全折行拼接
-    CLEAN_REPAIR_UNICODE: bool = True        # U+FFFD / mojibake 修复
+    CLEAN_REPAIR_UNICODE: bool = True  # U+FFFD / mojibake 修复
 
     # ── Retrieval ──
     VECTOR_TOP_K: int = 10
@@ -141,16 +147,18 @@ class Settings(BaseSettings):
     BM25_CACHE_TTL: int = 300
     BM25_LOCAL_CACHE_TTL: int = 60  # 进程内 BM25 缓存 TTL（秒）
     BM25_LOCAL_CACHE_MAX_CHUNKS: int = 5000  # 进程内缓存 chunk 数上限，超过则仅用 Redis 缓存
-    BM25_MAX_CHUNKS: int = 10000  # BM25 硬限制：chunk 数超过此值的 KB 完全跳过 BM25 检索（避免 OOM）
+    BM25_MAX_CHUNKS: int = (
+        10000  # BM25 硬限制：chunk 数超过此值的 KB 完全跳过 BM25 检索（避免 OOM）
+    )
     BM25_SECTION_BOOST_FACTOR: float = 2.0  # §8.8 章节号匹配时 BM25 分数加权倍率
 
     # ── RRF ──
     RRF_K: int = 60
 
     # ── CoarseRank（ADR-024）──
-    COARSE_RANK_ENABLED: bool = True       # 粗排开关
-    COARSE_RANK_THRESHOLD: float = 0.05     # 余弦相似度最小阈值
-    COARSE_TOP_K: int = 10                 # 粗排后最大候选数
+    COARSE_RANK_ENABLED: bool = True  # 粗排开关
+    COARSE_RANK_THRESHOLD: float = 0.05  # 余弦相似度最小阈值
+    COARSE_TOP_K: int = 10  # 粗排后最大候选数
 
     # ── Reranker ──
     RERANK_TOP_K: int = 5
@@ -160,7 +168,7 @@ class Settings(BaseSettings):
     PROMPT_MAX_CONTEXT_TOKENS: int = 3000
 
     # ── Query Rewrite ──
-    REWRITE_MIN_LENGTH: int = 2        # Rewrite 结果最短有效长度
+    REWRITE_MIN_LENGTH: int = 2  # Rewrite 结果最短有效长度
     REWRITE_HISTORY_MESSAGES: int = 4  # Rewrite 使用的最近历史消息数
 
     # ── Intent ──
@@ -177,7 +185,7 @@ class Settings(BaseSettings):
     # ── Versioning / Publish（对齐 ADR-007）──
     PUBLISH_LOCK_WAIT_MS: int = 5000  # 检索对 updating KB 的有界等待上限（毫秒）
     STUCK_VERSION_TIMEOUT: int = 300  # 版本非终态停留超时（秒），超时重投递 ingest_version
-    KB_LOCK_TIMEOUT: int = 600        # KB 发布锁（updating/recovering）停留超时（秒），超时恢复
+    KB_LOCK_TIMEOUT: int = 600  # KB 发布锁（updating/recovering）停留超时（秒），超时恢复
 
     # ── Parsing ──
     PARSE_FAILURE_PARTIAL: float = 0.2
@@ -191,13 +199,14 @@ class Settings(BaseSettings):
     BATCH_UPLOAD_MAX_COUNT: int = 50  # 批量上传单次最大文件数
 
     # ── 限流（对齐 ARCHITECTURE.md §13.2）──
-    RATE_LIMIT_ENABLED: bool = True          # 限流开关
-    RATE_LIMIT_CHAT_PER_MINUTE: int = 60     # 聊天接口（2026-06-18 压测推算，见 tests/performance/STRESS_TEST_REPORT.md §3）
-    RATE_LIMIT_UPLOAD_PER_MINUTE: int = 20   # 上传接口
-    RATE_LIMIT_LOGIN_PER_MINUTE: int = 10    # 登录接口
-    RATE_LIMIT_DEFAULT_PER_MINUTE: int = 120 # 其他接口
-    RATE_LIMIT_WINDOW_SECONDS: int = 60      # 窗口大小（秒）
-
+    RATE_LIMIT_ENABLED: bool = True  # 限流开关
+    RATE_LIMIT_CHAT_PER_MINUTE: int = (
+        60  # 聊天接口（2026-06-18 压测推算，见 tests/performance/STRESS_TEST_REPORT.md §3）
+    )
+    RATE_LIMIT_UPLOAD_PER_MINUTE: int = 20  # 上传接口
+    RATE_LIMIT_LOGIN_PER_MINUTE: int = 10  # 登录接口
+    RATE_LIMIT_DEFAULT_PER_MINUTE: int = 120  # 其他接口
+    RATE_LIMIT_WINDOW_SECONDS: int = 60  # 窗口大小（秒）
 
     @property
     def mysql_url(self) -> str:

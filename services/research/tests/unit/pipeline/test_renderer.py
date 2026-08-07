@@ -1,4 +1,5 @@
 """Report Render 阶段单元测试 —— 报告渲染、引用提取、持久化。"""
+
 import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -35,19 +36,21 @@ def _valid_evidence_graph(
         source_map = {s.id: s for s in (sources or [])}
         for i, ev in enumerate(evidence_items):
             source = source_map.get(ev.source_id)
-            items.append({
-                "index": i,
-                "evidence_item_id": ev.id,
-                "source_id": ev.source_id,
-                "source_url": source.url if source else "",
-                "source_title": source.title if source else "无标题",
-                "domain": source.domain if source else "unknown",
-                "content": ev.content or "",
-                "relevance_score": float(ev.relevance_score or 0.0),
-                "cluster_theme": "测试聚类",
-                "consensus_level": "strong",
-                "used_in_sections": [],
-            })
+            items.append(
+                {
+                    "index": i,
+                    "evidence_item_id": ev.id,
+                    "source_id": ev.source_id,
+                    "source_url": source.url if source else "",
+                    "source_title": source.title if source else "无标题",
+                    "domain": source.domain if source else "unknown",
+                    "content": ev.content or "",
+                    "relevance_score": float(ev.relevance_score or 0.0),
+                    "cluster_theme": "测试聚类",
+                    "consensus_level": "strong",
+                    "used_in_sections": [],
+                }
+            )
 
     graph_sources = []
     seen_source_ids = set()
@@ -56,13 +59,15 @@ def _valid_evidence_graph(
         if sid in seen_source_ids:
             continue
         seen_source_ids.add(sid)
-        graph_sources.append({
-            "id": sid,
-            "url": item["source_url"],
-            "title": item["source_title"],
-            "domain": item["domain"],
-            "evidence_count": 1,
-        })
+        graph_sources.append(
+            {
+                "id": sid,
+                "url": item["source_url"],
+                "title": item["source_title"],
+                "domain": item["domain"],
+                "evidence_count": 1,
+            }
+        )
 
     return {
         "task_id": "task-render-001",
@@ -273,7 +278,11 @@ class TestRenderSuccess:
         assert output["citation_issues"] is False
 
         # 验证 report_sections 写入
-        stmt = select(ReportSection).where(ReportSection.task_id == task.id).order_by(ReportSection.sort_order)
+        stmt = (
+            select(ReportSection)
+            .where(ReportSection.task_id == task.id)
+            .order_by(ReportSection.sort_order)
+        )
         result = await db_session.execute(stmt)
         report_sections = list(result.scalars().all())
         assert len(report_sections) == 2
@@ -294,8 +303,12 @@ class TestRenderSuccess:
         assert evidence_items[1].used_in_sections == ["1"]
         assert evidence_items[2].used_in_sections == ["2"]
 
-        progress_calls = [c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_PROGRESS]
-        completed_calls = [c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_COMPLETED]
+        progress_calls = [
+            c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_PROGRESS
+        ]
+        completed_calls = [
+            c for c in sse.publish.await_args_list if c.args[0] == EVENT_STEP_COMPLETED
+        ]
         assert len(progress_calls) == 2
         assert "渲染报告" in progress_calls[0].args[1]["label"]
         assert "报告渲染完成" in progress_calls[1].args[1]["label"]
@@ -363,7 +376,11 @@ class TestRenderSuccess:
 
         assert output["citation_issues"] is True
 
-        stmt = select(ReportSection).where(ReportSection.task_id == task.id).order_by(ReportSection.sort_order)
+        stmt = (
+            select(ReportSection)
+            .where(ReportSection.task_id == task.id)
+            .order_by(ReportSection.sort_order)
+        )
         result = await db_session.execute(stmt)
         report_sections = list(result.scalars().all())
         section_ids = [s.id for s in report_sections]
@@ -372,7 +389,9 @@ class TestRenderSuccess:
         associations = list(result.scalars().all())
         section_evidence_counts: dict[int, int] = {}
         for se in associations:
-            section_evidence_counts[se.section_id] = section_evidence_counts.get(se.section_id, 0) + 1
+            section_evidence_counts[se.section_id] = (
+                section_evidence_counts.get(se.section_id, 0) + 1
+            )
         assert section_evidence_counts.get(report_sections[0].id, 0) == 1
         assert section_evidence_counts.get(report_sections[1].id, 0) == 0
 
@@ -393,7 +412,13 @@ class TestRenderFailure:
 
         with patch("app.pipeline.renderer.chat_completion") as mock_llm:
             mock_llm.side_effect = [
-                LLMResult(content="不是 JSON", reasoning_content="", prompt_tokens=100, completion_tokens=50, total_tokens=150),
+                LLMResult(
+                    content="不是 JSON",
+                    reasoning_content="",
+                    prompt_tokens=100,
+                    completion_tokens=50,
+                    total_tokens=150,
+                ),
                 _mock_llm_report([{"heading": "1. 测试", "content": "正文[来源0]。"}]),
             ]
             output = await run_render(task, render_step, db_session, sse)
@@ -518,7 +543,10 @@ class TestCitationNormalization:
     def test_合并引用拆分为独立锚点(self):
         """[来源0,1] / [来源0, 1] / [来源0，1] 拆为 [来源0][来源1]。"""
         content = "参见[来源0,1]与[来源0，1]以及[来源0, 1]。"
-        assert normalize_citation_markup(content) == "参见[来源0][来源1]与[来源0][来源1]以及[来源0][来源1]。"
+        assert (
+            normalize_citation_markup(content)
+            == "参见[来源0][来源1]与[来源0][来源1]以及[来源0][来源1]。"
+        )
 
     def test_短横线连接引用拆分为独立锚点(self):
         """[来源0-1] 拆为 [来源0][来源1]。"""

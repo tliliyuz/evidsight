@@ -2,6 +2,7 @@
 
 提供数据工厂、mock 上下文、断言辅助等可复用工具。
 """
+
 import contextlib
 import json
 from contextlib import ExitStack
@@ -20,7 +21,12 @@ from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
 from app.pipeline.reranker import Evidence
-from app.pipeline.synthesizer import ConflictPosition, SynthesisCluster, SynthesisConflict, SynthesisNotes
+from app.pipeline.synthesizer import (
+    ConflictPosition,
+    SynthesisCluster,
+    SynthesisConflict,
+    SynthesisNotes,
+)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -57,7 +63,9 @@ STEP_TYPE_TO_PHASE = {v: k for k, v in PHASE_TO_STEP_TYPE.items()}
 # ═══════════════════════════════════════════════════════════════
 
 
-def _make_llm_result(content: str, prompt_tokens: int = 100, completion_tokens: int = 50) -> LLMResult:
+def _make_llm_result(
+    content: str, prompt_tokens: int = 100, completion_tokens: int = 50
+) -> LLMResult:
     """构造 LLMResult。"""
     return LLMResult(
         content=content,
@@ -70,18 +78,22 @@ def _make_llm_result(content: str, prompt_tokens: int = 100, completion_tokens: 
 
 def _valid_planning_json() -> str:
     """返回有效的 Planning 输出 JSON（需满足 3-5 个子问题校验）。"""
-    return json.dumps({
-        "sub_questions": [
-            "量子计算对 RSA/ECC 的具体威胁",
-            "NIST 后量子密码标准化最新进展",
-            "中国在量子安全通信领域的政策与布局",
-        ],
-        "rationale": "从技术威胁、标准应对、政策布局三维度拆解",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "sub_questions": [
+                "量子计算对 RSA/ECC 的具体威胁",
+                "NIST 后量子密码标准化最新进展",
+                "中国在量子安全通信领域的政策与布局",
+            ],
+            "rationale": "从技术威胁、标准应对、政策布局三维度拆解",
+        },
+        ensure_ascii=False,
+    )
 
 
 def _build_tavily_side_effect():
     """构造 Search 阶段 Tavily Mock side_effect。"""
+
     async def _side_effect(query: str, api_key: str) -> dict:
         prefix = "threat" if "RSA" in query or "ECC" in query else "standard"
         return {
@@ -94,6 +106,7 @@ def _build_tavily_side_effect():
                 for i in range(1, 3)
             ],
         }
+
     return _side_effect
 
 
@@ -104,27 +117,50 @@ def _build_fetch_side_effect(*, failing_url: str | None = None, fail_status: str
         failing_url: 指定要失败的 URL，返回 fail_status 对应的状态。
         fail_status: 失败状态，可选 timeout / blocked / empty / dns_error。
     """
+
     async def _side_effect(url: str) -> dict:
         if failing_url and url == failing_url:
             if fail_status == "timeout":
-                return {"status": "timeout", "content": None, "content_length": None, "error": "请求超时"}
+                return {
+                    "status": "timeout",
+                    "content": None,
+                    "content_length": None,
+                    "error": "请求超时",
+                }
             if fail_status == "blocked":
-                return {"status": "blocked", "content": None, "content_length": None, "error": "HTTP 403"}
+                return {
+                    "status": "blocked",
+                    "content": None,
+                    "content_length": None,
+                    "error": "HTTP 403",
+                }
             if fail_status == "empty":
-                return {"status": "empty", "content": None, "content_length": None, "error": "正文为空"}
+                return {
+                    "status": "empty",
+                    "content": None,
+                    "content_length": None,
+                    "error": "正文为空",
+                }
             if fail_status == "dns_error":
-                return {"status": "dns_error", "content": None, "content_length": None, "error": "DNS 失败"}
+                return {
+                    "status": "dns_error",
+                    "content": None,
+                    "content_length": None,
+                    "error": "DNS 失败",
+                }
         return {
             "status": "success",
             "content": f"# {url.split('/')[-1]} 标题\n\n这是关于 {url} 的正文，"
-                       f"包含量子计算和网络安全相关信息，用于测试报告生成。",
+            f"包含量子计算和网络安全相关信息，用于测试报告生成。",
             "content_length": 180,
         }
+
     return _side_effect
 
 
 def _build_rerank_side_effect(db_session: AsyncSession, task_id: str):
     """构造 Rerank 阶段 Mock side_effect：基于真实 DB 中的 ResearchSource 生成 Evidence。"""
+
     async def _side_effect(topic: str, task_type: str, sub_questions: list[str], candidates: list):
         result = await db_session.execute(
             select(ResearchSource).where(
@@ -135,26 +171,32 @@ def _build_rerank_side_effect(db_session: AsyncSession, task_id: str):
         sources = list(result.scalars().all())
         evidence_list = []
         for i, source in enumerate(sources):
-            evidence_list.append(Evidence(
-                source_id=source.id,
-                url=source.url,
-                title=source.title or "",
-                domain=source.domain or "",
-                content=source.content or "",
-                relevance_score=round(0.9 - i * 0.05, 3),
-                bm25_score=1.0,
-                sub_question_index=0,
-                word_count=len(source.content or ""),
-                rationale="与问题高度相关",
-            ))
+            evidence_list.append(
+                Evidence(
+                    source_id=source.id,
+                    url=source.url,
+                    title=source.title or "",
+                    domain=source.domain or "",
+                    content=source.content or "",
+                    relevance_score=round(0.9 - i * 0.05, 3),
+                    bm25_score=1.0,
+                    sub_question_index=0,
+                    word_count=len(source.content or ""),
+                    rationale="与问题高度相关",
+                )
+            )
         evidence_list.sort(key=lambda e: e.relevance_score, reverse=True)
         return evidence_list, 500, 200, 0
+
     return _side_effect
 
 
 def _build_synthesis_side_effect():
     """构造 Synthesis 阶段 Mock side_effect。"""
-    async def _side_effect(topic: str, task_type: str, evidence_items_formatted: str, evidence_count: int):
+
+    async def _side_effect(
+        topic: str, task_type: str, evidence_items_formatted: str, evidence_count: int
+    ):
         notes = SynthesisNotes(
             clusters=[
                 SynthesisCluster(
@@ -183,29 +225,35 @@ def _build_synthesis_side_effect():
             overall_assessment="证据质量较高，但缺少具体量化数据。",
         )
         return notes, 1000, 500, 0
+
     return _side_effect
 
 
 def _build_render_side_effect():
     """构造 Render 阶段 Mock side_effect：返回包含 [来源N] 引用的报告。"""
+
     async def _side_effect(messages: list[dict[str, str]]) -> tuple[str, LLMResult, int]:
-        raw_text = json.dumps({
-            "sections": [
-                {
-                    "heading": "1. 概述",
-                    "content": "量子计算对 RSA 构成威胁[来源0]，NIST 推进后量子密码标准化[来源1]。",
-                },
-                {
-                    "heading": "2. 威胁分析",
-                    "content": "Shor 算法可分解大整数[来源0]，威胁现有公钥体系[来源2]。",
-                },
-                {
-                    "heading": "3. 应对策略",
-                    "content": "推进后量子密码迁移是当务之急[来源1]，需制定分阶段路线图[来源2]。",
-                },
-            ],
-        }, ensure_ascii=False)
+        raw_text = json.dumps(
+            {
+                "sections": [
+                    {
+                        "heading": "1. 概述",
+                        "content": "量子计算对 RSA 构成威胁[来源0]，NIST 推进后量子密码标准化[来源1]。",
+                    },
+                    {
+                        "heading": "2. 威胁分析",
+                        "content": "Shor 算法可分解大整数[来源0]，威胁现有公钥体系[来源2]。",
+                    },
+                    {
+                        "heading": "3. 应对策略",
+                        "content": "推进后量子密码迁移是当务之急[来源1]，需制定分阶段路线图[来源2]。",
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        )
         return raw_text, _make_llm_result(raw_text, prompt_tokens=2000, completion_tokens=1500), 0
+
     return _side_effect
 
 
@@ -485,7 +533,9 @@ async def _seed_failed_task(
         recoverable: 是否可恢复。
         error_code: 失败错误码。
     """
-    task = await _seed_task(db_session, status="failed", recoverable=recoverable, error_code=error_code)
+    task = await _seed_task(
+        db_session, status="failed", recoverable=recoverable, error_code=error_code
+    )
     last_completed_step_id = None
     last_phase = None
     completed_idx = -1
@@ -529,13 +579,17 @@ async def _seed_failed_task(
             # 为 completed 阶段补充真实下游数据
             if step_type == "fetch":
                 # fetch 完成后应存在带内容的 source（Evidence 在 rerank 阶段创建）
-                sources, _ = await _seed_sources_and_evidence(db_session, task.id, count=4, create_evidence=False)
+                sources, _ = await _seed_sources_and_evidence(
+                    db_session, task.id, count=4, create_evidence=False
+                )
                 # 将 source 与 fetch step 关联（rerank 读取 source 表，不依赖 step_id）
                 for src in sources:
                     src.fetched_at = now
             elif step_type == "rerank":
                 # rerank 完成后应存在 EvidenceItem
-                _, evidence_items = await _seed_sources_and_evidence(db_session, task.id, count=4, step_id=step.id)
+                _, evidence_items = await _seed_sources_and_evidence(
+                    db_session, task.id, count=4, step_id=step.id
+                )
             elif step_type == "synthesis":
                 # synthesis 完成后 evidence_graph 会读取 synthesis output
                 pass
@@ -677,11 +731,15 @@ async def _seed_crash_task(
         }
 
         if step_type == "fetch":
-            sources, _ = await _seed_sources_and_evidence(db_session, task.id, count=4, create_evidence=False)
+            sources, _ = await _seed_sources_and_evidence(
+                db_session, task.id, count=4, create_evidence=False
+            )
             for src in sources:
                 src.fetched_at = now
         elif step_type == "rerank":
-            _, evidence_items = await _seed_sources_and_evidence(db_session, task.id, count=4, step_id=step.id)
+            _, evidence_items = await _seed_sources_and_evidence(
+                db_session, task.id, count=4, step_id=step.id
+            )
 
     # crash 发生在 search 后，fetch 阶段会被重新执行；需要预置待抓取的 source
     if crash_after == "search":
@@ -693,7 +751,8 @@ async def _seed_crash_task(
             task.id,
             next_step_type,
             status="running",
-            started_at=datetime.now(timezone.utc) - timedelta(seconds=started_seconds_ago - (crash_idx + 1) * 10),
+            started_at=datetime.now(timezone.utc)
+            - timedelta(seconds=started_seconds_ago - (crash_idx + 1) * 10),
         )
 
     execution_context = {
@@ -751,8 +810,10 @@ class _SessionContextManager:
 
 def _session_factory(db_session: AsyncSession):
     """返回一个复用测试 db_session 的 session_factory。"""
+
     def factory():
         return _SessionContextManager(db_session)
+
     return factory
 
 
@@ -813,11 +874,22 @@ def _mock_pipeline_external(
         raise _FailingPhaseException(fail_at)
 
     patches = [
-        patch("app.pipeline.planner.chat_completion", return_value=_make_llm_result(_valid_planning_json())),
+        patch(
+            "app.pipeline.planner.chat_completion",
+            return_value=_make_llm_result(_valid_planning_json()),
+        ),
         patch("app.pipeline.searcher._call_tavily", side_effect=_build_tavily_side_effect()),
-        patch("app.pipeline.fetcher._fetch_one_url", side_effect=_build_fetch_side_effect(failing_url=failing_url)),
-        patch("app.pipeline.reranker._llm_rerank", side_effect=_build_rerank_side_effect(db_session, task_id)),
-        patch("app.pipeline.synthesizer._llm_synthesize", side_effect=_build_synthesis_side_effect()),
+        patch(
+            "app.pipeline.fetcher._fetch_one_url",
+            side_effect=_build_fetch_side_effect(failing_url=failing_url),
+        ),
+        patch(
+            "app.pipeline.reranker._llm_rerank",
+            side_effect=_build_rerank_side_effect(db_session, task_id),
+        ),
+        patch(
+            "app.pipeline.synthesizer._llm_synthesize", side_effect=_build_synthesis_side_effect()
+        ),
         patch("app.pipeline.renderer._call_llm_render", side_effect=_build_render_side_effect()),
         # URL 安全检查：直接放行，避免测试中进行真实 DNS 解析
         patch("app.pipeline.fetcher.check_url_safety", new_callable=AsyncMock, return_value=None),
@@ -914,12 +986,16 @@ async def _assert_sources_count(db_session: AsyncSession, task_id: str, expected
     assert count == expected, f"成功 Source 数量不匹配: expected={expected}, actual={count}"
 
 
-async def _assert_report_sections_exist(db_session: AsyncSession, task_id: str, expected_count: int) -> None:
+async def _assert_report_sections_exist(
+    db_session: AsyncSession, task_id: str, expected_count: int
+) -> None:
     """验证 ReportSection 已写入。"""
     count = await db_session.scalar(
         select(func.count()).select_from(ReportSection).where(ReportSection.task_id == task_id)
     )
-    assert count == expected_count, f"ReportSection 数量不匹配: expected={expected_count}, actual={count}"
+    assert count == expected_count, (
+        f"ReportSection 数量不匹配: expected={expected_count}, actual={count}"
+    )
 
     if expected_count > 0:
         se_count = await db_session.scalar(

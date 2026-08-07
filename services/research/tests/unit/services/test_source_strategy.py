@@ -5,6 +5,7 @@ DATABASE.md §5.1/5.2（research_tasks.source_strategy + research_task_knowledge
 
 SDD 门禁：RED —— 目标行为（来源策略字段、校验与持久化）当前缺失。
 """
+
 import uuid
 
 import pytest

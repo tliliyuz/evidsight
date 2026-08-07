@@ -17,13 +17,14 @@ class SearchResult:
     - source_id 指向 research_sources.id
     - matched_sentence / matched_sentence_score 由 sentence_matcher 填充
     """
-    source_id: int                      # 来源 ID（对应 research_sources.id）
-    content: str                        # 内容文本
-    score: float                        # 相关性分数
-    url: str = ""                       # 来源 URL
-    title: str = ""                     # 来源标题
-    matched_sentence: str | None = None           # 最佳匹配句（句级 BM25 定位结果）
-    matched_sentence_score: float | None = None   # 最佳匹配句 BM25 分数
+
+    source_id: int  # 来源 ID（对应 research_sources.id）
+    content: str  # 内容文本
+    score: float  # 相关性分数
+    url: str = ""  # 来源 URL
+    title: str = ""  # 来源标题
+    matched_sentence: str | None = None  # 最佳匹配句（句级 BM25 定位结果）
+    matched_sentence_score: float | None = None  # 最佳匹配句 BM25 分数
 
 
 @dataclass
@@ -32,6 +33,7 @@ class SearchOutput:
 
     不含 stats（KB 检索性能统计）和 doc_name/section_title 等文档库特有字段。
     """
+
     results: list[SearchResult] = field(default_factory=list)
     total: int = 0
-    fusion_method: str | None = None    # 融合算法名称（如 "rrf"），由 fusion.py 设置
+    fusion_method: str | None = None  # 融合算法名称（如 "rrf"），由 fusion.py 设置

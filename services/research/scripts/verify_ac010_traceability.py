@@ -42,33 +42,22 @@ TERMINAL_STATUSES = {"completed", "partially_completed"}
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="AC-010 Evidence 可追溯性验证")
     parser.add_argument("--task-id", help="单个任务 UUID")
-    parser.add_argument("--all-completed", action="store_true",
-                        help="校验全部已发布报告的任务")
-    parser.add_argument("--limit", type=int, default=50,
-                        help="--all-completed 时最多任务数（默认 50）")
+    parser.add_argument("--all-completed", action="store_true", help="校验全部已发布报告的任务")
+    parser.add_argument(
+        "--limit", type=int, default=50, help="--all-completed 时最多任务数（默认 50）"
+    )
     return parser.parse_args()
 
 
-async def _load_source_map(
-    session: AsyncSession, task_id: str
-) -> dict[int, dict]:
+async def _load_source_map(session: AsyncSession, task_id: str) -> dict[int, dict]:
     """research_sources.id -> {url, fetched_at}（web Evidence 的迁移态来源快照）。"""
-    result = await session.execute(
-        select(ResearchSource).where(ResearchSource.task_id == task_id)
-    )
+    result = await session.execute(select(ResearchSource).where(ResearchSource.task_id == task_id))
     sources = list(result.scalars().all())
-    return {
-        s.id: {"url": s.url, "fetched_at": s.fetched_at}
-        for s in sources
-    }
+    return {s.id: {"url": s.url, "fetched_at": s.fetched_at} for s in sources}
 
 
-async def _load_evidence_dicts(
-    session: AsyncSession, task_id: str
-) -> list[dict]:
-    result = await session.execute(
-        select(EvidenceItem).where(EvidenceItem.task_id == task_id)
-    )
+async def _load_evidence_dicts(session: AsyncSession, task_id: str) -> list[dict]:
+    result = await session.execute(select(EvidenceItem).where(EvidenceItem.task_id == task_id))
     items = list(result.scalars().all())
     source_map = await _load_source_map(session, task_id)
     rows: list[dict] = []
@@ -98,20 +87,36 @@ async def _load_evidence_dicts(
 async def _evaluate_task(session: AsyncSession, task_id: str) -> dict:
     task = await session.get(ResearchTask, task_id)
     if task is None:
-        return {"task_id": task_id, "ok": False, "reason": "任务不存在",
-                "traceable": 0, "total": 0, "rate": 0.0}
+        return {
+            "task_id": task_id,
+            "ok": False,
+            "reason": "任务不存在",
+            "traceable": 0,
+            "total": 0,
+            "rate": 0.0,
+        }
     if task.status not in TERMINAL_STATUSES:
-        return {"task_id": task_id, "ok": False,
-                "reason": f"任务非终态（{task.status}）",
-                "traceable": 0, "total": 0, "rate": 0.0}
+        return {
+            "task_id": task_id,
+            "ok": False,
+            "reason": f"任务非终态（{task.status}）",
+            "traceable": 0,
+            "total": 0,
+            "rate": 0.0,
+        }
 
     evidence = await _load_evidence_dicts(session, task_id)
     traceable, total, problems = check_evidence_traceability(evidence)
     ok = total > 0 and traceable == total
     reason = "; ".join(problems) if not ok else ""
-    return {"task_id": task_id, "ok": ok, "reason": reason,
-            "traceable": traceable, "total": total,
-            "rate": (traceable / total) if total else 0.0}
+    return {
+        "task_id": task_id,
+        "ok": ok,
+        "reason": reason,
+        "traceable": traceable,
+        "total": total,
+        "rate": (traceable / total) if total else 0.0,
+    }
 
 
 async def _collect_task_ids(session: AsyncSession, args: argparse.Namespace) -> list[str]:
@@ -151,12 +156,12 @@ async def run() -> int:
     print(f"  Evidence 总数: {total}，可追溯: {traceable}")
     print(f"  追溯率: {rate:.2%}（门槛 100%）")
     for r in failed:
-        print(f"  - {r['task_id']}: {r['traceable']}/{r['total']} "
-              f"({r['rate']:.2%}) {r['reason']}")
+        print(f"  - {r['task_id']}: {r['traceable']}/{r['total']} ({r['rate']:.2%}) {r['reason']}")
 
     try:
         commit = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], text=True,
+            ["git", "rev-parse", "--short", "HEAD"],
+            text=True,
         ).strip()
     except Exception:  # noqa: BLE001
         commit = "unknown"

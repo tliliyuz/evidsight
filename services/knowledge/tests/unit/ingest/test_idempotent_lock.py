@@ -45,9 +45,7 @@ class TestAcquireIdempotencyLock:
         with patch("app.ingest.lock.get_redis", return_value=mock_redis):
             acquire_idempotency_lock(5, "ingest")
 
-        mock_redis.set.assert_called_once_with(
-            "doc_lock:5", "locked", ex=600, nx=True
-        )
+        mock_redis.set.assert_called_once_with("doc_lock:5", "locked", ex=600, nx=True)
 
     def test_获取成功_自定义_TTL(self):
         mock_redis = MagicMock()
@@ -56,9 +54,7 @@ class TestAcquireIdempotencyLock:
         with patch("app.ingest.lock.get_redis", return_value=mock_redis):
             acquire_idempotency_lock(1, "ingest", ttl=300)
 
-        mock_redis.set.assert_called_once_with(
-            "doc_lock:1", "locked", ex=300, nx=True
-        )
+        mock_redis.set.assert_called_once_with("doc_lock:1", "locked", ex=300, nx=True)
 
     def test_锁已存在_返回_False(self):
         """重复入队场景：SET NX 因 key 已存在而返回 None/False"""
@@ -77,9 +73,7 @@ class TestAcquireIdempotencyLock:
         with patch("app.ingest.lock.get_redis", return_value=mock_redis):
             acquire_idempotency_lock(1, "delete")
 
-        mock_redis.set.assert_called_once_with(
-            "doc_lock:1", "locked", ex=600, nx=True
-        )
+        mock_redis.set.assert_called_once_with("doc_lock:1", "locked", ex=600, nx=True)
 
 
 class TestReleaseIdempotencyLock:
@@ -115,9 +109,7 @@ class TestReleaseIdempotencyLock:
 
             # 再获取
             assert acquire_idempotency_lock(1, "ingest") is True
-            mock_redis.set.assert_called_once_with(
-                "doc_lock:1", "locked", ex=600, nx=True
-            )
+            mock_redis.set.assert_called_once_with("doc_lock:1", "locked", ex=600, nx=True)
 
 
 class TestCheckIdempotencyLock:

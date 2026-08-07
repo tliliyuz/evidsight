@@ -1,4 +1,5 @@
 """Fetcher 单元测试 — HTTP 抓取、trafilatura 提取、SSRF 防护、ResearchSource 更新。"""
+
 import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -168,13 +169,16 @@ def _make_fetch_success_result() -> dict:
 
 
 def _make_fetch_timeout_result() -> dict:
-    return {"status": "timeout", "content": None, "content_length": None,
-            "error": "请求超时"}
+    return {"status": "timeout", "content": None, "content_length": None, "error": "请求超时"}
 
 
 def _make_fetch_blocked_result(status_code: int = 403) -> dict:
-    return {"status": "blocked", "content": None, "content_length": None,
-            "error": f"HTTP {status_code}"}
+    return {
+        "status": "blocked",
+        "content": None,
+        "content_length": None,
+        "error": f"HTTP {status_code}",
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -201,27 +205,35 @@ class TestRunFetchSuccess:
         self.db_session.execute.return_value = mock_result
 
         async def _count_success(s, task_id):
-            return sum(
-                1 for src in mock_sources
-                if getattr(src, "fetch_status", None) == "success"
-            )
+            return sum(1 for src in mock_sources if getattr(src, "fetch_status", None) == "success")
 
-        with patch("app.pipeline.fetcher._fetch_one_url") as mock_fetch, \
-             patch(
-                 "app.pipeline.fetcher._count_task_successful_sources",
-                 new=_count_success,
-             ):
+        with (
+            patch("app.pipeline.fetcher._fetch_one_url") as mock_fetch,
+            patch(
+                "app.pipeline.fetcher._count_task_successful_sources",
+                new=_count_success,
+            ),
+        ):
             mock_fetch.return_value = _make_fetch_success_result()
 
             output = await run_fetch(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert output["successful"] == 2
             assert output["failed"] == 0
             assert self.task.total_sources == 2
-            assert mock_sources[0].content == "# Test Article\n\nThis is the content of the test article."
-            assert mock_sources[1].content == "# Test Article\n\nThis is the content of the test article."
+            assert (
+                mock_sources[0].content
+                == "# Test Article\n\nThis is the content of the test article."
+            )
+            assert (
+                mock_sources[1].content
+                == "# Test Article\n\nThis is the content of the test article."
+            )
 
     @pytest.mark.asyncio
     async def test_无待抓取URL_提前返回(self):
@@ -230,7 +242,10 @@ class TestRunFetchSuccess:
         self.db_session.execute = AsyncMock(return_value=mock_result)
 
         output = await run_fetch(
-            self.task, self.step, self.db_session, self.sse_bridge,
+            self.task,
+            self.step,
+            self.db_session,
+            self.sse_bridge,
         )
 
         assert output["successful"] == 0
@@ -247,12 +262,13 @@ class TestRunFetchSuccess:
             mock_fetch.return_value = _make_fetch_success_result()
 
             await run_fetch(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
-            event_types = [
-                c[0][0] for c in self.sse_bridge.publish.await_args_list
-            ]
+            event_types = [c[0][0] for c in self.sse_bridge.publish.await_args_list]
             assert "step.started" in event_types
             assert "step.completed" in event_types
 
@@ -270,7 +286,10 @@ class TestRunFetchSuccess:
 
             original_total = self.task.total_steps
             await run_fetch(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert self.task.total_steps == original_total
@@ -293,7 +312,10 @@ class TestRunFetchSuccess:
             }
 
             output = await run_fetch(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert output["successful"] == 1
@@ -322,7 +344,10 @@ class TestRunFetchFailure:
             mock_fetch.return_value = _make_fetch_timeout_result()
 
             output = await run_fetch(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert output["successful"] == 0
@@ -340,7 +365,10 @@ class TestRunFetchFailure:
             mock_fetch.return_value = _make_fetch_blocked_result(403)
 
             output = await run_fetch(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert output["successful"] == 0
@@ -361,7 +389,10 @@ class TestRunFetchFailure:
         self.db_session.execute = AsyncMock(return_value=mock_result)
 
         output = await run_fetch(
-            self.task, self.step, self.db_session, self.sse_bridge,
+            self.task,
+            self.step,
+            self.db_session,
+            self.sse_bridge,
         )
 
         assert output["failed"] == 0
@@ -384,7 +415,10 @@ class TestRunFetchFailure:
             }
 
             output = await run_fetch(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert output["successful"] == 0
@@ -407,7 +441,10 @@ class TestRunFetchFailure:
             }
 
             output = await run_fetch(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert output["successful"] == 0
@@ -434,7 +471,10 @@ class TestRunFetchFailure:
             mock_fetch.return_value = _make_fetch_success_result()
 
             output = await run_fetch(
-                self.task, self.step, self.db_session, self.sse_bridge,
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
             )
 
             assert output["successful"] == 15
@@ -471,7 +511,10 @@ class TestRunFetchRecovery:
                 new=AsyncMock(return_value=10),
             ):
                 output = await run_fetch(
-                    self.task, self.step, self.db_session, self.sse_bridge,
+                    self.task,
+                    self.step,
+                    self.db_session,
+                    self.sse_bridge,
                 )
 
         assert output["successful"] == 2

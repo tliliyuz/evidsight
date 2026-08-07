@@ -83,9 +83,7 @@ async def register_v1(db: AsyncSession, username: str, password: str) -> UserSum
     )
 
 
-async def get_current_user_profile(
-    db: AsyncSession, platform_user_id: str
-) -> UserSummary:
+async def get_current_user_profile(db: AsyncSession, platform_user_id: str) -> UserSummary:
     """返回当前用户的外部身份摘要，字段取自数据库当前状态。
 
     对齐 API.md §5 GET /api/v1/auth/me：
@@ -162,9 +160,7 @@ async def login(db: AsyncSession, username: str, password: str) -> TokenResponse
     )
 
 
-async def login_v1(
-    db: AsyncSession, username: str, password: str
-) -> tuple[str, str, UserSummary]:
+async def login_v1(db: AsyncSession, username: str, password: str) -> tuple[str, str, UserSummary]:
     """v1 登录（对齐 ADR-006 / API.md §5 POST /api/v1/auth/login）。
 
     返回 (access_token, refresh_token_str, UserSummary)；refresh_token 由路由写入
@@ -217,9 +213,7 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
     # 已轮换 Token 再次出现属于重放，安全状态必须在返回 401 前持久化。
     if rt.rotated_at is not None:
         family_result = await db.execute(
-            select(RefreshTokenFamily)
-            .where(RefreshTokenFamily.id == family_id)
-            .with_for_update()
+            select(RefreshTokenFamily).where(RefreshTokenFamily.id == family_id).with_for_update()
         )
         replayed_family = family_result.scalar_one_or_none()
         if replayed_family is not None:
@@ -256,9 +250,7 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
     if family is None or family.revoked_at is not None or family.expires_at < now:
         raise RefreshTokenRevokedException()
 
-    result = await db.execute(
-        select(User).where(User.platform_user_id == platform_user_id)
-    )
+    result = await db.execute(select(User).where(User.platform_user_id == platform_user_id))
     user = result.scalar_one_or_none()
     if user is None:
         raise InvalidRefreshTokenException("用户不存在")

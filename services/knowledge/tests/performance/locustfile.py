@@ -106,6 +106,7 @@ CASUAL_QUESTIONS = [
 # SSE 解析辅助
 # ============================================================================
 
+
 def _parse_sse_stream(response: httpx.Response) -> dict:
     """解析 SSE 流，返回统计信息"""
     result = {
@@ -171,6 +172,7 @@ def _parse_sse_stream(response: httpx.Response) -> dict:
 # Locust User 定义
 # ============================================================================
 
+
 class ChatUser(HttpUser):
     """模拟一个真实的 RAG 问答用户
 
@@ -185,12 +187,13 @@ class ChatUser(HttpUser):
         """用户启动时设置认证头"""
         if not AUTH_TOKEN:
             raise ValueError(
-                "请设置 STRESS_AUTH_TOKEN 环境变量。"
-                "可通过 POST /api/auth/login 获取 token。"
+                "请设置 STRESS_AUTH_TOKEN 环境变量。可通过 POST /api/auth/login 获取 token。"
             )
-        self.client.headers.update({
-            "Authorization": f"Bearer {AUTH_TOKEN}",
-        })
+        self.client.headers.update(
+            {
+                "Authorization": f"Bearer {AUTH_TOKEN}",
+            }
+        )
         self.conversation_id = None
 
     # ---- 核心任务：知识库问答（权重 8） ----

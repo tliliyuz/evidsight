@@ -28,18 +28,27 @@ CONTRACT_VERSION = "1.0.0"
 _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(-[\w.]+)?(\+[\w.]+)?$")
 
 _SEARCH_ALLOWED_KEYS = {
-    "contract_version", "user_id", "knowledge_base_ids", "query", "purpose",
-    "limit", "filters",
+    "contract_version",
+    "user_id",
+    "knowledge_base_ids",
+    "query",
+    "purpose",
+    "limit",
+    "filters",
 }
 _FILTER_ALLOWED_KEYS = {"document_ids", "languages", "updated_since", "updated_until"}
 _REF_ALLOWED_KEYS = {
-    "knowledge_base_id", "document_id", "document_version_id", "segment_id",
+    "knowledge_base_id",
+    "document_id",
+    "document_version_id",
+    "segment_id",
 }
 _RESOLVE_ALLOWED_KEYS = {"contract_version", "user_id", "references", "purpose"}
 
 
-def _error_response(status_code: int, error_code: str, message: str,
-                    request_id: str, retryable: bool) -> JSONResponse:
+def _error_response(
+    status_code: int, error_code: str, message: str, request_id: str, retryable: bool
+) -> JSONResponse:
     """构造符合 error-response.schema.json 的契约错误信封。"""
     return JSONResponse(
         status_code=status_code,
@@ -65,19 +74,22 @@ def _check_service_request(request: Request) -> tuple[str, JSONResponse | None]:
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer ") or not verify_service_token(auth_header[7:]):
         return request_id, _error_response(
-            401, "INTERNAL_SERVICE_UNAUTHENTICATED", "服务身份无效或缺失",
-            request_id, False)
+            401, "INTERNAL_SERVICE_UNAUTHENTICATED", "服务身份无效或缺失", request_id, False
+        )
 
     if request.headers.get("X-EvidSight-Contract-Version") != CONTRACT_VERSION:
         return request_id, _error_response(
-            400, "INTERNAL_CONTRACT_UNSUPPORTED",
+            400,
+            "INTERNAL_CONTRACT_UNSUPPORTED",
             f"不支持的 Contract 版本，仅支持 {CONTRACT_VERSION}",
-            request_id, False)
+            request_id,
+            False,
+        )
 
     if not request_id or not request.headers.get("traceparent"):
         return request_id, _error_response(
-            400, "INTERNAL_CONTRACT_INVALID",
-            "缺少 X-Request-ID 或 traceparent", request_id, False)
+            400, "INTERNAL_CONTRACT_INVALID", "缺少 X-Request-ID 或 traceparent", request_id, False
+        )
 
     return request_id, None
 
@@ -90,8 +102,12 @@ def _check_body_version(request_id: str, body) -> JSONResponse | None:
     """
     if isinstance(body, dict) and body.get("contract_version") != CONTRACT_VERSION:
         return _error_response(
-            400, "INTERNAL_CONTRACT_UNSUPPORTED",
-            "正文 contract_version 与版本头不一致", request_id, False)
+            400,
+            "INTERNAL_CONTRACT_UNSUPPORTED",
+            "正文 contract_version 与版本头不一致",
+            request_id,
+            False,
+        )
     return None
 
 
@@ -102,11 +118,16 @@ def _validate_search_payload(body) -> str | None:
     unknown = set(body) - _SEARCH_ALLOWED_KEYS
     if unknown:
         return f"包含未知字段: {sorted(unknown)}"
-    missing = [k for k in ("contract_version", "user_id", "knowledge_base_ids", "query", "purpose")
-               if k not in body]
+    missing = [
+        k
+        for k in ("contract_version", "user_id", "knowledge_base_ids", "query", "purpose")
+        if k not in body
+    ]
     if missing:
         return f"缺少必填字段: {sorted(missing)}"
-    if not isinstance(body["contract_version"], str) or not _SEMVER_PATTERN.match(body["contract_version"]):
+    if not isinstance(body["contract_version"], str) or not _SEMVER_PATTERN.match(
+        body["contract_version"]
+    ):
         return "contract_version 不是合法 SemVer"
     if not validate_uuid_format(body["user_id"]):
         return "user_id 不是合法 UUID"
@@ -125,7 +146,8 @@ def _validate_search_payload(body) -> str | None:
         return "purpose 只支持 research_retrieval"
     limit = body.get("limit")
     if limit is not None and (
-            not isinstance(limit, int) or isinstance(limit, bool) or not (1 <= limit <= 100)):
+        not isinstance(limit, int) or isinstance(limit, bool) or not (1 <= limit <= 100)
+    ):
         return "limit 必须是 1-100 的整数"
     if "filters" in body:
         return _validate_filters(body["filters"])
@@ -168,7 +190,9 @@ def _validate_resolve_payload(body) -> str | None:
     missing = [k for k in ("contract_version", "user_id", "references", "purpose") if k not in body]
     if missing:
         return f"缺少必填字段: {sorted(missing)}"
-    if not isinstance(body["contract_version"], str) or not _SEMVER_PATTERN.match(body["contract_version"]):
+    if not isinstance(body["contract_version"], str) or not _SEMVER_PATTERN.match(
+        body["contract_version"]
+    ):
         return "contract_version 不是合法 SemVer"
     if not validate_uuid_format(body["user_id"]):
         return "user_id 不是合法 UUID"
@@ -205,38 +229,43 @@ async def identity_status(
     # 1. Research 服务身份
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer ") or not verify_service_token(auth_header[7:]):
-        return _error_response(401, "INTERNAL_SERVICE_UNAUTHENTICATED",
-                               "服务身份无效或缺失", request_id, False)
+        return _error_response(
+            401, "INTERNAL_SERVICE_UNAUTHENTICATED", "服务身份无效或缺失", request_id, False
+        )
 
     # 2. Contract 版本
     if request.headers.get("X-EvidSight-Contract-Version") != CONTRACT_VERSION:
-        return _error_response(400, "INTERNAL_CONTRACT_UNSUPPORTED",
-                               f"不支持的 Contract 版本，仅支持 {CONTRACT_VERSION}",
-                               request_id, False)
+        return _error_response(
+            400,
+            "INTERNAL_CONTRACT_UNSUPPORTED",
+            f"不支持的 Contract 版本，仅支持 {CONTRACT_VERSION}",
+            request_id,
+            False,
+        )
 
     # 3. 请求关联元数据
     if not request_id or not request.headers.get("traceparent"):
-        return _error_response(400, "INTERNAL_CONTRACT_INVALID",
-                               "缺少 X-Request-ID 或 traceparent", request_id, False)
+        return _error_response(
+            400, "INTERNAL_CONTRACT_INVALID", "缺少 X-Request-ID 或 traceparent", request_id, False
+        )
 
     # 4. Platform User UUID
     if not validate_uuid_format(platform_user_id):
-        return _error_response(400, "INTERNAL_CONTRACT_INVALID",
-                               "platform_user_id 不是合法 UUID", request_id, False)
+        return _error_response(
+            400, "INTERNAL_CONTRACT_INVALID", "platform_user_id 不是合法 UUID", request_id, False
+        )
 
     # 5. 用户状态
     try:
-        result = await db.execute(
-            select(User).where(User.platform_user_id == platform_user_id)
-        )
+        result = await db.execute(select(User).where(User.platform_user_id == platform_user_id))
         user = result.scalar_one_or_none()
     except Exception:
-        return _error_response(503, "INTERNAL_IDENTITY_UNAVAILABLE",
-                               "身份数据库暂时不可用", request_id, True)
+        return _error_response(
+            503, "INTERNAL_IDENTITY_UNAVAILABLE", "身份数据库暂时不可用", request_id, True
+        )
 
     if user is None or user.status != "active":
-        return _error_response(403, "AUTH_USER_DISABLED",
-                               "用户不存在或已被禁用", request_id, False)
+        return _error_response(403, "AUTH_USER_DISABLED", "用户不存在或已被禁用", request_id, False)
 
     return JSONResponse(
         status_code=200,
@@ -262,8 +291,9 @@ async def retrieval_search(request: Request, db: AsyncSession = Depends(get_db))
     try:
         body = await request.json()
     except (json.JSONDecodeError, UnicodeDecodeError):
-        return _error_response(400, "INTERNAL_CONTRACT_INVALID",
-                               "请求体不是合法 JSON", request_id, False)
+        return _error_response(
+            400, "INTERNAL_CONTRACT_INVALID", "请求体不是合法 JSON", request_id, False
+        )
 
     body_error = _check_body_version(request_id, body)
     if body_error is not None:
@@ -276,12 +306,14 @@ async def retrieval_search(request: Request, db: AsyncSession = Depends(get_db))
     try:
         response = await internal_retrieval.search_internal(db, body, request_id)
     except internal_retrieval.InternalRetrievalError as exc:
-        return _error_response(exc.status_code, exc.error_code, exc.message,
-                               request_id, exc.retryable)
+        return _error_response(
+            exc.status_code, exc.error_code, exc.message, request_id, exc.retryable
+        )
     except Exception:
         logger.exception("Internal Retrieval 未知错误")
-        return _error_response(503, "INTERNAL_RETRIEVAL_UNAVAILABLE",
-                               "检索服务暂时不可用", request_id, True)
+        return _error_response(
+            503, "INTERNAL_RETRIEVAL_UNAVAILABLE", "检索服务暂时不可用", request_id, True
+        )
     return JSONResponse(status_code=200, content=response)
 
 
@@ -298,8 +330,9 @@ async def retrieval_resolve(request: Request, db: AsyncSession = Depends(get_db)
     try:
         body = await request.json()
     except (json.JSONDecodeError, UnicodeDecodeError):
-        return _error_response(400, "INTERNAL_CONTRACT_INVALID",
-                               "请求体不是合法 JSON", request_id, False)
+        return _error_response(
+            400, "INTERNAL_CONTRACT_INVALID", "请求体不是合法 JSON", request_id, False
+        )
 
     body_error = _check_body_version(request_id, body)
     if body_error is not None:
@@ -312,10 +345,12 @@ async def retrieval_resolve(request: Request, db: AsyncSession = Depends(get_db)
     try:
         response = await internal_retrieval.resolve_internal(db, body, request_id)
     except internal_retrieval.InternalRetrievalError as exc:
-        return _error_response(exc.status_code, exc.error_code, exc.message,
-                               request_id, exc.retryable)
+        return _error_response(
+            exc.status_code, exc.error_code, exc.message, request_id, exc.retryable
+        )
     except Exception:
         logger.exception("Internal Resolve 未知错误")
-        return _error_response(503, "INTERNAL_RETRIEVAL_UNAVAILABLE",
-                               "解析服务暂时不可用", request_id, True)
+        return _error_response(
+            503, "INTERNAL_RETRIEVAL_UNAVAILABLE", "解析服务暂时不可用", request_id, True
+        )
     return JSONResponse(status_code=200, content=response)

@@ -105,36 +105,39 @@ class _DashScopeSyncEmbeddings:
 # 数据结构
 # ============================================================================
 
+
 @dataclass
 class RagasQuestionResult:
     """单题 ragas 评估结果"""
+
     question_id: int
     question: str
     difficulty: str
     question_type: str
     answer: str
-    contexts: list[str]               # 检索到的 chunk 原文（rerank 后）
+    contexts: list[str]  # 检索到的 chunk 原文（rerank 后）
     faithfulness: float | None = None
     answer_relevancy: float | None = None
-    context_precision: float | None = None          # ragas 原生 ContextPrecision（LLM-based，需 reference）
-    context_precision_doc: float | None = None      # 文档级 CP（自定义算法，诊断列）
+    context_precision: float | None = None  # ragas 原生 ContextPrecision（LLM-based，需 reference）
+    context_precision_doc: float | None = None  # 文档级 CP（自定义算法，诊断列）
     context_recall: float | None = None
-    error: str | None = None           # 非 None 表示该题评估失败
-    ar_flagged: bool = False           # AR=0.0 复核标记（疑似 judge 误判 noncommittal）
+    error: str | None = None  # 非 None 表示该题评估失败
+    ar_flagged: bool = False  # AR=0.0 复核标记（疑似 judge 误判 noncommittal）
 
 
 @dataclass
 class RagasEvalSummary:
     """汇总评估结果"""
+
     total: int = 0
-    evaluated: int = 0             # 成功评估的题目数
-    failed: int = 0                # 评估失败的题目数
+    evaluated: int = 0  # 成功评估的题目数
+    failed: int = 0  # 评估失败的题目数
     faithfulness_mean: float | None = None
     answer_relevancy_mean: float | None = None
     answer_relevancy_adjusted_mean: float | None = None  # 排除 AR=0.0 复核题后的均值
-    ar_zero_count: int = 0                                # AR=0.0 题数（含误判与真低分）
-    context_precision_mean: float | None = None           # ragas 原生 ContextPrecision（LLM-based）
-    context_precision_doc_mean: float | None = None       # 文档级 CP（自定义算法，诊断列）
+    ar_zero_count: int = 0  # AR=0.0 题数（含误判与真低分）
+    context_precision_mean: float | None = None  # ragas 原生 ContextPrecision（LLM-based）
+    context_precision_doc_mean: float | None = None  # 文档级 CP（自定义算法，诊断列）
     context_recall_mean: float | None = None
     per_question: list[RagasQuestionResult] = field(default_factory=list)
 
@@ -147,8 +150,8 @@ class RagasEvalSummary:
 TARGETS: dict[str, tuple[float, str]] = {
     "faithfulness": (0.80, "≥ 0.80"),
     "answer_relevancy": (0.80, "≥ 0.80"),
-    "context_precision": (0.80, "≥ 0.80"),          # ragas 原生（LLM-based）
-    "context_precision_doc": (0.60, "≥ 0.60"),      # 文档级 CP（自定义，诊断参考值；首轮均值 0.60）
+    "context_precision": (0.80, "≥ 0.80"),  # ragas 原生（LLM-based）
+    "context_precision_doc": (0.60, "≥ 0.60"),  # 文档级 CP（自定义，诊断参考值；首轮均值 0.60）
     "context_recall": (0.80, "≥ 0.80"),
 }
 
@@ -159,6 +162,7 @@ DEFAULT_METRICS = ["faithfulness", "answer_relevancy", "context_precision", "con
 # ============================================================================
 # 上下文精度/召回率自定义计算（基于 expected_docs）
 # ============================================================================
+
 
 def compute_context_precision_doc(
     retrieved_results: list,
@@ -224,6 +228,7 @@ def compute_context_recall(
 #   - 英文 prompt 对中文答案的反推问题质量差，相似度均值偏低
 # 故覆盖为中文 prompt，并配合 pro 判定模型（见 _init_ragas）。
 
+
 def _build_answer_relevancy_cn_prompt():
     """构造 Answer Relevancy 的中文反推问题 prompt（懒加载 ragas）。
 
@@ -241,7 +246,7 @@ def _build_answer_relevancy_cn_prompt():
             "请根据给定的答案，生成一个该答案能够直接回答的问题，"
             "并判断该答案是否属于含糊回避（noncommittal）。\n"
             "含糊回避指答案含糊、模糊、回避或未正面作答，"
-            '例如「我不确定」「文档未提及」「无法回答」属于含糊回避，给出 noncommittal=1；\n'
+            "例如「我不确定」「文档未提及」「无法回答」属于含糊回避，给出 noncommittal=1；\n"
             "答案明确回答了某个问题（即使简短或部分信息缺失）则给出 noncommittal=0。\n"
             "注意：不要因为答案不够详细或不够完整就判为含糊回避；"
             "只要答案对某个问题给出了明确内容，就不是含糊回避。\n"
@@ -251,7 +256,8 @@ def _build_answer_relevancy_cn_prompt():
             (
                 ResponseRelevanceInput(response="爱因斯坦出生于德国。"),
                 ResponseRelevanceOutput(
-                    question="爱因斯坦出生在哪里？", noncommittal=0,
+                    question="爱因斯坦出生在哪里？",
+                    noncommittal=0,
                 ),
             ),
             (
@@ -282,6 +288,7 @@ def _build_answer_relevancy_cn_prompt():
 # 默认英文 prompt 对中文 context+reference 可能误判，
 # 故覆盖为中文 prompt（与 AnswerRelevancy 中文 prompt 同理）。
 
+
 def _build_context_precision_cn_prompt():
     """构造 Context Precision 的中文验证 prompt（懒加载 ragas）。"""
     from ragas.metrics._context_precision import (
@@ -302,12 +309,12 @@ def _build_context_precision_cn_prompt():
                 QAC(
                     question="新员工入职第一天需要完成哪些手续？",
                     context="上午9:00前往人力资源部报到，提交入职材料，签署劳动合同及相关协议。"
-                            "领取工牌、办公电脑和基础办公用品。信息技术部开通企业邮箱、OA账号。"
-                            "参加新员工入职培训。",
+                    "领取工牌、办公电脑和基础办公用品。信息技术部开通企业邮箱、OA账号。"
+                    "参加新员工入职培训。",
                     answer="上午9:00前往人力资源部报到，提交入职材料（身份证复印件、学历学位证书、"
-                          "离职证明、照片、银行卡、体检报告等），签署劳动合同及相关协议；"
-                          "领取工牌、办公电脑和基础办公用品；信息技术部开通企业邮箱、"
-                          "OA账号、即时通讯账号及业务系统权限；参加新员工入职培训。",
+                    "离职证明、照片、银行卡、体检报告等），签署劳动合同及相关协议；"
+                    "领取工牌、办公电脑和基础办公用品；信息技术部开通企业邮箱、"
+                    "OA账号、即时通讯账号及业务系统权限；参加新员工入职培训。",
                 ),
                 Verification(
                     reason="上下文包含了入职报到的关键步骤，与参考答案高度相关",
@@ -318,11 +325,11 @@ def _build_context_precision_cn_prompt():
                 QAC(
                     question="新员工入职第一天需要完成哪些手续？",
                     context="公司为各部门配置了多功能复合打印机，支持黑白/彩色打印、复印、扫描功能。"
-                            "设备分布于各楼层文印区及部门办公区。",
+                    "设备分布于各楼层文印区及部门办公区。",
                     answer="上午9:00前往人力资源部报到，提交入职材料（身份证复印件、学历学位证书、"
-                          "离职证明、照片、银行卡、体检报告等），签署劳动合同及相关协议；"
-                          "领取工牌、办公电脑和基础办公用品；信息技术部开通企业邮箱、"
-                          "OA账号、即时通讯账号及业务系统权限；参加新员工入职培训。",
+                    "离职证明、照片、银行卡、体检报告等），签署劳动合同及相关协议；"
+                    "领取工牌、办公电脑和基础办公用品；信息技术部开通企业邮箱、"
+                    "OA账号、即时通讯账号及业务系统权限；参加新员工入职培训。",
                 ),
                 Verification(
                     reason="上下文是关于打印机的使用说明，与入职手续完全无关",
@@ -337,6 +344,7 @@ def _build_context_precision_cn_prompt():
 # ============================================================================
 # Ragas 评估器
 # ============================================================================
+
 
 class RagasEvaluator:
     """Ragas 端到端评估器
@@ -360,9 +368,7 @@ class RagasEvaluator:
         self.metrics = metrics or DEFAULT_METRICS
 
         # 答案生成模型
-        self._answer_model = (
-            settings.LLM_MODEL if llm_model == "pro" else settings.LLM_FLASH_MODEL
-        )
+        self._answer_model = settings.LLM_MODEL if llm_model == "pro" else settings.LLM_FLASH_MODEL
 
         # 管线组件（懒加载）
         self._vector_retriever: VectorRetriever | None = None
@@ -419,8 +425,7 @@ class RagasEvaluator:
         """从 MySQL 加载 kb_id 下所有文档的 filename ↔ doc_id 双向映射"""
         async with async_session() as db:
             result = await db.execute(
-                select(Document.id, Document.filename)
-                .where(Document.kb_id == self.kb_id)
+                select(Document.id, Document.filename).where(Document.kb_id == self.kb_id)
             )
             rows = result.all()
 
@@ -428,7 +433,8 @@ class RagasEvaluator:
         self._doc_id_to_filename = {row.id: row.filename for row in rows}
         logger.info(
             "文档映射已加载: kb_id=%d, %d 个文档",
-            self.kb_id, len(self._filename_to_doc_id),
+            self.kb_id,
+            len(self._filename_to_doc_id),
         )
 
     def _resolve_expected_doc_ids(self, expected_docs: list[str]) -> set[int]:
@@ -510,9 +516,7 @@ class RagasEvaluator:
             from ragas.embeddings import LangchainEmbeddingsWrapper
             from langchain_openai import ChatOpenAI
         except ImportError as e:
-            raise ImportError(
-                "ragas 未安装，请运行: pip install ragas==0.2.* datasets>=3.0"
-            ) from e
+            raise ImportError("ragas 未安装，请运行: pip install ragas==0.2.* datasets>=3.0") from e
 
         # 评估用 LLM（judge）——统一使用 pro 模型。
         # Answer Relevancy 对 judge 最苛刻：需严格输出结构化反推问题，
@@ -539,10 +543,12 @@ class RagasEvaluator:
         # 按需初始化指标
         if "faithfulness" in self.metrics:
             from ragas.metrics import Faithfulness
+
             self._ragas_metrics["faithfulness"] = Faithfulness(llm=self._ragas_llm)
 
         if "answer_relevancy" in self.metrics:
             from ragas.metrics import AnswerRelevancy
+
             self._ragas_metrics["answer_relevancy"] = AnswerRelevancy(
                 llm=self._ragas_llm,
                 embeddings=self._ragas_embeddings,
@@ -552,6 +558,7 @@ class RagasEvaluator:
 
         if "context_precision" in self.metrics:
             from ragas.metrics import ContextPrecision
+
             self._ragas_metrics["context_precision"] = ContextPrecision(
                 llm=self._ragas_llm,
                 # 注入中文验证 prompt（覆盖默认英文 prompt）
@@ -607,9 +614,7 @@ class RagasEvaluator:
                 score_val = await metric.single_turn_ascore(sample, timeout=300)
                 scores[metric_name] = float(score_val)
             except Exception:
-                logger.exception(
-                    "ragas %s 评分失败: question_id（见上下文）", metric_name
-                )
+                logger.exception("ragas %s 评分失败: question_id（见上下文）", metric_name)
                 scores[metric_name] = None
 
         # ContextPrecision（ragas 原生 LLM-based）— 需要 reference
@@ -625,9 +630,7 @@ class RagasEvaluator:
                     cp_val = await cp_metric.single_turn_ascore(cp_sample, timeout=300)
                     scores["context_precision"] = float(cp_val)
                 except Exception:
-                    logger.exception(
-                        "ragas context_precision 评分失败"
-                    )
+                    logger.exception("ragas context_precision 评分失败")
                     scores["context_precision"] = None
             else:
                 scores["context_precision"] = None
@@ -643,20 +646,19 @@ class RagasEvaluator:
         await self.load_doc_map()
 
         # 筛选题目：排除 out-of-scope
-        scoped_items = [
-            item for item in EVAL_TEST_SET
-            if item.get("difficulty") != "out-of-scope"
-        ]
+        scoped_items = [item for item in EVAL_TEST_SET if item.get("difficulty") != "out-of-scope"]
 
         summary = RagasEvalSummary(total=len(scoped_items))
         results: list[RagasQuestionResult] = []
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"  Ragas 端到端评估 — kb_id={self.kb_id}, top_k={self.top_k}")
-        print(f"  评估集: {len(scoped_items)} 题（已排除 {len(EVAL_TEST_SET) - len(scoped_items)} 题 out-of-scope）")
+        print(
+            f"  评估集: {len(scoped_items)} 题（已排除 {len(EVAL_TEST_SET) - len(scoped_items)} 题 out-of-scope）"
+        )
         print(f"  答案生成模型: {self._answer_model}")
         print(f"  启用指标: {', '.join(self.metrics)}")
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
         for idx, item in enumerate(scoped_items):
             qid = item["id"]
@@ -670,13 +672,14 @@ class RagasEvaluator:
 
             try:
                 # 1. 运行管线获取答案和上下文
-                answer, contexts, reranked_output = await self.capture_answer_and_contexts(
-                    question
-                )
+                answer, contexts, reranked_output = await self.capture_answer_and_contexts(question)
 
                 # 2. ragas LLM-based 指标（含原生 ContextPrecision，需 reference）
                 ragas_scores = await self._score_ragas_metrics(
-                    question, answer, contexts, reference=reference,
+                    question,
+                    answer,
+                    contexts,
+                    reference=reference,
                 )
 
                 # 3. 文档级上下文指标（自定义，基于 expected_docs，诊断列）
@@ -688,9 +691,7 @@ class RagasEvaluator:
                         reranked_output.results, expected_doc_ids, k=self.top_k
                     )
                 if "context_recall" in self.metrics:
-                    cr = compute_context_recall(
-                        reranked_output.results, expected_doc_ids
-                    )
+                    cr = compute_context_recall(reranked_output.results, expected_doc_ids)
 
                 result = RagasQuestionResult(
                     question_id=qid,
@@ -729,15 +730,17 @@ class RagasEvaluator:
 
             except Exception:
                 logger.exception("Q%d 评估异常", qid)
-                results.append(RagasQuestionResult(
-                    question_id=qid,
-                    question=question,
-                    difficulty=difficulty,
-                    question_type=qtype,
-                    answer="",
-                    contexts=[],
-                    error="评估异常",
-                ))
+                results.append(
+                    RagasQuestionResult(
+                        question_id=qid,
+                        question=question,
+                        difficulty=difficulty,
+                        question_type=qtype,
+                        answer="",
+                        contexts=[],
+                        error="评估异常",
+                    )
+                )
                 print(f"       ❌ 评估异常")
 
         # 汇总统计
@@ -747,14 +750,17 @@ class RagasEvaluator:
         # 与真实低分无法在数值上区分。标记后单独计算「排除 0 分复核题」的调整均值，
         # 便于诊断 judge 是否仍存在系统性误判；原始均值仍如实保留。
         relevancy_adjusted_vals = [
-            r.answer_relevancy for r in results
+            r.answer_relevancy
+            for r in results
             if r.answer_relevancy is not None and r.answer_relevancy > 0.0
         ]
         ar_zero_count = sum(
             1 for r in results if r.answer_relevancy is not None and r.answer_relevancy == 0.0
         )
         cp_vals = [r.context_precision for r in results if r.context_precision is not None]
-        cp_doc_vals = [r.context_precision_doc for r in results if r.context_precision_doc is not None]
+        cp_doc_vals = [
+            r.context_precision_doc for r in results if r.context_precision_doc is not None
+        ]
         cr_vals = [r.context_recall for r in results if r.context_recall is not None]
         failed_count = sum(1 for r in results if r.error is not None)
 
@@ -778,6 +784,7 @@ class RagasEvaluator:
 # 报告输出
 # ============================================================================
 
+
 def _pass_fail(value: float | None, target: float) -> str:
     if value is None:
         return "—"
@@ -786,9 +793,9 @@ def _pass_fail(value: float | None, target: float) -> str:
 
 def print_summary_table(summary: RagasEvalSummary) -> None:
     """打印 ragas 评估汇总表"""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("  Ragas 评估结果汇总")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     header = f"{'指标':<22} {'目标':<10} {'平均值':<10} {'结果'}"
     print(header)
@@ -832,9 +839,9 @@ def print_summary_table(summary: RagasEvalSummary) -> None:
 
 def print_per_question_table(summary: RagasEvalSummary) -> None:
     """打印逐题明细表"""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("  逐题 Ragas 评分明细")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     header = (
         f"{'ID':<4} {'难度':<10} {'Faithfulness':<14} "
@@ -847,7 +854,9 @@ def print_per_question_table(summary: RagasEvalSummary) -> None:
         f_str = f"{r.faithfulness:.4f}" if r.faithfulness is not None else "—"
         ar_str = f"{r.answer_relevancy:.4f}" if r.answer_relevancy is not None else "—"
         cp_str = f"{r.context_precision:.4f}" if r.context_precision is not None else "—"
-        cp_doc_str = f"{r.context_precision_doc:.4f}" if r.context_precision_doc is not None else "—"
+        cp_doc_str = (
+            f"{r.context_precision_doc:.4f}" if r.context_precision_doc is not None else "—"
+        )
         cr_str = f"{r.context_recall:.4f}" if r.context_recall is not None else "—"
 
         row = (
@@ -912,7 +921,9 @@ def export_markdown(summary: RagasEvalSummary, output_path: str) -> None:
     lines: list[str] = []
     lines.append("# Ragas 端到端评估报告\n")
     lines.append(f"**生成时间**：{datetime.now(timezone.utc).isoformat()}\n")
-    lines.append(f"**评估题目数**：{summary.total} | **成功**：{summary.evaluated} | **失败**：{summary.failed}\n")
+    lines.append(
+        f"**评估题目数**：{summary.total} | **成功**：{summary.evaluated} | **失败**：{summary.failed}\n"
+    )
 
     # 汇总表
     lines.append("## 指标汇总\n")
@@ -954,7 +965,9 @@ def export_markdown(summary: RagasEvalSummary, output_path: str) -> None:
         f_str = f"{r.faithfulness:.4f}" if r.faithfulness is not None else "—"
         ar_str = f"{r.answer_relevancy:.4f}" if r.answer_relevancy is not None else "—"
         cp_str = f"{r.context_precision:.4f}" if r.context_precision is not None else "—"
-        cp_doc_str = f"{r.context_precision_doc:.4f}" if r.context_precision_doc is not None else "—"
+        cp_doc_str = (
+            f"{r.context_precision_doc:.4f}" if r.context_precision_doc is not None else "—"
+        )
         cr_str = f"{r.context_recall:.4f}" if r.context_recall is not None else "—"
         flag_note = " ⚑AR 0 分待复核" if r.ar_flagged else ""
         error_note = f" ⚠{r.error}" if r.error else ""
@@ -976,6 +989,7 @@ def export_markdown(summary: RagasEvalSummary, output_path: str) -> None:
 # CLI 入口
 # ============================================================================
 
+
 async def resolve_kb_id(raw: str) -> int:
     """将用户输入的 kb_id（整数或 UUID）解析为内部整数 ID。
 
@@ -996,9 +1010,7 @@ async def resolve_kb_id(raw: str) -> int:
 
     # 按 UUID 查询
     async with async_session() as db:
-        result = await db.execute(
-            select(KnowledgeBase.id).where(KnowledgeBase.uuid == raw)
-        )
+        result = await db.execute(select(KnowledgeBase.id).where(KnowledgeBase.uuid == raw))
         row = result.one_or_none()
 
     if row is None:
@@ -1067,28 +1079,42 @@ def main() -> None:
         description="DocMind Ragas 端到端评估 — 生成质量自动化评分",
     )
     parser.add_argument(
-        "--kb-id", type=str, required=True,
+        "--kb-id",
+        type=str,
+        required=True,
         help="目标知识库 ID（支持内部整数 ID 或 UUID）",
     )
     parser.add_argument(
-        "--top-k", type=int, default=10,
+        "--top-k",
+        type=int,
+        default=10,
         help="检索返回数量（默认 10）",
     )
     parser.add_argument(
-        "--model", type=str, default="flash", choices=["flash", "pro"],
+        "--model",
+        type=str,
+        default="flash",
+        choices=["flash", "pro"],
         help="答案生成模型：flash（默认，deepseek-v4-flash）或 pro（deepseek-v4-pro）",
     )
     parser.add_argument(
-        "--metrics", type=str, default=None,
+        "--metrics",
+        type=str,
+        default=None,
         help="启用的评估指标，逗号分隔（默认全部启用）。可选: faithfulness,answer_relevancy,context_precision,context_recall",
     )
     parser.add_argument(
-        "--output", type=str, nargs="*", default=[],
+        "--output",
+        type=str,
+        nargs="*",
+        default=[],
         choices=["json", "md"],
         help="输出格式：json 和/或 md",
     )
     parser.add_argument(
-        "--output-dir", type=str, default=".",
+        "--output-dir",
+        type=str,
+        default=".",
         help="报告输出目录（默认当前目录）",
     )
     args = parser.parse_args()
@@ -1113,14 +1139,16 @@ def main() -> None:
     # 解析 kb_id：支持整数或 UUID
     kb_id = asyncio.run(resolve_kb_id(args.kb_id))
 
-    asyncio.run(main_async(
-        kb_id=kb_id,
-        top_k=args.top_k,
-        model=args.model,
-        metrics=metrics,
-        output_formats=args.output or [],
-        output_dir=args.output_dir,
-    ))
+    asyncio.run(
+        main_async(
+            kb_id=kb_id,
+            top_k=args.top_k,
+            model=args.model,
+            metrics=metrics,
+            output_formats=args.output or [],
+            output_dir=args.output_dir,
+        )
+    )
 
 
 if __name__ == "__main__":

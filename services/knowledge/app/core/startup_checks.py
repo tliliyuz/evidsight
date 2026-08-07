@@ -20,12 +20,9 @@ def validate_production_config() -> list[str]:
 
     errors: list[str] = []
     if not settings.EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS.strip():
-        errors.append(
-            "EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS 生产环境必填，为空拒绝启动"
-        )
+        errors.append("EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS 生产环境必填，为空拒绝启动")
     if not public_keys_loadable():
         errors.append(
-            "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE 无法加载，"
-            "Service JWT 验证将全部失败"
+            "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE 无法加载，Service JWT 验证将全部失败"
         )
     return errors

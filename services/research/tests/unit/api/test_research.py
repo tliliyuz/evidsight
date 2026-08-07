@@ -59,7 +59,9 @@ class TestWorkerHealthAPI:
         assert set(data["data"]["workers"]) == {"celery@worker1", "celery@worker2"}
 
     async def test_ping异常_返回unknown但不报错(self, async_client: AsyncClient):
-        with patch("app.main.celery_app.control.ping", side_effect=RuntimeError("broker down")) as mock_ping:
+        with patch(
+            "app.main.celery_app.control.ping", side_effect=RuntimeError("broker down")
+        ) as mock_ping:
             response = await async_client.get("/api/health/workers")
 
         assert response.status_code == 200
@@ -388,7 +390,9 @@ class TestDeleteResearchAPI:
         assert response.status_code == 404
         assert response.json()["code"] == "E2001"
 
-    async def test_级联删除关联步骤(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
+    async def test_级联删除关联步骤(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
         create_resp = await async_client.post(
             "/api/research",
             json={"topic": "级联删除测试", "requirements": {"task_type": "analysis"}},
@@ -400,6 +404,7 @@ class TestDeleteResearchAPI:
 
         # 验证 step 也被级联删除
         from sqlalchemy import func
+
         q = select(func.count()).select_from(ResearchStep).where(ResearchStep.task_id == task_id)
         count_result = await db_session.execute(q)
         assert count_result.scalar() == 0
@@ -433,8 +438,6 @@ class TestDeleteResearchAPI:
         assert response.json()["code"] == "E2002"
 
 
-
-
 # ═══════════════════════════════════════════════════════════════
 # POST /api/research/{task_id}/cancel — 取消任务
 # ═══════════════════════════════════════════════════════════════
@@ -443,7 +446,13 @@ class TestDeleteResearchAPI:
 class TestCancelResearchAPI:
     """POST /api/research/{task_id}/cancel"""
 
-    async def _seed_task(self, db_session: AsyncSession, status: str, user_id: str = "550e8400-e29b-41d4-a716-446655440000", task_id: str | None = None) -> ResearchTask:
+    async def _seed_task(
+        self,
+        db_session: AsyncSession,
+        status: str,
+        user_id: str = "550e8400-e29b-41d4-a716-446655440000",
+        task_id: str | None = None,
+    ) -> ResearchTask:
         task = ResearchTask(
             id=task_id or "task-cancel-001",
             user_id=user_id,
@@ -455,7 +464,9 @@ class TestCancelResearchAPI:
         await db_session.flush()
         return task
 
-    async def test_pending任务_取消成功返回200(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
+    async def test_pending任务_取消成功返回200(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
         task = await self._seed_task(db_session, status="pending", task_id="task-cancel-pending")
 
         response = await async_client.post(f"/api/research/{task.id}/cancel", headers=auth_headers)
@@ -468,7 +479,9 @@ class TestCancelResearchAPI:
         assert data["data"]["status"] == "pending"
         assert data["data"]["cancel_requested"] is True
 
-    async def test_running任务_取消成功返回200(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
+    async def test_running任务_取消成功返回200(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
         task = await self._seed_task(db_session, status="running", task_id="task-cancel-running")
 
         response = await async_client.post(f"/api/research/{task.id}/cancel", headers=auth_headers)
@@ -477,10 +490,16 @@ class TestCancelResearchAPI:
         assert data["status"] == "running"
         assert data["cancel_requested"] is True
 
-    async def test_已终态返回409_E2003(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
+    async def test_已终态返回409_E2003(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
         for idx, status in enumerate(["completed", "failed", "partially_completed", "canceled"]):
-            task = await self._seed_task(db_session, status=status, task_id=f"task-cancel-{status}-{idx}")
-            response = await async_client.post(f"/api/research/{task.id}/cancel", headers=auth_headers)
+            task = await self._seed_task(
+                db_session, status=status, task_id=f"task-cancel-{status}-{idx}"
+            )
+            response = await async_client.post(
+                f"/api/research/{task.id}/cancel", headers=auth_headers
+            )
             assert response.status_code == 409
             assert response.json()["code"] == "E2003"
 
@@ -492,22 +511,30 @@ class TestCancelResearchAPI:
         assert response.status_code == 404
         assert response.json()["code"] == "E2001"
 
-    async def test_无权取消他人任务返回403_E2002(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
-        task = await self._seed_task(db_session, status="pending", user_id="550e8400-e29b-41d4-a716-446655440999", task_id="task-cancel-other")
+    async def test_无权取消他人任务返回403_E2002(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
+        task = await self._seed_task(
+            db_session,
+            status="pending",
+            user_id="550e8400-e29b-41d4-a716-446655440999",
+            task_id="task-cancel-other",
+        )
 
         response = await async_client.post(f"/api/research/{task.id}/cancel", headers=auth_headers)
         assert response.status_code == 403
         assert response.json()["code"] == "E2002"
 
-    async def test_CAS并发状态变更返回409_E2003(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
+    async def test_CAS并发状态变更返回409_E2003(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
         """模拟任务在 cancel 前已被 Worker 改为 completed，CAS 失败返回 E2003。"""
         task = await self._seed_task(db_session, status="running", task_id="task-cancel-cas")
         # 直接改 DB 状态为终态，但内存对象仍为 running（模拟并发）
         from sqlalchemy import update as sa_update
+
         await db_session.execute(
-            sa_update(ResearchTask)
-            .where(ResearchTask.id == task.id)
-            .values(status="completed")
+            sa_update(ResearchTask).where(ResearchTask.id == task.id).values(status="completed")
         )
         await db_session.flush()
 
@@ -535,7 +562,12 @@ class TestGetResearchReportAPI:
             id=task_id,
             user_id=user_id,
             topic="量子计算对密码学的影响",
-            requirements={"task_type": "analysis", "depth": "quick", "max_sources": 10, "language": "zh"},
+            requirements={
+                "task_type": "analysis",
+                "depth": "quick",
+                "max_sources": 10,
+                "language": "zh",
+            },
             status="completed",
             total_steps=7,
             completed_steps=7,
@@ -644,7 +676,9 @@ class TestGetResearchReportAPI:
 
         return task
 
-    async def test_已完成任务返回完整报告JSON(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
+    async def test_已完成任务返回完整报告JSON(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
         task = await self._seed_completed_task_with_report(db_session)
 
         response = await async_client.get(f"/api/research/{task.id}/report", headers=auth_headers)
@@ -673,7 +707,9 @@ class TestGetResearchReportAPI:
     async def test_无权访问他人任务_返回403_E2002(
         self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
     ):
-        task = await self._seed_completed_task_with_report(db_session, user_id="550e8400-e29b-41d4-a716-446655440999", task_id="task-report-002")
+        task = await self._seed_completed_task_with_report(
+            db_session, user_id="550e8400-e29b-41d4-a716-446655440999", task_id="task-report-002"
+        )
 
         response = await async_client.get(f"/api/research/{task.id}/report", headers=auth_headers)
         assert response.status_code == 403
@@ -719,7 +755,12 @@ class TestRetryResearchAPI:
             id=task_id,
             user_id=user_id,
             topic="断点续跑 API 测试",
-            requirements={"task_type": "analysis", "depth": "quick", "max_sources": 10, "language": "zh"},
+            requirements={
+                "task_type": "analysis",
+                "depth": "quick",
+                "max_sources": 10,
+                "language": "zh",
+            },
             status=status,
             recoverable=recoverable,
             error_code="E3104" if status == "failed" else None,
@@ -735,26 +776,32 @@ class TestRetryResearchAPI:
         await db_session.flush()
 
         # 附带一条 failed planning step
-        db_session.add(ResearchStep(
-            task_id=task.id,
-            step_type="planning",
-            status="completed",
-            label="Planning：拆解研究主题",
-        ))
-        db_session.add(ResearchStep(
-            task_id=task.id,
-            step_type="search",
-            status="failed",
-            error_code="E3102",
-            error_message="搜索失败",
-            label="Search：多源搜索",
-        ))
+        db_session.add(
+            ResearchStep(
+                task_id=task.id,
+                step_type="planning",
+                status="completed",
+                label="Planning：拆解研究主题",
+            )
+        )
+        db_session.add(
+            ResearchStep(
+                task_id=task.id,
+                step_type="search",
+                status="failed",
+                error_code="E3102",
+                error_message="搜索失败",
+                label="Search：多源搜索",
+            )
+        )
         await db_session.flush()
         return task
 
     # ── 成功路径 ──────────────────────────────────────────────
 
-    async def test_failed任务_retry返回202(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
+    async def test_failed任务_retry返回202(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
         task = await self._seed_retry_task(db_session, status="failed", task_id="task-retry-failed")
 
         response = await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
@@ -767,8 +814,12 @@ class TestRetryResearchAPI:
         assert data["data"]["resume_from"]["phase"] == "searching"
         assert data["data"]["resume_from"]["last_completed_step_id"] == "step-planning-001"
 
-    async def test_partially_completed任务_retry返回202(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
-        task = await self._seed_retry_task(db_session, status="partially_completed", task_id="task-retry-partial")
+    async def test_partially_completed任务_retry返回202(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
+        task = await self._seed_retry_task(
+            db_session, status="partially_completed", task_id="task-retry-partial"
+        )
 
         response = await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
         assert response.status_code == 202
@@ -776,8 +827,12 @@ class TestRetryResearchAPI:
         assert data["code"] == "0"
         assert data["data"]["status"] == "running"
 
-    async def test_canceled任务_retry返回202(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
-        task = await self._seed_retry_task(db_session, status="canceled", task_id="task-retry-canceled")
+    async def test_canceled任务_retry返回202(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
+        task = await self._seed_retry_task(
+            db_session, status="canceled", task_id="task-retry-canceled"
+        )
 
         response = await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
         assert response.status_code == 202
@@ -785,7 +840,9 @@ class TestRetryResearchAPI:
         assert data["code"] == "0"
         assert data["data"]["status"] == "running"
 
-    async def test_retry后_failed_step被重置为pending(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
+    async def test_retry后_failed_step被重置为pending(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
         task = await self._seed_retry_task(db_session, status="failed", task_id="task-retry-reset")
 
         await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
@@ -812,15 +869,26 @@ class TestRetryResearchAPI:
         assert response.status_code == 404
         assert response.json()["code"] == "E2001"
 
-    async def test_无权访问他人任务_返回403_E2002(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
-        task = await self._seed_retry_task(db_session, status="failed", user_id="550e8400-e29b-41d4-a716-446655440999", task_id="task-retry-other")
+    async def test_无权访问他人任务_返回403_E2002(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
+        task = await self._seed_retry_task(
+            db_session,
+            status="failed",
+            user_id="550e8400-e29b-41d4-a716-446655440999",
+            task_id="task-retry-other",
+        )
 
         response = await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
         assert response.status_code == 403
         assert response.json()["code"] == "E2002"
 
-    async def test_running任务_返回409_E2003(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
-        task = await self._seed_retry_task(db_session, status="running", task_id="task-retry-running")
+    async def test_running任务_返回409_E2003(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
+        task = await self._seed_retry_task(
+            db_session, status="running", task_id="task-retry-running"
+        )
 
         response = await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
         assert response.status_code == 409
@@ -828,22 +896,34 @@ class TestRetryResearchAPI:
         assert body["code"] == "E2003"
         assert body["detail"]["current_status"] == "running"
 
-    async def test_completed任务_返回409_E2003(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
-        task = await self._seed_retry_task(db_session, status="completed", task_id="task-retry-completed")
+    async def test_completed任务_返回409_E2003(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
+        task = await self._seed_retry_task(
+            db_session, status="completed", task_id="task-retry-completed"
+        )
 
         response = await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
         assert response.status_code == 409
         assert response.json()["code"] == "E2003"
 
-    async def test_pending任务_返回409_E2003(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
-        task = await self._seed_retry_task(db_session, status="pending", task_id="task-retry-pending")
+    async def test_pending任务_返回409_E2003(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
+        task = await self._seed_retry_task(
+            db_session, status="pending", task_id="task-retry-pending"
+        )
 
         response = await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
         assert response.status_code == 409
         assert response.json()["code"] == "E2003"
 
-    async def test_recoverable为false_返回409_E2003(self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession):
-        task = await self._seed_retry_task(db_session, status="failed", recoverable=False, task_id="task-retry-norec")
+    async def test_recoverable为false_返回409_E2003(
+        self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
+    ):
+        task = await self._seed_retry_task(
+            db_session, status="failed", recoverable=False, task_id="task-retry-norec"
+        )
 
         response = await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
         assert response.status_code == 409
@@ -878,9 +958,7 @@ class TestCreateResearchIntentAPI:
         assert data["data"]["report"]["sections"][0]["heading"] == "回答"
         mock_delay.assert_not_called()
 
-    async def test_研究主题仍触发celery_delay(
-        self, async_client: AsyncClient, auth_headers: dict
-    ):
+    async def test_研究主题仍触发celery_delay(self, async_client: AsyncClient, auth_headers: dict):
         with patch("app.api.research._execute_research_task.delay") as mock_delay:
             response = await async_client.post(
                 "/api/research",
@@ -909,11 +987,14 @@ class TestCreateResearchIntentAPI:
         async def _raise_disabled(user_id: str):
             raise UserDisabledException()
 
-        with patch(
-            "app.services.research_service.check_user_status",
-            AsyncMock(side_effect=_raise_disabled),
-            create=True,
-        ), patch("app.api.research._execute_research_task.delay") as mock_delay:
+        with (
+            patch(
+                "app.services.research_service.check_user_status",
+                AsyncMock(side_effect=_raise_disabled),
+                create=True,
+            ),
+            patch("app.api.research._execute_research_task.delay") as mock_delay,
+        ):
             response = await async_client.post(
                 "/api/research",
                 json={
@@ -940,11 +1021,14 @@ class TestCreateResearchIntentAPI:
         async def _raise_unavailable(user_id: str):
             raise ServiceUnavailableException("身份事实源不可用")
 
-        with patch(
-            "app.services.research_service.check_user_status",
-            AsyncMock(side_effect=_raise_unavailable),
-            create=True,
-        ), patch("app.api.research._execute_research_task.delay") as mock_delay:
+        with (
+            patch(
+                "app.services.research_service.check_user_status",
+                AsyncMock(side_effect=_raise_unavailable),
+                create=True,
+            ),
+            patch("app.api.research._execute_research_task.delay") as mock_delay,
+        ):
             response = await async_client.post(
                 "/api/research",
                 json={

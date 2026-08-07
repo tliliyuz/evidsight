@@ -31,6 +31,7 @@ SYSTEM_PROMPT_TEMPLATE = """你是一个企业知识库助手。请仅基于以�
 @dataclass
 class PromptBuildResult:
     """Prompt 组装结果"""
+
     system_prompt: str
     user_prompt: str
     used_chunks: list[RetrievalResult]
@@ -141,9 +142,7 @@ def build_prompt(
                 )
                 continue
             # 如果是第一个 chunk，即使超预算也加入（至少有一个参考）
-            logger.debug(
-                f"第一个 chunk（{chunk_tokens} tokens）超过软上限，但仍加入"
-            )
+            logger.debug(f"第一个 chunk（{chunk_tokens} tokens）超过软上限，但仍加入")
 
         # 格式化并添加 chunk
         chunk_index = len(used_chunks) + 1

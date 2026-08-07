@@ -67,6 +67,8 @@ def check_system_targets(
     """
     effective = dict(targets if targets is not None else TARGETS)
     return {
-        "task_completion_rate": metrics.task_completion_rate > effective.get("task_completion_rate", 0.0),
-        "llm_call_success_rate": metrics.llm_call_success_rate > effective.get("llm_call_success_rate", 0.0),
+        "task_completion_rate": metrics.task_completion_rate
+        > effective.get("task_completion_rate", 0.0),
+        "llm_call_success_rate": metrics.llm_call_success_rate
+        > effective.get("llm_call_success_rate", 0.0),
     }

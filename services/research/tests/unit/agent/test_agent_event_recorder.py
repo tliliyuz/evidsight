@@ -32,7 +32,9 @@ class RecordingSSE:
 
 
 async def _make_task(db: AsyncSession) -> str:
-    db.add(ResearchTask(id="rec-task-1", user_id="user-1", topic="t", requirements={"max_sources": 10}))
+    db.add(
+        ResearchTask(id="rec-task-1", user_id="user-1", topic="t", requirements={"max_sources": 10})
+    )
     await db.flush()
     return "rec-task-1"
 

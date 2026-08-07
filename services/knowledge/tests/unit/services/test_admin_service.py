@@ -20,8 +20,16 @@ from sqlalchemy import text
 # ==================== 辅助函数 ====================
 
 
-def _make_kb_row(kb_id=1, name="测试KB", description="描述", visibility="private",
-                 user_id=1, status="active", doc_count=0, chunk_count=0):
+def _make_kb_row(
+    kb_id=1,
+    name="测试KB",
+    description="描述",
+    visibility="private",
+    user_id=1,
+    status="active",
+    doc_count=0,
+    chunk_count=0,
+):
     """构造 KB + username JOIN 查询结果行"""
     kb = MagicMock()
     kb.id = kb_id
@@ -41,9 +49,17 @@ def _make_kb_row(kb_id=1, name="测试KB", description="描述", visibility="pri
     return (kb, username, platform_user_id)
 
 
-def _make_doc_row(doc_id=1, kb_id=1, filename="测试文档.pdf", file_type="pdf",
-                  file_size=1024, status="completed", current_stage=None,
-                  chunk_count=5, error_msg=None):
+def _make_doc_row(
+    doc_id=1,
+    kb_id=1,
+    filename="测试文档.pdf",
+    file_type="pdf",
+    file_size=1024,
+    status="completed",
+    current_stage=None,
+    chunk_count=5,
+    error_msg=None,
+):
     """构造 Document + KB + User JOIN 查询结果行（6 值：doc, kb_name, kb_uuid, kb_visibility, owner_id[UUID], owner_username）"""
     doc = MagicMock()
     doc.id = doc_id
@@ -289,9 +305,7 @@ class TestListAllKBs:
         rows = [_make_kb_row(1, "KB", user_id=5, visibility="public", status="active")]
         _setup_db_list_mock(db, count_value=1, rows=rows)
 
-        result = await list_all_kbs(
-            db, user_id=5, visibility="public", status="active"
-        )
+        result = await list_all_kbs(db, user_id=5, visibility="public", status="active")
 
         assert result.total == 1
 
@@ -466,8 +480,9 @@ class TestListAllDocuments:
 
         db = AsyncMock()
         rows = [
-            _make_doc_row(1, 1, "失败文档.pdf", status="failed",
-                          error_msg="解析失败：PDF 文件已损坏"),
+            _make_doc_row(
+                1, 1, "失败文档.pdf", status="failed", error_msg="解析失败：PDF 文件已损坏"
+            ),
         ]
         _setup_db_list_mock(db, count_value=1, rows=rows)
 

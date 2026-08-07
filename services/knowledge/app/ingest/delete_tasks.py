@@ -41,9 +41,15 @@ async def _delete_document_async(doc_id: int) -> dict:
 
             if doc.status != DocumentStatus.DELETING:
                 logger.warning(
-                    "文档 %d 状态为 %s（非 DELETING），跳过删除", doc_id, doc.status.value,
+                    "文档 %d 状态为 %s（非 DELETING），跳过删除",
+                    doc_id,
+                    doc.status.value,
                 )
-                return {"status": "skipped", "doc_id": doc_id, "reason": f"状态为 {doc.status.value}"}
+                return {
+                    "status": "skipped",
+                    "doc_id": doc_id,
+                    "reason": f"状态为 {doc.status.value}",
+                }
 
             file_path = doc.file_path
             kb_id = doc.kb_id
@@ -76,7 +82,9 @@ async def _delete_document_async(doc_id: int) -> dict:
                     .where(KnowledgeBase.id == kb_id)
                     .values(
                         doc_count=func.greatest(0, KnowledgeBase.doc_count - 1),
-                        chunk_count=func.greatest(0, KnowledgeBase.chunk_count - deleted_chunk_count),
+                        chunk_count=func.greatest(
+                            0, KnowledgeBase.chunk_count - deleted_chunk_count
+                        ),
                     )
                 )
                 await db.commit()
@@ -91,7 +99,9 @@ async def _delete_document_async(doc_id: int) -> dict:
         await release_idempotency_lock_async(doc_id, "delete")
 
 
-@celery_app.task(bind=True, max_retries=3, soft_time_limit=300, autoretry_for=(Exception,), retry_backoff=True)
+@celery_app.task(
+    bind=True, max_retries=3, soft_time_limit=300, autoretry_for=(Exception,), retry_backoff=True
+)
 def delete_document(self, doc_id: int) -> dict:
     """异步删除文档：清理 ChromaDB 向量 + 磁盘文件 + MySQL 记录（FK CASCADE 清 chunks）
 
@@ -100,6 +110,7 @@ def delete_document(self, doc_id: int) -> dict:
     """
     # 局部导入解决循环依赖（delete_tasks → tasks._get_worker_loop）
     from app.ingest.tasks import _get_worker_loop
+
     return _get_worker_loop().run_until_complete(_delete_document_async(doc_id))
 
 
@@ -124,14 +135,14 @@ async def _delete_kb_async(kb_id: int) -> dict:
 
             if kb.status != "deleting":
                 logger.warning(
-                    "知识库 %d 状态为 %s（非 deleting），跳过删除", kb_id, kb.status,
+                    "知识库 %d 状态为 %s（非 deleting），跳过删除",
+                    kb_id,
+                    kb.status,
                 )
                 return {"status": "skipped", "kb_id": kb_id, "reason": f"状态为 {kb.status}"}
 
             # 加载 KB 下所有文档信息
-            result = await db.execute(
-                select(Document).where(Document.kb_id == kb_id)
-            )
+            result = await db.execute(select(Document).where(Document.kb_id == kb_id))
             docs = result.scalars().all()
             doc_info = [(d.id, d.file_path) for d in docs]
             logger.info("知识库 %d 开始异步删除: %d 个文档", kb_id, len(doc_info))
@@ -152,7 +163,9 @@ async def _delete_kb_async(kb_id: int) -> dict:
                     await local_storage.delete(file_path)
                     logger.info("知识库 %d 文档 %d 磁盘文件已删除", kb_id, doc_id)
                 except Exception as e:
-                    logger.warning("知识库 %d 文档 %d 磁盘文件删除失败（非致命）: %s", kb_id, doc_id, e)
+                    logger.warning(
+                        "知识库 %d 文档 %d 磁盘文件删除失败（非致命）: %s", kb_id, doc_id, e
+                    )
 
         # 5. 批量备份孤儿会话的 kb_id / kb_name / kb_uuid（在物理删除 KB 之前）
         #    使用 raw SQL 避免 SQLAlchemy ORM update() 的列映射歧义
@@ -177,7 +190,10 @@ async def _delete_kb_async(kb_id: int) -> dict:
                 await db.commit()
                 logger.info(
                     "知识库 %d（name=%s uuid=%s）关联会话已批量备份 original_kb_*，影响 %d 行",
-                    kb_id, kb.name, kb.uuid, result.rowcount,
+                    kb_id,
+                    kb.name,
+                    kb.uuid,
+                    result.rowcount,
                 )
 
         # 6. 物理删除 KB（FK CASCADE 自动清理 documents + chunks，conversations.kb_id SET NULL）
@@ -194,7 +210,9 @@ async def _delete_kb_async(kb_id: int) -> dict:
         await release_idempotency_lock_async(kb_id, "delete_kb")
 
 
-@celery_app.task(bind=True, max_retries=3, soft_time_limit=600, autoretry_for=(Exception,), retry_backoff=True)
+@celery_app.task(
+    bind=True, max_retries=3, soft_time_limit=600, autoretry_for=(Exception,), retry_backoff=True
+)
 def delete_kb(self, kb_id: int) -> dict:
     """异步删除知识库：遍历文档清理 ChromaDB + 磁盘 → 物理 DELETE KB
 
@@ -203,4 +221,5 @@ def delete_kb(self, kb_id: int) -> dict:
     """
     # 局部导入解决循环依赖（delete_tasks → tasks._get_worker_loop）
     from app.ingest.tasks import _get_worker_loop
+
     return _get_worker_loop().run_until_complete(_delete_kb_async(kb_id))

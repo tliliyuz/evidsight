@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # 2. 引用标注兜底：全文含"未找到" 且 无 [来源N] 引用 = LLM 未找到可用 chunk
 #    有 [来源N] 标注 = LLM 认为自己有价值引用 → sources 应保留
 _NOT_FOUND_KEYWORDS = ["未找到相关信息", "知识库中未找到"]
-_CITATION_PATTERN = re.compile(r'\[来源(\d+)\]')
+_CITATION_PATTERN = re.compile(r"\[来源(\d+)\]")
 
 
 # 标题截断长度：从用户问题前 N 个字符截取作为会话标题
@@ -109,7 +109,7 @@ async def load_history(
         content = msg.content
         # assistant 消息去除 [来源N] 标记（§8.4）
         if msg.role == "assistant":
-            content = re.sub(r'\[来源\d+\]', '', content).strip()
+            content = re.sub(r"\[来源\d+\]", "", content).strip()
         # 不注入 thinking_content（§8.5）
 
         tokens = estimate_tokens(content)
@@ -168,7 +168,7 @@ def build_sources(
         preview_range = None
         highlight_start = None
         highlight_end = None
-        matched = getattr(chunk, 'matched_sentence', None)
+        matched = getattr(chunk, "matched_sentence", None)
         if matched and content:
             idx = content.find(matched)
             center = idx + len(matched) // 2
@@ -186,20 +186,22 @@ def build_sources(
                 highlight_start = hl_start
                 highlight_end = hl_end
 
-        sources.append(ChatSourceChunk(
-            chunk_index=chunk_index,
-            doc_id=chunk.doc_id,
-            doc_name=doc_map.get(chunk.doc_id, ""),
-            content=content,
-            score=round(chunk.score, 4),
-            page=chunk.page,
-            section_title=getattr(chunk, 'section_title', None) or None,
-            section_path=getattr(chunk, 'section_path', None) or None,
-            preview_text=preview_text,
-            preview_range=preview_range,
-            highlight_start=highlight_start,
-            highlight_end=highlight_end,
-        ))
+        sources.append(
+            ChatSourceChunk(
+                chunk_index=chunk_index,
+                doc_id=chunk.doc_id,
+                doc_name=doc_map.get(chunk.doc_id, ""),
+                content=content,
+                score=round(chunk.score, 4),
+                page=chunk.page,
+                section_title=getattr(chunk, "section_title", None) or None,
+                section_path=getattr(chunk, "section_path", None) or None,
+                preview_text=preview_text,
+                preview_range=preview_range,
+                highlight_start=highlight_start,
+                highlight_end=highlight_end,
+            )
+        )
     return sources
 
 

@@ -23,32 +23,36 @@ EVENT_TYPE_RETRY = "retry"
 EVENT_TYPE_BUDGET_STOP = "budget.stop"
 EVENT_TYPE_RECOVERY = "recovery"
 
-EVENT_TYPE_WHITELIST = frozenset({
-    EVENT_TYPE_PHASE_ENTER,
-    EVENT_TYPE_TOOL_REQUEST,
-    EVENT_TYPE_TOOL_RESULT,
-    EVENT_TYPE_RETRY,
-    EVENT_TYPE_BUDGET_STOP,
-    EVENT_TYPE_RECOVERY,
-})
+EVENT_TYPE_WHITELIST = frozenset(
+    {
+        EVENT_TYPE_PHASE_ENTER,
+        EVENT_TYPE_TOOL_REQUEST,
+        EVENT_TYPE_TOOL_RESULT,
+        EVENT_TYPE_RETRY,
+        EVENT_TYPE_BUDGET_STOP,
+        EVENT_TYPE_RECOVERY,
+    }
+)
 
 # ── 禁止进入用户可见字段的键（§16 / §17.3-22 防御性剥离）────────
-_FORBIDDEN_KEYS = frozenset({
-    "thought",
-    "reasoning",
-    "reasoning_content",
-    "prompt",
-    "prompt_text",
-    "excerpt",
-    "minimal_excerpt",
-    "content",
-    "password",
-    "token",
-    "secret",
-    "cookie",
-    "authorization",
-    "stack",
-})
+_FORBIDDEN_KEYS = frozenset(
+    {
+        "thought",
+        "reasoning",
+        "reasoning_content",
+        "prompt",
+        "prompt_text",
+        "excerpt",
+        "minimal_excerpt",
+        "content",
+        "password",
+        "token",
+        "secret",
+        "cookie",
+        "authorization",
+        "stack",
+    }
+)
 
 
 def _strip_forbidden_keys(summary: dict[str, Any] | None) -> dict[str, Any]:

@@ -42,10 +42,13 @@ CASUAL_SYSTEM_PROMPT = "你是 DocMind，一个企业知识库助手。请友好
 @dataclass
 class KnowledgePipelineResult:
     """知识管线完整产出"""
+
     reranked_output: RetrievalOutput
     prompt_result: PromptBuildResult
     doc_map: dict[int, str]  # doc_id -> filename
-    evidence_review: EvidenceReviewResult | None = None  # PRE-LLM 证据审查结果；chat_service 读取 decision 做门控
+    evidence_review: EvidenceReviewResult | None = (
+        None  # PRE-LLM 证据审查结果；chat_service 读取 decision 做门控
+    )
 
 
 class KnowledgePipeline:
@@ -108,7 +111,8 @@ class KnowledgePipeline:
             t_rewrite = time.perf_counter()
             logger.info(
                 "QUERY_REWRITE original=%s rewritten=%s triggered=True",
-                _original_question[:100], question[:100],
+                _original_question[:100],
+                question[:100],
             )
             if recorder:
                 recorder.record_rewrite(
@@ -173,7 +177,8 @@ class KnowledgePipeline:
                 reranked_output = coarse_output
                 logger.info(
                     "CoarseRank 后候选不足 RERANK_TOP_K（%d < %d），跳过精排",
-                    coarse_output_count, settings.RERANK_TOP_K,
+                    coarse_output_count,
+                    settings.RERANK_TOP_K,
                 )
             else:
                 reranked_output = await self._reranker.rerank(question, coarse_output)
@@ -266,7 +271,9 @@ class KnowledgePipeline:
                 )
 
             # ALLOW 路径：构建 Prompt
-            prompt_result = build_prompt(question, reranked_output, history_messages=history_messages)
+            prompt_result = build_prompt(
+                question, reranked_output, history_messages=history_messages
+            )
             t_retrieval_done = time.perf_counter()
 
             if recorder:

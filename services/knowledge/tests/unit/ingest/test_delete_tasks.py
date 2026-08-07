@@ -28,7 +28,9 @@ class TestDeleteDocumentLock:
 
     @pytest.mark.asyncio
     async def test_锁被占用_拒绝删除(self):
-        with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=False)):
+        with patch(
+            "app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=False)
+        ):
             result = await _delete_document_async(1)
         assert result == {"status": "locked", "doc_id": 1}
 
@@ -39,18 +41,30 @@ class TestDeleteDocumentLoad:
     @pytest.mark.asyncio
     async def test_文档不存在_返回not_found(self):
         db = setup_mock_db(doc=None)
-        with patch("app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=True)):
+        with patch(
+            "app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)
+        ):
+            with patch(
+                "app.ingest.delete_tasks.acquire_idempotency_lock_async",
+                AsyncMock(return_value=True),
+            ):
                 with patch("app.ingest.delete_tasks.release_idempotency_lock_async", AsyncMock()):
                     result = await _delete_document_async(1)
         assert result == {"status": "not_found", "doc_id": 1}
 
     @pytest.mark.asyncio
     async def test_状态非DELETING_跳过删除(self):
-        doc = make_mock_doc(status=DocumentStatus.COMPLETED, file_path="/tmp/a.pdf", kb_id=1, doc_id=1)
+        doc = make_mock_doc(
+            status=DocumentStatus.COMPLETED, file_path="/tmp/a.pdf", kb_id=1, doc_id=1
+        )
         db = setup_mock_db(doc)
-        with patch("app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=True)):
+        with patch(
+            "app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)
+        ):
+            with patch(
+                "app.ingest.delete_tasks.acquire_idempotency_lock_async",
+                AsyncMock(return_value=True),
+            ):
                 with patch("app.ingest.delete_tasks.release_idempotency_lock_async", AsyncMock()):
                     result = await _delete_document_async(1)
         assert result["status"] == "skipped"
@@ -61,13 +75,20 @@ class TestDeleteDocumentVectorFailure:
 
     @pytest.mark.asyncio
     async def test_向量清理失败_返回error(self):
-        doc = make_mock_doc(status=DocumentStatus.DELETING, file_path="/tmp/a.pdf", kb_id=1, doc_id=1)
+        doc = make_mock_doc(
+            status=DocumentStatus.DELETING, file_path="/tmp/a.pdf", kb_id=1, doc_id=1
+        )
         db = setup_mock_db(doc)
         store = _mock_store()
         store.delete = AsyncMock(side_effect=RuntimeError("chroma down"))
 
-        with patch("app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=True)):
+        with patch(
+            "app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)
+        ):
+            with patch(
+                "app.ingest.delete_tasks.acquire_idempotency_lock_async",
+                AsyncMock(return_value=True),
+            ):
                 with patch("app.ingest.delete_tasks.release_idempotency_lock_async", AsyncMock()):
                     with patch("app.ingest.delete_tasks.get_vector_store", return_value=store):
                         result = await _delete_document_async(1)
@@ -83,20 +104,29 @@ class TestDeleteDocumentDiskNonFatal:
 
     @pytest.mark.asyncio
     async def test_磁盘删除失败_仍完成删除(self):
-        doc = make_mock_doc(status=DocumentStatus.DELETING, file_path="/tmp/a.pdf", kb_id=1, doc_id=1)
+        doc = make_mock_doc(
+            status=DocumentStatus.DELETING, file_path="/tmp/a.pdf", kb_id=1, doc_id=1
+        )
         doc.chunk_count = 3
         db = setup_mock_db(doc)
         store = _mock_store()
 
-        with patch("app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=True)):
+        with patch(
+            "app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)
+        ):
+            with patch(
+                "app.ingest.delete_tasks.acquire_idempotency_lock_async",
+                AsyncMock(return_value=True),
+            ):
                 with patch("app.ingest.delete_tasks.release_idempotency_lock_async", AsyncMock()):
                     with patch("app.ingest.delete_tasks.get_vector_store", return_value=store):
                         with patch(
                             "app.ingest.delete_tasks.local_storage.delete",
                             AsyncMock(side_effect=OSError("permission")),
                         ):
-                            with patch("app.ingest.delete_tasks.invalidate_bm25_cache_async", AsyncMock()):
+                            with patch(
+                                "app.ingest.delete_tasks.invalidate_bm25_cache_async", AsyncMock()
+                            ):
                                 result = await _delete_document_async(1)
 
         assert result["status"] == "completed"
@@ -111,17 +141,26 @@ class TestDeleteDocumentSuccess:
 
     @pytest.mark.asyncio
     async def test_成功删除_清理向量与磁盘并更新kb计数(self):
-        doc = make_mock_doc(status=DocumentStatus.DELETING, file_path="/tmp/a.pdf", kb_id=1, doc_id=1)
+        doc = make_mock_doc(
+            status=DocumentStatus.DELETING, file_path="/tmp/a.pdf", kb_id=1, doc_id=1
+        )
         doc.chunk_count = 3
         db = setup_mock_db(doc)
         store = _mock_store()
 
-        with patch("app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=True)):
+        with patch(
+            "app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)
+        ):
+            with patch(
+                "app.ingest.delete_tasks.acquire_idempotency_lock_async",
+                AsyncMock(return_value=True),
+            ):
                 with patch("app.ingest.delete_tasks.release_idempotency_lock_async", AsyncMock()):
                     with patch("app.ingest.delete_tasks.get_vector_store", return_value=store):
                         with patch("app.ingest.delete_tasks.local_storage.delete", AsyncMock()):
-                            with patch("app.ingest.delete_tasks.invalidate_bm25_cache_async", AsyncMock()) as mock_bm25:
+                            with patch(
+                                "app.ingest.delete_tasks.invalidate_bm25_cache_async", AsyncMock()
+                            ) as mock_bm25:
                                 result = await _delete_document_async(1)
 
         assert result["status"] == "completed"
@@ -138,7 +177,9 @@ class TestDeleteKbLock:
 
     @pytest.mark.asyncio
     async def test_锁被占用_拒绝删除(self):
-        with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=False)):
+        with patch(
+            "app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=False)
+        ):
             result = await _delete_kb_async(1)
         assert result == {"status": "locked", "kb_id": 1}
 
@@ -149,8 +190,13 @@ class TestDeleteKbLoad:
     @pytest.mark.asyncio
     async def test_kb不存在_返回not_found(self):
         db = setup_mock_db(doc=None)
-        with patch("app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=True)):
+        with patch(
+            "app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)
+        ):
+            with patch(
+                "app.ingest.delete_tasks.acquire_idempotency_lock_async",
+                AsyncMock(return_value=True),
+            ):
                 with patch("app.ingest.delete_tasks.release_idempotency_lock_async", AsyncMock()):
                     result = await _delete_kb_async(1)
         assert result == {"status": "not_found", "kb_id": 1}
@@ -161,8 +207,13 @@ class TestDeleteKbLoad:
         kb.id = 1
         kb.status = "ready"
         db = setup_mock_db(kb)
-        with patch("app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=True)):
+        with patch(
+            "app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)
+        ):
+            with patch(
+                "app.ingest.delete_tasks.acquire_idempotency_lock_async",
+                AsyncMock(return_value=True),
+            ):
                 with patch("app.ingest.delete_tasks.release_idempotency_lock_async", AsyncMock()):
                     result = await _delete_kb_async(1)
         assert result["status"] == "skipped"
@@ -188,8 +239,13 @@ class TestDeleteKbVectorFailure:
         store = _mock_store()
         store.delete = AsyncMock(side_effect=RuntimeError("collection down"))
 
-        with patch("app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=True)):
+        with patch(
+            "app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)
+        ):
+            with patch(
+                "app.ingest.delete_tasks.acquire_idempotency_lock_async",
+                AsyncMock(return_value=True),
+            ):
                 with patch("app.ingest.delete_tasks.release_idempotency_lock_async", AsyncMock()):
                     with patch("app.ingest.delete_tasks.get_vector_store", return_value=store):
                         result = await _delete_kb_async(1)
@@ -222,11 +278,18 @@ class TestDeleteKbSuccess:
 
         store = _mock_store()
 
-        with patch("app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=True)):
+        with patch(
+            "app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)
+        ):
+            with patch(
+                "app.ingest.delete_tasks.acquire_idempotency_lock_async",
+                AsyncMock(return_value=True),
+            ):
                 with patch("app.ingest.delete_tasks.release_idempotency_lock_async", AsyncMock()):
                     with patch("app.ingest.delete_tasks.get_vector_store", return_value=store):
-                        with patch("app.ingest.delete_tasks.local_storage.delete", AsyncMock()) as mock_disk:
+                        with patch(
+                            "app.ingest.delete_tasks.local_storage.delete", AsyncMock()
+                        ) as mock_disk:
                             result = await _delete_kb_async(1)
 
         assert result["status"] == "completed"
@@ -257,8 +320,13 @@ class TestDeleteKbDiskNonFatal:
 
         store = _mock_store()
 
-        with patch("app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)):
-            with patch("app.ingest.delete_tasks.acquire_idempotency_lock_async", AsyncMock(return_value=True)):
+        with patch(
+            "app.ingest.delete_tasks.async_session", return_value=mock_async_session_ctx(db)
+        ):
+            with patch(
+                "app.ingest.delete_tasks.acquire_idempotency_lock_async",
+                AsyncMock(return_value=True),
+            ):
                 with patch("app.ingest.delete_tasks.release_idempotency_lock_async", AsyncMock()):
                     with patch("app.ingest.delete_tasks.get_vector_store", return_value=store):
                         with patch(

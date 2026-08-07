@@ -10,6 +10,7 @@ from app.models.enums import DocumentStatus
 
 class DocumentResponse(BaseModel):
     """文档响应（列表 & 详情共用）"""
+
     uuid: str
     kb_uuid: str
     filename: str
@@ -26,6 +27,7 @@ class DocumentResponse(BaseModel):
 
 class DocumentListResponse(BaseModel):
     """文档列表分页数据"""
+
     total: int
     page: int
     page_size: int
@@ -34,6 +36,7 @@ class DocumentListResponse(BaseModel):
 
 class DocumentUploadResponse(BaseModel):
     """文档上传响应数据"""
+
     uuid: str
     kb_uuid: str
     filename: str
@@ -46,18 +49,21 @@ class DocumentUploadResponse(BaseModel):
 
 class DocumentDeleteResponse(BaseModel):
     """文档删除响应数据"""
+
     doc_uuid: str
     status: DocumentStatus
 
 
 class DocumentReprocessResponse(BaseModel):
     """文档重新处理响应数据"""
+
     doc_uuid: str
     status: DocumentStatus
 
 
 class DocumentBatchUploadItem(BaseModel):
     """批量上传 — 单个成功项"""
+
     uuid: str
     filename: str
     status: DocumentStatus
@@ -65,18 +71,21 @@ class DocumentBatchUploadItem(BaseModel):
 
 class DocumentBatchUploadFailedItem(BaseModel):
     """批量上传 — 单个失败项"""
+
     filename: str
     reason: str
 
 
 class DocumentBatchUploadResponse(BaseModel):
     """批量上传响应数据"""
+
     success: list[DocumentBatchUploadItem]
     failed: list[DocumentBatchUploadFailedItem]
 
 
 class DocumentChunkResponse(BaseModel):
     """文档分块响应"""
+
     id: int
     chunk_index: int
     preview: str = Field(description="分块内容预览（默认截断至 200 字符）")
@@ -88,6 +97,7 @@ class DocumentChunkResponse(BaseModel):
 
 class DocumentChunkListResponse(BaseModel):
     """文档分块列表分页数据"""
+
     total: int
     page: int
     page_size: int

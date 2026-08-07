@@ -14,12 +14,10 @@ def test_each_service_owns_its_build_context():
 
 def test_services_do_not_import_each_other_app_package():
     knowledge = "\n".join(
-        p.read_text(errors="ignore")
-        for p in (ROOT / "services/knowledge/app").rglob("*.py")
+        p.read_text(errors="ignore") for p in (ROOT / "services/knowledge/app").rglob("*.py")
     )
     research = "\n".join(
-        p.read_text(errors="ignore")
-        for p in (ROOT / "services/research/app").rglob("*.py")
+        p.read_text(errors="ignore") for p in (ROOT / "services/research/app").rglob("*.py")
     )
     assert "services.research.app" not in knowledge
     assert "services.knowledge.app" not in research

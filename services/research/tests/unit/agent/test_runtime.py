@@ -91,9 +91,7 @@ class TestRunCancel:
 
     def _prepare_run(self, runtime, monkeypatch):
         """公共打桩：任务启动、记忆服务、任务锁、最终化。"""
-        monkeypatch.setattr(
-            "app.agent.runtime.start_research_task", AsyncMock(return_value=True)
-        )
+        monkeypatch.setattr("app.agent.runtime.start_research_task", AsyncMock(return_value=True))
         monkeypatch.setattr(
             "app.agent.runtime.agent_memory_service.build_working_memory",
             AsyncMock(return_value=WorkingMemory()),

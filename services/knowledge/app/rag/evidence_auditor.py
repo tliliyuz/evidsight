@@ -18,15 +18,16 @@ from app.rag.retriever import RetrievalResult
 logger = logging.getLogger(__name__)
 
 # 引用标注匹配（复用 chat_service._CITATION_PATTERN 同款正则）
-_CITATION_PATTERN = re.compile(r'\[来源(\d+)\]')
+_CITATION_PATTERN = re.compile(r"\[来源(\d+)\]")
 
 # 答案句子分隔符
-_ANSWER_SENTENCE_SEP = re.compile(r'[。！？]')
+_ANSWER_SENTENCE_SEP = re.compile(r"[。！？]")
 
 
 @dataclass
 class EvidenceAuditResult:
     """三层证据审计综合结果"""
+
     # 第一层：引用存在性
     has_citation: bool = False
     cited_indices: list[int] = field(default_factory=list)
@@ -116,11 +117,7 @@ def _check_source_consistency(
         return
 
     # 将 [来源N] 编号映射到实际 chunk
-    cited_chunks = [
-        used_chunks[i - 1]
-        for i in result.cited_indices
-        if 1 <= i <= len(used_chunks)
-    ]
+    cited_chunks = [used_chunks[i - 1] for i in result.cited_indices if 1 <= i <= len(used_chunks)]
 
     # 按 doc_id 统计（doc_name 可能为空，用 doc_id 更可靠）
     doc_counts = Counter(c.doc_id for c in cited_chunks if c.doc_id)
@@ -134,9 +131,7 @@ def _check_source_consistency(
         result.consistency_status = "acceptable"
     else:
         result.consistency_status = "dispersed"
-        result.consistency_detail = (
-            f"答案依赖 {result.unique_doc_count} 个不同来源"
-        )
+        result.consistency_detail = f"答案依赖 {result.unique_doc_count} 个不同来源"
 
 
 def _check_sentence_evidence(
@@ -167,7 +162,7 @@ def _check_sentence_evidence(
             continue
 
         # 跳过纯引用句（如"根据来源1"）和问句
-        if '来源' in sent or sent.endswith('？') or sent.endswith('?'):
+        if "来源" in sent or sent.endswith("？") or sent.endswith("?"):
             continue
 
         factual_count += 1

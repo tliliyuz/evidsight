@@ -3,6 +3,7 @@
 对齐 CONFIGURATION.md 生产必填项（I2）：AUTH_ALLOWED_ORIGINS 生产必填、
 Service 公钥文件可加载；DEBUG=True 不阻断开发迭代。
 """
+
 import json
 
 from app.config import settings
@@ -26,7 +27,8 @@ class TestValidateProductionConfig:
         monkeypatch.setattr(settings, "DEBUG", False)
         monkeypatch.setattr(settings, "EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS", "")
         monkeypatch.setattr(
-            settings, "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
+            settings,
+            "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
             str(tmp_path / "missing.json"),
         )
         errors = validate_production_config()
@@ -36,9 +38,13 @@ class TestValidateProductionConfig:
     def test_生产_配置齐全_返回空(self, monkeypatch, tmp_path):
         monkeypatch.setattr(settings, "DEBUG", False)
         monkeypatch.setattr(
-            settings, "EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS", "https://app.evidsight.cn",
+            settings,
+            "EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS",
+            "https://app.evidsight.cn",
         )
         monkeypatch.setattr(
-            settings, "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE", _write_keys(tmp_path),
+            settings,
+            "EVIDSIGHT_KNOWLEDGE_SERVICE_JWT_PUBLIC_KEYS_FILE",
+            _write_keys(tmp_path),
         )
         assert validate_production_config() == []
