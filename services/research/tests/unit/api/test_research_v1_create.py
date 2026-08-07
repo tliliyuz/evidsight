@@ -76,6 +76,25 @@ class TestResearchV1Create:
         rows = (await db_session.execute(stmt)).scalars().all()
         assert len(rows) == 1
 
+    async def test_同Key_仅topic首尾空白不同_视为重放非409(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
+        with patch("app.api.research_v1._execute_research_task.delay"):
+            r1 = await async_client.post(
+                "/api/v1/research/tasks",
+                json=_payload(topic="量子计算对密码学的影响"),
+                headers=_headers(auth_headers),
+            )
+            r2 = await async_client.post(
+                "/api/v1/research/tasks",
+                json=_payload(topic="  量子计算对密码学的影响  "),
+                headers=_headers(auth_headers),
+            )
+        assert r1.status_code == 202
+        assert r2.status_code == 202
+        assert r1.json()["data"]["task_id"] == r2.json()["data"]["task_id"]
+        assert r2.json()["data"]["idempotent_replayed"] is True
+
     async def test_同Key不同载荷_返回409E2009(self, async_client: AsyncClient, auth_headers: dict):
         with patch("app.api.research_v1._execute_research_task.delay"):
             r1 = await async_client.post(

@@ -103,6 +103,7 @@ class AgentRuntime:
         self._phase_controller: PhaseController | None = None
         self._loop: AgentLoop | None = None
         self._recorder: AgentEventRecorder | None = None
+        self._budget_stop_recorded = False
 
     @classmethod
     def build_default(
@@ -344,9 +345,14 @@ class AgentRuntime:
             sub_questions = result.output.get("sub_questions")
             if isinstance(sub_questions, list):
                 delta["sub_questions"] = len(sub_questions)
+            # 搜索结果数：web/hybrid 输出 total_results，knowledge/hybrid 输出
+            # total_internal_hits（searcher §6.1），两个口径都计入 search_results。
             total_results = result.output.get("total_results")
             if isinstance(total_results, int):
                 delta["search_results"] = total_results
+            total_internal_hits = result.output.get("total_internal_hits")
+            if isinstance(total_internal_hits, int):
+                delta["search_results"] = delta.get("search_results", 0) + total_internal_hits
             fetched = result.output.get("fetched")
             if isinstance(fetched, list):
                 delta["fetch"] = len(fetched)
@@ -361,7 +367,14 @@ class AgentRuntime:
             await self._record_budget_stop()
 
     async def _record_budget_stop(self) -> None:
-        """记录 budget.stop 事件（§14 / DATABASE.md §5.4 白名单枚举）。"""
+        """记录 budget.stop 事件（§14 / DATABASE.md §5.4 白名单枚举）。
+
+        幂等：一次受控停止只记录一个事件。维度超限在结算路径（_settle_tool_budget）
+        触发一次；下一轮 can_reserve 抛 BudgetExhaustedError 再进入 run() 分支时不再重复。
+        """
+        if self._budget_stop_recorded:
+            return
+        self._budget_stop_recorded = True
         reason = budget_stop_reason(self._task) or "预算停止"
         if self._recorder is not None:
             await self._recorder.record(

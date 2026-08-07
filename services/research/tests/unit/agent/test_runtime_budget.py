@@ -105,6 +105,46 @@ class TestRuntimeBudget:
         assert budget_runtime._task.budget_usage["llm_tokens"] == 150
 
     @pytest.mark.asyncio
+    async def test_knowledge策略_内部命中计入search_results(self, budget_runtime):
+        # knowledge 策略输出 total_internal_hits（searcher §6.1），
+        # 预算 search_results 维度必须计入，否则预算计数口径缺失（§14）。
+        budget_runtime._complete_step = AsyncMock()
+        budget_runtime._fail_step = AsyncMock()
+        budget_runtime._task.source_strategy = "knowledge"
+
+        class KnowledgeTool(Tool):
+            name = "knowledge_tool"
+            description = "knowledge"
+            mapped_phase = "search"
+            parameters_schema = {"type": "object", "properties": {}}
+
+            async def execute(self, ctx: ToolContext, **params):
+                return type(
+                    "R",
+                    (),
+                    {
+                        "success": True,
+                        "output": {
+                            "total_internal_hits": 7,
+                            "internal_candidates": [],
+                            "provider_calls": 1,
+                        },
+                        "observation": "ok",
+                        "error_message": None,
+                        "cost": None,
+                        "duration_ms": 10,
+                    },
+                )()
+
+        tool = KnowledgeTool()
+        tool_call = ToolCall(id="1", name="knowledge_tool", arguments={})
+
+        exec_result = await budget_runtime._execute_tool(tool, tool_call)
+
+        assert exec_result.result.success is True
+        assert budget_runtime._task.budget_usage["search_results"] == 7
+
+    @pytest.mark.asyncio
     async def test_预算用尽_预留失败_停止新调用(self, budget_runtime):
         # 预先把 provider_calls 打到上限，使 reserve 失败
         from app.services.budget_service import settle_budget
@@ -125,5 +165,20 @@ class TestRuntimeBudget:
         await budget_runtime._record_budget_stop()
 
         recorder.record.assert_awaited()
+        kwargs = recorder.record.call_args.kwargs
+        assert kwargs["event_type"] == EVENT_TYPE_BUDGET_STOP
+
+    @pytest.mark.asyncio
+    async def test_预算停止_重复调用只记录一次(self, budget_runtime):
+        from app.services.agent_event_service import EVENT_TYPE_BUDGET_STOP
+
+        recorder = AsyncMock()
+        budget_runtime._recorder = recorder
+        # 维度超限结算触发一次 + 下一轮 can_reserve 抛 BudgetExhaustedError 再触发一次，
+        # 同一停止不得重复记录 budget.stop（§14 一次受控停止一个事件）。
+        await budget_runtime._record_budget_stop()
+        await budget_runtime._record_budget_stop()
+
+        recorder.record.assert_awaited_once()
         kwargs = recorder.record.call_args.kwargs
         assert kwargs["event_type"] == EVENT_TYPE_BUDGET_STOP

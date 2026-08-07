@@ -6,6 +6,14 @@
 
 ### Added
 
+- 修复 M3 代码审查改进建议（均不改变服务边界/公共契约/权限模型/数据生命周期，ADR 检查 1–8：否）：
+  ① **幂等指纹空白规范化**（对齐 API.md §8.1「规范化请求载荷计算指纹」）：`compute_request_fingerprint` 对 `topic` 先 `strip()` 再入指纹，与 `create_task` 落库口径一致——同 Key 载荷仅 topic 首尾空白不同视为重放（202，`idempotent_replayed=true`）而非 409 E2009。验证：RED 确认（纯函数 1 项 + API 层 1 项因指纹不一致失败）；新增 `TestComputeRequestFingerprint` 2 项与 API 用例 1 项，12 项全绿。
+  ② **幂等并发 IntegrityError 误分类修复**（对齐 API.md §8.1 幂等语义）：`create_task_idempotent` 不再把全部 `IntegrityError` 按幂等竞争收敛，新增 `_is_idempotency_unique_conflict` 识别 `uq_research_tasks_user_idempotency`（MySQL 约束名 / SQLite 冲突列名双口径）；仅该约束冲突按重放收敛，其余（如 `research_task_knowledge_bases.selection_order`）上抛，避免误报 E2009。验证：RED 确认（非幂等约束冲突用例因误报 E2009 失败）；新增 `TestCreateTaskIdempotent` 2 项。
+  ③ **`search_retrieval` 返回注解修正**：`app/core/internal_retrieval_client.py` `search_retrieval` 返回类型由 `-> dict` 修正为 `-> RetrievalSearchResult`（实际返回类型），消除类型标注与实际不符。
+  ④ **knowledge/hybrid 预算 search_results 计数补齐**（对齐 RESEARCH_PIPELINE §14 结算口径）：`_settle_tool_budget` 同时识别 `total_internal_hits`（knowledge/hybrid 内部检索命中）与 `total_results`（web 搜索结果），避免 knowledge 策略 search_results 维度恒计 0。验证：RED 确认（新增用例断言 0≠7 失败）；新增 `test_runtime_budget.py` 1 项。
+  ⑤ **预算停止事件幂等**（对齐 §14 一次受控停止一个事件）：`AgentRuntime._record_budget_stop` 增加实例级 `_budget_stop_recorded` 标记，维度超限在结算路径触发后，下一轮 `can_reserve` 抛 `BudgetExhaustedError` 进入 run() 分支时不再重复记录 `budget.stop`。验证：RED 确认（重复调用断言 2≠1 失败）；新增 `test_runtime_budget.py` 1 项。
+  回归验证：本地 research 全量 unit（非 slow）988 passed / 16 failed 与 clean HEAD 失败集完全一致（16 项均为 TAVILY_API_KEY 未配置的既有环境依赖）；受影响套件 158 项全绿；容器内（挂载工作区，缺 aiosqlite 环境依赖仅影响 DB fixture 用例）非 DB 用例 51 passed；ruff check 与 ruff format --check 全部通过。（2026-08-07）
+
 - 修复 M3 代码审查发现的三个严重问题（均为让实现重新符合既有权威规范，不改变服务边界/公共契约/权限模型/数据生命周期，ADR 检查 1–8：否）：
   ① **取消/租约竞态下报告仍发布的修复**（对齐 RESEARCH_PIPELINE §13.1/§13.2/§17.3-15、DATABASE.md §8）：`AgentRuntime._handle_fatal_error` 对 `LeaseLostError` 不再直接 return，而是先 `session.rollback()` 丢弃本会话已 flush 但未提交的写入（render 已 flush 的 `report_revision published`、Step 状态、预算结算、agent_events），避免 `_run_pipeline` 最终 commit 在租约失效/取消后仍落库；随后区分取消已提交（`cancel_requested_at` 非空）与真租约丢失——取消场景安全停止后经 `_finalize_task` 由 Resolver 推导 canceled/partially_completed 终态（不发布新 Revision），真租约丢失才交 Recovery Scanner 接管。验证：RED 确认（新增 2 项用例因 rollback/finalize 缺失失败）；新增 `test_runtime_lease.py` 2 项（取消已提交回滚并推导终态/真租约丢失回滚不推导终态），agent 与租约相关 90 项全绿。
   ② **SSRF IPv4-mapped IPv6 绕过修复**（对齐 RESEARCH_PIPELINE §6.3.2/§17.17）：`app/utils/url_safety.py` 内网黑名单补充 `::ffff:0:0/96`（IPv4-mapped IPv6，可映射回环/私网/链路本地/云元数据）与 `64:ff9b::/96`（NAT64 前缀）；已实跑复现 `http://[::ffff:127.0.0.1]` 可访问回环的绕过路径。验证：RED 确认（5 项新增用例失败）；新增 `test_fetcher.py::TestCheckUrlSafety` 5 项（`::ffff:127.0.0.1`/`::ffff:10.0.0.1`/`::ffff:169.254.169.254`/`::ffff:7f00:1`/`64:ff9b::a00:1` 均拒绝），14 项全绿。

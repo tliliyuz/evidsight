@@ -126,7 +126,7 @@ def compute_request_fingerprint(request: ResearchCreateRequest) -> str:
     """
     canonical = json.dumps(
         {
-            "topic": request.topic,
+            "topic": request.topic.strip(),
             "requirements": request.requirements.model_dump(),
             "source_strategy": request.source_strategy,
             "knowledge_base_ids": request.knowledge_base_ids,
@@ -148,7 +148,8 @@ async def create_task_idempotent(
     """幂等创建（API.md §8.1）：同用户同 Key 同指纹重放，不同指纹 409。
 
     - 已存在 (user_id, idempotency_key)：指纹一致返回原任务（replayed=true），不一致抛 E2009；
-    - 不存在：走 create_task 写入幂等列；并发唯一约束竞争时按重放收敛。
+    - 不存在：走 create_task 写入幂等列；并发竞争同一幂等唯一约束时按重放收敛，
+      其他 IntegrityError（如 selection_order 唯一冲突）上抛，不得误报 E2009。
     """
     existing = await _find_task_by_idempotency_key(db, user_id, idempotency_key)
     if existing is not None:
@@ -164,7 +165,11 @@ async def create_task_idempotent(
             idempotency_key=idempotency_key,
             request_fingerprint=request_fingerprint,
         )
-    except IntegrityError:
+    except IntegrityError as exc:
+        # 只对「幂等键唯一约束」冲突做并发收敛；其余完整性冲突（KB 选择行
+        # selection_order、其他唯一键）保持上抛，避免错误报告 E2009。
+        if not _is_idempotency_unique_conflict(exc):
+            raise
         # 并发竞争：另一请求已创建同一 (user_id, idempotency_key)，按重放收敛
         await db.rollback()
         existing = await _find_task_by_idempotency_key(db, user_id, idempotency_key)
@@ -173,6 +178,16 @@ async def create_task_idempotent(
         raise IdempotencyKeyConflictException(
             "相同 Idempotency-Key 的并发请求载荷不一致，拒绝创建新任务"
         )
+
+
+def _is_idempotency_unique_conflict(exc: IntegrityError) -> bool:
+    """判断 IntegrityError 是否来自幂等键唯一约束
+    `uq_research_tasks_user_idempotency(user_id, idempotency_key)`。
+
+    MySQL 报错携带约束名；SQLite 报错携带冲突列名，两种都识别。
+    """
+    message = str(exc)
+    return "uq_research_tasks_user_idempotency" in message or "idempotency_key" in message
 
 
 async def _find_task_by_idempotency_key(

@@ -22,7 +22,9 @@ from app.services.research_service import (
     RETRY_ALLOWED_STATUSES,
     _build_progress,
     cancel_task,
+    compute_request_fingerprint,
     create_task,
+    create_task_idempotent,
     delete_task,
     get_report,
     get_task_detail,
@@ -316,6 +318,79 @@ class TestCreateTaskIdentityGate:
             db_session, user_id="550e8400-e29b-41d4-a716-446655440000", request=req
         )
         assert result.status == "pending"
+
+
+class TestComputeRequestFingerprint:
+    """幂等指纹规范化（API.md §8.1：规范化请求载荷计算指纹）。"""
+
+    def test_topic首尾空白_规范化后指纹一致(self):
+        fp_trimmed = compute_request_fingerprint(_make_request(topic="量子计算对密码学的影响"))
+        fp_padded = compute_request_fingerprint(_make_request(topic="  量子计算对密码学的影响  "))
+        assert fp_trimmed == fp_padded
+
+    def test_topic不同_指纹不同(self):
+        fp_a = compute_request_fingerprint(_make_request(topic="主题 A"))
+        fp_b = compute_request_fingerprint(_make_request(topic="主题 B"))
+        assert fp_a != fp_b
+
+
+class TestCreateTaskIdempotent:
+    """幂等创建：并发唯一约束竞争收敛只应针对幂等键（API.md §8.1），
+    其他 IntegrityError 必须上抛而非误报 E2009。"""
+
+    async def test_非幂等约束冲突_上抛而非收敛(self, db_session: AsyncSession, monkeypatch):
+        from sqlalchemy.exc import IntegrityError
+
+        def _boom(db, user_id, request, **kw):
+            raise IntegrityError(
+                "INSERT INTO research_task_knowledge_bases",
+                {},
+                Exception("UNIQUE constraint failed: t.task_id, t.selection_order"),
+            )
+
+        monkeypatch.setattr("app.services.research_service.create_task", _boom)
+
+        with pytest.raises(IntegrityError):
+            await create_task_idempotent(
+                db_session,
+                user_id="550e8400-e29b-41d4-a716-446655440000",
+                request=_make_request(),
+                idempotency_key="k1",
+                request_fingerprint="fp",
+            )
+
+    async def test_幂等约束冲突_按重放收敛(self, db_session: AsyncSession, monkeypatch):
+        from app.models.research_task import ResearchTask
+        from sqlalchemy.exc import IntegrityError
+
+        async def _boom(db, user_id, request, **kw):
+            raise IntegrityError(
+                "INSERT INTO research_tasks",
+                {},
+                Exception("UNIQUE constraint failed: t.user_id, t.idempotency_key"),
+            )
+
+        monkeypatch.setattr("app.services.research_service.create_task", _boom)
+        db_session.add(
+            ResearchTask(
+                user_id="550e8400-e29b-41d4-a716-446655440000",
+                topic="已有任务",
+                requirements={"task_type": "analysis", "depth": "quick"},
+                idempotency_key="k1",
+                request_fingerprint="fp",
+                status="pending",
+            )
+        )
+        await db_session.flush()
+
+        result = await create_task_idempotent(
+            db_session,
+            user_id="550e8400-e29b-41d4-a716-446655440000",
+            request=_make_request(),
+            idempotency_key="k1",
+            request_fingerprint="fp",
+        )
+        assert result.idempotent_replayed is True
 
 
 # ═══════════════════════════════════════════════════════════════

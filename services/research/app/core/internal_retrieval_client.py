@@ -341,7 +341,7 @@ async def search_retrieval(
     *,
     limit: int = 20,
     filters: dict | None = None,
-) -> dict:
+) -> RetrievalSearchResult:
     """调用 Internal Retrieval 执行受限多 KB 检索。
 
     Args:
