@@ -319,6 +319,8 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 - 统一导航、路由、页面状态和 Design Token 已形成专项规范；
 - 内部 Evidence 原文访问的实时权限复核接口可用。
 
+进入条件核验（2026-08-07）：第 1 项缺口「API.md §9 Evidence 与 Report 读取端点」已补齐（目标态数据层 reports/report_revisions/claims/evidence_relations + 对外 UUID + 5 个读取端点 + renderer 原子发布，验证记录见 [CHANGELOG](../CHANGELOG.md) 2026-08-07 条目）；第 3 项「内部 Evidence 原文访问实时权限复核接口」已落地（`GET /api/v1/documents/{document_id}/locations/{location_id}`，CHANGELOG 2026-08-07 条目）。三项进入条件均已有可复核证据。
+
 ### 范围内工作
 
 - 建立统一登录、导航、知识中心、据见问答、据见研究、报告、Evidence 面板和管理入口；

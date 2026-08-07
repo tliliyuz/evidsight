@@ -297,6 +297,84 @@ def _build_knowledge_gaps(gaps_raw: Any) -> list[str]:
     return [str(g).strip() for g in gaps if isinstance(g, str) and g.strip()]
 
 
+def _build_claims(
+    claims_raw: Any,
+    items: list[GraphItem],
+) -> list[dict]:
+    """从 Synthesis claims 构建 Graph 可消费的 claims。
+
+    对齐 RESEARCH_PIPELINE §8.1 / DATABASE.md §7.4：
+    - 每个 claim 的 evidence_index 关联到 Graph item 的 evidence_item_id；
+    - 越界/非整数 evidence_index 过滤（防御性），不阻断 Graph 构建；
+    - 无 claims / claims 非数组时返回空列表。
+    """
+    claims_raw = _to_list(claims_raw)
+    item_by_index = {item.index: item for item in items}
+
+    claims: list[dict] = []
+    for i, c in enumerate(claims_raw):
+        if not isinstance(c, dict):
+            logger.warning("claims[%d] 不是对象，已跳过", i)
+            continue
+
+        statement = _to_str(c.get("statement"))
+        if not statement:
+            logger.warning("claims[%d] statement 为空，已跳过", i)
+            continue
+
+        relations: list[dict] = []
+        for j, rel in enumerate(_to_list(c.get("evidence_relations"))):
+            if not isinstance(rel, dict):
+                logger.warning("claims[%d].evidence_relations[%d] 不是对象，已跳过", i, j)
+                continue
+            idx = rel.get("evidence_index")
+            if not isinstance(idx, int) or idx not in item_by_index:
+                logger.warning(
+                    "claims[%d].evidence_relations[%d].evidence_index 越界或非整数被过滤: %r",
+                    i,
+                    j,
+                    idx,
+                )
+                continue
+            rel_type = _to_str(rel.get("relation_type"))
+            if rel_type not in {"supports", "contradicts", "context"}:
+                logger.warning(
+                    "claims[%d].evidence_relations[%d].relation_type 非法被过滤: %r",
+                    i,
+                    j,
+                    rel_type,
+                )
+                continue
+            confidence = rel.get("confidence")
+            if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):
+                confidence = 0.0
+            relations.append(
+                {
+                    "evidence_item_id": item_by_index[idx].evidence_item_id,
+                    "evidence_index": idx,
+                    "relation_type": rel_type,
+                    "confidence": float(confidence),
+                }
+            )
+
+        certainty = _to_str(c.get("certainty"), "medium")
+        if certainty not in {"high", "medium", "low"}:
+            certainty = "medium"
+        claims.append(
+            {
+                "statement": statement,
+                "critical": bool(c.get("critical")),
+                "certainty": certainty,
+                "qualification": c.get("qualification")
+                if isinstance(c.get("qualification"), str)
+                else None,
+                "relations": relations,
+            }
+        )
+
+    return claims
+
+
 def _aggregate_sources(items: list[GraphItem]) -> list[dict]:
     """按来源聚合 evidence 贡献数。
 
@@ -408,9 +486,10 @@ async def run_evidence_graph(
     # 4. 应用 clusters
     clusters = _apply_clusters(items, clusters_raw)
 
-    # 5. 透传 conflicts / knowledge_gaps
+    # 5. 透传 conflicts / knowledge_gaps / claims
     conflicts = _build_conflicts(synthesis_output.get("conflicts"), len(items))
     knowledge_gaps = _build_knowledge_gaps(synthesis_output.get("knowledge_gaps"))
+    claims = _build_claims(synthesis_output.get("claims"), items)
 
     # 6. 聚合 sources
     sources = _aggregate_sources(items)
@@ -427,9 +506,10 @@ async def run_evidence_graph(
         {
             "step_id": step_id,
             "phase": "building_evidence_graph",
-            "label": f"来源图谱构建完成：{len(items)} 条来源，{len(clusters)} 个聚类",
+            "label": f"来源图谱构建完成：{len(items)} 条来源，{len(clusters)} 个聚类，{len(claims)} 个结论",
             "item_count": len(items),
             "cluster_count": len(clusters),
+            "claim_count": len(claims),
             "source_count": len(sources),
         },
     )
@@ -440,6 +520,7 @@ async def run_evidence_graph(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "items": [item.to_dict() for item in items],
         "clusters": [cluster.to_dict() for cluster in clusters],
+        "claims": claims,
         "conflicts": conflicts,
         "knowledge_gaps": knowledge_gaps,
         "sources": sources,
@@ -449,16 +530,18 @@ async def run_evidence_graph(
         "graph": graph,
         "item_count": len(items),
         "cluster_count": len(clusters),
+        "claim_count": len(claims),
         "conflict_count": len(conflicts),
         "source_count": len(sources),
         "duration_ms": duration_ms,
     }
 
     logger.info(
-        "Evidence Graph Build 完成: task_id=%s, items=%d, clusters=%d, conflicts=%d, sources=%d",
+        "Evidence Graph Build 完成: task_id=%s, items=%d, clusters=%d, claims=%d, conflicts=%d, sources=%d",
         task_id,
         len(items),
         len(clusters),
+        len(claims),
         len(conflicts),
         len(sources),
     )

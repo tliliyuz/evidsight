@@ -58,3 +58,15 @@ FETCH_STATUS_ENUM = ("success", "timeout", "blocked", "empty", "dns_error")
 # ── Agent Memory 表 ─────────────────────────────────────────────
 
 MEMORY_ENTRY_TYPE_ENUM = ("thought", "action", "observation", "finish")
+
+# ── 报告版本状态（DATABASE.md §7.2）────────────────────────────
+
+REPORT_REVISION_STATUS_ENUM = ("building", "published", "failed")
+
+# ── 结论确定性（DATABASE.md §7.4）──────────────────────────────
+
+CLAIM_CERTAINTY_ENUM = ("high", "medium", "low")
+
+# ── 证据关系类型（DATABASE.md §7.5）────────────────────────────
+
+EVIDENCE_RELATION_TYPE_ENUM = ("supports", "contradicts", "context")

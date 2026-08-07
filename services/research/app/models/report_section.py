@@ -12,11 +12,15 @@ from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.models._types import UTCDateTime
+from app.models._types import UTCDateTime, new_uuid
 
 
 class ReportSection(Base):
-    """报告章节表 —— 支持嵌套的章节树。"""
+    """报告章节表 —— 支持嵌套的章节树。
+
+    迁移态仍挂 task_id（渲染链沿用）；目标态新增 external_id 对外 UUID，
+    切片 4 引入 revision_id 归属（DATABASE.md §7.3）。
+    """
 
     __tablename__ = "report_sections"
 
@@ -25,10 +29,25 @@ class ReportSection(Base):
         primary_key=True,
         autoincrement=True,
     )
+    external_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        unique=True,
+        default=new_uuid,
+        nullable=False,
+        comment="对外稳定 UUID（API 暴露的 section_id）",
+    )
     task_id: Mapped[str] = mapped_column(
         sa.String(36),
         sa.ForeignKey("research_tasks.id", ondelete="CASCADE"),
         nullable=False,
+    )
+    revision_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("report_revisions.id", ondelete="CASCADE"),
+        nullable=True,
+        default=None,
+        server_default=sa.text("NULL"),
+        comment="归属 Revision（目标态 DATABASE.md §7.3；迁移态可空）",
     )
     parent_section_id: Mapped[int | None] = mapped_column(
         sa.Integer,
@@ -64,6 +83,7 @@ class ReportSection(Base):
 
     # ── 关联 ──
     task = relationship("ResearchTask", back_populates="report_sections")
+    revision = relationship("ReportRevision", back_populates="sections")
     parent_section = relationship(
         "ReportSection", remote_side="ReportSection.id", backref="child_sections"
     )
@@ -72,6 +92,7 @@ class ReportSection(Base):
         secondary="section_evidence",
         back_populates="sections",
     )
+    claims = relationship("Claim", back_populates="section", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<ReportSection(id={self.id}, heading={self.heading!r})>"

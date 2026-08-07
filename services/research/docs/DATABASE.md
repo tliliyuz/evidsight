@@ -231,6 +231,8 @@ Revision 构建失败标记 failed，不成为当前版本。重试创建新 Rev
 - `body_markdown` 可包含综合结论和引用标记，但不得嵌入内部来源摘录或可绕过权限的历史正文。
 - published Revision 下的 Section 不可更新或删除。
 
+> 落地说明（2026-08-07，负责人裁决方案 X）：迁移态 task 级 `report_sections`（直挂 task_id）保留用于 AC 验证与历史数据；目标态发布为每个 Revision **复制独立 sections 副本**（revision_id 归属，不挂载/修改迁移态 sections）。因此 reports/revision 的级联删除只影响 revision 专属副本，不破坏迁移态展示数据。两份数据并存为迁移态，后续统一归属 revision 时由专项迁移收敛。
+
 ### 7.4 `claims`
 
 Claim 是报告中接受 Evidence 评估的最小结论单元，主要字段为 `id`、`revision_id`、`section_id`、`sequence`、`statement`、`certainty`、`qualification` 和 `created_at`。

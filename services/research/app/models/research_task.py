@@ -247,6 +247,7 @@ class ResearchTask(Base):
     report_sections = relationship(
         "ReportSection", back_populates="task", lazy="selectin", passive_deletes=True
     )
+    report = relationship("Report", back_populates="task", uselist=False, passive_deletes=True)
     agent_memory_entries = relationship(
         "AgentMemoryEntry",
         back_populates="task",

@@ -504,6 +504,21 @@ class RenderFailedException(AppException):
         )
 
 
+class ReportPublishFailedException(AppException):
+    def __init__(self, detail: str = ""):
+        super().__init__(
+            "E3107",
+            "报告发布失败",
+            500,
+            {
+                "error_type": "ReportPublishFailed",
+                "error_description": detail or "报告目标态发布失败",
+                "recoverable": True,
+                "retry_after_ms": 5000,
+            },
+        )
+
+
 class LLMTimeoutException(AppException):
     def __init__(self, detail: str = ""):
         super().__init__(

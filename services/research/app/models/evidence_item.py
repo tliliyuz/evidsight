@@ -16,7 +16,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.models._types import UTCDateTime
+from app.models._types import UTCDateTime, new_uuid
 
 # source_type 枚举（DATABASE.md §6.2）
 EVIDENCE_SOURCE_TYPE_INTERNAL = "internal"
@@ -38,6 +38,13 @@ class EvidenceItem(Base):
         sa.Integer,
         primary_key=True,
         autoincrement=True,
+    )
+    external_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        unique=True,
+        default=new_uuid,
+        nullable=False,
+        comment="对外稳定 UUID（API 暴露的 evidence_id）",
     )
     task_id: Mapped[str] = mapped_column(
         sa.String(36),
@@ -226,6 +233,9 @@ class EvidenceItem(Base):
         "ReportSection",
         secondary="section_evidence",
         back_populates="evidence_items",
+    )
+    relations = relationship(
+        "EvidenceRelation", back_populates="evidence", cascade="all, delete-orphan"
     )
 
     def __repr__(self):

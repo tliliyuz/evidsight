@@ -487,6 +487,20 @@ async def _persist_sections(
     return report_sections
 
 
+async def _load_recent_report_sections(
+    session: AsyncSession,
+    task_id: str,
+) -> list[ReportSection]:
+    """读取本次渲染刚写入的 report_sections（按 sort_order）。"""
+    stmt = (
+        select(ReportSection)
+        .where(ReportSection.task_id == task_id)
+        .order_by(ReportSection.sort_order)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def _update_evidence_used_in_sections(
     session: AsyncSession,
     task_id: str,
@@ -657,9 +671,34 @@ async def run_render(
     # 5. 解析 Section 与引用
     sections, citation_issues = _parse_render_output(raw_text, index_to_item)
 
-    # 6. 持久化
+    # 6. 迁移态持久化（AC-001 等验证脚本依赖 report_sections + section_evidence）
     await _persist_sections(session, task_id, sections, index_to_evidence_id)
     await _update_evidence_used_in_sections(session, task_id, sections, index_to_evidence_id)
+
+    # 6.1 目标态原子发布（DATABASE.md §7.6 / ADR-009）：
+    #     reports → building Revision → sections(挂 revision) → claims/relations → published
+    from app.services.report_publisher import publish_report
+
+    report_sections_rows = await _load_recent_report_sections(session, task_id)
+    claims_raw = graph.get("claims") or []
+    evidence_ids = list(index_to_evidence_id.values())
+    evidence_by_id: dict = {}
+    if evidence_ids:
+        stmt = select(EvidenceItem).where(EvidenceItem.id.in_(evidence_ids))
+        result = await session.execute(stmt)
+        evidence_by_id = {ev.id: ev for ev in result.scalars().all()}
+    await publish_report(
+        session,
+        task=task,
+        build_step_id=step_id,
+        title=task.topic,
+        sections=report_sections_rows,
+        claims_raw=claims_raw,
+        evidence_by_id=evidence_by_id,
+        language=language,
+        content_hash=None,
+        limitations_summary="；".join(graph.get("knowledge_gaps") or []) or None,
+    )
 
     # 7. 计算耗时
     duration_ms = 0

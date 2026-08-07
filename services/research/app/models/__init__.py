@@ -7,7 +7,11 @@ ORM 模型包 —— 导入全部模型类，使 Alembic 的 target_metadata 能
 
 from app.models.agent_event import AgentEvent
 from app.models.agent_memory_entry import AgentMemoryEntry
+from app.models.claim import Claim
 from app.models.evidence_item import EvidenceItem
+from app.models.evidence_relation import EvidenceRelation
+from app.models.report import Report
+from app.models.report_revision import ReportRevision
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
@@ -23,4 +27,8 @@ __all__ = [
     "EvidenceItem",
     "ReportSection",
     "SectionEvidence",
+    "Report",
+    "ReportRevision",
+    "Claim",
+    "EvidenceRelation",
 ]

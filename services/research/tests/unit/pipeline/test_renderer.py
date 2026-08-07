@@ -278,7 +278,7 @@ class TestRenderSuccess:
         # 验证 report_sections 写入
         stmt = (
             select(ReportSection)
-            .where(ReportSection.task_id == task.id)
+            .where(ReportSection.task_id == task.id, ReportSection.revision_id.is_(None))
             .order_by(ReportSection.sort_order)
         )
         result = await db_session.execute(stmt)
@@ -348,7 +348,9 @@ class TestRenderSuccess:
 
         assert output["citations_count"] == 3
 
-        stmt = select(ReportSection).where(ReportSection.task_id == task.id)
+        stmt = select(ReportSection).where(
+            ReportSection.task_id == task.id, ReportSection.revision_id.is_(None)
+        )
         result = await db_session.execute(stmt)
         report_section = result.scalar_one()
 
@@ -376,7 +378,7 @@ class TestRenderSuccess:
 
         stmt = (
             select(ReportSection)
-            .where(ReportSection.task_id == task.id)
+            .where(ReportSection.task_id == task.id, ReportSection.revision_id.is_(None))
             .order_by(ReportSection.sort_order)
         )
         result = await db_session.execute(stmt)
@@ -503,7 +505,9 @@ class TestRenderConsistency:
         assert output["citation_issues"] is True
         assert output["citations_count"] == 1
 
-        stmt = select(ReportSection).where(ReportSection.task_id == task.id)
+        stmt = select(ReportSection).where(
+            ReportSection.task_id == task.id, ReportSection.revision_id.is_(None)
+        )
         result = await db_session.execute(stmt)
         report_section = result.scalar_one()
         stmt = select(SectionEvidence).where(SectionEvidence.section_id == report_section.id)
@@ -593,7 +597,9 @@ class TestCitationNormalization:
 
         assert output["citations_count"] == 2
 
-        stmt = select(ReportSection).where(ReportSection.task_id == task.id)
+        stmt = select(ReportSection).where(
+            ReportSection.task_id == task.id, ReportSection.revision_id.is_(None)
+        )
         result = await db_session.execute(stmt)
         report_section = result.scalar_one()
         assert report_section.content == "量子计算威胁[来源0][来源1]。"

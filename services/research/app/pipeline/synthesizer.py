@@ -67,6 +67,17 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一个研究综合专家。请基于以下研
       "conflicting_evidence_indices": []
     }}
   ],
+  "claims": [
+    {{
+      "statement": "最小结论单元（接受证据评估的综合结论）",
+      "critical": true,
+      "certainty": "high" | "medium" | "low",
+      "qualification": "限定、不确定性或时效风险（无则省略）",
+      "evidence_relations": [
+        {{"evidence_index": 0, "relation_type": "supports" | "contradicts" | "context", "confidence": 0.9}}
+      ]
+    }}
+  ],
   "conflicts": [
     {{
       "topic": "分歧主题",
@@ -76,9 +87,36 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一个研究综合专家。请基于以下研
   ],
   "knowledge_gaps": ["未被充分覆盖的方面 1", ...],
   "overall_assessment": "整体证据质量评估（2-3 句）"
-}}"""
+}}
+
+claims 要求：
+1. statement 是接受证据评估的最小结论，不得编造不存在的来源；
+2. critical=true 表示关键结论（必须至少一条 supports）；
+3. evidence_relations 的 evidence_index 必须引用证据详情中的 0-based 编号；
+4. 存在 contradicts 关系时，statement 不得写成无条件确定结论；
+5. confidence 为 0-1 的关系判断置信度，不代表来源绝对真实性。"""
 
 # ── 数据类型 ──────────────────────────────────────────────────
+
+
+@dataclass
+class ClaimEvidenceRelation:
+    """Claim 的拟议证据关系（DATABASE.md §7.5）。"""
+
+    evidence_index: int
+    relation_type: str  # supports / contradicts / context
+    confidence: float = 0.0
+
+
+@dataclass
+class SynthesisClaim:
+    """报告最小结论单元（RESEARCH_PIPELINE §8.1 / DATABASE.md §7.4）。"""
+
+    statement: str
+    critical: bool
+    certainty: str  # high / medium / low
+    qualification: str | None
+    evidence_relations: list[ClaimEvidenceRelation]
 
 
 @dataclass
@@ -117,6 +155,7 @@ class SynthesisNotes:
     conflicts: list[SynthesisConflict]
     knowledge_gaps: list[str]
     overall_assessment: str
+    claims: list[SynthesisClaim]
 
 
 # ── 工具函数 ──────────────────────────────────────────────────
@@ -389,11 +428,97 @@ def _parse_synthesis_output(raw_text: str, expected_count: int) -> SynthesisNote
     if not isinstance(overall, str) or not overall.strip():
         raise ValueError("overall_assessment 为空")
 
+    # claims 允许缺省 → 空数组（DATABASE.md §7.4 / RESEARCH_PIPELINE §8.1）
+    claims_raw = data.get("claims", [])
+    if claims_raw is None:
+        claims_raw = []
+    if not isinstance(claims_raw, list):
+        raise ValueError("claims 必须是数组或 null")
+
+    claims: list[SynthesisClaim] = []
+    for i, c in enumerate(claims_raw):
+        if not isinstance(c, dict):
+            raise ValueError(f"claims[{i}] 不是对象")
+
+        statement = c.get("statement", "")
+        if not isinstance(statement, str) or not statement.strip():
+            raise ValueError(f"claims[{i}].statement 为空")
+        if statement.strip() == "[]":
+            raise ValueError(f"claims[{i}].statement 不能为占位符")
+
+        critical = c.get("critical", False)
+        if not isinstance(critical, bool):
+            raise ValueError(f"claims[{i}].critical 必须是布尔值")
+
+        certainty = c.get("certainty", "medium")
+        if certainty not in {"high", "medium", "low"}:
+            raise ValueError(f"claims[{i}].certainty 非法: {certainty}")
+
+        qualification = c.get("qualification")
+        if qualification is not None and not isinstance(qualification, str):
+            raise ValueError(f"claims[{i}].qualification 必须是字符串或 null")
+        qualification = qualification.strip() if isinstance(qualification, str) else None
+
+        relations_raw = c.get("evidence_relations", []) or []
+        if not isinstance(relations_raw, list):
+            raise ValueError(f"claims[{i}].evidence_relations 必须是数组")
+
+        relations: list[ClaimEvidenceRelation] = []
+        for j, rel in enumerate(relations_raw):
+            if not isinstance(rel, dict):
+                raise ValueError(f"claims[{i}].evidence_relations[{j}] 不是对象")
+            rel_type = rel.get("relation_type", "")
+            if rel_type not in {"supports", "contradicts", "context"}:
+                raise ValueError(
+                    f"claims[{i}].evidence_relations[{j}].relation_type 非法: {rel_type}"
+                )
+            idx_raw = rel.get("evidence_index")
+            if not isinstance(idx_raw, int) or isinstance(idx_raw, bool):
+                raise ValueError(
+                    f"claims[{i}].evidence_relations[{j}].evidence_index 非整数: {idx_raw!r}"
+                )
+            if not (0 <= idx_raw < expected_count):
+                logger.warning(
+                    "claims[%d].evidence_relations[%d].evidence_index 越界被过滤: %d（有效范围 0-%d）",
+                    i,
+                    j,
+                    idx_raw,
+                    expected_count - 1,
+                )
+                continue
+            confidence = rel.get("confidence", 0.0)
+            if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):
+                raise ValueError(
+                    f"claims[{i}].evidence_relations[{j}].confidence 非法: {confidence!r}"
+                )
+            if not (0 <= float(confidence) <= 1):
+                raise ValueError(
+                    f"claims[{i}].evidence_relations[{j}].confidence 超出 0-1: {confidence}"
+                )
+            relations.append(
+                ClaimEvidenceRelation(
+                    evidence_index=idx_raw,
+                    relation_type=rel_type,
+                    confidence=float(confidence),
+                )
+            )
+
+        claims.append(
+            SynthesisClaim(
+                statement=statement.strip(),
+                critical=critical,
+                certainty=certainty,
+                qualification=qualification,
+                evidence_relations=relations,
+            )
+        )
+
     return SynthesisNotes(
         clusters=clusters,
         conflicts=conflicts,
         knowledge_gaps=knowledge_gaps,
         overall_assessment=overall.strip(),
+        claims=claims,
     )
 
 
@@ -547,6 +672,23 @@ def _conflict_to_dict(conflict: SynthesisConflict) -> dict:
     }
 
 
+def _claim_to_dict(claim: SynthesisClaim) -> dict:
+    return {
+        "statement": claim.statement,
+        "critical": claim.critical,
+        "certainty": claim.certainty,
+        "qualification": claim.qualification,
+        "evidence_relations": [
+            {
+                "evidence_index": rel.evidence_index,
+                "relation_type": rel.relation_type,
+                "confidence": rel.confidence,
+            }
+            for rel in claim.evidence_relations
+        ],
+    }
+
+
 # ── 主入口 ────────────────────────────────────────────────────
 
 
@@ -636,8 +778,10 @@ async def run_synthesis(
         {
             "step_id": step_id,
             "clusters": [_cluster_to_dict(c) for c in notes.clusters],
+            "claims": [_claim_to_dict(c) for c in notes.claims],
             "conflicts": [_conflict_to_dict(c) for c in notes.conflicts],
             "clusters_count": len(notes.clusters),
+            "claims_count": len(notes.claims),
             "conflicts_count": len(notes.conflicts),
             "gaps_count": len(notes.knowledge_gaps),
         },
@@ -645,10 +789,12 @@ async def run_synthesis(
 
     output = {
         "clusters": [_cluster_to_dict(c) for c in notes.clusters],
+        "claims": [_claim_to_dict(c) for c in notes.claims],
         "conflicts": [_conflict_to_dict(c) for c in notes.conflicts],
         "knowledge_gaps": notes.knowledge_gaps,
         "overall_assessment": notes.overall_assessment,
         "clusters_count": len(notes.clusters),
+        "claims_count": len(notes.claims),
         "conflicts_count": len(notes.conflicts),
         "gaps_count": len(notes.knowledge_gaps),
         "model": settings.LLM_MODEL,
@@ -659,9 +805,10 @@ async def run_synthesis(
     }
 
     logger.info(
-        "Synthesis 完成: task_id=%s, clusters=%d, conflicts=%d, gaps=%d, retries=%d",
+        "Synthesis 完成: task_id=%s, clusters=%d, claims=%d, conflicts=%d, gaps=%d, retries=%d",
         task_id,
         len(notes.clusters),
+        len(notes.claims),
         len(notes.conflicts),
         len(notes.knowledge_gaps),
         retry_count,

@@ -405,7 +405,9 @@ class TestRenderInternalEvidence:
 
         # 报告 Section 已持久化
         result = await db_session.execute(
-            select(ReportSection).where(ReportSection.task_id == task.id)
+            select(ReportSection).where(
+                ReportSection.task_id == task.id, ReportSection.revision_id.is_(None)
+            )
         )
         sections = list(result.scalars().all())
         assert len(sections) == 1
