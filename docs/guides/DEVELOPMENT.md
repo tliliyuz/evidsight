@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 开发基线 |
-| 最后更新 | 2026-08-06 |
+| 最后更新 | 2026-08-07 |
 | 当前阶段 | M3：Research Service 接入内部知识（进行中） |
 
 > 本文定义开发入口、Monorepo 目录职责、环境准备、常用命令和交付门禁。产品行为以 [PRD.md](../specs/PRD.md) 为准，服务边界以 [ARCHITECTURE.md](../specs/ARCHITECTURE.md) 为准。M0 结构迁移、M1 统一身份与权限、M2 Knowledge 稳定化与 Internal Retrieval 均已完成；M3 起的新功能仍须按 SDD 门禁先执行 ADR 检查、再以验收测试观察正确 RED 后进入生产实现。
@@ -113,6 +113,10 @@ evidsight/
 # 安装根工具环境
 uv sync --locked
 
+# 安装提交前静态门禁（pre-commit：ruff + 提交信息格式），每个 worktree 初始化时各执行一次
+.venv/bin/pre-commit install
+.venv/bin/pre-commit install --hook-type commit-msg
+
 # 运行全仓测试
 bash scripts/test_all.sh
 
@@ -220,6 +224,7 @@ docker compose config --quiet
 ## 9. 编码与安全约定
 
 - 文档、注释和提交信息使用中文；代码标识符使用英文；
+- 提交信息 subject 必须使用 `add|fixed|update|refactor: 中文描述`（技术专有名词可保留英文），由 pre-commit 的 `commit-msg` hook（`scripts/check_commit_msg.sh`）强制校验；
 - Python IO 使用 async，数据库 Session 依赖注入；
 - API 层只校验、鉴权并调用 Service；
 - Web 使用 Vue 3 + TypeScript、组合式 API 和统一 API 客户端；M4 迁向 React + TypeScript 函数组件（[ADR-004](../decisions/ADR-004-web-framework-transition.md)）；
@@ -227,6 +232,7 @@ docker compose config --quiet
 - 日志、Trace、SSE 和错误不得包含密码、Token、服务凭证、完整 Prompt、隐藏推理或内部正文；
 - Chat SSE 与 Research SSE 使用独立解析器和状态机；
 - Python 代码遵循 ruff 约定（规则集 `E4,E7,E9,F,I`，行宽 100），提交前执行 `ruff check` 与 `ruff format --check`；配置见根 `pyproject.toml` `[tool.ruff]`。ruff 为根开发依赖（`uv add --dev ruff`）：Astral 官方活跃维护，单文件 ~8MB 无传递依赖，覆盖静态检查与格式化，替代方案为 black+isort+flake8 三件套（需三份配置）；
+- 提交前静态门禁由 pre-commit 承载（根开发依赖 `uv add --dev pre-commit`，配置 `.pre-commit-config.yaml`）：`ruff check` 与 `ruff format --check` 以 `repo: local` 调用已装 venv 内 ruff（版本随根 uv.lock，不重复固定），`commit-msg` hook 校验提交信息格式。pre-commit 是社区标准 Git Hook 框架（pre-commit org 活跃维护，MIT，约 2MB + cfgv/identify/virtualenv 等小依赖），替代方案为 lefthook（Go 单二进制，需独立配置）或手写 `.git/hooks` 脚本（无法自动管理多语言 hook 环境）。hook 只报告不修改文件，存量 ruff 基线告警按「触碰即清理」增量消解；`pre-commit install` 只对当前 worktree 生效，新增 worktree 需按 §3 重新安装；
 - 新依赖必须说明用途、维护状态、体积和替代方案。
 
 ## 10. Docker Compose 与运维

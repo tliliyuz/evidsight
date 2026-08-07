@@ -32,7 +32,7 @@
 - Nginx 不暴露 `/internal/v1`、`/metrics` 和数据服务；
 - Redis Key、队列和 Metric 带服务命名空间；
 - 文档相对链接、OpenAPI、JSON Schema 和 `$ref` 可解析；
-- Python 代码通过 ruff 静态检查（规则集 `E4,E7,E9,F,I`，行宽 100，配置见根 `pyproject.toml`）；lint 只报告，不改文件。
+- Python 代码通过 ruff 静态检查（规则集 `E4,E7,E9,F,I`，行宽 100，配置见根 `pyproject.toml`）；lint 只报告，不改文件。提交时由 pre-commit hook（`.pre-commit-config.yaml`，`repo: local` 调用 venv 内 ruff）对暂存文件自动执行 `ruff check` 与 `ruff format --check`，存量基线告警按「触碰即清理」增量消解；提交信息由 `commit-msg` hook（`scripts/check_commit_msg.sh`）强制 `add|fixed|update|refactor: 中文描述` 格式。
 
 ### 3.2 身份与权限
 
@@ -132,6 +132,14 @@ uv run --project services/research pytest
 npm --prefix apps/web test
 npm --prefix apps/web run build
 docker compose config --quiet
+```
+
+提交前静态门禁（pre-commit）验证：
+
+```bash
+.venv/bin/pre-commit install
+.venv/bin/pre-commit install --hook-type commit-msg
+.venv/bin/pre-commit run --all-files   # 全仓基线；日常提交由 hook 自动对暂存文件执行
 ```
 
 命令必须在当前候选提交上实际执行；失败、跳过或环境缺失均不得记为通过。

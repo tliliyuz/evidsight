@@ -1,0 +1,22 @@
+# 提交前静态门禁：只报告、不修改文件；基线告警按「触碰即清理」原则增量消解。
+# ruff 版本随根 uv.lock（pre-commit 使用 repo: local 不重复固定版本）。
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: .venv/bin/ruff check
+        language: system
+        files: ^(services|scripts|tests|packages/contracts)/.*\.py$
+        stages: [pre-commit]
+      - id: ruff-format
+        name: ruff format --check
+        entry: .venv/bin/ruff format --check
+        language: system
+        files: ^(services|scripts|tests|packages/contracts)/.*\.py$
+        stages: [pre-commit]
+      - id: commit-msg-lint
+        name: commit message format
+        entry: bash scripts/check_commit_msg.sh
+        language: system
+        stages: [commit-msg]
