@@ -4,12 +4,11 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from app.config import settings
+from app.core.service_security import public_keys_loadable, verify_service_token
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
-
-from app.config import settings
-from app.core.service_security import public_keys_loadable, verify_service_token
 
 
 def _generate_keypair(kid="test-kid"):

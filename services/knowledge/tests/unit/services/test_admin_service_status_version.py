@@ -1,8 +1,8 @@
 """change_user_status 递增 status_version（DATABASE.md §4.1 语义）"""
 
-import pytest
 from unittest.mock import AsyncMock
 
+import pytest
 from app.models.user import User
 from app.services.admin_service import change_user_status
 

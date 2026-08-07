@@ -9,14 +9,11 @@
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from app.core.task_state_resolver import (
-    TaskStateResolver,
     FATAL_STEP_ERROR_CODES,
     RECOVERABLE_STEP_ERROR_CODES,
+    TaskStateResolver,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # Fixtures

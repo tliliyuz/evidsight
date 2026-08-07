@@ -1,13 +1,9 @@
 """SSE 端点测试 — stream 连接、状态快照、心跳格式。"""
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
-from httpx import AsyncClient
-
-from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
+from app.models.research_task import ResearchTask
+from httpx import AsyncClient
 
 
 async def _seed_task_for_sse(db_session) -> ResearchTask:

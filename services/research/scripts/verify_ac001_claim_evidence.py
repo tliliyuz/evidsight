@@ -25,16 +25,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
-
 from app.core.database import async_session_factory  # noqa: E402
 from app.evaluation.ac_metrics import evaluate_citation_validity  # noqa: E402
-from app.models.evidence_item import EvidenceItem  # noqa: E402
 from app.models.report_section import ReportSection  # noqa: E402
 from app.models.research_step import ResearchStep  # noqa: E402
 from app.models.research_task import ResearchTask  # noqa: E402
 from app.models.section_evidence import SectionEvidence  # noqa: E402
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 TERMINAL_STATUSES = {"completed", "partially_completed"}
 THRESHOLD = 0.90

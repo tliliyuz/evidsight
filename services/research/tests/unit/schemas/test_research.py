@@ -7,18 +7,16 @@
 """
 
 import pytest
-from pydantic import ValidationError
-
 from app.schemas.research import (
-    ResearchCreateRequest,
+    ProgressSchema,
     RequirementsSchema,
-    ResearchTaskResponse,
+    ResearchCreateRequest,
+    ResearchCreateResponse,
     ResearchTaskListItem,
     ResearchTaskListResponse,
-    ResearchCreateResponse,
-    ProgressSchema,
+    ResearchTaskResponse,
 )
-
+from pydantic import ValidationError
 
 # ═══════════════════════════════════════════════════════════════
 # RequirementsSchema

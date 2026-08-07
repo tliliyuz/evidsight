@@ -573,29 +573,29 @@ def print_multi_turn_report(summary: MultiTurnSummary) -> None:
     print()
 
     # 多轮特有指标
-    print(f"  ── 多轮特有指标 ──")
+    print("  ── 多轮特有指标 ──")
     print(f"  RAG 退化轮次: {summary.rag_degraded_total}")
     print(f"  上下文依赖轮次: {summary.context_dependent_total}")
     print(f"  上下文依赖-可用性检查通过: {summary.context_dependent_pass}")
     if summary.context_dependent_total > 0:
         cd_pass_rate = summary.context_dependent_pass / summary.context_dependent_total * 100
         print(f"  上下文依赖-可用性通过率: {cd_pass_rate:.1f}%")
-    print(f"  ℹ️  「可用性检查」= 有回答 + 有来源 + SSE 正常（必要条件，非充分条件）")
-    print(f"     上下文是否真正被理解，需通过 LLM-as-judge 或人工评估确认。")
+    print("  ℹ️  「可用性检查」= 有回答 + 有来源 + SSE 正常（必要条件，非充分条件）")
+    print("     上下文是否真正被理解，需通过 LLM-as-judge 或人工评估确认。")
     print()
     if summary.truncation_zone_total > 0:
-        print(f"  ── 截断区域指标 ──")
+        print("  ── 截断区域指标 ──")
         print(f"  截断区内轮次: {summary.truncation_zone_total}")
         print(f"  截断区内通过: {summary.truncation_zone_pass}")
         print(f"  截断区内 RAG 退化: {summary.truncation_zone_rag_degraded}")
         tz_pass_rate = summary.truncation_zone_pass / summary.truncation_zone_total * 100
         print(f"  截断区通过率: {tz_pass_rate:.1f}%")
         if summary.truncation_zone_rag_degraded > 0:
-            print(f"  ⚠️  截断区内出现 RAG 退化！历史截断可能侵蚀了检索预算。")
+            print("  ⚠️  截断区内出现 RAG 退化！历史截断可能侵蚀了检索预算。")
         else:
-            print(f"  ✅ 截断区内无 RAG 退化，历史截断未影响检索。")
+            print("  ✅ 截断区内无 RAG 退化，历史截断未影响检索。")
         print(
-            f"  ℹ️  截断区起点基于 token 预算估算（History Budget=6000），实际截断位置依赖具体消息长度。"
+            "  ℹ️  截断区起点基于 token 预算估算（History Budget=6000），实际截断位置依赖具体消息长度。"
         )
     print()
 
@@ -640,7 +640,7 @@ def print_multi_turn_report(summary: MultiTurnSummary) -> None:
         print()
 
     # Session 级矩阵一览
-    print(f"  ── Session × Turn 结果矩阵 ──")
+    print("  ── Session × Turn 结果矩阵 ──")
     header = "  Session".ljust(20)
     max_turns = max(len(s.turns) for s in summary.sessions)
     for i in range(1, max_turns + 1):
@@ -664,7 +664,7 @@ def print_multi_turn_report(summary: MultiTurnSummary) -> None:
         print(row)
 
     print()
-    print(f"  图例: ✅ 通过  ❌ 失败  🔻 RAG退化  🟐 截断区通过")
+    print("  图例: ✅ 通过  ❌ 失败  🔻 RAG退化  🟐 截断区通过")
     print()
 
     # 最终结论

@@ -3,7 +3,6 @@
 from decimal import Decimal
 
 import pytest
-
 from app.evaluation.models import RerankMetrics
 from app.evaluation.rerank_eval import evaluate_rerank
 

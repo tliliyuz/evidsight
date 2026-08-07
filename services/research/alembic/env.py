@@ -8,12 +8,11 @@
 import asyncio
 from logging.config import fileConfig
 
+import app.models  # noqa: F401 — 触发全部模型注册，使 target_metadata 发现全部表
 from alembic import context
-from sqlalchemy.ext.asyncio import create_async_engine
-
 from app.config import settings
 from app.core.database import Base
-import app.models  # noqa: F401 — 触发全部模型注册，使 target_metadata 发现全部表
+from sqlalchemy.ext.asyncio import create_async_engine
 
 config = context.config
 if config.config_file_name is not None:

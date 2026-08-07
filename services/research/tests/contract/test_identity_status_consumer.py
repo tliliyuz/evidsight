@@ -6,7 +6,6 @@ Consumer 测试独立运行：只读取 packages/contracts 的 Schema 与 Fixtur
 """
 
 import pytest
-
 from evidsight_contracts.loader import (
     list_fixtures,
     load_fixture,

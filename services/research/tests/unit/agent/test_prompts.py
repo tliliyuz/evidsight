@@ -1,7 +1,6 @@
 """Agent Prompt 构建单元测试。"""
 
 import pytest
-
 from app.agent.context import AgentContext
 from app.agent.prompts import build_agent_system_prompt, build_phase_instruction
 from app.agent.state import PhaseController

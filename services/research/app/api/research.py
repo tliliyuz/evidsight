@@ -18,12 +18,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ValidationFailedException, sanitize_error_message_for_client
-
-logger = logging.getLogger(__name__)
 from app.dependencies import get_current_user, get_db, require_task_accessible
 from app.models.enums import TASK_STATUS_ENUM
-from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
+from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import (
     EVENT_TASK_CANCELED,
     EVENT_TASK_STATUS_SNAPSHOT,
@@ -41,6 +39,8 @@ from app.services.research_service import (
     retry_task,
 )
 from app.tasks.research_task import execute_research_task as _execute_research_task
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["研究任务"])
 

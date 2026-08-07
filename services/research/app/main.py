@@ -16,8 +16,10 @@ from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import select as sa_select, update as sa_update
+from sqlalchemy import select as sa_select
+from sqlalchemy import update as sa_update
 
+from app.api import research, research_v1
 from app.config import settings
 from app.core.database import async_session_factory
 from app.core.exceptions import AppException
@@ -451,7 +453,6 @@ async def metrics_endpoint():
 
 
 # ── 路由注册 ──────────────────────────────────────────────
-from app.api import research, research_v1
 
 app.include_router(research.router, prefix="/api/research")
 app.include_router(research_v1.router, prefix="/api/v1/research")

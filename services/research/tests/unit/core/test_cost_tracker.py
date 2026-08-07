@@ -4,8 +4,6 @@
 {input_tokens, output_tokens, estimated_cost_usd, model}
 """
 
-import pytest
-
 from app.core.cost_tracker import calculate_cost_usd, extract_step_cost
 
 

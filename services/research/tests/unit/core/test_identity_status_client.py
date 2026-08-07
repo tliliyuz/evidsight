@@ -9,7 +9,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.config import settings
 from app.core import identity_status_client
 from app.core.exceptions import ServiceUnavailableException, UserDisabledException

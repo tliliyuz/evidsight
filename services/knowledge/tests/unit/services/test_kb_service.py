@@ -6,24 +6,18 @@
 """
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.exceptions import (
     KnowledgeBaseNameExistsException,
     KnowledgeBaseNotFoundException,
     PermissionDeniedException,
 )
-from app.models.chunk import Chunk
 from app.models.knowledge_base import KnowledgeBase
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.knowledge_base_service import (
     _get_real_chunk_counts,
-    _get_real_doc_counts,
     check_kb_active,
     create_kb,
     delete_kb,
@@ -32,7 +26,8 @@ from app.services.knowledge_base_service import (
     list_public_kbs,
     update_kb,
 )
-
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # ============================================================
 # Mock 工具函数
@@ -777,7 +772,7 @@ class TestDeleteKB:
         mock_db.flush = AsyncMock()
         mock_db.commit = AsyncMock()
 
-        with patch("app.services.knowledge_base_service.delete_kb_task") as mock_task:
+        with patch("app.services.knowledge_base_service.delete_kb_task"):
             result = await delete_kb(mock_db, kb_id=1, user_id=2, role="admin")
 
         assert result.status == "deleting"

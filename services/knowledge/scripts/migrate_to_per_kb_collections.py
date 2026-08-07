@@ -26,9 +26,8 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 import chromadb
-from chromadb.api import ClientAPI
-
 from app.config import settings
+from chromadb.api import ClientAPI
 
 logging.basicConfig(
     level=logging.INFO,

@@ -452,7 +452,7 @@ def print_regression_report(summary: RegressionSummary) -> None:
         print()
 
     # 按难度分组统计
-    print(f"  按难度分组:")
+    print("  按难度分组:")
     for diff in ["easy", "medium", "hard", "out-of-scope"]:
         group = [r for r in summary.results if r.difficulty == diff]
         if not group:

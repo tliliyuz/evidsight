@@ -9,13 +9,11 @@ import inspect
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.tasks import periodic as periodic_module
 from app.tasks.periodic import (
-    cleanup_old_research_tasks,
     _check_tasks_exist,
+    cleanup_old_research_tasks,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════
 # 测试工具

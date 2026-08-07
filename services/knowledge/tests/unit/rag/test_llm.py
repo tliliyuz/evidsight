@@ -8,15 +8,16 @@
 - 解析 content + reasoning_content
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from app.core.exceptions import LLMCallFailedException, LLMRateLimitExceededException
 from app.core.llm import (
     LLMChunk,
     LLMResult,
-    stream_chat_completion,
     chat_completion,
+    stream_chat_completion,
 )
-from app.core.exceptions import LLMCallFailedException, LLMRateLimitExceededException
 
 
 @pytest.fixture(autouse=True)

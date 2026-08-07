@@ -5,7 +5,7 @@
 - utcnow() 返回 aware datetime
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.models._types import UTCDateTime, utcnow
 
@@ -79,7 +79,3 @@ class TestUtcnow:
         assert restored.tzinfo == timezone.utc
         # 数值相同（去掉微秒因为 MySQL DATETIME 可能不支持微秒）
         assert restored.replace(microsecond=0) == now.replace(microsecond=0)
-
-
-# 需要 timedelta 在稍后导入中用
-from datetime import timedelta

@@ -1,17 +1,15 @@
 """KnowledgePipeline 单元测试 — 知识管线（检索+上下文构建）"""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from app.core.exceptions import KnowledgeBaseEmptyException, RetrievalServiceException
 from app.rag.knowledge_pipeline import (
+    CASUAL_SYSTEM_PROMPT,
     KnowledgePipeline,
     KnowledgePipelineResult,
-    RETRIEVABLE_STATUSES,
-    CASUAL_SYSTEM_PROMPT,
 )
 from app.rag.retriever import RetrievalOutput, RetrievalResult
-
 
 # ==================== 辅助函数 ====================
 
@@ -101,7 +99,7 @@ class TestExecuteCasual:
         pipeline, _, _, _, _ = _make_pipeline()
 
         mock_recorder = MagicMock()
-        result = await pipeline.execute_casual(
+        await pipeline.execute_casual(
             question="你好",
             history_messages=[],
             recorder=mock_recorder,

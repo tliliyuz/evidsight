@@ -1,13 +1,10 @@
 """AgentMemoryEntry 模型单元测试。"""
 
-import pytest
-from sqlalchemy import select as sa_select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.agent_memory_entry import AgentMemoryEntry
 from app.models.enums import MEMORY_ENTRY_TYPE_ENUM
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestAgentMemoryEntryModel:

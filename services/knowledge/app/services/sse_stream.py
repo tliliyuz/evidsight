@@ -26,8 +26,8 @@ from app.rag.prompt_builder import PromptBuildResult
 from app.rag.retriever import RetrievalOutput
 from app.rag.trace_recorder import TraceRecorder
 from app.services.chat_helpers import (
-    _NOT_FOUND_KEYWORDS,
     _CITATION_PATTERN,
+    _NOT_FOUND_KEYWORDS,
     build_sources,
     build_sources_event_data,
     extract_citation_indices,

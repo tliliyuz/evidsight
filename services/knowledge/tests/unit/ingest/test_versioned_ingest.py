@@ -11,7 +11,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.models.document import Document
 from app.models.document_version import DocumentVersion
 from app.models.enums import DocumentStatus
@@ -177,7 +176,7 @@ def _make_parse_result():
 
 
 def _make_chunking_result(count=2):
-    from app.rag.chunker import ChunkResult, ChunkingResult, SectionResult
+    from app.rag.chunker import ChunkingResult, ChunkResult, SectionResult
 
     chunks = [
         ChunkResult(

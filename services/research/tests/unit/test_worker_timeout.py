@@ -12,9 +12,6 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from app.core.database import async_session_factory
-from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import EVENT_TASK_FAILED
 
 
@@ -216,7 +213,7 @@ class TestCheckWorkerTimeouts:
             patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
             patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=False),
             patch("app.main._mark_task_worker_timeout") as mark_failed,
-            patch("app.main._mark_task_pending_timeout") as mark_pending,
+            patch("app.main._mark_task_pending_timeout"),
             patch("app.main.settings.WORKER_TIMEOUT_SECONDS", 0),
         ):
             from app.main import _check_worker_timeouts
@@ -312,7 +309,7 @@ class TestCheckWorkerTimeouts:
             patch("app.main.async_session_factory", return_value=_make_async_session_cm(session)),
             patch("app.main.check_task_lock_async", new_callable=AsyncMock, return_value=True),
             patch("app.main._mark_task_worker_timeout") as mark_failed,
-            patch("app.main._mark_task_pending_timeout") as mark_pending,
+            patch("app.main._mark_task_pending_timeout"),
         ):
             from app.main import _check_worker_timeouts
 

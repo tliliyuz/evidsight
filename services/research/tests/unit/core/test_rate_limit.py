@@ -8,15 +8,11 @@
 - RATE_LIMIT_ENABLED=False 时直通
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-
-from starlette.testclient import TestClient
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from unittest.mock import AsyncMock, patch
 
 from app.middleware.rate_limit_middleware import RateLimitMiddleware
-
+from fastapi import FastAPI
+from starlette.testclient import TestClient
 
 # ── 辅助：创建带限流中间件的测试应用 ──
 
@@ -183,7 +179,7 @@ class TestRateLimitSkip:
             client = TestClient(app)
             # FastAPI 可能返回 405（未定义 OPTIONS handler），
             # 但限流中间件应在检查 Redis 之前就跳过 OPTIONS
-            response = client.options("/api/test")
+            client.options("/api/test")
 
             # 关键验证：Redis 未被调用（限流逻辑被完全跳过）
             mock_redis.eval.assert_not_called()
@@ -220,7 +216,7 @@ class TestRateLimitSkip:
             mock_settings.RATE_LIMIT_ENABLED = True
 
             client = TestClient(app)
-            response = client.get("/docs")
+            client.get("/docs")
 
             # /docs 返回 200（Swagger HTML）或 404 都行，关键是 Redis 未被调用
             mock_redis.eval.assert_not_called()

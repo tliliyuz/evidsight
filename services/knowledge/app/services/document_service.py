@@ -4,7 +4,6 @@ import logging
 import time
 import uuid as uuid_lib
 from pathlib import Path
-from typing import Any
 
 from fastapi import UploadFile
 from sqlalchemy import delete, func, select
@@ -20,17 +19,20 @@ from app.core.exceptions import (
     DocumentNameExistsException,
     DocumentNotFoundException,
     DocumentProcessingError,
+    FileSizeExceededException,
     ForceOverrideConflictException,
     ReprocessFailedException,
     StorageErrorException,
     UnsupportedFileFormatException,
-    FileSizeExceededException,
 )
-from app.core.permissions import require_kb_owner, require_kb_readable, require_kb_writable
-from app.core.redis_client import get_redis
+from app.core.permissions import require_kb_owner, require_kb_writable
 from app.core.storage import local_storage
-from app.models.document import Document
+from app.core.utils import escape_like
+from app.ingest.delete_tasks import delete_document as delete_doc_task
+from app.ingest.tasks import ingest_version as ingest_version_task
+from app.ingest.versioning import create_document_version
 from app.models.chunk import Chunk
+from app.models.document import Document
 from app.models.enums import DocumentStatus, is_terminal
 from app.models.knowledge_base import KnowledgeBase
 from app.schemas.document import (
@@ -45,10 +47,6 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentUploadResponse,
 )
-from app.ingest.delete_tasks import delete_document as delete_doc_task
-from app.ingest.tasks import ingest_version as ingest_version_task
-from app.ingest.versioning import create_document_version
-from app.core.utils import escape_like
 from app.services.knowledge_base_service import check_kb_active
 
 logger = logging.getLogger(__name__)
@@ -477,7 +475,7 @@ async def get_document_chunks(
 ) -> DocumentChunkListResponse:
     """查看文档的分块列表（分页），生产环境默认截断 content 至 200 字符"""
     await _check_kb_ownership(db, kb_id, user_id, role, allow_public_read=True)
-    doc = await _get_doc_in_kb(db, kb_id, doc_id)
+    await _get_doc_in_kb(db, kb_id, doc_id)
 
     # 总数
     count_q = select(func.count()).select_from(Chunk).where(Chunk.doc_id == doc_id)

@@ -8,14 +8,13 @@
 - 失败策略：超时重试 1 次 / 403/404/DNS → 直接 SKIPPED
 """
 
-import asyncio
 import logging
 import socket
 from datetime import datetime, timezone
 from urllib.parse import urljoin, urlparse
 
 import httpx
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -24,10 +23,10 @@ from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import (
-    SSEBridge,
     EVENT_STEP_COMPLETED,
     EVENT_STEP_SKIPPED,
     EVENT_STEP_STARTED,
+    SSEBridge,
 )
 from app.utils.url_safety import check_url_safety
 

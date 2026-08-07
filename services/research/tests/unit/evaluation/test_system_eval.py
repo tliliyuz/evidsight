@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.evaluation.constants import TARGETS
 from app.evaluation.models import SystemReliabilityMetrics
 from app.evaluation.system_eval import check_system_targets, evaluate_system_reliability

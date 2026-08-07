@@ -11,11 +11,7 @@
 from http.cookies import SimpleCookie
 
 import pytest
-from starlette.requests import Request
-from starlette.responses import Response
-
 from app.config import settings
-from app.core.exceptions import InvalidTokenException
 from app.core.csrf import (
     clear_auth_cookies,
     generate_csrf_token,
@@ -23,7 +19,9 @@ from app.core.csrf import (
     set_refresh_cookie,
     verify_csrf,
 )
-
+from app.core.exceptions import InvalidTokenException
+from starlette.requests import Request
+from starlette.responses import Response
 
 # ==================== 辅助函数 ====================
 

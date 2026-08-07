@@ -6,12 +6,10 @@ SDD 门禁：RED —— 目标行为（v1 幂等创建端点、Idempotency-Key�
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-import pytest
-from httpx import AsyncClient
-from sqlalchemy import select
-
 from app.models.research_task import ResearchTask
 from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
+from httpx import AsyncClient
+from sqlalchemy import select
 
 KB_A = "11111111-1111-4111-8111-111111111111"
 KB_B = "22222222-2222-4222-8222-222222222222"
@@ -93,9 +91,8 @@ class TestResearchV1Create:
         assert r2.json()["code"] == "E2009"
 
     async def test_同Key不同用户_各自创建(self, async_client: AsyncClient, auth_headers: dict):
-        from jose import jwt as jose_jwt
-
         from app.config import settings
+        from jose import jwt as jose_jwt
 
         now = datetime.now(timezone.utc)
         other_token = jose_jwt.encode(

@@ -14,8 +14,8 @@ from app.core.database import Base
 from app.models._types import UTCDateTime, new_uuid
 from app.models.enums import (
     SOURCE_STRATEGY_ENUM,
-    TASK_STATUS_ENUM,
     TASK_PHASE_ENUM,
+    TASK_STATUS_ENUM,
 )
 
 

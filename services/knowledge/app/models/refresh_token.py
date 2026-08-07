@@ -1,6 +1,7 @@
 """Refresh Token 模型。"""
 
 from datetime import datetime
+
 from sqlalchemy import BigInteger, ForeignKey, Index, String, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

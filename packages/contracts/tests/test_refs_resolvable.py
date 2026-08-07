@@ -1,7 +1,6 @@
 """Schema 自检：所有 $ref 可解析，加载后能以 jsonschema Validator 构造。"""
 
 import pytest
-
 from conftest import SCHEMAS_DIR
 from evidsight_contracts.loader import load_schema, validator_for
 

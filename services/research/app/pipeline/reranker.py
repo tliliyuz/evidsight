@@ -41,10 +41,10 @@ from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.pipeline.bm25 import bm25_rerank, segment_document
 from app.pipeline.sse_bridge import (
-    SSEBridge,
     EVENT_STEP_COMPLETED,
     EVENT_STEP_PROGRESS,
     EVENT_TASK_WARNING,
+    SSEBridge,
 )
 
 logger = logging.getLogger(__name__)

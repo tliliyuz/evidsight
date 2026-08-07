@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-
 from app.agent.context import AgentContext
 from app.agent.memory import ReActEntry, WorkingMemory
 from app.tools.base import ToolContext

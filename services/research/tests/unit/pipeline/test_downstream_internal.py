@@ -14,14 +14,13 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
-
 from app.core.internal_retrieval_client import ResolvedReference
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
+from sqlalchemy import select
 
 KB_A = "11111111-1111-4111-8111-111111111111"
 DOC_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
@@ -206,7 +205,6 @@ class TestSynthesisInternalEvidence:
                 output = await run_synthesis(task, synthesis_step, db_session, sse)
 
         assert output["clusters_count"] == 1
-        user_content = captured["messages"][-1]["content"]
         system_content = captured["messages"][0]["content"]
         # prompt 包含 internal 证据重取正文
         assert "Shor 算法可多项式时间分解大整数" in system_content

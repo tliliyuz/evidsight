@@ -11,14 +11,12 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.core.exceptions import PlanningFailedException, SearchFailedException
 from app.core.llm import LLMResult
-from app.models.research_step import ResearchStep
 from app.models.research_source import ResearchSource
+from app.models.research_step import ResearchStep
 from app.pipeline.planner import run_planning
 from app.pipeline.searcher import run_search
-
 
 # ═══════════════════════════════════════════════════════════════
 # 辅助工厂

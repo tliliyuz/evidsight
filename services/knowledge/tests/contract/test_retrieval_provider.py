@@ -7,7 +7,6 @@ SDD 门禁：本文件只证明 Provider 构造的响应符合契约 Schema 与�
 """
 
 import pytest
-
 from evidsight_contracts.loader import validator_for
 from evidsight_contracts.semantics import (
     check_evidence_reference_source_identity,

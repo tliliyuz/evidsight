@@ -13,8 +13,6 @@
 from datetime import datetime, timezone
 
 import pytest
-from pydantic import ValidationError
-
 from app.schemas.chat import ChatRequest, SelectableKBItem
 from app.schemas.conversation import ConversationCreate, ConversationResponse
 from app.schemas.document import (
@@ -25,7 +23,7 @@ from app.schemas.document import (
 )
 from app.schemas.knowledge_base import KnowledgeBaseResponse
 from app.schemas.trace import TraceDetailResponse, TraceListItem
-
+from pydantic import ValidationError
 
 # ==================== 辅助常量 ====================
 

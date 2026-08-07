@@ -13,7 +13,6 @@ SDD 门禁：RED —— 目标行为（策略感知检索）当前缺失。
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.core.exceptions import (
     InternalKnowledgeForbiddenException,
 )

@@ -38,9 +38,9 @@ def validate_uuid_format(uuid_str: str) -> bool:
 
 def _get_not_found_exception(model_class):
     """根据模型类选择对应的 NotFoundException"""
-    from app.models.knowledge_base import KnowledgeBase
-    from app.models.document import Document
     from app.models.conversation import Conversation
+    from app.models.document import Document
+    from app.models.knowledge_base import KnowledgeBase
 
     _EXCEPTION_MAP = {
         KnowledgeBase: KnowledgeBaseNotFoundException,

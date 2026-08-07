@@ -10,29 +10,27 @@
 Mock Redis 客户端（在函数边界截断），验证锁 Key 格式、NX/EX 参数传递。
 """
 
-import asyncio
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from app.config import settings
 from app.tasks.lock import (
+    KEY_PREFIX,
+    TASK_LOCK_PREFIX,
     _build_lock_key,
     _build_task_lock_key,
     acquire_step_lock,
-    release_step_lock,
-    check_step_lock,
     acquire_step_lock_async,
-    release_step_lock_async,
     acquire_task_lock,
-    release_task_lock,
     acquire_task_lock_async,
-    release_task_lock_async,
-    refresh_task_lock_async,
+    check_step_lock,
     check_task_lock_async,
-    KEY_PREFIX,
-    TASK_LOCK_PREFIX,
+    refresh_task_lock_async,
+    release_step_lock,
+    release_step_lock_async,
+    release_task_lock,
+    release_task_lock_async,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # Key 格式
@@ -308,7 +306,6 @@ async def test_release_step_lock_async_删除对应key():
 @pytest.mark.asyncio
 async def test_acquire_step_lock_async_自定义TTL():
     """异步版：自定义 TTL"""
-    import asyncio
 
     with patch("app.core.redis_client.get_async_redis") as mock_get_async:
         captured_kwargs = {}

@@ -6,8 +6,6 @@
 - CLEAN_REPAIR_UNICODE：U+FFFD / mojibake 修复
 """
 
-import pytest
-
 from app.rag.cleaner import (
     clean_parse_result,
     clean_text,
@@ -18,7 +16,6 @@ from app.rag.cleaner import (
     strip_page_boilerplate,
 )
 from app.rag.parser import ParsedPage, ParseResult
-
 
 # ==================== 页号/页眉页脚 ====================
 

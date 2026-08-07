@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func, select as sa_select
+from sqlalchemy import func
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent_event import AgentEvent

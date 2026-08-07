@@ -1,7 +1,8 @@
 """消息表"""
 
 from datetime import datetime
-from sqlalchemy import BigInteger, Enum, ForeignKey, Integer, JSON, Text, func, text
+
+from sqlalchemy import JSON, BigInteger, Enum, ForeignKey, Integer, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base

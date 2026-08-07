@@ -10,19 +10,17 @@
 import json
 import logging
 import re
-from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.exceptions import PlanningFailedException
 from app.core.llm import chat_completion
-from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
+from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import (
-    SSEBridge,
-    EVENT_STEP_COMPLETED,
     EVENT_STEP_PROGRESS,
+    SSEBridge,
 )
 
 logger = logging.getLogger(__name__)

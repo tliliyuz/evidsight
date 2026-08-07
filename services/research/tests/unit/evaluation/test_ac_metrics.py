@@ -8,7 +8,6 @@
 """
 
 import pytest
-
 from app.evaluation.ac_metrics import (
     CITATION_RE,
     check_evidence_traceability,

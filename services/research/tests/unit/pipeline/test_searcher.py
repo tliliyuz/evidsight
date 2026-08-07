@@ -3,17 +3,15 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.core.exceptions import SearchFailedException
-from app.models.research_task import ResearchTask
-from app.models.research_step import ResearchStep
 from app.models.research_source import ResearchSource
+from app.models.research_step import ResearchStep
+from app.models.research_task import ResearchTask
 from app.pipeline.searcher import (
-    run_search,
     _extract_domain,
     _load_sub_questions,
+    run_search,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # 工具函数测试

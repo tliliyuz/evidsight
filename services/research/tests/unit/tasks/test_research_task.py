@@ -4,12 +4,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import select as sa_select
-
 from app.core.exceptions import SearchFailedException
+from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
-from app.models.research_step import ResearchStep
 from app.tasks.research_task import _build_trace_from_steps, _emergency_fail, _run_pipeline
 
 

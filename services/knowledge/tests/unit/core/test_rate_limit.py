@@ -3,18 +3,15 @@
 对齐 ARCHITECTURE.md §13.2 / TEST_CASES.md A8.1-A8.5。
 """
 
-from unittest.mock import AsyncMock, patch, MagicMock
-import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.middleware.rate_limit_middleware import (
+    RateLimitMiddleware,
     _get_client_ip,
     _get_endpoint_group,
     _get_limit_for_group,
-    RateLimitMiddleware,
 )
-
 
 # ==================== 单元测试 ====================
 

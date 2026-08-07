@@ -9,7 +9,6 @@
 from uuid import uuid4
 
 from starlette.requests import Request
-from starlette.responses import Response
 
 from app.core.logging_config import request_id_var, user_id_var
 

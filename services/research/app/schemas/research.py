@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.exceptions import sanitize_error_message_for_client
 
-
 # ── 研究要求子模型 ──────────────────────────────────────────────
 
 VALID_TASK_TYPES = ("comparison", "explainer", "analysis", "direct_answer")

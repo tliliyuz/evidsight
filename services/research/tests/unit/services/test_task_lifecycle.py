@@ -1,10 +1,8 @@
 """task_lifecycle 共享原语单元测试。"""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.enums import STEP_TYPE_ENUM
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
@@ -14,6 +12,7 @@ from app.services.task_lifecycle import (
     load_task_steps,
     start_research_task,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture

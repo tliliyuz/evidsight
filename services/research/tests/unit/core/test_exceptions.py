@@ -4,8 +4,6 @@
 每个异常类覆盖 3 个维度：错误码/状态码、detail 结构化字段、HTTPException 序列化。
 """
 
-import pytest
-
 from app.core.exceptions import (
     AppException,
     CeleryWorkerLostException,
@@ -47,7 +45,6 @@ from app.core.exceptions import (
     get_safe_error_message,
     sanitize_error_message_for_client,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # E1xxx — 认证与权限错误

@@ -9,9 +9,8 @@
 import logging
 from collections import defaultdict
 
-from app.rag.retriever import RetrievalOutput, RetrievalResult
-
 from app.config import settings
+from app.rag.retriever import RetrievalOutput, RetrievalResult
 
 logger = logging.getLogger(__name__)
 

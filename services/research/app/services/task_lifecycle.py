@@ -18,7 +18,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import or_ as sa_or
-from sqlalchemy import select as sa_select, update as sa_update
+from sqlalchemy import select as sa_select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings

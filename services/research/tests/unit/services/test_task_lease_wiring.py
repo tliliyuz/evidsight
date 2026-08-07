@@ -10,10 +10,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.research_task import ResearchTask
 from app.services.task_lifecycle import TaskLockHandle, start_research_task
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _now() -> datetime:

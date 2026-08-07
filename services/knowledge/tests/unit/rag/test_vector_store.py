@@ -1,10 +1,9 @@
 """向量存储抽象层单元测试 — ChromaVectorStore 委托验证（Per-KB Collection）"""
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
 from app.rag.vector_store import BaseVectorStore, ChromaVectorStore
-
 
 # ==================== BaseVectorStore ABC ====================
 

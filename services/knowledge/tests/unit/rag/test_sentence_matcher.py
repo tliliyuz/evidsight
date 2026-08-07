@@ -8,18 +8,12 @@
 - 最佳句确定性：同一 question 同一 sentence
 """
 
-import re
-
-import pytest
-
 from app.rag.retriever import RetrievalOutput, RetrievalResult
 from app.rag.sentence_matcher import (
-    FilterStats,
     detect_sentence_role,
     filter_chunk_sentences,
     match_sentences,
 )
-
 
 # ==================== 辅助函数 ====================
 

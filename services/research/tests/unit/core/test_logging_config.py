@@ -10,8 +10,6 @@
 import json
 import logging
 
-import pytest
-
 from app.core.logging_config import (
     JSONFormatter,
     RequestIDFilter,

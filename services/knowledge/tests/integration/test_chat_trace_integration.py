@@ -22,8 +22,6 @@ from contextlib import ExitStack, contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from app.core.exceptions import MetaQuestionException
 from app.rag.intent import Intent, IntentResult
 from app.rag.retriever import RetrievalOutput, RetrievalResult
 
@@ -730,8 +728,6 @@ class TestTraceRetrieveGranularity:
                 deep_thinking=False,
             )
             events = await _consume_sse(response)
-
-        recorder = mocks["recorder"]
 
         # 验证 SSE 流正常完成
         event_types = [e["event"] for e in events]

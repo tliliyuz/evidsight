@@ -7,10 +7,9 @@ Service 公钥不可加载时返回 503，避免带病对外服务。
 import json
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
 from app.config import settings
 from app.main import app
+from httpx import ASGITransport, AsyncClient
 
 
 @pytest.mark.asyncio

@@ -13,11 +13,6 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from httpx import ASGITransport, AsyncClient
-from jose import jwt
-
 from app.config import settings
 from app.dependencies import get_db
 from app.main import app
@@ -26,7 +21,11 @@ from app.models.document import Document
 from app.models.document_version import DocumentVersion
 from app.models.knowledge_base import KnowledgeBase
 from app.models.user import User
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from evidsight_contracts.loader import validator_for
+from httpx import ASGITransport, AsyncClient
+from jose import jwt
 
 # ---------------- 测试常量 ----------------
 

@@ -1,21 +1,20 @@
 """认证 API 接口测试 — 使用 TestClient 走完整 HTTP 链路"""
 
 import uuid
+from datetime import datetime, timezone
 from http.cookies import SimpleCookie
 from unittest.mock import AsyncMock, patch
-from datetime import datetime, timezone
 
 import pytest
-
 from app.config import settings
-from app.schemas.auth import UserResponse, TokenResponse, UserSummary
 from app.core.exceptions import (
-    UsernameExistsException,
     InvalidCredentialsException,
-    UserDisabledException,
     RefreshTokenExpiredException,
     TokenLeakDetectedException,
+    UserDisabledException,
+    UsernameExistsException,
 )
+from app.schemas.auth import TokenResponse, UserResponse, UserSummary
 
 
 def _cookies_from_response(response):
@@ -705,9 +704,9 @@ class TestMeAPI:
     @pytest.mark.asyncio
     async def test_me_disabled_user_returns_401(self, async_client, auth_headers):
         """IA-014：用户被禁用时 /me 返回 401 E5010。"""
-        from app.main import app
-        from app.dependencies import get_current_user
         from app.core.exceptions import UserDisabledException
+        from app.dependencies import get_current_user
+        from app.main import app
 
         async def _disabled_user():
             raise UserDisabledException()

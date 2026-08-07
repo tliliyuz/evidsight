@@ -1,17 +1,15 @@
 """智能分块模块单元测试 — 覆盖数据类、估算函数、偏移映射、页码定位、核心分块逻辑、§8.7 章节检测"""
 
-import pytest
-
 from app.config import settings
 from app.rag.chunker import (
-    ChunkResult,
     ChunkingResult,
+    ChunkResult,
     SectionResult,
-    chunk_document,
-    estimate_tokens,
     build_page_offset_map,
-    resolve_page_number,
+    chunk_document,
     detect_sections,
+    estimate_tokens,
+    resolve_page_number,
     resolve_section,
 )
 from app.rag.parser import ParsedPage
@@ -271,8 +269,6 @@ class TestChunkDocument:
 
         # 检查相邻块是否有重叠内容
         for i in range(result.total_chunks - 1):
-            current_end = result.chunks[i].content[-50:]
-            next_start = result.chunks[i + 1].content[:50]
             # 重叠区域中应能找到公共子串
             # 取 current 尾部 30 字符在 next 头部搜索
             overlap_candidate = result.chunks[i].content[-30:]

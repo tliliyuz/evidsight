@@ -16,32 +16,31 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from sqlalchemy import func, or_, select as sa_select, update as sa_update
-from sqlalchemy.orm import aliased
+from sqlalchemy import func, or_
+from sqlalchemy import select as sa_select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.config import settings
 from app.core.cost_tracker import extract_step_cost
 from app.core.exceptions import (
-    CeleryWorkerLostException,
     extract_recoverable_from_exception,
     get_error_type,
     get_safe_error_message,
 )
 from app.core.task_state_resolver import FATAL_STEP_ERROR_CODES, TaskStateResolver
 from app.core.trace_recorder import TraceRecorder
-from app.models.enums import TASK_PHASE_ENUM, STEP_TYPE_ENUM
-from app.models.research_task import ResearchTask
+from app.models.enums import STEP_TYPE_ENUM
 from app.models.research_step import ResearchStep
+from app.models.research_task import ResearchTask
 from app.pipeline.evidence_graph import run_evidence_graph
 from app.pipeline.fetcher import run_fetch
 from app.pipeline.planner import run_planning
 from app.pipeline.renderer import run_render
 from app.pipeline.reranker import run_rerank
 from app.pipeline.searcher import run_search
-from app.pipeline.synthesizer import run_synthesis
 from app.pipeline.sse_bridge import (
-    SSEBridge,
     EVENT_CHECKPOINT_SAVED,
     EVENT_PHASE_COMPLETED,
     EVENT_PHASE_STARTED,
@@ -55,11 +54,12 @@ from app.pipeline.sse_bridge import (
     EVENT_TASK_FAILED,
     EVENT_TASK_PROGRESS,
     EVENT_TASK_WARNING,
+    SSEBridge,
 )
+from app.pipeline.synthesizer import run_synthesis
 from app.tasks.lock import (
     acquire_step_lock_async,
     acquire_task_lock_async,
-    check_task_lock_async,
     refresh_task_lock_async,
     release_step_lock_async,
     release_task_lock_async,
@@ -506,7 +506,7 @@ class PipelineOrchestrator:
             handler = self._handlers.get(step_type)
             if handler is None:
                 await self._skip_phase(
-                    step, phase_name, reason=f"Phase 函数未注册（等待 Phase 3 实现）"
+                    step, phase_name, reason="Phase 函数未注册（等待 Phase 3 实现）"
                 )
                 return
 
@@ -920,11 +920,9 @@ class PipelineOrchestrator:
         # 此处先缓存，供后续日志 / SSE / 致命错误处理使用。
         try:
             task_id = str(self._task.id)
-            execution_context = getattr(self._task, "execution_context", None)
         except Exception:
             logger.exception("Step 错误处理时读取 task 属性失败")
             task_id = str(getattr(step, "task_id", None) or "unknown")
-            execution_context = None
 
         # 若 session 已失效/rollback-only（如 DataError/IntegrityError），先回滚使其恢复可用。
         # 回滚后重新加载 step 对象，避免内存状态与 DB 不一致。
@@ -965,7 +963,6 @@ class PipelineOrchestrator:
                 step.error_code = error_code
                 await self._session.flush()
 
-            recoverable = extract_recoverable_from_exception(error) if is_known_fatal else False
             # 不在此处发送 task.failed——重新抛出后由 run() → _handle_fatal_error
             # 统一处理，避免 SSE double-emit。
             raise  # 重新抛出，由 run() 的顶层 try/except 处理

@@ -6,7 +6,6 @@
 """
 
 import pytest
-
 from evidsight_contracts.loader import list_fixtures, load_fixture
 from evidsight_contracts.v1 import (
     evidence_reference,

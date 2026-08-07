@@ -8,9 +8,8 @@
 [Deviation] DeepSeek 定价使用 cache miss 价格作为保守估算。
 """
 
-from typing import Any
-
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 # 模型定价：每 1M token 美元（cache miss 价格，保守估算）
 MODEL_PRICING_USD_PER_1M: dict[str, dict[str, float]] = {

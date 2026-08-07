@@ -6,13 +6,11 @@
 - 边界：空答案、空 chunks、零引用、全引用
 """
 
-import pytest
-
 from app.rag.evidence_auditor import (
     EvidenceAuditResult,
     _check_citation_exists,
-    _check_source_consistency,
     _check_sentence_evidence,
+    _check_source_consistency,
     _compute_confidence,
     audit_evidence,
 )

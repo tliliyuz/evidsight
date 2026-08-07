@@ -1,7 +1,6 @@
 """Knowledge Celery 任务路由契约测试。"""
 
 import pytest
-
 from app.ingest.celery_app import celery_app
 
 

@@ -10,14 +10,13 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
-
 from app.core.llm import LLMResult
 from app.models.evidence_item import EvidenceItem
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.pipeline.reranker import run_rerank
+from sqlalchemy import select
 
 
 def _make_llm_result(ratings: list[dict]) -> LLMResult:

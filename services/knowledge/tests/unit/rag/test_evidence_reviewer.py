@@ -6,11 +6,7 @@
 - include_sentence_detail 控制逐句详情输出
 """
 
-import pytest
-
 from app.rag.evidence_reviewer import (
-    ChunkRoleDecision,
-    EvidenceReviewResult,
     SentenceReviewItem,
     review_evidence,
 )

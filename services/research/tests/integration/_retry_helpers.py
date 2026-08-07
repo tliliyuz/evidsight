@@ -5,13 +5,8 @@
 
 import contextlib
 import json
-from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
-
-from sqlalchemy import func, or_, select
-from sqlalchemy.orm import aliased
-from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import AsyncMock, patch
 
 from app.core.llm import LLMResult
 from app.models.evidence_item import EvidenceItem
@@ -27,7 +22,9 @@ from app.pipeline.synthesizer import (
     SynthesisConflict,
     SynthesisNotes,
 )
-
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 # ═══════════════════════════════════════════════════════════════
 # 常量
@@ -597,7 +594,7 @@ async def _seed_failed_task(
                 # evidence_graph 完成后 render 会读取 graph output
                 pass
 
-    failed_step = await _create_step(
+    await _create_step(
         db_session,
         task.id,
         failed_at,

@@ -7,7 +7,6 @@
 4. phase_durations_ms / breakdown / phases 完整性
 """
 
-import pytest
 from app.core.trace_recorder import TraceRecorder
 
 

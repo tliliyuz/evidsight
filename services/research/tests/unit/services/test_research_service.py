@@ -8,38 +8,30 @@
 from datetime import datetime, timezone
 
 import pytest
-from pydantic import ValidationError
-from sqlalchemy import select, func, delete
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.exceptions import (
-    TopicTooLongException,
-    InvalidTaskTypeException,
-    InvalidDepthException,
-    InvalidRequirementsException,
-    TaskNotFoundException,
-    TaskAccessDeniedException,
     TaskStatusConflictException,
 )
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
-from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
+from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
 from app.schemas.research import ResearchCreateRequest
 from app.services.research_service import (
+    RETRY_ALLOWED_STATUSES,
     _build_progress,
     cancel_task,
     create_task,
-    get_report,
-    get_task_list,
-    get_task_detail,
     delete_task,
+    get_report,
+    get_task_detail,
+    get_task_list,
     retry_task,
-    RETRY_ALLOWED_STATUSES,
 )
-
+from pydantic import ValidationError
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # ═══════════════════════════════════════════════════════════════
 # _build_progress

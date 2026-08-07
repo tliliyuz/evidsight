@@ -9,11 +9,10 @@ SDD 门禁：RED —— 目标行为（来源策略字段、校验与持久化�
 import uuid
 
 import pytest
-from pydantic import ValidationError
-from sqlalchemy import select
-
 from app.schemas.research import ResearchCreateRequest
 from app.services.research_service import create_task
+from pydantic import ValidationError
+from sqlalchemy import select
 
 # 稳定 UUID（模拟 Knowledge 签发的 KB UUID）
 KB_A = "11111111-1111-4111-8111-111111111111"

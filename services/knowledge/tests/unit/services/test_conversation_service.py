@@ -11,13 +11,10 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.core.exceptions import (
     ConversationAccessDeniedException,
     ConversationNotFoundException,
 )
-from app.schemas.conversation import ConversationResponse
-
 
 # ==================== 辅助函数 ====================
 
@@ -216,8 +213,8 @@ class TestCreateConversation:
     @pytest.mark.asyncio
     async def test_正常创建返回kb_status(self):
         """创建后返回含 kb_status="active", last_message_at=None"""
-        from app.services.conversation_service import create_conversation
         from app.schemas.conversation import ConversationCreate
+        from app.services.conversation_service import create_conversation
 
         db = AsyncMock()
         kb = _make_kb(kb_id=1, name="测试知识库")
@@ -249,7 +246,7 @@ class TestCreateConversation:
             patch(
                 "app.core.uuid_helpers.resolve_uuid_to_id", new_callable=AsyncMock
             ) as mock_resolve,
-            patch("app.services.conversation_service._enrich_kb_status") as mock_enrich,
+            patch("app.services.conversation_service._enrich_kb_status"),
             patch(
                 "app.services.conversation_service.resolve_user_uuid", new_callable=AsyncMock
             ) as mock_uuid,

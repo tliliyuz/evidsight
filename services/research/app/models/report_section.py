@@ -11,9 +11,8 @@ from sqlalchemy import func
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models._types import UTCDateTime
-
 from app.core.database import Base
+from app.models._types import UTCDateTime
 
 
 class ReportSection(Base):

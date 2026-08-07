@@ -9,8 +9,8 @@
 import pytest
 from app.rag.prompt_builder import (
     PromptBuildResult,
-    build_prompt,
     _format_chunk_reference,
+    build_prompt,
 )
 from app.rag.retriever import RetrievalOutput, RetrievalResult
 

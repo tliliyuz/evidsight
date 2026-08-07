@@ -6,8 +6,6 @@
 - 事件与 SSE 载荷不暴露模型隐藏推理。
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.agent.event_recorder import AgentEventRecorder
 from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import (
@@ -21,6 +19,7 @@ from app.services.agent_event_service import (
     EVENT_TYPE_TOOL_RESULT,
     list_events_after,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class RecordingSSE:

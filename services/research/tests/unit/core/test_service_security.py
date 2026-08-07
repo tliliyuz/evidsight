@@ -1,12 +1,11 @@
 """Research Service JWT 签发单测 — 载荷对齐 CONFIGURATION.md §3"""
 
 import pytest
+from app.config import settings
+from app.core.service_security import create_service_token
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
-
-from app.config import settings
-from app.core.service_security import create_service_token
 
 
 @pytest.fixture
@@ -61,7 +60,6 @@ class TestCreateServiceToken:
             algorithms=["RS256"],
             audience=settings.EVIDSIGHT_PLATFORM_SERVICE_JWT_AUDIENCE,
         )
-        from datetime import datetime, timezone
 
         exp = payload["exp"]
         iat = payload["iat"]

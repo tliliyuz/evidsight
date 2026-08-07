@@ -14,7 +14,6 @@ SDD 门禁：RED —— 目标行为（Internal Retrieval Consumer）当前缺�
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.config import settings
 from app.core import internal_retrieval_client
 from app.core.exceptions import (

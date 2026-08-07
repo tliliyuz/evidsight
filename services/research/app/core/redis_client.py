@@ -12,8 +12,9 @@
 import asyncio
 import logging
 import sys
-import redis
 from typing import Any, Optional
+
+import redis
 
 from app.config import settings
 

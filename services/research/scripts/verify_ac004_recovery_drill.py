@@ -31,13 +31,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
-
 from app.core.database import async_session_factory  # noqa: E402
 from app.evaluation.ac_metrics import compute_recovery_success_rate  # noqa: E402
 from app.models.research_task import ResearchTask  # noqa: E402
 from app.tasks.recovery import recover_stale_tasks  # noqa: E402
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 THRESHOLD = 0.95
 
@@ -153,7 +152,7 @@ async def run() -> int:
         commit = "unknown"
     print("\n===== 发布记录模板（TESTING.md §7）=====")
     print(f"候选版本/提交：{commit}")
-    print(f"环境与资源：research_db / Redis")
+    print("环境与资源：research_db / Redis")
     print(f"数据集版本：{args.tasks}")
     print(f"执行命令：{' '.join(sys.argv)}")
     verdict = "通过" if total > 0 and rate >= THRESHOLD else "未通过"

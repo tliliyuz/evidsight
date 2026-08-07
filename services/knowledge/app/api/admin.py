@@ -6,12 +6,10 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.uuid_helpers import resolve_uuid_to_id
 from app.dependencies import get_db, require_admin
-from app.core.exceptions import AppException
 from app.models.knowledge_base import KnowledgeBase
 from app.schemas.admin import (
     AdminUserResetPasswordRequest,

@@ -10,10 +10,9 @@
 import logging
 from dataclasses import dataclass, field
 
+from app.config import settings
 from app.rag.chunker import estimate_tokens
 from app.rag.retriever import RetrievalOutput, RetrievalResult
-
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 

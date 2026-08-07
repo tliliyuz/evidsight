@@ -12,7 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models._types import UTCDateTime, new_uuid
-from app.models.enums import STEP_TYPE_ENUM, STEP_STATUS_ENUM
+from app.models.enums import STEP_STATUS_ENUM, STEP_TYPE_ENUM
 
 
 class ResearchStep(Base):

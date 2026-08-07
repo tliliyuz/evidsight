@@ -19,13 +19,11 @@ from contextlib import ExitStack, contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.core.exceptions import (
     ConversationAccessDeniedException,
     ConversationNotFoundException,
     KnowledgeBaseEmptyException,
     KnowledgeBaseNotFoundException,
-    MetaQuestionException,
     PermissionDeniedException,
     RetrievalServiceException,
 )
@@ -380,7 +378,7 @@ class TestChatNormalFlow:
 
         with _mock_chat_pipeline(
             db, conv, retrieval_output=retrieval_output, llm_chunks=llm_chunks
-        ) as mocks:
+        ):
             response = await chat(
                 db=db,
                 user_id=1,
@@ -686,7 +684,7 @@ class TestChatTitleGeneration:
                 "app.services.sse_stream.generate_title_llm",
                 new_callable=AsyncMock,
                 return_value="测试问题标题生成",
-            ) as mock_title_llm:
+            ):
                 response = await chat(
                     db=db,
                     user_id=1,
@@ -851,7 +849,7 @@ class TestChatKBNotFound:
         conv.message_count = 0
         conv.title = "新对话"
 
-        with _mock_chat_pipeline(db, conv, llm_chunks=_make_llm_chunks(["回答"])) as mocks:
+        with _mock_chat_pipeline(db, conv, llm_chunks=_make_llm_chunks(["回答"])):
             # admin（user_id=2）访问 user 1 的 private KB
             response = await chat(
                 db=db,

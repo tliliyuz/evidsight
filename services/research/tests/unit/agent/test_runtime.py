@@ -4,11 +4,11 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.agent.context import AgentContext
 from app.agent.memory import WorkingMemory
 from app.agent.runtime import AgentRuntime
-from app.core.llm import LLMResult, ToolCall as LLMToolCall
+from app.core.llm import LLMResult
+from app.core.llm import ToolCall as LLMToolCall
 from app.core.trace_recorder import TraceRecorder
 from app.models.research_task import ResearchTask
 from app.tools.base import Tool, ToolCall, ToolContext

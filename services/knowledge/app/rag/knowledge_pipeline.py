@@ -10,7 +10,7 @@
 
 import logging
 import time
-from collections.abc import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
@@ -171,7 +171,6 @@ class KnowledgePipeline:
             t_coarse = time.perf_counter()
 
             # 下限保护：粗排后候选不足 RERANK_TOP_K 时跳过精排
-            coarse_input_count = len(fused_output.results)
             coarse_output_count = len(coarse_output.results)
             if coarse_output_count < settings.RERANK_TOP_K:
                 reranked_output = coarse_output

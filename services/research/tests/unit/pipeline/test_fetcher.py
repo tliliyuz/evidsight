@@ -4,18 +4,16 @@ import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from app.models.research_task import ResearchTask
-from app.models.research_step import ResearchStep
 from app.models.research_source import ResearchSource
+from app.models.research_step import ResearchStep
+from app.models.research_task import ResearchTask
 from app.pipeline.fetcher import (
-    run_fetch,
     _extract_domain,
     _extract_title_from_content,
     _fetch_one_url,
+    run_fetch,
 )
 from app.utils.url_safety import check_url_safety
-
 
 # ═══════════════════════════════════════════════════════════════
 # URL 安全检查测试

@@ -5,15 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from app.tools.base import PhaseHandlerTool, Tool
-from app.tools.evidence_graph_tool import evidence_graph_tool
-from app.tools.fetch_tool import fetch_tool
 from app.tools.finish_tool import FinishTool
 from app.tools.memory_tool import MemoryTool
-from app.tools.plan_tool import plan_tool
-from app.tools.render_tool import render_tool
-from app.tools.rerank_tool import rerank_tool
-from app.tools.search_tool import search_tool
-from app.tools.synthesis_tool import synthesis_tool
 
 
 class ToolRegistry:

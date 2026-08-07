@@ -10,13 +10,12 @@
    批量上传、重处理、治理写操作（禁用/启用用户、重置密码）均被 401 E5010 拒绝。
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from app.core.exceptions import UserDisabledException
 from app.dependencies import get_current_user
 from app.models.user import User
-
 
 # ==================== 测试用 UUID 常量 ====================
 # 对齐 conftest 尾号推导约定：尾号 1 → user_id 1（普通用户），2 → admin。

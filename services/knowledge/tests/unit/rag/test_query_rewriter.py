@@ -12,17 +12,15 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
+from app.config import settings
 from app.rag.query_rewriter import (
-    needs_rewrite,
-    rewrite_query,
-    RewriteResult,
     AMBIGUOUS_SIGNALS,
     REWRITE_SYSTEM_PROMPT,
     REWRITE_USER_TEMPLATE,
+    RewriteResult,
+    needs_rewrite,
+    rewrite_query,
 )
-from app.config import settings
-
 
 # ===== 辅助 fixture =====
 

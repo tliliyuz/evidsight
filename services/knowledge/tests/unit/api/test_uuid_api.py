@@ -10,11 +10,9 @@
 """
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi.responses import StreamingResponse
-
 from app.core.exceptions import (
     KnowledgeBaseNotFoundException,
     PermissionDeniedException,
@@ -31,7 +29,7 @@ from app.schemas.knowledge_base import (
     KnowledgeBaseResponse,
 )
 from app.schemas.trace import TraceDetailResponse, TraceListItem, TraceListResponse
-
+from fastapi.responses import StreamingResponse
 
 # ==================== 辅助常量 ====================
 

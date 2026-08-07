@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from app.core.exceptions import (
     ConversationAccessDeniedException,
     ConversationNotFoundException,
@@ -385,7 +384,7 @@ class TestDeleteConversation:
             patch(
                 "app.api.conversation.resolve_uuid_to_id", new_callable=AsyncMock
             ) as mock_resolve,
-            patch("app.api.conversation.delete_conversation", new_callable=AsyncMock) as mock,
+            patch("app.api.conversation.delete_conversation", new_callable=AsyncMock),
         ):
             mock_resolve.return_value = 1
 

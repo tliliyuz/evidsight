@@ -1,7 +1,6 @@
 """Fetch 离线评估单元测试"""
 
 import pytest
-
 from app.evaluation.fetch_eval import evaluate_fetch
 from app.evaluation.models import FetchMetrics
 

@@ -6,8 +6,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from app.core.task_state_resolver import TaskStateResolver
 
 

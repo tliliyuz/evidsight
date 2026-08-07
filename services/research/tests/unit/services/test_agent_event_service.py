@@ -8,8 +8,6 @@
 """
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.research_task import ResearchTask
 from app.services.agent_event_service import (
     EVENT_TYPE_PHASE_ENTER,
@@ -18,6 +16,7 @@ from app.services.agent_event_service import (
     append_event,
     list_events_after,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def _make_task(db: AsyncSession) -> str:

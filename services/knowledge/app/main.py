@@ -10,17 +10,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.admin import router as admin_router
-from app.api.auth import router as auth_router, v1_router
+from app.api.auth import router as auth_router
+from app.api.auth import v1_router
 from app.api.chat import router as chat_router
 from app.api.conversation import router as conversation_router
-from app.api.knowledge_base import router as kb_router
 from app.api.document import router as doc_router
 from app.api.internal import router as internal_router
+from app.api.knowledge_base import router as kb_router
 from app.config import settings
 from app.core.chroma_client import init_chroma
 from app.core.csrf import clear_auth_cookies
 from app.core.exceptions import AppException
-from app.core.logging_config import get_request_id, setup_logging
+from app.core.logging_config import setup_logging
 from app.core.redis_client import close_async_redis, get_async_redis
 from app.core.service_security import public_keys_loadable
 from app.core.startup_checks import validate_production_config
@@ -133,7 +134,6 @@ app.include_router(internal_router)
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
     """业务异常 → 扁平错误响应，与 AuthMiddleware 格式统一"""
-    rid = get_request_id()
     logger.info(
         "业务异常: %s %s → %s %s",
         request.method,
@@ -160,7 +160,6 @@ async def app_exception_handler(request: Request, exc: AppException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    rid = get_request_id()
     logger.info(
         "参数校验失败: %s %s",
         request.method,
@@ -179,7 +178,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    rid = get_request_id()
     # 结构化日志：记录完整异常信息（含 traceback）
     logger.error(
         "未捕获异常: %s %s → %s",

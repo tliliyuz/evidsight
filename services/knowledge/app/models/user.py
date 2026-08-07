@@ -1,7 +1,7 @@
 """用户表"""
 
-from datetime import datetime
 import uuid
+from datetime import datetime
 
 from sqlalchemy import BigInteger, Enum, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship

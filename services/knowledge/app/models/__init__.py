@@ -2,19 +2,19 @@
 
 from app.core.database import Base
 
-from .enums import DocumentStatus, TERMINAL_STATUSES, is_terminal  # noqa: F401
-from .user import User
-from .knowledge_base import KnowledgeBase
-from .document import Document
-from .document_version import DocumentVersion
-from .section import Section
 from .chunk import Chunk
 from .conversation import Conversation
-from .message import Message
+from .document import Document
+from .document_version import DocumentVersion
+from .enums import TERMINAL_STATUSES, DocumentStatus, is_terminal  # noqa: F401
 from .identity_audit_event import IdentityAuditEvent
-from .refresh_token_family import RefreshTokenFamily
+from .knowledge_base import KnowledgeBase
+from .message import Message
 from .refresh_token import RefreshToken
+from .refresh_token_family import RefreshTokenFamily
+from .section import Section
 from .trace import Trace
+from .user import User
 
 __all__ = [
     "Base",

@@ -6,7 +6,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import func, select as sa_select, update as sa_update
+from sqlalchemy import func
+from sqlalchemy import select as sa_select
+from sqlalchemy import update as sa_update
 from sqlalchemy.orm import aliased
 
 from app.agent.context import AgentContext
@@ -30,7 +32,6 @@ from app.metrics import (
     emit_task_cost,
     emit_task_status_transition,
 )
-from app.models.enums import STEP_TYPE_ENUM
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import (
@@ -57,11 +58,9 @@ from app.services.budget_service import (
 from app.services.pipeline_orchestrator import (
     PHASE_ORDER,
     STEP_TYPE_TO_PHASE,
-    build_default_phase_handlers,
 )
 from app.services.task_lifecycle import (
     TaskLockHandle,
-    emergency_fail_task,
     is_step_commit_allowed,
     is_task_ownership_valid,
     load_task_steps,

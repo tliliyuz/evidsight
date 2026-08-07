@@ -2,11 +2,9 @@
 
 import json
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
-
 from app.config import settings
 from app.core.exceptions import RenderFailedException
 from app.core.llm import LLMResult
@@ -16,9 +14,9 @@ from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
-from app.pipeline.renderer import run_render, normalize_citation_markup
+from app.pipeline.renderer import normalize_citation_markup, run_render
 from app.pipeline.sse_bridge import EVENT_STEP_COMPLETED, EVENT_STEP_PROGRESS
-
+from sqlalchemy import select
 
 # ═══════════════════════════════════════════════════════════════
 # 辅助工厂

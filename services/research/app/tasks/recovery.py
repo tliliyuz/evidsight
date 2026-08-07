@@ -15,7 +15,9 @@
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import or_ as sa_or, select as sa_select, update as sa_update
+from sqlalchemy import or_ as sa_or
+from sqlalchemy import select as sa_select
+from sqlalchemy import update as sa_update
 
 from app.config import settings
 from app.core.database import async_session_factory

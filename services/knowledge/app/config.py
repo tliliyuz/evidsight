@@ -1,8 +1,9 @@
 """应用配置 — 字段声明与 .env 变量自动映射，提供类型校验和 IDE 补全"""
 
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings
-from pathlib import Path
 
 
 class Settings(BaseSettings):

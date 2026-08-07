@@ -5,42 +5,38 @@
 """
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, ANY, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import UploadFile
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.config import settings
 from app.core.exceptions import (
     BatchUploadCountExceededException,
     DocumentNameExistsException,
     DocumentNotFoundException,
     DocumentProcessingError,
+    FileSizeExceededException,
     PermissionDeniedException,
     ReprocessFailedException,
     UnsupportedFileFormatException,
-    FileSizeExceededException,
 )
-from app.config import settings
-from app.models.document import Document
 from app.models.chunk import Chunk
+from app.models.document import Document
 from app.models.enums import DocumentStatus
 from app.models.knowledge_base import KnowledgeBase
 from app.services.document_service import (
-    ALLOWED_EXTENSIONS,
     _build_document_response,
     _check_kb_ownership,
     batch_upload_documents,
-    validate_file,
     delete_document,
     get_document,
     get_document_chunks,
     list_documents,
     reprocess_document,
     upload_document,
+    validate_file,
 )
-
+from fastapi import UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # ============================================================
 # Mock 工具

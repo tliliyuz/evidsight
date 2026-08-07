@@ -35,20 +35,19 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from sqlalchemy import select
-
 from app.config import settings
 from app.core.chroma_client import get_vector_store
 from app.core.database import async_session
-from app.core.llm import chat_completion, LLMResult
+from app.core.llm import LLMResult, chat_completion
 from app.core.redis_client import get_async_redis
-from app.models.chunk import Chunk
 from app.models.document import Document
 from app.models.knowledge_base import KnowledgeBase
 from app.rag.bm25 import BM25Retriever
 from app.rag.knowledge_pipeline import KnowledgePipeline, KnowledgePipelineResult
-from app.rag.retriever import RetrievalOutput, VectorRetriever
 from app.rag.reranker import DashScopeReranker
+from app.rag.retriever import RetrievalOutput, VectorRetriever
+from sqlalchemy import select
+
 from tests.eval.eval_test_set import EVAL_TEST_SET
 
 logger = logging.getLogger(__name__)
@@ -292,8 +291,8 @@ def _build_answer_relevancy_cn_prompt():
 def _build_context_precision_cn_prompt():
     """构造 Context Precision 的中文验证 prompt（懒加载 ragas）。"""
     from ragas.metrics._context_precision import (
-        ContextPrecisionPrompt,
         QAC,
+        ContextPrecisionPrompt,
         Verification,
     )
 
@@ -512,9 +511,9 @@ class RagasEvaluator:
             return
 
         try:
-            from ragas.llms import LangchainLLMWrapper
-            from ragas.embeddings import LangchainEmbeddingsWrapper
             from langchain_openai import ChatOpenAI
+            from ragas.embeddings import LangchainEmbeddingsWrapper
+            from ragas.llms import LangchainLLMWrapper
         except ImportError as e:
             raise ImportError("ragas 未安装，请运行: pip install ragas==0.2.* datasets>=3.0") from e
 
@@ -741,7 +740,7 @@ class RagasEvaluator:
                         error="评估异常",
                     )
                 )
-                print(f"       ❌ 评估异常")
+                print("       ❌ 评估异常")
 
         # 汇总统计
         faithful_vals = [r.faithfulness for r in results if r.faithfulness is not None]
@@ -833,7 +832,7 @@ def print_summary_table(summary: RagasEvalSummary) -> None:
 
     print("-" * 50)
     print(f"  评估题目: {summary.total} 题 | 成功: {summary.evaluated} | 失败: {summary.failed}")
-    print(f"  ✅ = 达标    ❌ = 未达标    — = 无数据    ⚑ = AR 0 分待复核")
+    print("  ✅ = 达标    ❌ = 未达标    — = 无数据    ⚑ = AR 0 分待复核")
     print()
 
 

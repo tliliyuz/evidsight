@@ -18,7 +18,7 @@ from app.evaluation.manual import (
     load_all_manual_rounds,
     load_manual_records,
 )
-from app.evaluation.system_eval import check_system_targets, evaluate_system_reliability
+from app.evaluation.system_eval import evaluate_system_reliability
 from app.models.research_task import ResearchTask
 
 

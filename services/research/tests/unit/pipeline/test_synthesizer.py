@@ -3,11 +3,9 @@
 import json
 from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
-
 from app.config import settings
 from app.core.exceptions import SynthesisFailedException
 from app.core.llm import LLMResult
@@ -17,7 +15,6 @@ from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import EVENT_STEP_COMPLETED, EVENT_STEP_PROGRESS
 from app.pipeline.synthesizer import run_synthesis
-
 
 # ═══════════════════════════════════════════════════════════════
 # 辅助工厂

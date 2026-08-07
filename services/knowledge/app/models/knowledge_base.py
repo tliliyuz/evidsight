@@ -1,6 +1,7 @@
 """知识库表"""
 
 from datetime import datetime
+
 from sqlalchemy import (
     BigInteger,
     Enum,

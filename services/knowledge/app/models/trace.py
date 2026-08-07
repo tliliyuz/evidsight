@@ -6,7 +6,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, ForeignKey, Index, Integer, JSON, String, Text, func
+from sqlalchemy import JSON, BigInteger, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base

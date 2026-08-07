@@ -8,17 +8,14 @@
   切换 active_version → 删除旧版本向量 → 清理 staging → 恢复 ready
 """
 
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.ingest import versioning
 from app.models.document import Document
 from app.models.document_version import DocumentVersion
 from app.models.enums import DocumentStatus
 from app.models.knowledge_base import KnowledgeBase
-
 
 # ==================== 对外状态映射 ====================
 

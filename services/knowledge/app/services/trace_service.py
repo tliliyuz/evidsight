@@ -16,17 +16,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import TraceNotFoundException
 from app.core.utils import escape_like
-
+from app.models.conversation import Conversation
 from app.models.knowledge_base import KnowledgeBase
 from app.models.trace import Trace
 from app.models.user import User
-from app.models.conversation import Conversation
 from app.schemas.trace import (
     TraceDetailResponse,
     TraceIntentDistItem,
     TraceLatencyItem,
-    TraceListResponse,
     TraceListItem,
+    TraceListResponse,
     TraceListSummary,
     TraceResponseDistItem,
     TraceStatsResponse,

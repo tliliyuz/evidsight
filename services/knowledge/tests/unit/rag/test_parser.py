@@ -1,19 +1,17 @@
 """文档解析器单元测试 — 覆盖 PDF/DOCX/MD/TXT 解析 + 容错阈值判定 + 表格 Markdown 转换"""
 
-import pytest
 from unittest.mock import MagicMock, PropertyMock, patch
 
 from app.rag.parser import (
     ParsedPage,
     ParseResult,
-    parse_document,
+    _parse_docx,
     _parse_pdf,
     _parse_pdf_with_pdfplumber,
-    _parse_docx,
     _parse_text,
     _table_to_markdown,
+    parse_document,
 )
-
 
 # === 辅助工具 ===
 

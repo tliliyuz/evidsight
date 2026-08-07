@@ -17,7 +17,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.config import settings
 from app.rag.chunker import estimate_tokens
 from app.rag.prompt_builder import build_prompt

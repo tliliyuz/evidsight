@@ -1,7 +1,6 @@
 """Search 离线评估单元测试"""
 
 import pytest
-
 from app.evaluation.models import SearchMetrics
 from app.evaluation.search_eval import evaluate_search
 

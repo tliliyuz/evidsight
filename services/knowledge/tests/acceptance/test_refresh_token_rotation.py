@@ -4,11 +4,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.core.security import create_refresh_token, decode_refresh_token, hash_password, hash_token
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
-
 
 PLATFORM_USER_ID = "550e8400-e29b-41d4-a716-446655440000"
 FAMILY_ID = "6ba7b810-9dad-41d1-80b4-00c04fd430c8"

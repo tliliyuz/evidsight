@@ -25,11 +25,11 @@ from app.ingest.lock import (
     release_version_lock_async,
 )
 from app.ingest.versioning import (
+    CHUNKING,
     EMBEDDING,
     INDEXING,
     PARSING,
     QUEUED,
-    CHUNKING,
     READY_WITH_WARNINGS,
     VERIFYING,
     PublishAbortedError,
@@ -215,8 +215,6 @@ async def _run_parse_embed_publish(version_id: int) -> dict:
         doc = await db.get(Document, version.document_id)
         file_path = doc.file_path
         file_type = doc.file_type
-        kb_id = doc.kb_id
-        doc_id = doc.id
         version.status = PARSING
         doc.status = map_document_status(PARSING)
         await db.commit()

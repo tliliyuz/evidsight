@@ -8,10 +8,6 @@
 """
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
-
-import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.research_task import ResearchTask
 from app.services.task_lifecycle import (
@@ -20,6 +16,7 @@ from app.services.task_lifecycle import (
     release_task_lease,
     renew_task_lease,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _now() -> datetime:

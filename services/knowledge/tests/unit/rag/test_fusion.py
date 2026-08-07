@@ -9,8 +9,6 @@
 - 参数化 k 值
 """
 
-import pytest
-
 from app.rag.fusion import rrf_fusion
 from app.rag.retriever import RetrievalOutput, RetrievalResult
 

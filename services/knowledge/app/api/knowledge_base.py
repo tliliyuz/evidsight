@@ -15,9 +15,9 @@ from app.services.chat_service import get_selectable_kbs
 from app.services.knowledge_base_service import (
     create_kb,
     delete_kb,
+    get_kb,
     list_kbs,
     list_public_kbs,
-    get_kb,
     update_kb,
 )
 

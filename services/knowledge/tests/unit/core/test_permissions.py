@@ -9,7 +9,6 @@
 """
 
 import pytest
-
 from app.core.exceptions import PermissionDeniedException
 from app.core.permissions import require_kb_owner, require_kb_readable, require_kb_writable
 from app.models.knowledge_base import KnowledgeBase

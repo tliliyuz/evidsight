@@ -3,9 +3,8 @@
 import json
 
 import pytest
-from jsonschema import Draft202012Validator, exceptions
-
 from conftest import SCHEMAS_DIR
+from jsonschema import Draft202012Validator
 
 
 def _all_schema_files():

@@ -16,7 +16,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from app.main import _recover_stale_tasks
 from app.models.research_task import ResearchTask
 from app.tasks.recovery import recover_stale_tasks

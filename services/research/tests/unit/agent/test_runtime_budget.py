@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.agent.context import AgentContext
 from app.agent.memory import WorkingMemory
 from app.agent.runtime import AgentRuntime

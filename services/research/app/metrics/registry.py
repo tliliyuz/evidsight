@@ -21,7 +21,9 @@ except ImportError:
     pass
 
 from prometheus_client import (
-    CONTENT_TYPE_LATEST,
+    CONTENT_TYPE_LATEST as CONTENT_TYPE_LATEST,
+)
+from prometheus_client import (
     CollectorRegistry,
     Counter,
     Gauge,

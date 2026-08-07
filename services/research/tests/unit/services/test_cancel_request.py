@@ -7,14 +7,12 @@
 - 重复取消幂等返回当前终态。
 """
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
+from datetime import datetime, timezone
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.research_task import ResearchTask
 from app.services.research_service import TaskStatusConflictException, cancel_task
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _now() -> datetime:

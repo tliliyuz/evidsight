@@ -15,8 +15,6 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import func, select
-
 from app.core.trace_recorder import TraceRecorder
 from app.models.evidence_item import EvidenceItem
 from app.models.research_step import ResearchStep
@@ -25,8 +23,6 @@ from app.pipeline.sse_bridge import (
     EVENT_CHECKPOINT_SAVED,
     EVENT_PHASE_COMPLETED,
     EVENT_PHASE_STARTED,
-    EVENT_STEP_COMPLETED,
-    EVENT_STEP_STARTED,
     EVENT_TASK_COMPLETED,
     EVENT_TASK_CREATED,
     EVENT_TASK_FAILED,
@@ -35,9 +31,9 @@ from app.pipeline.sse_bridge import (
 )
 from app.services.pipeline_orchestrator import PipelineOrchestrator, build_default_phase_handlers
 from app.services.research_service import retry_task
+from sqlalchemy import func, select
 
 from tests.integration._retry_helpers import (
-    PHASE_LABELS,
     PHASE_ORDER,
     _assert_evidence_count,
     _assert_main_step_status,
@@ -52,7 +48,6 @@ from tests.integration._retry_helpers import (
     _seed_task,
     _session_factory,
 )
-
 
 pytestmark = [pytest.mark.integration, pytest.mark.retry]
 

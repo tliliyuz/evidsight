@@ -11,18 +11,15 @@
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-import pytest
-from httpx import AsyncClient
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
-from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
+from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
-
+from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # ═══════════════════════════════════════════════════════════════
 # GET /api/health/workers — Worker 集群健康检查
@@ -48,7 +45,7 @@ class TestWorkerHealthAPI:
         with patch(
             "app.main.celery_app.control.ping",
             return_value=[{"celery@worker1": {"ok": "pong"}}, {"celery@worker2": {"ok": "pong"}}],
-        ) as mock_ping:
+        ):
             response = await async_client.get("/api/health/workers")
 
         assert response.status_code == 200
@@ -59,9 +56,7 @@ class TestWorkerHealthAPI:
         assert set(data["data"]["workers"]) == {"celery@worker1", "celery@worker2"}
 
     async def test_ping异常_返回unknown但不报错(self, async_client: AsyncClient):
-        with patch(
-            "app.main.celery_app.control.ping", side_effect=RuntimeError("broker down")
-        ) as mock_ping:
+        with patch("app.main.celery_app.control.ping", side_effect=RuntimeError("broker down")):
             response = await async_client.get("/api/health/workers")
 
         assert response.status_code == 200
@@ -982,7 +977,6 @@ class TestCreateResearchIntentAPI:
         from unittest.mock import AsyncMock
 
         from app.core.exceptions import UserDisabledException
-        from app.services import research_service
 
         async def _raise_disabled(user_id: str):
             raise UserDisabledException()
@@ -1016,7 +1010,6 @@ class TestCreateResearchIntentAPI:
         from unittest.mock import AsyncMock
 
         from app.core.exceptions import ServiceUnavailableException
-        from app.services import research_service
 
         async def _raise_unavailable(user_id: str):
             raise ServiceUnavailableException("身份事实源不可用")

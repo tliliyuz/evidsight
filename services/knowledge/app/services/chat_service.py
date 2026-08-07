@@ -42,9 +42,9 @@ from app.models.user import User
 from app.rag.bm25 import BM25Retriever
 from app.rag.intent import Intent, classify_intent
 from app.rag.knowledge_pipeline import (
+    RETRIEVABLE_STATUSES,
     KnowledgePipeline,
     KnowledgePipelineResult,
-    RETRIEVABLE_STATUSES,
 )
 from app.rag.trace_recorder import TraceRecorder
 from app.schemas.chat import SelectableKBItem, SelectableKBResponse
@@ -408,5 +408,4 @@ from app.services.chat_helpers import (  # noqa: E402, F401
     extract_citation_indices,
     generate_title,
     generate_title_llm,
-    load_history,
 )

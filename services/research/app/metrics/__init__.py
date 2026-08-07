@@ -43,6 +43,9 @@ __all__ = [
     "emit_task_cost",
     "emit_task_status_transition",
     "get_metrics_output",
+    "set_celery_queue_length",
+    "set_celery_worker_tasks_active",
+    "set_celery_workers_active",
     "setup_metrics",
     "shutdown_metrics",
 ]

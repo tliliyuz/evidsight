@@ -1,16 +1,12 @@
 """agent_memory_service 单元测试。"""
 
-from datetime import datetime, timezone
-
-import pytest
-from sqlalchemy import select as sa_select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.agent.memory import ReActEntry, WorkingMemory
 from app.models.agent_memory_entry import AgentMemoryEntry
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.services import agent_memory_service
+from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestClassifyReactEntry:

@@ -20,9 +20,8 @@ from dataclasses import dataclass, field
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-from app.rag.parser import ParsedPage
-
 from app.config import settings
+from app.rag.parser import ParsedPage
 
 logger = logging.getLogger(__name__)
 

@@ -143,7 +143,7 @@ def main() -> int:
     pass_count = sum(1 for q in per_question if q["recall"] == 1.0)
     fail_count = sum(1 for q in per_question if q["failed"])
 
-    print(f"\n[AC-006] 结果统计")
+    print("\n[AC-006] 结果统计")
     print(f"  样本数: {len(per_question)}，满分题数: {pass_count}，异常题数: {fail_count}")
     print(f"  Recall@{args.top_k} 均值: {avg_recall:.4f}（门槛 ≥ 0.85）")
     for q in per_question:

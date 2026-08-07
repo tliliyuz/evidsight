@@ -48,9 +48,9 @@ def _reset_metrics_registry():
 # MySQL 专有类型 → SQLite 兼容渲染（仅测试环境）
 # ═══════════════════════════════════════════════════════════════
 
+from sqlalchemy import BigInteger  # noqa: E402
 from sqlalchemy.dialects.mysql import MEDIUMTEXT  # noqa: E402
 from sqlalchemy.ext.compiler import compiles  # noqa: E402
-from sqlalchemy import BigInteger  # noqa: E402
 
 
 # SQLite 不支持 MEDIUMTEXT，注册编译降级为 TEXT（仅影响测试 DB DDL，
@@ -131,16 +131,16 @@ async def test_engine():
 
     async with engine.begin() as conn:
         # 确保所有模型在导入链中已注册到 Base.metadata
-        from app.models.research_task import ResearchTask  # noqa: F401
-        from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase  # noqa: F401
-        from app.models.research_step import ResearchStep  # noqa: F401
-        from app.models.agent_memory_entry import AgentMemoryEntry  # noqa: F401
+        from app.core.database import Base
         from app.models.agent_event import AgentEvent  # noqa: F401
-        from app.models.research_source import ResearchSource  # noqa: F401
+        from app.models.agent_memory_entry import AgentMemoryEntry  # noqa: F401
         from app.models.evidence_item import EvidenceItem  # noqa: F401
         from app.models.report_section import ReportSection  # noqa: F401
+        from app.models.research_source import ResearchSource  # noqa: F401
+        from app.models.research_step import ResearchStep  # noqa: F401
+        from app.models.research_task import ResearchTask  # noqa: F401
+        from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase  # noqa: F401
         from app.models.section_evidence import SectionEvidence  # noqa: F401
-        from app.core.database import Base
 
         # SQLite 索引名为全局命名空间（MySQL 为表级作用域），
         # DATABASE.md 在多表上复用 idx_task/idx_parent 等同名索引，
@@ -200,9 +200,9 @@ async def async_client(db_session: AsyncSession):
             response = await async_client.post("/api/auth/login", json={...})
             assert response.status_code == 200
     """
-    from fastapi import Request
-    from app.main import app
     from app.dependencies import get_current_user, get_db
+    from app.main import app
+    from fastapi import Request
 
     async def override_get_db():
         # 复用测试会话 —— API 层的 commit 在测试中重定向为 flush，
@@ -243,8 +243,8 @@ async def async_client(db_session: AsyncSession):
 @pytest.fixture
 def valid_access_token() -> str:
     """生成有效 access_token（测试专用密钥，15min 有效期）。"""
-    from jose import jwt
     from app.config import settings
+    from jose import jwt
 
     now = datetime.now(timezone.utc)
     return jwt.encode(

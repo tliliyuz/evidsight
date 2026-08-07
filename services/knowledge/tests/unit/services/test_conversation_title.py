@@ -8,11 +8,10 @@
 - T1.5  LLM 返回过长标题 → 截断至 20 字
 """
 
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from app.services.chat_service import generate_title_llm, generate_title
+from app.services.chat_service import generate_title, generate_title_llm
 
 
 class TestGenerateTitleLLM:

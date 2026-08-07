@@ -8,12 +8,14 @@ repos:
         entry: .venv/bin/ruff check
         language: system
         files: ^(services|scripts|tests|packages/contracts)/.*\.py$
+        exclude: ^services/[^/]+/alembic/versions/.*\.py$
         stages: [pre-commit]
       - id: ruff-format
         name: ruff format --check
         entry: .venv/bin/ruff format --check
         language: system
         files: ^(services|scripts|tests|packages/contracts)/.*\.py$
+        exclude: ^services/[^/]+/alembic/versions/.*\.py$
         stages: [pre-commit]
       - id: commit-msg-lint
         name: commit message format

@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import subprocess
 import sys
 import time
@@ -136,7 +135,7 @@ def main() -> int:
     failed_ingest = [n for n in evaluated if final_status.get(n) in FAILED_STATUSES]
     success_rate = (len(successes) / len(evaluated)) if evaluated else 0.0
 
-    print(f"\n[AC-005] 结果统计")
+    print("\n[AC-005] 结果统计")
     print(f"  样本数: {len(files)}，已评估: {len(evaluated)}")
     print(f"  成功(completed/partial): {len(successes)}")
     print(f"  失败(failed/timeout): {len(failed_ingest) + len(failures)}")

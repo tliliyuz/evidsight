@@ -24,7 +24,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from app.schemas.trace import (
     TraceDetailResponse,
     TraceIntentDistItem,
@@ -37,7 +36,6 @@ from app.schemas.trace import (
     TraceTokenItem,
     TraceTrendItem,
 )
-
 
 # ==================== 辅助函数 ====================
 

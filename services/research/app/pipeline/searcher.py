@@ -24,17 +24,17 @@ from app.config import settings
 from app.core import internal_retrieval_client
 from app.core.cost_tracker import calculate_search_cost_usd
 from app.core.exceptions import SearchFailedException
-from app.models.research_step import ResearchStep
 from app.models.research_source import ResearchSource
+from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
 from app.pipeline.sse_bridge import (
-    SSEBridge,
     EVENT_STEP_COMPLETED,
     EVENT_STEP_PROGRESS,
     EVENT_STEP_SKIPPED,
     EVENT_STEP_STARTED,
     EVENT_TASK_WARNING,
+    SSEBridge,
 )
 
 logger = logging.getLogger(__name__)

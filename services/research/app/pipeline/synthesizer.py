@@ -15,7 +15,7 @@ Evidence 索引说明：
 import json
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import sqlalchemy as sa
@@ -32,9 +32,9 @@ from app.models.evidence_item import EvidenceItem
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import (
-    SSEBridge,
     EVENT_STEP_COMPLETED,
     EVENT_STEP_PROGRESS,
+    SSEBridge,
 )
 
 logger = logging.getLogger(__name__)
@@ -410,7 +410,7 @@ async def _load_evidence(
         .where(EvidenceItem.task_id == task.id)
         .options(selectinload(EvidenceItem.source))
         .order_by(
-            sa.case((EvidenceItem.relevance_score == None, 1), else_=0),
+            sa.case((EvidenceItem.relevance_score.is_(None), 1), else_=0),
             EvidenceItem.relevance_score.desc(),
         )
     )

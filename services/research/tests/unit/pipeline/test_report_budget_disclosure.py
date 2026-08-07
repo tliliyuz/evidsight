@@ -5,9 +5,6 @@
 """
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock
-
-import pytest
 
 from app.models.research_task import ResearchTask
 from app.pipeline.renderer import _build_render_prompt

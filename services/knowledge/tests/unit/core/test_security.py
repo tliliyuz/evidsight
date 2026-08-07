@@ -2,15 +2,14 @@
 
 from datetime import datetime, timedelta, timezone
 
-from jose import jwt
-
 from app.config import settings
 from app.core.security import (
-    hash_password,
-    verify_password,
     create_access_token,
     decode_access_token,
+    hash_password,
+    verify_password,
 )
+from jose import jwt
 
 
 class TestPasswordHashing:
@@ -125,6 +124,7 @@ class TestJWT:
     def test_token_exp_uses_utc(self):
         """验证 token 过期时间在 now + TTL 附近（UTC）"""
         import time
+
         from app.config import settings
 
         token = create_access_token(self.PLATFORM_USER_ID, "user")

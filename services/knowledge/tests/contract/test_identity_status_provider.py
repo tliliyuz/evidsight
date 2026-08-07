@@ -10,13 +10,12 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from jose import jwt
-
 from app.config import settings
 from app.core.uuid_helpers import validate_uuid_format
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from evidsight_contracts.loader import validator_for
+from jose import jwt
 
 
 def _make_service_keypair(tmp_path):

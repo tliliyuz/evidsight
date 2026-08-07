@@ -40,6 +40,12 @@ exclude = [
     "**/.pytest_cache",
 ]
 
+# 独立脚本/评估/回归入口通过 sys.path 自举后再导入 app 包，E402 为刻意模式
+[tool.ruff.lint.per-file-ignores]
+"services/knowledge/scripts/migrate_to_per_kb_collections.py" = ["E402"]
+"services/knowledge/tests/eval/*.py" = ["E402"]
+"services/knowledge/tests/regression/*.py" = ["E402"]
+
 [tool.ruff.format]
 exclude = [
     "services/*/alembic/versions/*.py",

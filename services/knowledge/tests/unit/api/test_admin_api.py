@@ -13,23 +13,23 @@
 """
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from app.core.exceptions import PermissionDeniedException
 from app.schemas.admin import (
     AdminDocItem,
     AdminDocListResponse,
     AdminKBItem,
     AdminKBListResponse,
     AdminStatsResponse,
+    AdminUserDetailResponse,
+    AdminUserItem,
+    AdminUserListResponse,
     AdminUserResetPasswordResponse,
     AdminUserStatusResponse,
     StatsChartsData,
 )
 from app.schemas.trace import TraceLatencyItem, TraceTokenItem, TraceTrendItem
-
 
 # ==================== 辅助函数 ====================
 
@@ -426,9 +426,7 @@ class TestAdminDocListAPI:
         """按 kb_id + status + filename 组合筛选"""
         with (
             patch("app.api.admin.list_all_documents", new_callable=AsyncMock) as mock_svc,
-            patch(
-                "app.api.admin.resolve_uuid_to_id", new_callable=AsyncMock, return_value=1
-            ) as mock_resolve,
+            patch("app.api.admin.resolve_uuid_to_id", new_callable=AsyncMock, return_value=1),
         ):
             mock_svc.return_value = AdminDocListResponse(total=0, page=1, page_size=20, items=[])
 
@@ -617,13 +615,6 @@ class TestAdminStatsChartsAPI:
 
 
 # ==================== 用户管理接口测试 ====================
-
-
-from app.schemas.admin import (
-    AdminUserDetailResponse,
-    AdminUserItem,
-    AdminUserListResponse,
-)
 
 
 def _platform_uuid(i: int) -> str:

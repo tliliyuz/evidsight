@@ -3,18 +3,16 @@
 对齐 ARCHITECTURE.md §9.1 / ROADMAP.md §6.6。
 """
 
-from unittest.mock import patch, AsyncMock
-import pytest
-from fastapi import Request
-from fastapi.responses import JSONResponse
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from app.core.exceptions import (
-    KnowledgeBaseNotFoundException,
     InvalidCredentialsException,
+    KnowledgeBaseNotFoundException,
     PermissionDeniedException,
     UsernameExistsException,
-    AppException,
 )
+from fastapi import Request
 
 
 class TestExceptionToStatusCode:
@@ -123,8 +121,9 @@ class TestExceptionToStatusCode:
 
     def test_未知异常handler_开发模式返回详情(self):
         """开发模式下 global_exception_handler 返回完整错误信息"""
-        from app.main import global_exception_handler
         import asyncio
+
+        from app.main import global_exception_handler
 
         request = AsyncMock(spec=Request)
         request.method = "GET"

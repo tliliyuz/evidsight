@@ -21,9 +21,8 @@ from abc import ABC, abstractmethod
 
 import httpx
 
-from app.rag.retriever import RetrievalOutput, RetrievalResult
-
 from app.config import settings
+from app.rag.retriever import RetrievalOutput
 
 logger = logging.getLogger(__name__)
 

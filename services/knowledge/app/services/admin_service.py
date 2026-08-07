@@ -8,7 +8,6 @@ import logging
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.core.exceptions import (
     AdminSelfModifyException,
     PasswordSameAsCurrentException,

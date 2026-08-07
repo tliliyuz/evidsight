@@ -19,24 +19,21 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import jieba
 import pytest
-
 from app.config import settings
+from app.core.exceptions import RetrievalServiceException
 from app.rag.bm25 import (
     BM25Retriever,
     _build_cache_key,
-    _tokenize,
-    detect_section_numbers,
-    match_section_numbers,
-    cn_to_int,
-    invalidate_bm25_cache,
-    invalidate_bm25_cache_async,
+    _get_local_cache,
     _local_cache,
     _set_local_cache,
-    _get_local_cache,
+    _tokenize,
+    cn_to_int,
+    detect_section_numbers,
+    invalidate_bm25_cache,
+    invalidate_bm25_cache_async,
+    match_section_numbers,
 )
-from app.rag.retriever import RetrievalOutput, RetrievalResult
-from app.core.exceptions import RetrievalServiceException
-
 
 # ==================== Mock 辅助函数 ====================
 
@@ -724,11 +721,6 @@ class TestBM25MaxChunks:
         monkeypatch.setattr(settings, "BM25_MAX_CHUNKS", 2)
 
         async_redis = _mock_async_redis(get_return=None)
-        chunks_3 = [
-            (1, 0, "内容A"),
-            (1, 1, "内容B"),
-            (1, 2, "内容C"),
-        ]
         # 第一次调用：COUNT 查询（返回 3 > 2）
         count_result = MagicMock()
         count_result.scalar.return_value = 3

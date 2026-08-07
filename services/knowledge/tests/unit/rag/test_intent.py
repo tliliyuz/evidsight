@@ -8,14 +8,12 @@
 覆盖 app/rag/intent.py + chat_service.py 集成
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from app.config import settings
 from app.core.llm import LLMResult
-from app.rag.intent import Intent, IntentResult, classify_intent
-from app.rag.retriever import RetrievalOutput
+from app.rag.intent import Intent, classify_intent
 
 # 测试用 UUID 常量（chat_service.chat() 要求 UUID 字符串）
 _TEST_KB_UUID = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"

@@ -6,7 +6,6 @@ Phase 4.1 后常量统一迁移到 app.config.settings。
 """
 
 import pytest
-
 from app.config import settings
 from app.rag.prompt_builder import SYSTEM_PROMPT_TEMPLATE
 

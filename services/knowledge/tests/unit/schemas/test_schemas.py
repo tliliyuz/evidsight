@@ -1,9 +1,8 @@
 """Pydantic Schema 校验测试"""
 
 import pytest
+from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from pydantic import ValidationError
-
-from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
 
 
 class TestRegisterRequest:
@@ -73,7 +72,7 @@ class TestDocumentStatusEnum:
 
     @pytest.fixture(autouse=True)
     def _setup(self):
-        from app.models.enums import DocumentStatus, TERMINAL_STATUSES, is_terminal
+        from app.models.enums import TERMINAL_STATUSES, DocumentStatus, is_terminal
 
         self.DocumentStatus = DocumentStatus
         self.TERMINAL_STATUSES = TERMINAL_STATUSES

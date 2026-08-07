@@ -10,12 +10,9 @@
 覆盖 app/rag/sentence_matcher.py match_sentences + app/services/chat_service.py build_sources
 """
 
-import pytest
-
 from app.rag.retriever import RetrievalOutput, RetrievalResult
 from app.rag.sentence_matcher import match_sentences
 from app.schemas.chat import ChatSourceChunk, PreviewRange
-
 
 # ==================== 辅助函数 ====================
 
@@ -236,7 +233,6 @@ class TestEvidencePreviewShortChunk:
         """chunk 恰好 200 字符，Evidence 定位正常"""
         from app.services.chat_service import build_sources
 
-        chunk_content = "A" * 200
         # 加标点使其可切句
         chunk_with_periods = "AAAA。BBBB。CCCC。" + "X" * 182
 

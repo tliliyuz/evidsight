@@ -5,10 +5,9 @@
 
 import logging
 
-from sqlalchemy import delete, func, select, text, update
+from sqlalchemy import func, select, text, update
 
 from app.core.chroma_client import get_vector_store
-from app.rag.bm25 import invalidate_bm25_cache_async
 from app.core.database import async_session
 from app.core.storage import local_storage
 from app.ingest.celery_app import celery_app
@@ -19,6 +18,7 @@ from app.ingest.lock import (
 from app.models.document import Document
 from app.models.enums import DocumentStatus
 from app.models.knowledge_base import KnowledgeBase
+from app.rag.bm25 import invalidate_bm25_cache_async
 
 logger = logging.getLogger(__name__)
 

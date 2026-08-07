@@ -1,20 +1,19 @@
 """向量检索器单元测试 — Mock ChromaDB + Embedder 覆盖核心检索逻辑"""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
+import pytest
+from app.core.exceptions import RetrievalServiceException
 from app.rag.retriever import (
     RetrievalOutput,
     RetrievalResult,
     VectorRetriever,
 )
-from app.core.exceptions import RetrievalServiceException
+
 from tests.helpers import (
-    MOCK_DIM,
     make_mock_chroma_results,
     make_mock_embed_result,
 )
-
 
 # ==================== RetrievalResult 数据类 ====================
 

@@ -23,7 +23,7 @@ from app.core.csrf import (
     verify_csrf,
 )
 from app.core.exceptions import AppException, InvalidRefreshTokenException
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_current_user, get_db
 from app.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,

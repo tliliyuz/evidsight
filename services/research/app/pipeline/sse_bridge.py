@@ -20,8 +20,7 @@ import logging
 import sys
 from typing import Any, AsyncIterator, Awaitable, Callable
 
-from app.config import settings
-from app.core.redis_client import get_redis, get_async_redis
+from app.core.redis_client import get_async_redis, get_redis
 from app.core.sse import format_sse_event, stream_with_heartbeat
 from app.services.agent_event_service import (
     EVENT_TYPE_PHASE_ENTER,

@@ -33,9 +33,9 @@ from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
 from app.pipeline.sse_bridge import (
-    SSEBridge,
     EVENT_STEP_COMPLETED,
     EVENT_STEP_PROGRESS,
+    SSEBridge,
 )
 
 logger = logging.getLogger(__name__)

@@ -10,9 +10,8 @@
 - 终态 + 无锁 + reprocess → 允许重新触发（清理旧数据）
 """
 
-from app.core.redis_client import get_redis
-
 from app.config import settings
+from app.core.redis_client import get_redis
 
 # 幂等键前缀
 IDEMPOTENCY_KEY_PREFIX = "doc_lock"

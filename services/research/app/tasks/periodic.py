@@ -10,7 +10,8 @@ Celery Beat 定时任务 —— 数据 TTL 清理。
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select as sa_select, delete as sa_delete
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import select as sa_select
 
 from app.config import settings
 from app.core.database import async_session_factory
@@ -18,7 +19,7 @@ from app.core.redis_client import get_redis
 from app.models.research_task import ResearchTask
 from app.tasks.celery_app import celery_app
 from app.tasks.event_loop import get_worker_loop
-from app.tasks.lock import TASK_LOCK_PREFIX, KEY_PREFIX
+from app.tasks.lock import KEY_PREFIX, TASK_LOCK_PREFIX
 
 logger = logging.getLogger(__name__)
 

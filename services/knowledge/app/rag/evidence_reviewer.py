@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass, field
 
 from app.rag.retriever import RetrievalOutput
-from app.rag.sentence_matcher import FilterStats, _SENTENCE_SEP, detect_sentence_role
+from app.rag.sentence_matcher import _SENTENCE_SEP, FilterStats, detect_sentence_role
 
 logger = logging.getLogger(__name__)
 

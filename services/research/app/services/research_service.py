@@ -13,36 +13,30 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select, func, delete as sa_delete, update as sa_update
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import func, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.core.exceptions import (
     IdempotencyKeyConflictException,
-    TaskNotFoundException,
-    TaskAccessDeniedException,
-    TaskStatusConflictException,
-    TopicTooLongException,
-    InvalidTaskTypeException,
     InvalidDepthException,
     InvalidRequirementsException,
+    InvalidTaskTypeException,
+    TaskStatusConflictException,
 )
 from app.core.identity_status_client import check_user_status
 from app.metrics import emit_task_status_transition
 from app.models.evidence_item import EvidenceItem
 from app.models.report_section import ReportSection
+from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
-from app.models.research_step import ResearchStep
 from app.models.section_evidence import SectionEvidence
-from app.services.intent_classifier import (
-    INTENT_DIRECT_ANSWER,
-    classify_intent,
-)
-from app.services.budget_service import freeze_budget
-from app.services.pipeline_orchestrator import PHASE_ORDER
 from app.schemas.research import (
+    VALID_DEPTHS,
+    VALID_TASK_TYPES,
     ProgressSchema,
     ReportSchema,
     ReportSectionSchema,
@@ -57,9 +51,13 @@ from app.schemas.research import (
     ResearchTaskListResponse,
     ResearchTaskResponse,
     ResumeFromSchema,
-    VALID_DEPTHS,
-    VALID_TASK_TYPES,
 )
+from app.services.budget_service import freeze_budget
+from app.services.intent_classifier import (
+    INTENT_DIRECT_ANSWER,
+    classify_intent,
+)
+from app.services.pipeline_orchestrator import PHASE_ORDER
 
 logger = logging.getLogger(__name__)
 
@@ -838,7 +836,7 @@ async def retry_task(
         select(ResearchStep).where(
             ResearchStep.task_id == task.id,
             ResearchStep.status == "skipped",
-            ResearchStep.parent_step_id == None,
+            ResearchStep.parent_step_id.is_(None),
         )
     )
     reset_skip_count = 0
@@ -863,7 +861,7 @@ async def retry_task(
         .where(
             ResearchStep.task_id == task.id,
             ResearchStep.status == "failed",
-            ResearchStep.parent_step_id == None,
+            ResearchStep.parent_step_id.is_(None),
         )
         .values(status="pending", error_code=None, error_message=None)
     )

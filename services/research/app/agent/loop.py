@@ -6,8 +6,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
-from app.agent.exceptions import AgentLoopExhaustedError
 from app.agent.event_recorder import AgentEventRecorder
+from app.agent.exceptions import AgentLoopExhaustedError
 from app.agent.memory import ReActEntry, WorkingMemory
 from app.agent.prompts import build_agent_system_prompt, build_phase_instruction
 from app.agent.state import PhaseController
@@ -24,7 +24,6 @@ from app.services.agent_event_service import (
     EVENT_TYPE_TOOL_RESULT,
 )
 from app.tools.base import Tool, ToolCall, ToolContext, ToolResult
-from app.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from app.agent.state import PhaseController
 
-
 _PHASE_ACTION_GUIDE: dict[str, str] = {
     "planning": "拆解研究主题为若干子问题，生成研究计划。",
     "search": "根据子问题调用搜索，获取候选来源。",

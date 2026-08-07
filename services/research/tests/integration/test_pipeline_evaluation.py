@@ -6,15 +6,12 @@
 
 import json
 from contextlib import ExitStack
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
-
 from app.core.llm import LLMResult
 from app.core.trace_recorder import TraceRecorder
 from app.evaluation.aggregator import evaluate_task
-from app.models.evidence_item import EvidenceItem
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
@@ -27,7 +24,7 @@ from app.pipeline.synthesizer import (
     SynthesisNotes,
 )
 from app.services.pipeline_orchestrator import PipelineOrchestrator, build_default_phase_handlers
-
+from sqlalchemy import select
 
 # ═══════════════════════════════════════════════════════════════
 # 辅助工厂（与 test_pipeline_full.py 保持一致）

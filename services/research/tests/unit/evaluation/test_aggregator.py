@@ -5,7 +5,6 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.evaluation.aggregator import aggregate_reports, evaluate_task
 from app.evaluation.constants import TARGETS
 from app.evaluation.models import (

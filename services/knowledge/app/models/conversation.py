@@ -1,6 +1,7 @@
 """会话表"""
 
 from datetime import datetime
+
 from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

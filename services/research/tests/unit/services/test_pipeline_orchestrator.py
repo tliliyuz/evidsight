@@ -11,26 +11,17 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import select as sa_select
-
 from app.core.exceptions import PlanningFailedException, SynthesisFailedException
 from app.core.task_state_resolver import FATAL_STEP_ERROR_CODES
 from app.core.trace_recorder import TraceRecorder
-from app.models.enums import TASK_PHASE_ENUM, STEP_TYPE_ENUM
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.config import settings
 from app.pipeline.sse_bridge import (
-    EVENT_STEP_COMPLETED,
     EVENT_STEP_FAILED,
-    EVENT_STEP_SKIPPED,
-    EVENT_STEP_STARTED,
     EVENT_TASK_CANCELED,
     EVENT_TASK_COMPLETED,
     EVENT_TASK_CREATED,
     EVENT_TASK_FAILED,
-    EVENT_TASK_PROGRESS,
     EVENT_TASK_WARNING,
 )
 from app.services.pipeline_orchestrator import (
@@ -38,10 +29,8 @@ from app.services.pipeline_orchestrator import (
     PHASE_ORDER,
     PipelineOrchestrator,
 )
-from app.tasks.lock import (
-    acquire_task_lock_async,
-    release_task_lock_async,
-)
+from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture(autouse=True)
@@ -1617,7 +1606,6 @@ class TestExecutionContextAtomicity:
         self, db_session: AsyncSession
     ):
         """_complete_step 调用后，step.status 与 task.execution_context 同时可见。"""
-        import json
 
         user = SimpleNamespace(id=str(uuid.uuid4()))
 
@@ -1909,8 +1897,6 @@ class TestExecutionContextAtomicity:
         original_execute = db_session.execute
 
         async def failing_execute(*args, **kwargs):
-            from sqlalchemy import select as sa_select_inner
-            from sqlalchemy.sql import func
 
             stmt = args[0] if args else kwargs.get("statement")
             stmt_str = str(stmt) if stmt is not None else ""
@@ -2058,7 +2044,7 @@ class TestCrashRecoveryAndTaskLock:
             with patch("app.services.pipeline_orchestrator.release_step_lock_async"):
                 with patch(
                     "app.services.pipeline_orchestrator.acquire_task_lock_async", return_value=True
-                ) as mock_acquire:
+                ):
                     with patch(
                         "app.services.pipeline_orchestrator.release_task_lock_async"
                     ) as mock_release:

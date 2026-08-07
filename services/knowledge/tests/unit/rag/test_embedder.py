@@ -1,27 +1,26 @@
 """Embedding 向量化模块单元测试 — Mock DashScope API 覆盖 API 调用、重试、批量处理、响应解析"""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from dataclasses import asdict
+from unittest.mock import AsyncMock, patch
 
 import httpx
-
+import pytest
 from app.config import settings
 from app.core.exceptions import EmbeddingTimeoutException
 from app.rag.embedder import (
     EmbedResult,
-    embed_chunks,
     _build_embed_url,
     _build_payload,
     _parse_embed_response,
     _safe_truncate,
+    embed_chunks,
 )
+
 from tests.helpers import (
     MOCK_DIM,
     make_mock_embed_response,
     make_mock_httpx_response,
 )
-
 
 # ==================== EmbedResult 数据类 ====================
 

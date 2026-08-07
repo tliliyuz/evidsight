@@ -1,14 +1,13 @@
 """Planner 单元测试 — 验证 LLM 调用、JSON 解析、输出校验、重试逻辑。"""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from app.core.exceptions import PlanningFailedException
 from app.core.llm import LLMResult
-from app.models.research_task import ResearchTask
 from app.models.research_step import ResearchStep
+from app.models.research_task import ResearchTask
 from app.pipeline.planner import (
     _count_entities,
     _extract_json_from_text,
@@ -16,7 +15,6 @@ from app.pipeline.planner import (
     _validate_sub_questions,
     run_planning,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # 工具函数测试

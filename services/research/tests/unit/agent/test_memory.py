@@ -2,8 +2,6 @@
 
 from datetime import datetime, timezone
 
-import pytest
-
 from app.agent.memory import ReActEntry, WorkingMemory
 
 

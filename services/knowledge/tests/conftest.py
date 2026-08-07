@@ -1,15 +1,15 @@
 """pytest 配置与共享 fixtures"""
 
-import pytest
 from unittest.mock import AsyncMock, patch
-from httpx import AsyncClient, ASGITransport
-from fastapi import Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.main import app
-from app.dependencies import get_db, get_current_user
-from app.core.security import create_access_token
+import pytest
 from app.core.database import async_session
+from app.core.security import create_access_token
+from app.dependencies import get_current_user, get_db
+from app.main import app
+from fastapi import Request
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture(scope="session", autouse=True)

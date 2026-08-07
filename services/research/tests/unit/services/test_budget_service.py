@@ -15,7 +15,6 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
-
 from app.models.research_task import ResearchTask
 
 

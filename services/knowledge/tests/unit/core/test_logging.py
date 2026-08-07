@@ -7,15 +7,10 @@ import json
 import logging
 from io import StringIO
 from logging import StreamHandler
-from unittest.mock import patch
-
-import pytest
 
 from app.core.logging_config import (
     JSONFormatter,
     RequestIDFilter,
-    get_request_id,
-    get_user_id,
     request_id_var,
     setup_logging,
     user_id_var,

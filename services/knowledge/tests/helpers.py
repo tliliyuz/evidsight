@@ -8,7 +8,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
-
 from app.models.enums import DocumentStatus
 
 MOCK_DIM = 1024  # DashScope text-embedding-v3 默认维度

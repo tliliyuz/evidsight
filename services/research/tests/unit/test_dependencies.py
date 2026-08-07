@@ -3,11 +3,9 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import Request
-
 from app.core.exceptions import InvalidTokenException
-from app.dependencies import get_current_user, require_task_accessible
-from app.models.research_task import ResearchTask
+from app.dependencies import get_current_user
+from fastapi import Request
 
 
 class TestGetCurrentUser:

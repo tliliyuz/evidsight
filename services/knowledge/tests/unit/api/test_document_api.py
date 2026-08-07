@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from app.core.exceptions import (
     ConversationNotFoundException,
     DocumentNameExistsException,
@@ -12,11 +11,10 @@ from app.core.exceptions import (
     DocumentProcessingError,
     FileSizeExceededException,
     ForceOverrideConflictException,
+    KnowledgeBaseNotFoundException,
     PermissionDeniedException,
     ReprocessFailedException,
-    StorageErrorException,
     UnsupportedFileFormatException,
-    KnowledgeBaseNotFoundException,
 )
 from app.models.enums import DocumentStatus
 from app.schemas.document import (
@@ -32,7 +30,6 @@ from app.schemas.document import (
     DocumentUploadResponse,
 )
 
-
 # 测试用 UUID 常量
 KB_UUID = "11111111-1111-4111-8111-111111111111"
 KB_UUID_999 = "99999999-9999-4999-8999-999999999999"
@@ -43,9 +40,9 @@ DOC_UUID_999 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
 def _uuid_to_id_side_effect(db, model_class, uuid_str):
     """模拟 resolve_uuid_to_id：UUID 字符串 → integer ID"""
-    from app.models.knowledge_base import KnowledgeBase
-    from app.models.document import Document
     from app.models.conversation import Conversation
+    from app.models.document import Document
+    from app.models.knowledge_base import KnowledgeBase
 
     _EXCEPTION_MAP = {
         KnowledgeBase: KnowledgeBaseNotFoundException,

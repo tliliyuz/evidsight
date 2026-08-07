@@ -9,10 +9,8 @@ import math
 from unittest.mock import patch
 
 import pytest
-
 from app.rag.coarse_ranker import CoarseRanker
 from app.rag.retriever import RetrievalOutput, RetrievalResult
-
 
 # ==================== 测试辅助函数 ====================
 

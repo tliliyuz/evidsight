@@ -9,14 +9,13 @@
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.tasks.recovery import recover_stale_tasks
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _now() -> datetime:
@@ -135,7 +134,7 @@ class TestRecoverStaleTasksByLease:
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
             with patch("app.tasks.recovery.check_task_lock_async", return_value=False):
-                with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                with patch("app.tasks.research_task.execute_research_task"):
                     await recover_stale_tasks(check_lock=True)
 
         await db_session.refresh(task)
@@ -155,7 +154,7 @@ class TestRecoverStaleTasksByLease:
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
             with patch("app.tasks.recovery.check_task_lock_async", return_value=False):
-                with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                with patch("app.tasks.research_task.execute_research_task"):
                     await recover_stale_tasks(check_lock=True)
 
         await db_session.refresh(step)
@@ -193,7 +192,7 @@ class TestRecoverStaleTasksByLease:
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
             with patch("app.tasks.recovery.check_task_lock_async", return_value=False):
-                with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                with patch("app.tasks.research_task.execute_research_task"):
                     recovered = await recover_stale_tasks(check_lock=True)
 
         assert str(task.id) in recovered

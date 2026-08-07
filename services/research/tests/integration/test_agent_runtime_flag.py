@@ -4,9 +4,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import select as sa_select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.agent.context import AgentContext
 from app.agent.runtime import AgentRuntime
 from app.core.llm import LLMResult, ToolCall
@@ -20,10 +17,11 @@ from app.pipeline.sse_bridge import (
     EVENT_CHECKPOINT_SAVED,
     EVENT_STEP_COMPLETED,
     EVENT_TASK_COMPLETED,
-    SSEBridge,
 )
 from app.tools.memory_tool import MemoryTool
 from app.tools.registry import ToolRegistry
+from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class FakeRedis:
@@ -288,8 +286,8 @@ class TestAgentRuntimeFlag:
         await db_session.flush()
 
         # 预置一条历史 memory entry，模拟断点续跑前已持久化的 ReAct Trace
-        from app.services import agent_memory_service
         from app.agent.memory import ReActEntry
+        from app.services import agent_memory_service
 
         await agent_memory_service.create_memory_entry(
             db_session,

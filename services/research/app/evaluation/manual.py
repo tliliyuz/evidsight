@@ -12,8 +12,6 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from app.evaluation.constants import (
     MANUAL_DIMENSIONS,
     MAX_MANUAL_SCORE,
@@ -24,6 +22,8 @@ from app.evaluation.models import (
     ManualDimensionScore,
     ManualEvaluationRecord,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def validate_manual_record(data: dict[str, Any]) -> ManualEvaluationRecord:

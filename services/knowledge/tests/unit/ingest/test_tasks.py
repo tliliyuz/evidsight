@@ -10,7 +10,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.ingest.tasks import (
     _ingest_document_async,
     _replace_sections_and_chunks,
@@ -19,7 +18,8 @@ from app.models.document import Document
 from app.models.document_version import DocumentVersion
 from app.models.enums import DocumentStatus
 from app.models.knowledge_base import KnowledgeBase
-from app.rag.chunker import ChunkResult, ChunkingResult, SectionResult
+from app.rag.chunker import ChunkingResult, ChunkResult, SectionResult
+
 from tests.helpers import make_mock_embed_result
 
 

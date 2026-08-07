@@ -18,15 +18,12 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi.responses import StreamingResponse
-
-from app.core.sse import format_sse_event
 from app.core.exceptions import (
-    KnowledgeBaseEmptyException,
     KnowledgeBaseNotFoundException,
     PermissionDeniedException,
 )
-
+from app.core.sse import format_sse_event
+from fastapi.responses import StreamingResponse
 
 # 测试用 UUID 常量
 _TEST_KB_UUID = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"

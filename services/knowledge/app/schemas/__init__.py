@@ -1,40 +1,40 @@
 """Pydantic 请求/响应模型"""
 
 from app.schemas.admin import (  # noqa: F401
-    AdminStatsResponse,
-    AdminKBItem,
-    AdminKBListResponse,
     AdminDocItem,
     AdminDocListResponse,
+    AdminKBItem,
+    AdminKBListResponse,
+    AdminStatsResponse,
 )
-from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse  # noqa: F401
-from app.schemas.knowledge_base import (  # noqa: F401
-    KnowledgeBaseCreate,
-    KnowledgeBaseUpdate,
-    KnowledgeBaseResponse,
-    KnowledgeBaseListResponse,
-    KnowledgeBaseDeleteResponse,
-    PublicKnowledgeBaseResponse,
-    PublicKnowledgeBaseListResponse,
-)
-from app.schemas.document import (  # noqa: F401
-    DocumentResponse,
-    DocumentListResponse,
-    DocumentUploadResponse,
-    DocumentDeleteResponse,
-    DocumentReprocessResponse,
-    DocumentBatchUploadItem,
-    DocumentBatchUploadFailedItem,
-    DocumentBatchUploadResponse,
-    DocumentChunkResponse,
-    DocumentChunkListResponse,
-)
+from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse  # noqa: F401
 from app.schemas.chat import (  # noqa: F401
+    ChatFinishData,
     ChatRequest,
     ChatSourceChunk,
-    ChatFinishData,
-    TokenUsage,
+    PreviewRange,
     SelectableKBItem,
     SelectableKBResponse,
-    PreviewRange,
+    TokenUsage,
+)
+from app.schemas.document import (  # noqa: F401
+    DocumentBatchUploadFailedItem,
+    DocumentBatchUploadItem,
+    DocumentBatchUploadResponse,
+    DocumentChunkListResponse,
+    DocumentChunkResponse,
+    DocumentDeleteResponse,
+    DocumentListResponse,
+    DocumentReprocessResponse,
+    DocumentResponse,
+    DocumentUploadResponse,
+)
+from app.schemas.knowledge_base import (  # noqa: F401
+    KnowledgeBaseCreate,
+    KnowledgeBaseDeleteResponse,
+    KnowledgeBaseListResponse,
+    KnowledgeBaseResponse,
+    KnowledgeBaseUpdate,
+    PublicKnowledgeBaseListResponse,
+    PublicKnowledgeBaseResponse,
 )

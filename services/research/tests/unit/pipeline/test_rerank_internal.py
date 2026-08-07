@@ -17,8 +17,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
-
 from app.core.exceptions import (
     InternalKnowledgeForbiddenException,
     RerankFailedException,
@@ -27,6 +25,7 @@ from app.core.internal_retrieval_client import ResolvedReference
 from app.models.evidence_item import EvidenceItem
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
+from sqlalchemy import select
 
 KB_A = "11111111-1111-4111-8111-111111111111"
 KB_B = "22222222-2222-4222-8222-222222222222"
@@ -303,10 +302,9 @@ class TestRerankHybridInternal:
     @pytest.mark.asyncio
     async def test_hybrid_内部与Web候选统一精排_产出两类证据(self, db_session):
         """hybrid 策略：Rerank 合并内部候选与 Web 抓取文档，产出 internal+web 两类 Evidence。"""
-        from sqlalchemy import select as sa_select
-
         from app.models.research_source import ResearchSource
         from app.pipeline.reranker import run_rerank
+        from sqlalchemy import select as sa_select
 
         task = _make_task(strategy="hybrid", task_id="task-hybrid-001")
         internal = [

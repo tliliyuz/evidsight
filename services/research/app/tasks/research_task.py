@@ -15,16 +15,18 @@ Worker 拾取任务后调用 PipelineOrchestrator 执行全 Pipeline。
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select as sa_select, update as sa_update
+from sqlalchemy import func
+from sqlalchemy import select as sa_select
+from sqlalchemy import update as sa_update
 
+from app.agent.runtime import AgentRuntime
 from app.core.database import async_session_factory
-from app.core.exceptions import AppException, extract_recoverable_from_exception
+from app.core.exceptions import extract_recoverable_from_exception
 from app.core.trace_recorder import TraceRecorder
 from app.metrics import emit_task_status_transition
+from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
-from app.models.research_step import ResearchStep
-from app.agent.runtime import AgentRuntime
 from app.pipeline.sse_bridge import SSEBridge
 from app.services.pipeline_orchestrator import PHASE_ORDER
 from app.services.task_lifecycle import emergency_fail_task

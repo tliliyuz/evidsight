@@ -2,11 +2,9 @@
 
 from datetime import datetime, timedelta, timezone
 
-from jose import jwt
-
 from app.config import settings
 from app.core.security import decode_access_token
-
+from jose import jwt
 
 PLATFORM_USER_ID = "550e8400-e29b-41d4-a716-446655440000"
 

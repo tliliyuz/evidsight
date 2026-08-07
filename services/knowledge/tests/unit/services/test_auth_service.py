@@ -1,19 +1,18 @@
 """认证 Service 单元测试 — Mock DB session"""
 
-from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.services.auth_service import register, login, get_current_user_profile
-from app.schemas.auth import UserResponse, TokenResponse, UserSummary
 from app.core.exceptions import (
-    UsernameExistsException,
     InvalidCredentialsException,
     UserDisabledException,
+    UsernameExistsException,
 )
 from app.models.user import User
+from app.schemas.auth import TokenResponse, UserResponse, UserSummary
+from app.services.auth_service import get_current_user_profile, login, register
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
@@ -125,7 +124,7 @@ class TestLogin:
     @pytest.mark.asyncio
     async def test_login_token_jwt_format(self, mock_db):
         """验证 access_token 和 refresh_token 为合法 JWT 格式"""
-        from app.core.security import hash_password, decode_access_token
+        from app.core.security import decode_access_token, hash_password
 
         user = User(
             id=1,
@@ -159,6 +158,7 @@ class TestRegisterV1:
     @pytest.mark.asyncio
     async def test_register_v1_returns_uuid_summary(self, mock_db):
         import uuid
+
         from app.services.auth_service import register_v1
 
         mock_db.execute.return_value = _make_mock_result(None)
@@ -249,6 +249,7 @@ class TestLoginLogSensitivity:
     @pytest.mark.asyncio
     async def test_login_success_log_omits_password_and_tokens(self, mock_db, caplog):
         import logging
+
         from app.core.security import hash_password
 
         password = "P@ssw0rd!门禁明文"
@@ -270,6 +271,7 @@ class TestLoginLogSensitivity:
     @pytest.mark.asyncio
     async def test_login_failure_log_omits_password(self, mock_db, caplog):
         import logging
+
         from app.core.security import hash_password
 
         wrong = "错误密码明文"

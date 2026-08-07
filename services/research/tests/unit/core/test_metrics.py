@@ -1,8 +1,6 @@
 """app/metrics 模块单元测试 — 验证指标注册、埋点函数与失败安全。"""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from app.metrics import (
     emit_agent_loop_iteration,

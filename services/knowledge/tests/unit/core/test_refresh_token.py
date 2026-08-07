@@ -4,13 +4,10 @@
 覆盖：login 返回 refresh_token / refresh Rotation / logout 吊销 / change_password 全部吊销 / 泄露检测。
 """
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from jose import jwt
-
 from app.config import settings
 from app.core.exceptions import (
     InvalidCredentialsException,
@@ -28,7 +25,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.refresh_token_family import RefreshTokenFamily
 from app.models.user import User
 from app.schemas.auth import TokenResponse
-
+from jose import jwt
 
 # ==================== 辅助函数 ====================
 
@@ -139,8 +136,8 @@ class TestLoginRefreshToken:
 
     @pytest.mark.asyncio
     async def test_login返回refresh_token(self):
-        from app.services.auth_service import login
         from app.core.security import hash_password
+        from app.services.auth_service import login
 
         user = _make_user()
         user.password_hash = hash_password("correct")
@@ -159,8 +156,8 @@ class TestLoginRefreshToken:
 
     @pytest.mark.asyncio
     async def test_login存入refresh_token哈希(self):
-        from app.services.auth_service import login
         from app.core.security import hash_password
+        from app.services.auth_service import login
 
         user = _make_user()
         user.password_hash = hash_password("correct")
@@ -320,8 +317,8 @@ class TestChangePassword:
 
     @pytest.mark.asyncio
     async def test_改密成功(self):
-        from app.services.auth_service import change_password
         from app.core.security import hash_password, verify_password
+        from app.services.auth_service import change_password
 
         user = _make_user()
         user.password_hash = hash_password("old_password")
@@ -336,8 +333,8 @@ class TestChangePassword:
 
     @pytest.mark.asyncio
     async def test_旧密码错误(self):
-        from app.services.auth_service import change_password
         from app.core.security import hash_password
+        from app.services.auth_service import change_password
 
         user = _make_user()
         user.password_hash = hash_password("correct_password")
@@ -350,8 +347,8 @@ class TestChangePassword:
 
     @pytest.mark.asyncio
     async def test_改密后全部token被吊销(self):
-        from app.services.auth_service import change_password
         from app.core.security import hash_password
+        from app.services.auth_service import change_password
 
         user = _make_user()
         user.password_hash = hash_password("old_password")
@@ -366,9 +363,9 @@ class TestChangePassword:
 
     @pytest.mark.asyncio
     async def test_新旧密码相同被拒绝(self):
-        from app.services.auth_service import change_password
         from app.core.exceptions import PasswordSameAsCurrentException
         from app.core.security import hash_password
+        from app.services.auth_service import change_password
 
         user = _make_user()
         user.password_hash = hash_password("same_password")

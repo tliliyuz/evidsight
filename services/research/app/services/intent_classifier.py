@@ -9,7 +9,6 @@
 
 import json
 import logging
-import re
 from dataclasses import dataclass
 
 from app.config import settings

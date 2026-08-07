@@ -7,9 +7,9 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.ingest.delete_tasks import _delete_document_async, _delete_kb_async
 from app.models.enums import DocumentStatus
+
 from tests.helpers import make_mock_doc, mock_async_session_ctx, setup_mock_db
 
 

@@ -9,11 +9,9 @@
 
 import json
 from contextlib import ExitStack
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
-
 from app.core.llm import LLMResult
 from app.core.trace_recorder import TraceRecorder
 from app.models.evidence_item import EvidenceItem
@@ -31,7 +29,7 @@ from app.pipeline.synthesizer import (
     SynthesisNotes,
 )
 from app.services.pipeline_orchestrator import PipelineOrchestrator, build_default_phase_handlers
-
+from sqlalchemy import select
 
 # ═══════════════════════════════════════════════════════════════
 # 辅助工厂

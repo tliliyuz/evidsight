@@ -27,15 +27,15 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from sqlalchemy import select
-
 from app.core.chroma_client import get_vector_store
 from app.core.database import async_session
 from app.core.redis_client import get_async_redis
 from app.models.document import Document
 from app.rag.bm25 import BM25Retriever
 from app.rag.fusion import rrf_fusion
-from app.rag.retriever import RetrievalOutput, RetrievalResult, VectorRetriever
+from app.rag.retriever import RetrievalOutput, VectorRetriever
+from sqlalchemy import select
+
 from tests.eval.eval_test_set import EVAL_TEST_SET
 
 logger = logging.getLogger(__name__)
@@ -448,7 +448,7 @@ def print_summary_table(summaries: dict[str, RetrieverEvalSummary]) -> None:
 
     print("-" * 70)
     print("  ✅ = 达标    ❌ = 未达标")
-    print(f"\n评估范围: 排除 2 题 out-of-scope，共 28 题参与指标计算\n")
+    print("\n评估范围: 排除 2 题 out-of-scope，共 28 题参与指标计算\n")
 
 
 def print_per_question_table(summaries: dict[str, RetrieverEvalSummary]) -> None:

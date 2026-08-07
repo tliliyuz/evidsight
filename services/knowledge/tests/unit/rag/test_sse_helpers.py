@@ -13,10 +13,8 @@
 """
 
 import asyncio
-import json
 
 import pytest
-
 from app.config import settings
 from app.core.sse import (
     format_sse_event,
@@ -245,7 +243,7 @@ class TestBuildSources:
 
     def test_sources数据结构完整(self):
         """U7.85 — sources 事件 chunks 应包含 chunk_index/doc_id/doc_name/content/score/page/preview_text/highlight_start/highlight_end"""
-        from app.rag.retriever import RetrievalResult, RetrievalOutput
+        from app.rag.retriever import RetrievalOutput, RetrievalResult
         from app.services.chat_service import build_sources
 
         results = [
@@ -292,7 +290,7 @@ class TestBuildSources:
 
     def test_智能预览定位(self):
         """Evidence 定位：match_sentences 后生成 preview_text + highlight_start/end"""
-        from app.rag.retriever import RetrievalResult, RetrievalOutput
+        from app.rag.retriever import RetrievalOutput, RetrievalResult
         from app.rag.sentence_matcher import match_sentences
         from app.services.chat_service import build_sources
 
@@ -316,7 +314,7 @@ class TestBuildSources:
 
     def test_智能预览降级(self):
         """无 matched_sentence 时 preview/highlight 为 None（前端降级展示 content 前 200 字符）"""
-        from app.rag.retriever import RetrievalResult, RetrievalOutput
+        from app.rag.retriever import RetrievalOutput, RetrievalResult
         from app.services.chat_service import build_sources
 
         content = "x" * 300
@@ -335,7 +333,7 @@ class TestBuildSources:
 
     def test_doc_map缺失时doc_name为空(self):
         """doc_map 中找不到 doc_id 时 doc_name 应为空字符串"""
-        from app.rag.retriever import RetrievalResult, RetrievalOutput
+        from app.rag.retriever import RetrievalOutput, RetrievalResult
         from app.services.chat_service import build_sources
 
         results = [RetrievalResult(doc_id=99, chunk_index=0, content="内容", score=0.5)]

@@ -9,12 +9,11 @@
 import logging
 from dataclasses import dataclass, field
 
+from app.config import settings
 from app.core.chroma_client import get_vector_store
 from app.core.exceptions import RetrievalServiceException
 from app.rag.embedder import embed_chunks
 from app.rag.vector_store import BaseVectorStore
-
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 

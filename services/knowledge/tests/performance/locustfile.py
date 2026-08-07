@@ -46,7 +46,7 @@ import random
 import time
 
 import httpx
-from locust import HttpUser, task, between, events, tag
+from locust import HttpUser, between, events, tag, task
 
 # ============================================================================
 # 配置（支持环境变量覆盖）

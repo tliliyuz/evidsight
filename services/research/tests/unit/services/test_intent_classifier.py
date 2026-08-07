@@ -8,7 +8,6 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from app.services.intent_classifier import (
     INTENT_DIRECT_ANSWER,
     INTENT_RESEARCH,

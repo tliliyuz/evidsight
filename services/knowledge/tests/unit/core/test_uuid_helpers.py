@@ -7,10 +7,9 @@
 附加覆盖：validate_uuid_format 纯函数 + _get_not_found_exception 模型映射
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.core.exceptions import (
     ConversationNotFoundException,
     DocumentNotFoundException,
@@ -25,7 +24,6 @@ from app.core.uuid_helpers import (
 from app.models.conversation import Conversation
 from app.models.document import Document
 from app.models.knowledge_base import KnowledgeBase
-
 
 # ==================== 辅助常量 ====================
 

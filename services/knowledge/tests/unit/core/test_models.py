@@ -3,16 +3,15 @@
 from uuid import uuid4
 
 import pytest
+from app.core.database import async_session, engine
+from app.models.chunk import Chunk
+from app.models.document import Document
+from app.models.enums import DocumentStatus
+from app.models.knowledge_base import KnowledgeBase
+from app.models.section import Section
+from app.models.user import User
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-
-from app.models.user import User
-from app.models.knowledge_base import KnowledgeBase
-from app.models.document import Document
-from app.models.section import Section
-from app.models.chunk import Chunk
-from app.models.enums import DocumentStatus
-from app.core.database import async_session, engine
 
 
 @pytest.fixture(autouse=True)

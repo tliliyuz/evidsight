@@ -1,7 +1,5 @@
 """/metrics 端点接口测试 — 验证 Prometheus 抓取端点可公开访问。"""
 
-import pytest
-
 from app.metrics import emit_task_status_transition
 
 

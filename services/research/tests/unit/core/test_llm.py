@@ -5,11 +5,9 @@
 - 验证各错误类型的重试次数和退避策略
 """
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.core.exceptions import (
     LLMAuthFailedException,
     LLMRateLimitException,
@@ -17,7 +15,6 @@ from app.core.exceptions import (
     LLMUnknownException,
 )
 from app.core.llm import (
-    LLMChunk,
     LLMResult,
     _classify_llm_error,
     _max_retries,
@@ -25,7 +22,6 @@ from app.core.llm import (
     chat_completion,
     stream_chat_completion,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # 纯函数测试（不需要 Mock）

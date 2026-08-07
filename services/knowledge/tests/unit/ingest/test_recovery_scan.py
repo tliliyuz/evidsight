@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.ingest.recovery_tasks import _scan_stuck_versions_async
 
 

@@ -55,8 +55,7 @@ if sys.platform == "win32":
     )
 
 # 注册任务模块（导入即注册 @celery_app.task 装饰的任务）
-import app.tasks.research_task
-import app.tasks.periodic  # noqa: F401
+import app.tasks.periodic  # noqa: E402, F401
 
 
 @worker_ready.connect
@@ -68,8 +67,8 @@ def on_worker_ready(sender, **kwargs):
     """
     logger.info("Celery Worker 已就绪，触发过时任务恢复检查")
     try:
-        from app.tasks.recovery import recover_stale_tasks
         from app.tasks.event_loop import get_worker_loop
+        from app.tasks.recovery import recover_stale_tasks
 
         loop = get_worker_loop()
         recovered = loop.run_until_complete(recover_stale_tasks(check_lock=True))

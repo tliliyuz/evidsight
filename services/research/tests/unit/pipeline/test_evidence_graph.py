@@ -1,12 +1,10 @@
 """Evidence Graph Build 阶段单元测试 —— 结构化认知资产组装。"""
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 import sqlalchemy as sa
-from sqlalchemy import select
-
 from app.core.exceptions import EvidenceGraphBuildFailedException
 from app.models.evidence_item import EvidenceItem
 from app.models.research_source import ResearchSource
@@ -14,7 +12,7 @@ from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.pipeline.evidence_graph import run_evidence_graph
 from app.pipeline.sse_bridge import EVENT_STEP_PROGRESS
-
+from sqlalchemy import select
 
 # ═══════════════════════════════════════════════════════════════
 # 辅助工厂
@@ -511,7 +509,7 @@ class TestEvidenceGraphConsistency:
             select(EvidenceItem)
             .where(EvidenceItem.task_id == task.id)
             .order_by(
-                sa.case((EvidenceItem.relevance_score == None, 1), else_=0),
+                sa.case((EvidenceItem.relevance_score.is_(None), 1), else_=0),
                 EvidenceItem.relevance_score.desc(),
             )
         )

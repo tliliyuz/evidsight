@@ -10,9 +10,6 @@ if str(_GENERATED_PY) not in sys.path:
 
 from evidsight_contracts.loader import (  # noqa: E402
     REPO_ROOT,
-    list_fixtures,
-    load_fixture,
-    load_schema,
 )
 
 SCHEMAS_DIR = REPO_ROOT / "packages" / "contracts" / "schemas" / "v1"

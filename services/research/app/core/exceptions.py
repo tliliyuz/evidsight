@@ -10,7 +10,6 @@ import re
 
 from fastapi import HTTPException
 
-
 # 内部技术信息特征，用于识别不应暴露给客户端的错误消息
 _INTERNAL_ERROR_PATTERNS = [
     r"\[SQL:",  # SQL 语句

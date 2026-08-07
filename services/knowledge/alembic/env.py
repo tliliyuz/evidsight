@@ -3,11 +3,11 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy.ext.asyncio import create_async_engine
 
 # 导入应用配置和所有模型
 from app.config import settings
 from app.models import Base  # noqa: F401 — 确保所有模型被导入
+from sqlalchemy.ext.asyncio import create_async_engine
 
 config = context.config
 if config.config_file_name is not None:

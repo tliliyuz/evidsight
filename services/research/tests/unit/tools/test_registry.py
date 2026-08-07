@@ -2,9 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
-from app.tools.base import PhaseHandlerTool, Tool
+from app.tools.base import Tool
 from app.tools.registry import ToolRegistry, build_default_tool_registry
 
 

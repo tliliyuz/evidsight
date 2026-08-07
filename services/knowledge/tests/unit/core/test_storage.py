@@ -11,13 +11,11 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from app.core.storage import (
     LocalStorage,
     generate_stored_filename,
     sanitize_filename,
 )
-
 
 # ==================== sanitize_filename ====================
 

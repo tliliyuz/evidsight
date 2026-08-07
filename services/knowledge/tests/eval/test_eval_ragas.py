@@ -5,7 +5,6 @@ Mock ragas 外部依赖，验证评估数据流正确性。
 """
 
 import json
-import os
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -20,20 +19,20 @@ if str(_PROJECT_ROOT) not in sys.path:
 from app.rag.knowledge_pipeline import KnowledgePipelineResult
 from app.rag.prompt_builder import PromptBuildResult
 from app.rag.retriever import RetrievalOutput, RetrievalResult
+
 from tests.eval.eval_ragas import (
-    RagasEvaluator,
-    RagasEvalSummary,
-    RagasQuestionResult,
-    TARGETS,
     DEFAULT_METRICS,
+    TARGETS,
+    RagasEvalSummary,
+    RagasEvaluator,
+    RagasQuestionResult,
     compute_context_precision_doc,
     compute_context_recall,
-    print_summary_table,
-    print_per_question_table,
     export_json,
     export_markdown,
+    print_per_question_table,
+    print_summary_table,
 )
-
 
 # ============================================================================
 # 辅助函数
