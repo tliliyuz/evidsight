@@ -295,7 +295,7 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 - `web` 任务输出带 URL 和获取时间的外部 Evidence；
 - `hybrid` 任务在报告中明确区分内部与外部 Evidence；
 - 私有文档内容不会自动进入互联网搜索词；
-- 冲突来源不会被合成为无条件确定结论；
+- 冲突来源不会被合成为无条件确定结论（2026-08-07 补齐直接测试证据：`tests/unit/pipeline/test_synthesis_conflict_consensus.py`，对齐 RESEARCH_PIPELINE §9.5 / PRD FR-EV-003——含 `conflicting_evidence_indices` 的 cluster 标记 `consensus_level=strong` 时被 `_parse_synthesis_output` 拒绝）；
 - 取消后 Worker 不继续产生业务结果；
 - 可恢复任务在 Worker 中断后从安全断点继续，且不重复已完成结果；
 - [x] PRD AC-001、AC-003、AC-004 和 AC-010 对应验证入口已建立（切片 H，2026-08-07）。

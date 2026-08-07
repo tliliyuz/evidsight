@@ -314,6 +314,14 @@ def _parse_synthesis_output(raw_text: str, expected_count: int) -> SynthesisNote
             f"clusters[{i}].conflicting_evidence_indices",
         )
 
+        # RESEARCH_PIPELINE §9.5 / PRD FR-EV-003：存在 contradicts（冲突证据）时
+        # 不得合成为无条件确定结论——含冲突证据的 cluster 不允许 consensus_level=strong。
+        if conflicting and consensus_level == "strong":
+            raise ValueError(
+                f"clusters[{i}].consensus_level=strong 与 conflicting_evidence_indices "
+                f"{conflicting} 冲突：含冲突证据的聚类不得标记为无条件确定结论"
+            )
+
         clusters.append(
             SynthesisCluster(
                 theme=theme.strip(),
