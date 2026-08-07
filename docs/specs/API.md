@@ -4,7 +4,7 @@
 |:---|:---|
 | 文档状态 | 已确认设计 |
 | 文档版本 | v1.0 |
-| 最后更新 | 2026-08-06 |
+| 最后更新 | 2026-08-07 |
 
 > 本文是外部/内部 HTTP、错误语义和 SSE 的权威规范。产品行为见 [PRD.md](PRD.md)，身份与授权见 [IDENTITY_AND_ACCESS.md](IDENTITY_AND_ACCESS.md)，服务边界见 [ARCHITECTURE.md](ARCHITECTURE.md)。跨服务字段 Schema 由 [`packages/contracts/`](../../packages/contracts/README.md) 定义；本文不复制 ORM、数据库或 Pipeline 内部结构。
 
@@ -186,6 +186,8 @@ Task/Phase/Step 枚举由 Research Pipeline 权威定义；API 只暴露状态�
 ### 8.2 信封迁移态
 
 当前态：`POST /api/v1/research/tasks` 返回 `{"code":"0","message":"...","data":{...}}`，请求体沿用 `topic + requirements + source_strategy + knowledge_base_ids`，错误信封为 `{"code","message","detail"}`。目标态：API.md §4 `{"error":{...}}` 错误结构与 §3.1 扁平 `ResearchTaskCreate`（含预算摘要）。迁移步骤、Consumer 清单、观测与退出门禁记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05「更新 API.md §8」条目）。
+
+**端点覆盖迁移态（2026-08-07）**：`/api/v1/research` 当前仅落地 `POST /tasks`（§8.1）；任务查询 `GET`、`cancel`、`retry`、`stream`、`state`、`report` 与 `delete` 仍在旧前缀 `/api/research`（§3.1 语义等价）。目标态将全部研究命令与查询收敛到 `/api/v1/research/*`（对齐 ROADMAP 2026-08-05「Research API 路径迁移到 /api/v1/research」裁决）；收敛完成前旧前缀保持可用，Consumer 与退出门禁随迁移记录维护。此处登记为迁移期事实，不新增契约语义。
 
 ### 8.3 迁移期错误码映射
 

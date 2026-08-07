@@ -193,3 +193,46 @@ class TestDeadline:
         freeze_budget(task, {"max_sources": 10}, "web")
 
         assert can_reserve(task) is True
+
+
+class TestDeadlineStop:
+    """S2：总时限触发预算停止时 budget_stopped_at 必须落库、报告必须披露（§14）。"""
+
+    def test_超过总时限_标记预算停止(self):
+        from app.services.budget_service import mark_budget_stopped
+
+        started = datetime.now(timezone.utc) - timedelta(seconds=4000)
+        task = _make_task(started_at=started)
+        task.budget_frozen = {"schema_version": 1, "deadline_seconds": 3600}
+        task.budget_usage = {"schema_version": 1}
+
+        mark_budget_stopped(task)
+
+        assert task.budget_stopped_at is not None
+        assert task.budget_stopped_at > started
+
+    def test_总时限停止_可披露(self):
+        from app.services.budget_service import budget_disclosure, mark_budget_stopped
+
+        started = datetime.now(timezone.utc) - timedelta(seconds=4000)
+        task = _make_task(started_at=started)
+        task.budget_frozen = {"schema_version": 1, "deadline_seconds": 3600}
+        task.budget_usage = {"schema_version": 1}
+
+        mark_budget_stopped(task)
+
+        disclosure = budget_disclosure(task)
+        assert disclosure is not None
+        assert "总时限" in disclosure or "预算" in disclosure
+
+    def test_未过时限_不误标记停止(self):
+        from app.services.budget_service import can_reserve, mark_budget_stopped
+
+        started = datetime.now(timezone.utc) - timedelta(seconds=100)
+        task = _make_task(started_at=started)
+        task.budget_frozen = {"schema_version": 1, "deadline_seconds": 3600}
+        task.budget_usage = {"schema_version": 1}
+
+        mark_budget_stopped(task)
+        assert task.budget_stopped_at is None
+        assert can_reserve(task) is True

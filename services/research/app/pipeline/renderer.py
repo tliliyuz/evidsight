@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.exceptions import RenderFailedException
+from app.core.exceptions import RenderFailedException, TaskCanceledException
 from app.core.llm import LLMResult, chat_completion
 from app.core.token_counter import estimate_tokens
 from app.models.evidence_item import EvidenceItem
@@ -32,6 +32,7 @@ from app.models.report_section import ReportSection
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
+from app.pipeline import cancel_guard
 from app.pipeline.sse_bridge import (
     EVENT_STEP_COMPLETED,
     EVENT_STEP_PROGRESS,
@@ -679,12 +680,20 @@ async def run_render(
     #     reports → building Revision → sections(挂 revision) → claims/relations → published
     from app.services.report_publisher import publish_report
 
+    # §13.2：Report 发布事务前检查取消请求，取消后不发布新 Revision（§17.3-15）。
+    if await cancel_guard.is_task_canceled(session, task_id):
+        raise TaskCanceledException()
+
     report_sections_rows = await _load_recent_report_sections(session, task_id)
     claims_raw = graph.get("claims") or []
     evidence_ids = list(index_to_evidence_id.values())
     evidence_by_id: dict = {}
     if evidence_ids:
-        stmt = select(EvidenceItem).where(EvidenceItem.id.in_(evidence_ids))
+        # §9 门禁 1：引用必须闭合到当前 Task 的 Evidence（纵深防御，不信任上游 id 归属）。
+        stmt = select(EvidenceItem).where(
+            EvidenceItem.id.in_(evidence_ids),
+            EvidenceItem.task_id == task.id,
+        )
         result = await session.execute(stmt)
         evidence_by_id = {ev.id: ev for ev in result.scalars().all()}
     await publish_report(

@@ -1,7 +1,9 @@
-"""TaskStateResolver 预算停止终态测试 —— RESEARCH_PIPELINE §14。
+"""TaskStateResolver 预算停止终态测试 —— RESEARCH_PIPELINE §10.2/§10.3/§14。
 
-预算停止不是自动成功：已有 Evidence 仍需通过完整度硬门槛；
-达标 → partially_completed，否则 → failed（E3103，来源量不满足最小阈值）。
+预算停止不是自动成功：已有 Evidence 仍需通过完整度硬门槛（§10.2）与
+evidence_completeness ≥ 0.70（§10.3）；达标可 partial，否则 failed（E3103）。
+完整度取自已发布 Report Revision 的 evidence_completeness 摘要（§10.1，
+三分项与总分由 Publisher 持久化，不由 LLM 直接给出）。
 """
 
 from unittest.mock import MagicMock
@@ -27,48 +29,76 @@ def _make_task(max_sources=10, budget_stopped_at=None):
     return task
 
 
+def _published(score):
+    return {
+        "question_coverage": 1.0,
+        "channel_success": 1.0,
+        "claim_coverage": score,
+        "score": score,
+        "rule_version": 1,
+    }
+
+
 class TestBudgetStop:
     def setup_method(self):
         self.resolver = TaskStateResolver()
 
-    def test_预算停止_证据达标_返回partially_completed(self):
-        """§14：预算停止后已有 Evidence 通过完整度硬门槛 → partial（非自动成功）。"""
+    def test_预算停止_已发布Revision完整度达标_返回partially_completed(self):
+        """§14：预算停止后已发布 Revision 完整度 ≥ 0.70 且 Evidence ≥ 1 → partial。"""
         task = _make_task(max_sources=10, budget_stopped_at=MagicMock())
         steps = [
             _make_step("completed", step_type="planning"),
             _make_step("completed", step_type="search"),
             _make_step("completed", step_type="fetch"),
         ]
-        # min_evidence = max(5, ceil(10*0.4)) = 5
-        status, err = self.resolver.resolve(task, steps, evidence_count=6)
+        status, err = self.resolver.resolve(
+            task, steps, evidence_count=6, published_completeness=_published(0.80)
+        )
         assert status == "partially_completed"
         assert err is None
 
-    def test_预算停止_证据不足_返回failed_E3103(self):
-        """§14：预算停止且 Evidence 未达硬门槛 → failed（E3103，来源不足）。"""
+    def test_预算停止_完整度不足_返回failed_E3103(self):
+        """§10.3：已发布 Revision 完整度 < 0.70 → failed（E3103）。"""
         task = _make_task(max_sources=10, budget_stopped_at=MagicMock())
         steps = [
             _make_step("completed", step_type="planning"),
             _make_step("completed", step_type="search"),
         ]
-        status, err = self.resolver.resolve(task, steps, evidence_count=3)
+        status, err = self.resolver.resolve(
+            task, steps, evidence_count=3, published_completeness=_published(0.60)
+        )
         assert status == "failed"
         assert err is not None
         assert err["error_code"] == "E3103"
         assert err["recoverable"] is False
 
-    def test_预算停止_边界证据刚好达标_返回partially_completed(self):
-        """§17.2 边界：evidence == min_evidence 恰好达标。"""
+    def test_预算停止_边界完整度刚好07_返回partially_completed(self):
+        """§17.2 边界：evidence_completeness == 0.70 恰好达标。"""
         task = _make_task(max_sources=10, budget_stopped_at=MagicMock())
         steps = [_make_step("completed", step_type="search")]
-        status, err = self.resolver.resolve(task, steps, evidence_count=5)
+        status, err = self.resolver.resolve(
+            task, steps, evidence_count=5, published_completeness=_published(0.70)
+        )
         assert status == "partially_completed"
+
+    def test_预算停止_无已发布Revision_返回failed(self):
+        """§10.2 硬门槛：预算在 render 前停止 → 无已发布 Revision → failed。"""
+        task = _make_task(max_sources=10, budget_stopped_at=MagicMock())
+        steps = [_make_step("completed", step_type="search")]
+        status, err = self.resolver.resolve(
+            task, steps, evidence_count=6, published_completeness=None
+        )
+        assert status == "failed"
+        assert err is not None
+        assert err["error_code"] == "E3103"
 
     def test_预算停止_零证据_返回failed(self):
         """§17.2 规则 9：零 Evidence 不得利用空集合通过。"""
         task = _make_task(max_sources=10, budget_stopped_at=MagicMock())
         steps = [_make_step("completed", step_type="search")]
-        status, err = self.resolver.resolve(task, steps, evidence_count=0)
+        status, err = self.resolver.resolve(
+            task, steps, evidence_count=0, published_completeness=_published(0.90)
+        )
         assert status == "failed"
         assert err["error_code"] == "E3103"
 
@@ -76,5 +106,7 @@ class TestBudgetStop:
         """未触发预算停止时，phase 未全部尝试仍视为 running。"""
         task = _make_task(max_sources=10, budget_stopped_at=None)
         steps = [_make_step("completed", step_type="search")]
-        status, err = self.resolver.resolve(task, steps, evidence_count=6)
+        status, err = self.resolver.resolve(
+            task, steps, evidence_count=6, published_completeness=_published(0.90)
+        )
         assert status == "running"

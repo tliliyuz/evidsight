@@ -291,21 +291,19 @@ def _validate_indices(indices: list[Any], expected_count: int, field_name: str) 
     """校验 evidence 索引列表。
 
     - 非整数索引 → raise ValueError（触发重试）
-    - 越界索引 → 过滤并记录 warning（不触发重试）
+    - 越界索引 → raise ValueError（§8.1 严格引用闭包校验：LLM 引用未知
+      Candidate/Evidence ID 时不得静默过滤，§17.2-6 由 Graph Build 失败体现）
 
     Returns:
-        过滤后的合法 int 索引列表
+        全部合法的 int 索引列表
     """
     valid: list[int] = []
     for idx in indices:
         if not isinstance(idx, int):
             raise ValueError(f"{field_name} 包含非整数索引: {idx!r}")
-        if 0 <= idx < expected_count:
-            valid.append(idx)
-        else:
-            logger.warning(
-                "%s 越界索引被过滤: %d（有效范围 0-%d）", field_name, idx, expected_count - 1
-            )
+        if not (0 <= idx < expected_count):
+            raise ValueError(f"{field_name} 越界索引: {idx}（有效范围 0-{expected_count - 1}）")
+        valid.append(idx)
     return valid
 
 
@@ -478,14 +476,11 @@ def _parse_synthesis_output(raw_text: str, expected_count: int) -> SynthesisNote
                     f"claims[{i}].evidence_relations[{j}].evidence_index 非整数: {idx_raw!r}"
                 )
             if not (0 <= idx_raw < expected_count):
-                logger.warning(
-                    "claims[%d].evidence_relations[%d].evidence_index 越界被过滤: %d（有效范围 0-%d）",
-                    i,
-                    j,
-                    idx_raw,
-                    expected_count - 1,
+                # §8.1 严格引用闭包校验：越界索引 = 引用不存在的 Candidate，拒绝而非过滤
+                raise ValueError(
+                    f"claims[{i}].evidence_relations[{j}].evidence_index 越界: "
+                    f"{idx_raw}（有效范围 0-{expected_count - 1}）"
                 )
-                continue
             confidence = rel.get("confidence", 0.0)
             if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):
                 raise ValueError(
@@ -503,6 +498,15 @@ def _parse_synthesis_output(raw_text: str, expected_count: int) -> SynthesisNote
                 )
             )
 
+        # §9.5 门禁 5 / PRD FR-EV-003：存在 contradicts 的 claim 不得合成为
+        # 无条件确定结论——certainty=high 且无 qualification 限定即拒绝。
+        has_contradicts = any(r.relation_type == "contradicts" for r in relations)
+        if has_contradicts and certainty == "high" and not qualification:
+            raise ValueError(
+                f"claims[{i}] 含 contradicts 且 certainty=high 但无 qualification："
+                f"存在相反证据时不得合成为无条件确定结论"
+            )
+
         claims.append(
             SynthesisClaim(
                 statement=statement.strip(),
@@ -512,7 +516,6 @@ def _parse_synthesis_output(raw_text: str, expected_count: int) -> SynthesisNote
                 evidence_relations=relations,
             )
         )
-
     return SynthesisNotes(
         clusters=clusters,
         conflicts=conflicts,

@@ -4,7 +4,7 @@
 |:---|:---|
 | 文档版本 | v1.0 |
 | 状态 | 已确认设计 |
-| 最后更新 | 2026-07-31 |
+| 最后更新 | 2026-08-07 |
 | 适用范围 | `research_db` |
 
 > 本文是 Research Service 表、约束、索引、生命周期与旧 ResearchMind 数据迁移边界的权威规范。任务状态算法、Evidence Completeness Threshold 和阶段输入输出见 [`RESEARCH_PIPELINE.md`](RESEARCH_PIPELINE.md)；HTTP/SSE 归 [`docs/specs/API.md`](../../../docs/specs/API.md)；跨服务字段归 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 Knowledge 数据表、检索算法或 REST DTO。
@@ -46,6 +46,7 @@ v1.0 明确不做：跨任务来源正文复用、多人协作、局部章节再
 - 将覆盖式 `report_sections` 重构为 `reports`、不可变 `report_revisions`、`report_sections` 与 `claims`。
 - 将 `section_evidence` 重构为 Claim—Evidence 关系，显式表达 `supports|contradicts|context`。
 - 将可包含 `thought` 的 `agent_memory_entries` 替换为安全的 `agent_events`；不迁移隐藏推理。
+  **当前迁移态（2026-08-07）**：`agent_events` 已作为追加式业务执行审计与 SSE 持久游标落地（§5.4、RESEARCH_PIPELINE §15/§16）；`agent_memory_entries` 仍保留，仅承载 ReAct 工作记忆供 Worker 崩溃后内部断点续跑，`thought`/`reasoning_content` 不落 `agent_events`、不外发。其删除与工作集重建依赖 RESEARCH_PIPELINE §13.4 的恢复语义，待后续切片收敛（记录见 CHANGELOG 2026-08-06 切片 F 条目）。
 - 收紧旧 `execution_context`、Step `input/output` 和 `trace` 的任意 JSON 边界，禁止内部正文和敏感载荷。
 
 ## 3. 通用存储约定
@@ -132,11 +133,10 @@ Task 是删除、授权和执行恢复的聚合根。Evidence 属于 Task，不�
 | 身份与顺序 | `id`, `task_id`, `sequence`, `parent_step_id`, `step_type` | `(task_id, sequence)` 唯一；父 Step 必须属于同 Task |
 | 状态 | `status`, `attempt_count`, `max_attempts` | `pending|running|completed|failed|skipped|retrying` |
 | 结构化上下文 | `input_summary`, `output_summary`, `schema_version` | 只允许白名单字段、稳定 ID、计数和安全摘要 |
-| 所有权 | `lease_generation` | 提交结果时必须匹配 Task 当前 generation |
 | 成本 | `input_tokens`, `output_tokens`, `estimated_cost_usd`, `model_id`, `duration_ms` | 非负；无调用时为空 |
 | 错误与时间 | `error_code`, `error_summary`, `started_at`, `completed_at`, `updated_at` | 错误使用安全摘要 |
 
-Step 完成写入必须是单事务条件更新：Task 的 `lease_owner` 和 `lease_generation` 仍匹配、Task 未终止或取消、Step 仍属于当前 attempt，才可写业务结果并标记 completed。过期 Worker 的迟到提交返回冲突，不得覆盖恢复 Worker 的结果。
+Step 完成写入必须是单事务条件更新：Task 的 `lease_owner` 和 `lease_generation` 仍匹配、Task 未终止或取消、Step 仍属于当前 attempt，才可写业务结果并标记 completed。过期 Worker 的迟到提交返回冲突，不得覆盖恢复 Worker 的结果。所有权与提交门禁由 Task 级租约承载（`research_tasks.lease_generation`，见 §5.1 与 `is_step_commit_allowed`）；`research_steps` 自身不存储独立 `lease_generation` 列，Step 的归属与 attempt 身份由 `(task_id, sequence)` 与 `attempt_count` 表达。
 
 旧 Worker 遗留的 running Step 在 Task 租约过期后由 Recovery Scanner 转为 `retrying` 或 `failed`；已 completed 的 Step 不重复执行。非幂等外部操作必须保存 Provider 幂等键或独立操作记录，具体由 Pipeline 定义。
 

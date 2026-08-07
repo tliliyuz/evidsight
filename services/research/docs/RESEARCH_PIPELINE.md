@@ -4,7 +4,7 @@
 |:---|:---|
 | 文档版本 | v1.0 |
 | 状态 | 已确认设计 |
-| 最后更新 | 2026-07-31 |
+| 最后更新 | 2026-08-07 |
 | 适用范围 | Research API、Worker、Recovery Scanner 与 Research SSE 投影 |
 
 > 本文是 Research Task/Phase/Step 状态、`knowledge|web|hybrid` 来源策略、Evidence Graph、完整度判定、失败恢复和报告发布的权威规范。持久化结构见 [`DATABASE.md`](DATABASE.md)，HTTP/SSE 表面见 [`docs/specs/API.md`](../../../docs/specs/API.md)，Internal Retrieval 与 Evidence 字段见 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 Knowledge 检索实现、数据库 DDL 或前端布局。
@@ -275,6 +275,8 @@ evidence_completeness =
 ```
 
 所有分子、分母、分项分数、最终分数和规则版本必须持久化到 Report Revision 的完整度摘要，便于审计。不得由 LLM直接给出该分数。
+
+**迁移态（2026-08-07）**：目标态三分项分母依赖 Planning 的 `required` 子问题与计划通道口径。当前 `report_publisher.publish_report` 以最小可审计近似落地：`required_questions` 用 `max(1, task.total_steps)` 近似（§5.1 的 `total_steps`），`channel_success` 按来源策略以「有任意 evidence 即计成功」近似，`claim_coverage` 按 critical Claim 的 supports 关系计算；三分项与总分持久化到 Revision 摘要，供 Resolver 预算停止完整度判定（§10.2/§10.3）与审计读取。该近似由完整通道计划（Planning 输出 required 子问题与通道明细）替代前保持有效，属已登记迁移态，不视为 §10.1 的最终口径。
 
 ### 10.2 发布硬门槛
 

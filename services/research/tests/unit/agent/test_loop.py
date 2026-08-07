@@ -205,10 +205,14 @@ class TestAgentLoopCancel:
 
         monkeypatch.setattr("app.agent.loop.chat_completion", fake_chat)
 
-        cancel_results = iter([False, True])
+        calls = {"n": 0}
 
         async def cancel_check():
-            return next(cancel_results)
+            # 第 1 次：第一轮迭代开头检查 → 放行；
+            # 第 2 次：第一轮 tool 执行前检查 → 放行（同迭代内不应提前取消）；
+            # 第 3 次：第二轮迭代开头检查 → 命中取消。
+            calls["n"] += 1
+            return calls["n"] >= 3
 
         await loop.run(tool_ctx, _callback_factory(agent_ctx), cancel_check=cancel_check)
 

@@ -822,18 +822,22 @@ class TestRetryResearchAPI:
         assert data["code"] == "0"
         assert data["data"]["status"] == "running"
 
-    async def test_canceled任务_retry返回202(
+    async def test_canceled任务_retry被拒绝(
         self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
     ):
+        """§4.1：canceled 是终态，retry 被拒绝（409 E2003，不返回 202）。"""
         task = await self._seed_retry_task(
             db_session, status="canceled", task_id="task-retry-canceled"
         )
 
         response = await async_client.post(f"/api/research/{task.id}/retry", headers=auth_headers)
-        assert response.status_code == 202
+        assert response.status_code == 409
         data = response.json()
-        assert data["code"] == "0"
-        assert data["data"]["status"] == "running"
+        assert data["code"] == "E2003"
+        detail = data.get("detail", {})
+        assert detail.get("current_status") == "canceled"
+        allowed = detail.get("allowed_statuses") or []
+        assert "canceled" not in allowed
 
     async def test_retry后_failed_step被重置为pending(
         self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession

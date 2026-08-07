@@ -436,3 +436,33 @@ class TestHybridStrategySearch:
 
         # 授权失败关闭：不允许 Web 掩盖授权问题
         assert mock_tavily.await_count == 0
+
+    @pytest.mark.asyncio
+    async def test_hybrid_内部全部0命中_继续Web搜索(self):
+        """§6.1/§12.2：hybrid 内部通道瞬时失败（非 fail-closed）可继续 Web，最终按完整度判定。"""
+        mock_retrieval = AsyncMock(return_value=_retrieval_response([]))
+
+        async def _fake_tavily(query: str, api_key: str):
+            return {"results": [{"url": "https://a.com/1", "title": "t", "score": 0.9}]}
+
+        with (
+            patch(
+                "app.pipeline.searcher.internal_retrieval_client.search_retrieval",
+                mock_retrieval,
+            ),
+            patch(
+                "app.pipeline.searcher._call_tavily",
+                AsyncMock(side_effect=_fake_tavily),
+            ) as mock_tavily,
+        ):
+            output = await run_search(
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
+            )
+
+        # 不抛 SearchFailedException，Web 通道照常执行
+        assert mock_tavily.await_count == 3
+        assert output["strategy"] == "hybrid"
+        assert output["internal_candidates"] == []

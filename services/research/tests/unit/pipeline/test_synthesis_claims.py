@@ -159,15 +159,57 @@ class TestSynthesisClaimsParse:
                 expected_count=2,
             )
 
-    def test_evidence_index越界_过滤(self):
+    def test_evidence_index越界_拒绝(self):
+        """§8.1/§17.2-6：越界索引 = 引用不存在的 Candidate，拒绝而非过滤。"""
+        with pytest.raises(ValueError):
+            _parse_synthesis_output(
+                json.dumps(
+                    _claims_payload(
+                        [
+                            {
+                                "statement": "x",
+                                "evidence_relations": [
+                                    {"evidence_index": 99, "relation_type": "supports"}
+                                ],
+                            }
+                        ]
+                    )
+                ),
+                expected_count=2,
+            )
+
+    def test_claim含contradicts_high无qualification_拒绝(self):
+        """§9.5 门禁 5：claim 存在 contradicts 且 certainty=high 且无限定 → 无条件确定，拒绝。"""
+        with pytest.raises(ValueError):
+            _parse_synthesis_output(
+                json.dumps(
+                    _claims_payload(
+                        [
+                            {
+                                "statement": "结论。",
+                                "certainty": "high",
+                                "evidence_relations": [
+                                    {"evidence_index": 0, "relation_type": "contradicts"},
+                                ],
+                            }
+                        ]
+                    )
+                ),
+                expected_count=2,
+            )
+
+    def test_claim含contradicts_有qualification_放行(self):
+        """§9.5：contradicts 提供限定后允许表达（非无条件确定）。"""
         notes = _parse_synthesis_output(
             json.dumps(
                 _claims_payload(
                     [
                         {
-                            "statement": "x",
+                            "statement": "结论。",
+                            "certainty": "high",
+                            "qualification": "存在相反证据，结论待验证。",
                             "evidence_relations": [
-                                {"evidence_index": 99, "relation_type": "supports"}
+                                {"evidence_index": 0, "relation_type": "contradicts"},
                             ],
                         }
                     ]
@@ -175,7 +217,28 @@ class TestSynthesisClaimsParse:
             ),
             expected_count=2,
         )
-        assert notes.claims[0].evidence_relations == []
+        assert notes.claims[0].evidence_relations[0].relation_type == "contradicts"
+        assert notes.claims[0].qualification is not None
+
+    def test_claim含contradicts_medium_无qualification_放行(self):
+        """§9.5：contradicts 但 certainty 非 high（已表达不确定性）不构成无条件确定。"""
+        notes = _parse_synthesis_output(
+            json.dumps(
+                _claims_payload(
+                    [
+                        {
+                            "statement": "结论。",
+                            "certainty": "medium",
+                            "evidence_relations": [
+                                {"evidence_index": 0, "relation_type": "contradicts"},
+                            ],
+                        }
+                    ]
+                )
+            ),
+            expected_count=2,
+        )
+        assert notes.claims[0].evidence_relations[0].relation_type == "contradicts"
 
     def test_evidence_index非整数_拒绝(self):
         with pytest.raises(ValueError):

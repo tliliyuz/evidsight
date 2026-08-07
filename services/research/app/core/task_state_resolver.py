@@ -78,6 +78,7 @@ class TaskStateResolver:
         task: Any,  # ResearchTask ORM 实例
         steps: list[Any],  # ResearchStep ORM 实例列表
         evidence_count: int,  # evidence_items 已收集数量
+        published_completeness: dict | None = None,  # 已发布 Revision 完整度摘要
     ) -> tuple[str, dict | None]:
         """推导 Task 最终状态。
 
@@ -85,6 +86,8 @@ class TaskStateResolver:
             task: ResearchTask ORM 实例（需含 requirements JSON 字段）
             steps: 该任务的全部 ResearchStep 实例
             evidence_count: 已持久化的 evidence_items 行数
+            published_completeness: 预算停止时用于完整度硬门槛判定的
+                已发布 Report Revision 完整度摘要（§10.1）；None 表示无已发布 Revision。
 
         Returns:
             (new_status: str, error_info: dict | None)
@@ -104,7 +107,7 @@ class TaskStateResolver:
         # 达标可 partial，否则 failed（E3103，来源量不满足最小阈值）。
         budget_stopped = bool(getattr(task, "budget_stopped_at", None))
         if budget_stopped:
-            return self._evaluate_budget_stop(task, evidence_count)
+            return self._evaluate_budget_stop(task, evidence_count, published_completeness)
 
         cancel_requested = bool(getattr(task, "cancel_requested_at", None))
 
@@ -180,24 +183,39 @@ class TaskStateResolver:
         self,
         task: Any,
         evidence_count: int,
+        published_completeness: dict | None,
     ) -> tuple[str, dict | None]:
-        """预算停止终态（RESEARCH_PIPELINE §14）。
+        """预算停止终态（RESEARCH_PIPELINE §10.2/§10.3/§14）。
 
-        预算停止不是自动成功：已有 Evidence 仍需通过完整度硬门槛；
+        预算停止不是自动成功：已有 Evidence 仍需通过发布硬门槛（§10.2，
+        含「存在通过结构校验的 Report Revision」）与完整度 ≥ 0.70（§10.3）；
         达标 → partially_completed，否则 → failed（E3103）。
         注意：completed 由上游「全部 phase 完成」分支先行判定，本方法只做
         预算停止的 partial/failed 推导。
         """
-        max_sources = self._get_max_sources(task)
-        min_evidence = max(5, math.ceil(max_sources * 0.4))
+        # §10.2 硬门槛：至少一条有效 Evidence。
+        if evidence_count <= 0:
+            return self._budget_stop_failed(task, evidence_count)
 
-        if evidence_count >= min_evidence:
-            return "partially_completed", None
+        # §10.2 硬门槛：必须存在已发布的 Report Revision（render 前停止即无）。
+        if not published_completeness:
+            return self._budget_stop_failed(task, evidence_count)
+
+        # §10.3：evidence_completeness ≥ 0.70 才允许部分完成。
+        score = published_completeness.get("score", 0.0)
+        if not isinstance(score, (int, float)) or float(score) < 0.70:
+            return self._budget_stop_failed(task, evidence_count)
+
+        return "partially_completed", None
+
+    def _budget_stop_failed(self, task: Any, evidence_count: int) -> tuple[str, dict | None]:
+        """预算停止且未通过完整度硬门槛 → failed（E3103）。"""
+        max_sources = self._get_max_sources(task)
         return "failed", {
             "error_code": "E3103",
             "error_message": (
-                f"研究预算已停止，来源量不满足最小阈值：已收集 {evidence_count} 条，"
-                f"要求 >= {min_evidence} 条（max_sources={max_sources}）"
+                f"研究预算已停止，未通过完整度硬门槛（需存在已发布报告且完整度 ≥ 0.70）："
+                f"已收集 {evidence_count} 条 Evidence（max_sources={max_sources}）"
             ),
             "recoverable": False,
         }

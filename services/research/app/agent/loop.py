@@ -131,6 +131,14 @@ class AgentLoop:
                 continue
 
             for tool_call in tool_calls:
+                # §13.2：每次外部调用前检查取消，覆盖同迭代内多个 Tool 之间，
+                # 避免取消后继续执行下一 Tool 调用。
+                if cancel_check is not None and await cancel_check():
+                    logger.info("任务已被取消，停止执行后续 Tool 调用")
+                    agent_ctx.finished = True
+                    agent_ctx.finish_reason = "canceled"
+                    break
+
                 tool = self._resolve_tool(tool_call.name, available_tools)
                 action_data = {
                     "iteration": iteration,

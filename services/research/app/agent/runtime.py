@@ -268,8 +268,18 @@ class AgentRuntime:
 
     async def _execute_tool(self, tool: Tool, tool_call: ToolCall) -> ToolExecutionResult:
         """AgentLoop 的 Tool 执行回调：创建 Step → 预留预算 → 执行 Tool → 结算 → 持久化。"""
-        # 预算预留（§14）：无法预留则停止新调用
+        # 预算预留（§14）：无法预留则停止新调用。
+        # 总时限到期同样视为预算停止（S2）：标记 budget_stopped_at，使 Resolver
+        # 按预算停止推导终态、报告披露缺失，而非走普通路径。
         if not can_reserve(self._task):
+            from app.services.budget_service import mark_budget_stopped
+
+            if mark_budget_stopped(self._task):
+                logger.warning(
+                    "任务已过总时限，预算停止: task_id=%s",
+                    self._task.id,
+                )
+                await self._record_budget_stop()
             raise BudgetExhaustedError(f"任务预算已用尽，停止新调用: task_id={self._task.id}")
 
         if tool.mapped_phase is None:
@@ -646,6 +656,32 @@ class AgentRuntime:
         }
         await self._session.flush()
 
+    async def _load_published_completeness(self) -> dict | None:
+        """加载当前 Task 已发布 Report Revision 的完整度摘要（预算停止硬门槛用）。
+
+        RESEARCH_PIPELINE §10.2：发布硬门槛要求存在通过结构校验的 Report Revision；
+        §10.1：完整度三分项与总分由 Publisher 持久化到 Revision 摘要。
+        无报告根、无 current_revision 或 Revision 未 published 时返回 None。
+        """
+        from app.models.report import Report
+        from app.models.report_revision import (
+            REPORT_REVISION_STATUS_PUBLISHED,
+            ReportRevision,
+        )
+
+        report = (
+            await self._session.execute(
+                sa_select(Report).where(Report.task_id == str(self._task.id))
+            )
+        ).scalar_one_or_none()
+        if report is None or not report.current_revision_id:
+            return None
+        revision = await self._session.get(ReportRevision, report.current_revision_id)
+        if revision is None or revision.status != REPORT_REVISION_STATUS_PUBLISHED:
+            return None
+        completeness = revision.evidence_completeness
+        return completeness if isinstance(completeness, dict) else None
+
     async def _finalize_task(self) -> None:
         """全部 phase 完成后推导最终 Task State 并 CAS 写入。"""
         task_id = str(self._task.id)
@@ -654,10 +690,15 @@ class AgentRuntime:
         steps = await load_task_steps(self._session, task_id)
         evidence_count = self._task.total_evidence or 0
 
+        # 预算停止：完整度硬门槛依赖已发布 Revision（RESEARCH_PIPELINE §10.2/§10.3）。
+        # render 前停止无已发布 Revision → 传 None，由 Resolver 判 failed。
+        published_completeness = await self._load_published_completeness()
+
         new_status, error_info = self._resolver.resolve(
             self._task,
             steps,
             evidence_count,
+            published_completeness,
         )
 
         # 记录任务结束 finish entry，使 agent_memory_entries 包含明确的终止标记

@@ -15,6 +15,16 @@ from app.pipeline.fetcher import (
 )
 from app.utils.url_safety import check_url_safety
 
+
+@pytest.fixture(autouse=True)
+def _no_cancel_requested(monkeypatch):
+    """run_fetch 的取消检查点（§13.2）默认未取消，既有用例无需感知。"""
+    monkeypatch.setattr(
+        "app.pipeline.cancel_guard.is_task_canceled",
+        AsyncMock(return_value=False),
+    )
+
+
 # ═══════════════════════════════════════════════════════════════
 # URL 安全检查测试
 # ═══════════════════════════════════════════════════════════════
@@ -349,6 +359,49 @@ class TestRunFetchSuccess:
             assert output["successful"] == 1
             assert len(mock_sources[0].content) == 102400
             assert mock_sources[0].content == long_content
+
+
+class TestRunFetchCancelCheckpoint:
+    """§13.2：每个 Web URL 抓取前检查取消请求。"""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        self.task = _make_task()
+        self.step = _make_step()
+        self.sse_bridge = AsyncMock()
+        self.db_session = AsyncMock()
+
+    @pytest.mark.asyncio
+    async def test_取消后_停止抓取剩余URL(self):
+        mock_sources = _make_mock_sources(3)
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = mock_sources
+        self.db_session.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch(
+                "app.pipeline.cancel_guard.is_task_canceled", AsyncMock(return_value=True)
+            ) as mock_cancel,
+            patch("app.pipeline.fetcher._fetch_one_url") as mock_fetch,
+            patch(
+                "app.pipeline.fetcher._count_task_successful_sources",
+                AsyncMock(return_value=0),
+            ),
+        ):
+            mock_fetch.return_value = _make_fetch_success_result()
+
+            output = await run_fetch(
+                self.task,
+                self.step,
+                self.db_session,
+                self.sse_bridge,
+            )
+
+            # 首个 URL 前检查命中取消，停止抓取，不创建子 step、不抓取任何 URL
+            mock_cancel.assert_awaited_once()
+            mock_fetch.assert_not_awaited()
+            assert output["successful"] == 0
+            assert output["failed"] == 0
 
 
 class TestRunFetchFailure:

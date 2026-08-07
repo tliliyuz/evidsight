@@ -22,6 +22,7 @@ from app.core.cost_tracker import calculate_fetch_cost_usd
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
+from app.pipeline import cancel_guard
 from app.pipeline.sse_bridge import (
     EVENT_STEP_COMPLETED,
     EVENT_STEP_SKIPPED,
@@ -324,6 +325,11 @@ async def run_fetch(
     for source in sources:
         url = source.url
         source_id = source.id
+
+        # §13.2：每个 Web URL 抓取前检查取消请求，避免取消后继续抓取其余 URL。
+        if await cancel_guard.is_task_canceled(session, task_id):
+            logger.info("Fetch: 任务已请求取消，停止抓取剩余 URL: task_id=%s", task_id)
+            break
 
         # 创建子 step
         child_step = await _create_fetch_child_step(

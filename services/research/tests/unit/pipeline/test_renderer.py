@@ -331,6 +331,127 @@ class TestRenderSuccess:
             assert output["template"] == f"{task_type}_v1"
 
     @pytest.mark.asyncio
+    async def test_跨任务Evidence_不进入引用闭包(self, db_session):
+        """§9 门禁 1：引用闭合到当前 Task，跨任务 Evidence 不被纳入 evidence_by_id。"""
+        from app.models.evidence_relation import EvidenceRelation
+        from app.models.report import Report
+        from app.models.report_revision import ReportRevision
+
+        task, render_step, evidence_items = await _seed_render_task(db_session, evidence_count=3)
+        sse = AsyncMock()
+
+        # 另一任务的 EvidenceItem
+        other_task = ResearchTask(
+            id="task-render-other",
+            user_id=1,
+            topic="无关任务",
+            requirements={"task_type": "analysis", "max_sources": 5},
+            status="completed",
+        )
+        db_session.add(other_task)
+        await db_session.flush()
+        other_src = ResearchSource(
+            task_id=other_task.id,
+            url="https://other.example.com/s",
+            title="其他",
+            domain="example.com",
+        )
+        db_session.add(other_src)
+        await db_session.flush()
+        other_ev = EvidenceItem(
+            task_id=other_task.id,
+            source_id=other_src.id,
+            content="其他任务证据正文",
+            relevance_score=0.9,
+        )
+        db_session.add(other_ev)
+        await db_session.flush()
+
+        # 当前任务 graph 混入其他任务的 evidence item，引用闭包必须拒绝（task_id 过滤）
+        def _with_foreign_item(items):
+            return items + [
+                {
+                    "index": len(items),
+                    "evidence_item_id": other_ev.id,
+                    "source_id": other_src.id,
+                    "source_url": other_src.url,
+                    "source_title": other_src.title,
+                    "domain": other_src.domain,
+                    "content": "其他任务正文",
+                    "relevance_score": 0.9,
+                    "cluster_theme": "测试聚类",
+                    "consensus_level": "strong",
+                    "used_in_sections": [],
+                }
+            ]
+
+        sections = [{"heading": "1. 概述", "content": "量子计算威胁[来源0]。"}]
+        with patch("app.pipeline.renderer.chat_completion") as mock_llm:
+            mock_llm.return_value = _mock_llm_report(sections)
+            with patch(
+                "app.pipeline.renderer._load_evidence_graph",
+            ) as mock_load_graph:
+                base = _valid_evidence_graph(evidence_items, [], "analysis")
+                base["items"] = _with_foreign_item(base["items"])
+                mock_load_graph.return_value = base
+                output = await run_render(task, render_step, db_session, sse)
+
+        # 渲染成功，且其他任务的 Evidence 未产生 relation 落库
+        assert output["citations_count"] >= 1
+        report = (
+            await db_session.execute(select(Report).where(Report.task_id == task.id))
+        ).scalar_one()
+        revision = (
+            await db_session.execute(
+                select(ReportRevision).where(ReportRevision.report_id == report.id)
+            )
+        ).scalar_one()
+        assert revision.status == "published"
+        rels = (
+            (
+                await db_session.execute(
+                    select(EvidenceRelation).where(EvidenceRelation.claim_id.is_not(None))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert all(r.evidence_id != other_ev.id for r in rels)
+
+    @pytest.mark.asyncio
+    async def test_发布前取消_抛TaskCanceled且不发布Revision(self, db_session):
+        """§13.2/§17.3-15：Report 发布事务前命中取消 → 抛 TaskCanceledException，不发布 Revision。"""
+        from datetime import datetime, timezone
+
+        from app.core.exceptions import TaskCanceledException
+        from app.models.report import Report
+        from app.models.report_revision import ReportRevision
+
+        task, render_step, _ = await _seed_render_task(db_session, evidence_count=3)
+        task.cancel_requested_at = datetime.now(timezone.utc)
+        await db_session.flush()
+        sse = AsyncMock()
+        sections = [{"heading": "1. 取消测试", "content": "正文[来源0]。"}]
+
+        with (
+            patch("app.pipeline.renderer.chat_completion") as mock_llm,
+            patch("app.pipeline.cancel_guard.is_task_canceled", return_value=True) as mock_cancel,
+        ):
+            mock_llm.return_value = _mock_llm_report(sections)
+            with pytest.raises(TaskCanceledException):
+                await run_render(task, render_step, db_session, sse)
+
+        mock_cancel.assert_awaited_once()
+
+        # 未创建任何 Report / Revision
+        report = (
+            await db_session.execute(select(Report).where(Report.task_id == task.id))
+        ).scalar_one_or_none()
+        assert report is None
+        revisions = list((await db_session.execute(select(ReportRevision))).scalars().all())
+        assert len(revisions) == 0
+
+    @pytest.mark.asyncio
     async def test_引用按evidence_index去重排序(self, db_session):
         """同一章节内重复引用同一来源只保留一个，并按 evidence_index 排序。"""
         task, render_step, evidence_items = await _seed_render_task(db_session, evidence_count=3)

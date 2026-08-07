@@ -103,18 +103,32 @@ async def _persist_claims_and_relations(
         session.add(claim)
         await session.flush()
 
+        # §9 门禁 4：重复 (claim, evidence, relation_type) 合并，不能覆盖其他关系类型。
+        # 同 key 去重并保留更高 confidence（DATABASE.md §7.5 (claim,evidence,relation_type) 唯一）。
+        merged: dict[tuple[int, str], dict] = {}
         for rel in c.get("relations", []) or []:
             if not isinstance(rel, dict):
                 continue
             evidence_id = rel.get("evidence_item_id")
             if evidence_id is None or evidence_id not in evidence_by_id:
                 continue
+            relation_type = rel.get("relation_type", "context")
+            key = (evidence_id, relation_type)
+            confidence = float(rel.get("confidence", 0.0))
+            if key not in merged or confidence > merged[key]["confidence"]:
+                merged[key] = {
+                    "evidence_id": evidence_id,
+                    "relation_type": relation_type,
+                    "confidence": confidence,
+                }
+
+        for rel in merged.values():
             session.add(
                 EvidenceRelation(
                     claim_id=claim.id,
-                    evidence_id=evidence_id,
-                    relation_type=rel.get("relation_type", "context"),
-                    confidence=float(rel.get("confidence", 0.0)),
+                    evidence_id=rel["evidence_id"],
+                    relation_type=rel["relation_type"],
+                    confidence=rel["confidence"],
                     rationale_summary=None,
                     created_by_step_id=build_step_id,
                 )

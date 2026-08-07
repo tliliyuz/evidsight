@@ -318,17 +318,18 @@ class TestSynthesisSuccess:
         assert completed_calls[0].args[1]["conflicts"] == []
 
     @pytest.mark.asyncio
-    async def test_越界索引被过滤不阻断(self, db_session):
-        """supporting_evidence_indices 含越界值 → 过滤后建簇。"""
+    async def test_越界索引_重试后拒绝_任务失败(self, db_session):
+        """§8.1/§17.2-6：supporting_evidence_indices 越界 = 引用不存在的 Candidate，重试耗尽后失败。"""
+        from app.core.exceptions import SynthesisFailedException
+
         task, synthesis_step = await _seed_synthesis_task(db_session, evidence_count=2)
         sse = AsyncMock()
         notes = _valid_notes(supporting_indices=[0, 1, 999])
 
         with patch("app.pipeline.synthesizer.chat_completion") as mock_llm:
             mock_llm.return_value = _make_llm_result(notes)
-            output = await run_synthesis(task, synthesis_step, db_session, sse)
-
-        assert output["clusters"][0]["supporting_evidence_indices"] == [0, 1]
+            with pytest.raises(SynthesisFailedException):
+                await run_synthesis(task, synthesis_step, db_session, sse)
 
 
 # ═══════════════════════════════════════════════════════════════

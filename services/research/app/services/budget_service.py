@@ -158,6 +158,23 @@ def is_budget_stopped(task: Any) -> bool:
     return getattr(task, "budget_stopped_at", None) is not None
 
 
+def mark_budget_stopped(task: Any) -> bool:
+    """标记预算停止（§14）：总时限或其他预算停止触发点落库 budget_stopped_at。
+
+    与 settle_budget 的维度超限触发不同，本函数处理无用量结算触发的停止
+    （如总时限到期），使 Resolver 能按预算停止推导终态、报告能披露缺失。
+
+    Returns:
+        True 表示本次实际写入了停止标记；False 表示未过总时限或已停止。
+    """
+    if is_budget_stopped(task):
+        return False
+    if not _deadline_passed(task):
+        return False
+    task.budget_stopped_at = datetime.now(timezone.utc)
+    return True
+
+
 def can_reserve(task: Any) -> bool:
     """外部调用前预留检查（§14：无法预留则停止新调用）。
 

@@ -258,6 +258,7 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 - [x] 切片 F（SSE 持久游标 + agent_events 表，2026-08-06）：新增 `agent_events` 追加式业务执行审计表（迁移 `e2f3a4b5c6d`，`(task_id, sequence)` 唯一作 SSE 持久游标，真实 MySQL upgrade/downgrade 往返验证）；AgentEvent Service（event_type 白名单、单调 sequence、游标回放、摘要剥离禁止字段）；AgentEventRecorder 接入 AgentRuntime（`phase.enter`/`tool.request`/`tool.result` 落库并带持久 sequence 发布 SSE，与 Step 同事务提交）；移除 `agent.thought`（模型隐藏推理不外发，§16/§17.3-22）；`sse_event_stream` 支持 `Last-Event-ID` 游标回放（先快照、再回放游标后事件、事件缺口以新快照收敛、不依赖 Redis 历史），API `GET .../stream` 读取 `Last-Event-ID` 注入回放。验证：RED 确认（15 项新增用例 collection 失败）；本地全量 unit（非 slow）882 通过、1 跳过、1 failed（`test_llm` 环境依赖，与本切片无关）、AgentRuntime 集成 2 项通过、契约 73 项 + `packages/contracts/tests` 131 项全绿、Architecture 17 项全绿；新增 `test_agent_event_service` 8 项、`test_agent_event_recorder` 3 项、`test_sse_cursor` 4 项。`agent_memory_entries`（ReAct 工作记忆）仍保留用于内部断点续跑，删除与工作集重建依赖 §13.4 留待后续。
 - [x] 切片 G（预算冻结/预留/结算 + 预算停止终态 + 报告披露，2026-08-06）：服务端默认推导冻结上限（零公共契约变更，负责人确认）；`research_tasks` 新增 `budget_frozen`/`budget_usage`/`budget_stopped_at`（迁移 `f3g4h5i6j7k`，MySQL 往返验证）；BudgetService（derive/freeze/can_reserve/settle_budget/停止判定，knowledge 无 Fetch）；AgentRuntime 接入（Tool 前预留、结果后结算、`BudgetExhaustedError` 安全停止、budget.stop agent_event）；Resolver 预算停止终态（§14 不是自动成功：已有 Evidence 过完整度硬门槛 → partial，否则 failed E3103）；renderer 预算停止时向 knowledge_gaps 注入披露。验证：RED 确认（25 项新增用例失败）；docker 容器内 research 全量 unit（非 slow）905 通过、1 跳过、1 failed（`test_llm` 环境依赖，与本切片无关）、AgentRuntime 集成 + 契约 75 项 + `packages/contracts/tests` 131 项 + Architecture 17 项全绿；本地 16 项失败与 clean HEAD 失败集一致（既有环境依赖）；新增 `test_budget_service` 15 项、`test_task_state_resolver_budget` 5 项、`test_runtime_budget` 3 项、`test_report_budget_disclosure` 3 项。429 并发/队列限制（`RS_TASK_CONCURRENCY_LIMIT`/`RS_QUEUE_LIMIT`）留待 API 目标态信封迁移。
 - [x] 切片 H（AC 验证入口，2026-08-07）：落地 M3 退出门禁「PRD AC-001、AC-003、AC-004 和 AC-010 对应验证入口已建立」——Research 侧 `scripts/verify_ac001_claim_evidence.py`（报告章节 [来源N] 引用闭合率 ≥ 90%）、`verify_ac003_task_success.py`（冻结评估集任务成功率 ≥ 95%，排除用户主动取消）、`verify_ac004_recovery_drill.py`（Worker 中断 + 租约恢复演练成功率 ≥ 95%）、`verify_ac010_traceability.py`（Evidence 分型/定位/URL/获取时间追溯率 100%）四个脚本，均输出 TESTING.md §7 发布记录模板、缺失数据报错退出不伪造；共享纯函数 `app/evaluation/ac_metrics.py`（引用闭合/成功率/恢复率/可追溯性，23 项单测）；冻结评估集 `tests/eval/research_eval_set.json`（6 题，覆盖 comparison/explainer/analysis）；修复 AC-010 缺口——Rerank web Evidence 持久化从 `research_sources.fetched_at` 穿透写入 `fetched_at_snapshot`（DATABASE.md §6.2），internal 不写该列；AC-010 脚本对迁移态 web 证据按 `research_sources` 回填 URL/获取时间判定。验证：RED 确认（ac_metrics 模块缺失 + fetched_at_snapshot 为 NULL 导致用例失败）；本地全量 unit（非 slow，source 根 .env）929 通过、1 跳过、1 failed（`test_llm` 环境依赖，与本切片无关）、契约 73 项 + `packages/contracts/tests` 131 项 + Architecture 17 项全绿；integration/acceptance 5 项失败与 clean HEAD 失败集一致（既有环境依赖）；docker research-api 容器内对真实 research_db 冒烟：AC-001 100%、AC-010 100% 通过，AC-003/AC-004 对不存在任务 fail-closed 不伪造，AC-003 对真实 completed 任务 100% 通过；新增 `test_ac_metrics` 23 项、`test_rerank_fetched_at` 1 项。
+- [x] M3 代码审查规范项整改（2026-08-07，负责人裁决实现服从规范；记录见 [CHANGELOG](../CHANGELOG.md) 2026-08-07 条目）：S1 预算停止终态改用已发布 Revision 完整度 `score ≥ 0.70` 硬门槛（render 前停止无 Revision → failed E3103）；S2 总时限触发预算停止落库 `budget_stopped_at` 并披露；S3 `canceled` 终态不可 retry（§4.1）；S4 补齐迭代内 Tool 前 / 每个 URL 前 / 发布事务前取消检查点（共享 `pipeline/cancel_guard`）；S6 hybrid 内部瞬时失败继续 Web（fail-closed 除外）；S8 evidence_index 越界改拒绝 + claim 级 contradicts 限定门禁；S9 重复 `(claim, evidence, relation_type)` 合并；S10 引用闭包按 task_id 过滤。S5（Rerank 确定性回退+公平抽取）与 S7（Web Query 外发校验器）排期至后续切片，不阻塞本阶段退出门禁。
 - 各切片实现与验证结果记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05、2026-08-06、2026-08-07 条目）。
 
 
@@ -514,6 +515,13 @@ v1.0 通过发布门禁后，以下能力分别进入独立规格、验收和实
 - Excel/CSV 文档入库与可检索态（结构化转 MD 分块），扩展 FR-KB-002 支持格式；
 - 更完整的使用、质量和成本看板；
 - 更丰富的报告模板，但不发展为模板市场。
+
+### 5.1.1 Research 内部技术收敛（M5 排期）
+
+以下为 Research Service 内部技术债收敛，不作为产品能力承诺，需在对应里程碑完成并登记退出门禁（记录见 `docs/CHANGELOG.md`）：
+
+- `agent_memory_entries`（ReAct 工作记忆）删除与工作集重建：当前 `content` 仍可包含 `thought`/`reasoning_content`（仅内部断点续跑使用，不外发、不落 `agent_events`）；DATABASE.md §2.2 目标态要求替换为 `agent_events` 并删除隐藏推理字段。收敛依赖 RESEARCH_PIPELINE §13.4 恢复语义的工作集重建方案，排入 M5 治理与数据收敛阶段（迁移态记录见 DATABASE.md §2.2）。
+
 
 ### 5.2 远期（P2）
 

@@ -749,12 +749,13 @@ async def cancel_task(
 # ── 断点续跑（Retry）──────────────────────────────────────────────
 
 
-# retry 允许的源状态：只有这些状态的任务才可断点续跑
+# retry 允许的源状态：只有这些状态的任务才可断点续跑。
+# canceled 是终态（RESEARCH_PIPELINE §4.1「终态不可恢复为 running」），
+# 重新研究必须创建新 Task，不允许从 canceled 恢复。
 RETRY_ALLOWED_STATUSES: frozenset[str] = frozenset(
     {
         "failed",
         "partially_completed",
-        "canceled",
     }
 )
 

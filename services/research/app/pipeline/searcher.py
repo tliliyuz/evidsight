@@ -238,6 +238,7 @@ async def _run_knowledge_search(
     step: ResearchStep,
     session: AsyncSession,
     sse_bridge: SSEBridge,
+    allow_empty: bool = False,
 ) -> dict:
     """knowledge 策略：对每个子问题调用 Internal Retrieval，产出内部候选。
 
@@ -245,7 +246,10 @@ async def _run_knowledge_search(
     - 使用 Research 服务身份 + Platform User ID + 全部目标 KB UUID + Contract 版本；
     - RetrievalHit 转为内部候选：稳定 KB/Document/Document Version/Segment ID、
       显示名、位置、评分摘要与时间；minimal_excerpt 仅当前 Step 内存使用；
-    - 任一 KB 无权 → fail-closed，绝不降级为 Web。
+    - 任一 KB 无权 → fail-closed，绝不降级为 Web；
+    - allow_empty=True（hybrid）：内部通道瞬时失败全部 0 命中时允许继续 Web
+      （§6.1/§12.2「hybrid 内部通道瞬时失败且重试耗尽：可继续 Web」），
+      最终由完整度与披露门禁判定部分完成；fail-closed 错误不受影响。
     """
     task_id = str(task.id)
     root_step_id = str(step.id)
@@ -382,8 +386,17 @@ async def _run_knowledge_search(
         )
 
     if all_skipped and len(sub_results) > 0:
-        # 全部子问题 0 命中：knowledge 策略没有 Web 可降级，直接失败
-        raise SearchFailedException(detail=f"全部 {len(sub_results)} 个子问题内部检索均无结果")
+        if allow_empty:
+            # hybrid 策略：内部通道瞬时失败允许继续 Web（§6.1/§12.2），
+            # 返回空内部候选，由调用方继续执行 Web 搜索；最终按完整度判定。
+            logger.warning(
+                "Hybrid 内部通道全部 0 命中，继续 Web 搜索: task_id=%s, sub_results=%d",
+                task_id,
+                len(sub_results),
+            )
+        else:
+            # knowledge 策略没有 Web 可降级，直接失败
+            raise SearchFailedException(detail=f"全部 {len(sub_results)} 个子问题内部检索均无结果")
 
     output = {
         "strategy": STRATEGY_KNOWLEDGE,
@@ -414,7 +427,9 @@ async def _run_hybrid_search(
     - 内部命中结果、内部标题与内部命名绝不自动进入 Web Query；
     - 任一 KB 无权 → fail-closed，不允许 Web 掩盖授权问题。
     """
-    knowledge_output = await _run_knowledge_search(task, step, session, sse_bridge)
+    knowledge_output = await _run_knowledge_search(
+        task, step, session, sse_bridge, allow_empty=True
+    )
 
     # 内部检索结果只用于候选与报告综合，不拼接进 Web Query
     internal_titles = {

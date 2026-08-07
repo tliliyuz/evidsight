@@ -943,13 +943,17 @@ class TestRetryTask:
         assert result.resume_from.phase == "fetching"
         assert result.resume_from.next_step_type == "rerank"
 
-    async def test_canceled任务_recoverable为true_可retry(self, db_session: AsyncSession):
+    async def test_canceled任务_不可retry(self, db_session: AsyncSession):
+        """§4.1：canceled 是终态，不可恢复为 running；重新研究必须创建新 Task。"""
         task = await _seed_retry_task(db_session, status="canceled")
 
-        result = await retry_task(db_session, task)
+        with pytest.raises(TaskStatusConflictException) as exc_info:
+            await retry_task(db_session, task)
 
-        assert result.task_id == task.id
-        assert result.status == "pending"
+        detail = exc_info.value.detail.get("detail", {})
+        assert detail.get("current_status") == "canceled"
+        allowed = detail.get("allowed_statuses") or []
+        assert "canceled" not in allowed
 
     async def test_retry后task_状态为pending_清空错误字段(self, db_session: AsyncSession):
         task = await _seed_retry_task(db_session, status="failed", with_failed_step=True)
@@ -1154,9 +1158,9 @@ class TestRetryTask:
         assert result.resume_from.last_completed_step_id is None
         assert result.resume_from.next_step_type is None
 
-    async def test_RETRY_ALLOWED_STATUSES_仅含三种状态(self):
-        """验证 retry 仅允许 failed / partially_completed / canceled。"""
-        assert RETRY_ALLOWED_STATUSES == frozenset({"failed", "partially_completed", "canceled"})
+    async def test_RETRY_ALLOWED_STATUSES_仅含两种状态(self):
+        """§4.1：retry 仅允许 failed / partially_completed；canceled 为终态不可恢复。"""
+        assert RETRY_ALLOWED_STATUSES == frozenset({"failed", "partially_completed"})
 
 
 # ═══════════════════════════════════════════════════════════════
