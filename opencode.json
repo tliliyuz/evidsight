@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "ruff format*": "ask",
+      "ruff check --fix*": "ask",
+      "*": "allow"
+    }
+  }
+}
