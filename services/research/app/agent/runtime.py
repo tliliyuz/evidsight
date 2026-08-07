@@ -23,6 +23,7 @@ from app.core.exceptions import (
     extract_recoverable_from_exception,
     get_error_type,
     get_safe_error_message,
+    is_fail_closed_error,
 )
 from app.core.task_state_resolver import TaskStateResolver
 from app.core.trace_recorder import TraceRecorder
@@ -283,6 +284,16 @@ class AgentRuntime:
         try:
             result = await tool.execute(tool_context, **tool_call.arguments)
         except Exception as exc:  # noqa: BLE001
+            # fail-closed 异常（用户禁用 E1010 / KB 缺失 E3114 / KB forbidden E3115 /
+            # 契约错误 E3117）：立即停止，不转 ToolResult 继续循环（§12.1/§12.2）。
+            # 直接重抛，由 run() 的 _handle_fatal_error 保留真实错误码并写 failed。
+            if is_fail_closed_error(exc):
+                logger.error(
+                    "fail-closed 异常，立即停止任务: task_id=%s, error_code=%s",
+                    self._task.id,
+                    getattr(exc, "error_code", None),
+                )
+                raise
             logger.exception(
                 "Agent Step 执行异常: task_id=%s, step_type=%s",
                 self._task.id,
@@ -750,14 +761,40 @@ class AgentRuntime:
         """处理未捕获致命错误：CAS 更新 task 为 failed。"""
         task_id = str(self._task.id)
 
-        # 失去租约：不写终态，由 Recovery Scanner 在租约过期后接管（§13.1 / §17.12）
+        # 失去租约：不写 failed 终态。
+        # 先回滚本会话未提交写入（render 已 flush 的报告发布、Step 状态、预算结算、
+        # agent_events 等），避免 _run_pipeline 的最终 commit 在租约失效/取消后仍落库
+        # （§13.1「失去租约的 Worker 不提交业务结果」、§13.2「取消已提交则发布拒绝」、
+        # §17.3-15「取消后不发布新 Revision」）。
         if isinstance(error, LeaseLostError):
             logger.warning(
-                "Worker 已失去租约，停止且不写入终态（交给 Recovery Scanner 接管）: "
-                "task_id=%s, error=%s",
+                "Worker 已失去租约，回滚未提交写入: task_id=%s, error=%s",
                 task_id,
                 error,
             )
+            try:
+                await self._session.rollback()
+            except Exception:
+                logger.exception("LeaseLostError 回滚会话失败: task_id=%s", task_id)
+
+            # 取消已提交：Worker 安全停止后由 TaskStateResolver 推导 canceled /
+            # partially_completed 终态（§13.2）；真租约丢失才交 Recovery Scanner 接管。
+            if getattr(self._task, "cancel_requested_at", None) is not None:
+                logger.warning(
+                    "取消已提交，安全停止并推导终态（不发布报告）: task_id=%s",
+                    task_id,
+                )
+                try:
+                    await self._finalize_task()
+                except Exception:
+                    logger.exception("取消后终态推导失败: task_id=%s", task_id)
+            else:
+                logger.warning(
+                    "Worker 已失去租约，停止且不写入终态（交给 Recovery Scanner 接管）: "
+                    "task_id=%s, error=%s",
+                    task_id,
+                    error,
+                )
             return
 
         error_code = getattr(error, "error_code", None) or "E3999"

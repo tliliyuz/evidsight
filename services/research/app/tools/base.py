@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.context import AgentContext
 from app.agent.memory import WorkingMemory
+from app.core.exceptions import is_fail_closed_error
 from app.core.trace_recorder import TraceRecorder
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
@@ -171,6 +172,10 @@ class PhaseHandlerTool:
         try:
             output = await self._handler(ctx.task, ctx.step, ctx.session, ctx.sse_bridge)
         except Exception as exc:  # noqa: BLE001
+            # fail-closed 异常（E1010/E3114/E3115/E3117）立即上抛，由运行时停止任务，
+            # 不转成 success=False 继续循环（RESEARCH_PIPELINE §12.1/§12.2）。
+            if is_fail_closed_error(exc):
+                raise
             duration_ms = int((time.perf_counter() - t0) * 1000)
             return ToolResult(
                 success=False,

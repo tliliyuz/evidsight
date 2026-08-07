@@ -59,6 +59,18 @@ def extract_recoverable_from_exception(error: Exception) -> bool:
     return False
 
 
+# fail-closed 错误码：权限/契约类失败必须立即停止，不得降级继续执行
+# （RESEARCH_PIPELINE §12.1 fail-closed、§12.2 来源策略失败矩阵、ADR-010）。
+# E1010 用户禁用、E3114 KB 选择缺失、E3115 KB forbidden、E3117 内部契约错误。
+FAIL_CLOSED_ERROR_CODES = frozenset({"E1010", "E3114", "E3115", "E3117"})
+
+
+def is_fail_closed_error(error: Exception) -> bool:
+    """判断异常是否为 fail-closed 类型（须立即停止执行，不可转降级继续）。"""
+    code = getattr(error, "error_code", None)
+    return isinstance(code, str) and code in FAIL_CLOSED_ERROR_CODES
+
+
 # Worker 对外展示的安全错误描述兜底文案
 _SAFE_ERROR_MESSAGE_FALLBACK = "未预期的内部错误，请稍后重试"
 

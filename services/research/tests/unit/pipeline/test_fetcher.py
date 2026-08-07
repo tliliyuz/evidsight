@@ -66,6 +66,36 @@ class TestCheckUrlSafety:
         assert "内网" in result or "拒绝" in result
 
     @pytest.mark.asyncio
+    async def test_IPv4映射IPv6回环拒绝(self):
+        result = await check_url_safety("http://[::ffff:127.0.0.1]/admin")
+        assert result is not None
+        assert "内网" in result or "拒绝" in result
+
+    @pytest.mark.asyncio
+    async def test_IPv4映射IPv6私网拒绝(self):
+        result = await check_url_safety("http://[::ffff:10.0.0.1]/api")
+        assert result is not None
+        assert "内网" in result or "拒绝" in result
+
+    @pytest.mark.asyncio
+    async def test_IPv4映射IPv6链路本地拒绝(self):
+        result = await check_url_safety("http://[::ffff:169.254.169.254]/latest/meta-data")
+        assert result is not None
+        assert "内网" in result or "拒绝" in result
+
+    @pytest.mark.asyncio
+    async def test_IPv4映射IPv6十六进制拒绝(self):
+        result = await check_url_safety("http://[::ffff:7f00:1]/admin")
+        assert result is not None
+        assert "内网" in result or "拒绝" in result
+
+    @pytest.mark.asyncio
+    async def test_NAT64私网前缀拒绝(self):
+        result = await check_url_safety("http://[64:ff9b::a00:1]/api")
+        assert result is not None
+        assert "内网" in result or "拒绝" in result
+
+    @pytest.mark.asyncio
     async def test_172_16段内网IP拒绝(self):
         result = await check_url_safety("http://172.16.0.1/api")
         assert result is not None

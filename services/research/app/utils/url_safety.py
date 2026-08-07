@@ -23,6 +23,8 @@ _PRIVATE_NETWORKS = [
     ipaddress.ip_network("169.254.0.0/16"),  # 链路本地
     ipaddress.ip_network("0.0.0.0/8"),  # 当前网络
     ipaddress.ip_network("::1/128"),  # IPv6 回环
+    ipaddress.ip_network("::ffff:0:0/96"),  # IPv4-mapped IPv6（映射回环/私网/链路本地）
+    ipaddress.ip_network("64:ff9b::/96"),  # NAT64 私网前缀
     ipaddress.ip_network("fc00::/7"),  # IPv6 唯一本地
     ipaddress.ip_network("fe80::/10"),  # IPv6 链路本地
     ipaddress.ip_network("ff00::/8"),  # IPv6 组播

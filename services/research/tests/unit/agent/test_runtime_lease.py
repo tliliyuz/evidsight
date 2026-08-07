@@ -135,6 +135,35 @@ class TestFatalErrorLeaseLost:
         runtime._sse.publish.assert_not_awaited()
 
 
+class TestFatalErrorLeaseLostCanceled:
+    """取消/租约失效后已 flush 的写入（报告发布等）不得落库（§13.1/§13.2/§17.3-15）。"""
+
+    async def test_取消已提交_LeaseLostError_回滚并推导终态(self, runtime, monkeypatch):
+        runtime._task.cancel_requested_at = _now()
+        runtime._session.rollback = AsyncMock()
+        finalize = AsyncMock()
+        runtime._finalize_task = finalize
+
+        await runtime._handle_fatal_error(LeaseLostError("取消后租约门禁拒绝提交"))
+
+        runtime._session.rollback.assert_awaited_once()
+        finalize.assert_awaited_once()
+
+    async def test_真租约丢失_LeaseLostError_回滚不推导终态(self, runtime, monkeypatch):
+        runtime._task.cancel_requested_at = None
+        runtime._session.rollback = AsyncMock()
+        finalize = AsyncMock()
+        runtime._finalize_task = finalize
+
+        with patch("app.agent.runtime.emit_task_status_transition") as mock_emit:
+            await runtime._handle_fatal_error(LeaseLostError("租约丢失"))
+
+        runtime._session.rollback.assert_awaited_once()
+        finalize.assert_not_awaited()
+        mock_emit.assert_not_called()
+        runtime._session.execute.assert_not_awaited()
+
+
 class TestRunCancelCheckpoint:
     """取消请求在迭代检查点生效，安全停止后进入最终化推导终态（§13.2）。"""
 

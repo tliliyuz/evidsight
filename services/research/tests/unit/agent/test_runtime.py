@@ -27,6 +27,20 @@ class FailingTool(Tool):
         raise RuntimeError("内部原始异常：包含敏感堆栈/JSON 细节")
 
 
+class FailClosedTool(Tool):
+    """抛出 fail-closed 异常的 Tool（E3115 KB forbidden / E1010 用户禁用 / E3117 契约错误）。"""
+
+    name = "fail_closed_tool"
+    description = "总是 fail-closed 失败的 tool"
+    mapped_phase = "search"
+    parameters_schema = {"type": "object", "properties": {}}
+
+    async def execute(self, ctx: ToolContext, **params):
+        from app.core.exceptions import InternalKnowledgeForbiddenException
+
+        raise InternalKnowledgeForbiddenException("KB 不可读，fail-closed")
+
+
 @pytest.fixture
 def runtime(monkeypatch):
     task = ResearchTask(
@@ -84,6 +98,32 @@ class TestExecuteTool:
         assert "阶段执行失败" in exec_result.result.observation
         # error_message 仍保留原始信息供服务端日志/排查
         assert "内部原始异常" in exec_result.result.error_message
+
+
+class TestExecuteToolFailClosed:
+    """fail-closed 异常（E3115/E1010/E3117）必须立即中断，不得转 ToolResult 后继续循环。"""
+
+    @pytest.mark.asyncio
+    async def test_fail_closed异常_立即重抛不吞掉(self, runtime):
+        tool = FailClosedTool()
+        tool_call = ToolCall(id="1", name="fail_closed_tool", arguments={})
+        runtime._session.refresh = AsyncMock()
+
+        with pytest.raises(Exception) as excinfo:
+            await runtime._execute_tool(tool, tool_call)
+
+        assert getattr(excinfo.value, "error_code", None) == "E3115"
+
+    @pytest.mark.asyncio
+    async def test_fail_closed异常_不以successFalse继续循环(self, runtime):
+        tool = FailClosedTool()
+        tool_call = ToolCall(id="1", name="fail_closed_tool", arguments={})
+        runtime._session.refresh = AsyncMock()
+
+        with pytest.raises(Exception) as excinfo:
+            await runtime._execute_tool(tool, tool_call)
+
+        assert excinfo.value.__class__.__name__ == "InternalKnowledgeForbiddenException"
 
 
 class TestRunCancel:
