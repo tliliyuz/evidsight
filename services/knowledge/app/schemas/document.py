@@ -102,3 +102,17 @@ class DocumentChunkListResponse(BaseModel):
     page: int
     page_size: int
     items: list[DocumentChunkResponse]
+
+
+class DocumentLocationResponse(BaseModel):
+    """文档来源位置响应 — 最小片段和定位（对齐 API.md §6.2）。
+
+    实时鉴权后返回；location 结构对齐 Contract SourceLocation
+    （page_number | section_path），不包含存储或内部路径。
+    """
+
+    document_id: str = Field(description="文档稳定 UUID")
+    segment_id: str = Field(description="Segment 稳定 UUID（即 location_id）")
+    minimal_excerpt: str = Field(description="最小必要片段（临时内容，不持久化）")
+    location: dict[str, Any] = Field(description="安全定位（page_number 或 section_path）")
+    source_updated_at: datetime | None = Field(default=None, description="来源最后更新时间")

@@ -113,6 +113,17 @@ class BatchUploadCountExceededException(AppException):
         )
 
 
+class EvidenceSourceUnavailableException(AppException):
+    """文档来源位置不可用（对齐 API.md §6.2 / IDENTITY_AND_ACCESS §9）。
+
+    权限撤销、文档删除或来源失效（Segment 非 Active Version/无内容/无位置）
+    返回明确受限/不可用状态。
+    """
+
+    def __init__(self, detail: str = ""):
+        super().__init__("E2015", "来源不可用", 404, detail)
+
+
 # ==================== 会话错误 E3xxx ====================
 
 

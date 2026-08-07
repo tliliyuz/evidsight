@@ -131,6 +131,8 @@ READ、owner 和 admin 治理分别判断，权限矩阵引用 PRD §8。
 | `DELETE /api/v1/documents/{document_id}` | owner/admin 治理 | 204 | 异步清理另有状态字段 |
 | `GET /api/v1/documents/{document_id}/locations/{location_id}` | 当前 READ | 200 | 实时鉴权后返回最小片段和定位 |
 
+`location_id` 即 Segment 稳定 UUID（`chunks.segment_uuid`）。每次展开原文都按当前用户状态、KB 状态和 READ 权限重新鉴权（IDENTITY_AND_ACCESS §9）；权限撤销、文档删除或来源失效返回明确受限/不可用状态（迁移期 `E2015`）。成功响应为信封 `{"code","message","data"}`，`data` 含 `document_id`/`segment_id`/`minimal_excerpt`/`location`（`page_number` 或 `section_path`）/`source_updated_at`；`minimal_excerpt` 为临时内容，客户端不得持久化。
+
 文档状态为 `queued|processing|completed|partial|failed|deleting`（6 值，对齐 ADR-007 与 DATABASE.md §5.2；`deleting` 为异步删除过渡态）。只有满足 Pipeline 有效来源条件的文档可参与检索。文档版本化生命周期与删除一致性决策见 [ADR-007](../decisions/ADR-007-knowledge-document-lifecycle-delete-consistency.md) 与 [RAG_PIPELINE.md](../../services/knowledge/docs/RAG_PIPELINE.md)。
 
 ## 7. Chat 与 Conversation API

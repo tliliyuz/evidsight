@@ -12,12 +12,14 @@ from app.services.document_service import (
     delete_document,
     get_document,
     get_document_chunks,
+    get_document_location,
     list_documents,
     reprocess_document,
     upload_document,
 )
 
 router = APIRouter(prefix="/api/knowledge-bases", tags=["文档"])
+v1_router = APIRouter(prefix="/api/v1/documents", tags=["文档 v1"])
 
 # 批量上传必须定义在 {uuid} 路由之前，避免 "batch-upload" 被解析为 doc_uuid
 
@@ -153,3 +155,27 @@ async def delete_doc(
     doc_id = await resolve_uuid_to_id(db, Document, doc_uuid)
     data = await delete_document(db, kb_id, doc_id, current_user["user_id"], current_user["role"])
     return {"code": "0", "message": "文档删除任务已提交", "data": data.model_dump()}
+
+
+@v1_router.get("/{document_id}/locations/{location_id}")
+async def get_document_location_v1(
+    document_id: str,
+    location_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """实时鉴权后返回文档来源位置的最小片段和定位（API.md §6.2）。
+
+    location_id 即 Segment 稳定 UUID（chunk.segment_uuid）。每次展开原文都按
+    当前用户状态、KB 状态和 READ 权限重新鉴权（IDENTITY_AND_ACCESS §9 / ADR-003）；
+    权限撤销、文档删除或来源失效返回 E2015 受限/不可用状态。
+    """
+    doc_id = await resolve_uuid_to_id(db, Document, document_id)
+    data = await get_document_location(
+        db,
+        doc_id,
+        location_id,
+        current_user["user_id"],
+        current_user["role"],
+    )
+    return {"code": "0", "message": "ok", "data": data.model_dump()}

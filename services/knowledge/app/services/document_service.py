@@ -19,6 +19,7 @@ from app.core.exceptions import (
     DocumentNameExistsException,
     DocumentNotFoundException,
     DocumentProcessingError,
+    EvidenceSourceUnavailableException,
     FileSizeExceededException,
     ForceOverrideConflictException,
     ReprocessFailedException,
@@ -33,6 +34,7 @@ from app.ingest.tasks import ingest_version as ingest_version_task
 from app.ingest.versioning import create_document_version
 from app.models.chunk import Chunk
 from app.models.document import Document
+from app.models.document_version import DocumentVersion
 from app.models.enums import DocumentStatus, is_terminal
 from app.models.knowledge_base import KnowledgeBase
 from app.schemas.document import (
@@ -43,6 +45,7 @@ from app.schemas.document import (
     DocumentChunkResponse,
     DocumentDeleteResponse,
     DocumentListResponse,
+    DocumentLocationResponse,
     DocumentReprocessResponse,
     DocumentResponse,
     DocumentUploadResponse,
@@ -509,6 +512,91 @@ async def get_document_chunks(
         )
 
     return DocumentChunkListResponse(total=total, page=page, page_size=page_size, items=items)
+
+
+# 只有这些版本状态参与来源位置解析；其余（queued/failed 等）视为不可用来源
+_RETRIEVABLE_VERSION_STATUSES = frozenset({"ready", "ready_with_warnings"})
+
+
+def _derive_location(chunk: Chunk) -> dict | None:
+    """从 Chunk 元数据推导安全定位（对齐 Contract SourceLocation）。
+
+    优先页码，其次章节路径；两者均缺返回 None（不伪造定位）。
+    """
+    page = None
+    if chunk.metadata_:
+        page = chunk.metadata_.get("page")
+    if page is not None:
+        return {"page_number": int(page)}
+
+    section_path: list[str] = []
+    if chunk.metadata_:
+        raw = chunk.metadata_.get("section_path")
+        if isinstance(raw, str):
+            section_path = [p.strip() for p in raw.split(">") if p.strip()]
+    if section_path:
+        return {"section_path": section_path}
+    return None
+
+
+async def get_document_location(
+    db: AsyncSession,
+    doc_id: int,
+    location_id: str,
+    user_id: int,
+    role: str,
+) -> DocumentLocationResponse:
+    """实时鉴权后返回文档来源位置的最小片段和定位（API.md §6.2）。
+
+    对齐 IDENTITY_AND_ACCESS §9 / ADR-003：每次展开原文都按当前用户状态、
+    KB 状态和 READ 权限重新鉴权；权限撤销、文档删除或来源失效返回
+    EvidenceSourceUnavailableException（E2015 受限/不可用状态）。
+    location_id 即 Segment 稳定 UUID（chunk.segment_uuid）。
+    """
+    doc_result = await db.execute(select(Document).where(Document.id == doc_id))
+    doc = doc_result.scalar_one_or_none()
+    if doc is None:
+        raise DocumentNotFoundException(doc_id)
+
+    await _check_kb_ownership(db, doc.kb_id, user_id, role, allow_public_read=True)
+
+    chunk_result = await db.execute(select(Chunk).where(Chunk.segment_uuid == location_id))
+    chunk = chunk_result.scalar_one_or_none()
+    if chunk is None or chunk.doc_id != doc.id:
+        raise EvidenceSourceUnavailableException("引用来源当前不可用")
+
+    if doc.active_version is None:
+        raise EvidenceSourceUnavailableException("文档当前无可用版本")
+
+    ver_result = await db.execute(
+        select(DocumentVersion).where(
+            DocumentVersion.document_id == doc.id,
+            DocumentVersion.version == doc.active_version,
+        )
+    )
+    ver = ver_result.scalar_one_or_none()
+    if (
+        ver is None
+        or chunk.document_version_id != ver.id
+        or ver.status not in _RETRIEVABLE_VERSION_STATUSES
+        or not chunk.content
+        or not chunk.content.strip()
+    ):
+        raise EvidenceSourceUnavailableException("引用来源当前不可用")
+
+    location = _derive_location(chunk)
+    if location is None:
+        raise EvidenceSourceUnavailableException("引用来源缺少可解释位置")
+
+    source_updated_at = doc.updated_at or ver.published_at
+
+    return DocumentLocationResponse(
+        document_id=doc.uuid,
+        segment_id=chunk.segment_uuid,
+        minimal_excerpt=chunk.content.strip(),
+        location=location,
+        source_updated_at=source_updated_at,
+    )
 
 
 async def delete_document(
