@@ -504,6 +504,9 @@ async def get_document_chunks(
         items.append(
             DocumentChunkResponse(
                 id=r.id,
+                # 稳定 Segment ID 契约：segment_id 映射 chunk.segment_uuid，
+                # 前端据此调用 v1 location API（API.md §6.2 / DATABASE.md §5.5）
+                segment_id=r.segment_uuid,
                 chunk_index=r.chunk_index,
                 preview=preview,
                 token_count=r.token_count or 0,

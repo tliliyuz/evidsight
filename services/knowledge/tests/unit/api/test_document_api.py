@@ -36,6 +36,7 @@ KB_UUID_999 = "99999999-9999-4999-8999-999999999999"
 DOC_UUID = "22222222-2222-4222-8222-222222222222"
 DOC_UUID_2 = "33333333-3333-4333-8333-333333333333"
 DOC_UUID_999 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+SEGMENT_UUID = "44444444-4444-4444-8444-444444444444"
 
 
 def _uuid_to_id_side_effect(db, model_class, uuid_str):
@@ -119,10 +120,16 @@ def _make_reprocess_data(doc_uuid=DOC_UUID, status=DocumentStatus.QUEUED):
 
 
 def _make_chunk_response(
-    chunk_id=1, chunk_index=0, preview="测试内容", token_count=50, metadata=None
+    chunk_id=1,
+    chunk_index=0,
+    preview="测试内容",
+    token_count=50,
+    metadata=None,
+    segment_id=SEGMENT_UUID,
 ):
     return DocumentChunkResponse(
         id=chunk_id,
+        segment_id=segment_id,
         chunk_index=chunk_index,
         preview=preview,
         token_count=token_count,
@@ -879,6 +886,10 @@ class TestGetDocumentChunks:
         assert body["data"]["items"][0]["chunk_index"] == 0
         assert body["data"]["items"][0]["preview"] == "第一段内容..."
         assert body["data"]["items"][0]["token_count"] == 50
+        # 稳定 Segment ID 契约：chunk 列表响应必须暴露 segment_id（映射 chunk.segment_uuid），
+        # 且保持旧字段 id 兼容；segment_id 用于直接调用 v1 location API（API.md §6.2）。
+        assert body["data"]["items"][0]["segment_id"] == SEGMENT_UUID
+        assert body["data"]["items"][0]["id"] == 1
 
     @pytest.mark.asyncio
     async def test_chunks_empty(self, async_client, auth_headers):

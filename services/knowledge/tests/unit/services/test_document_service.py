@@ -21,6 +21,7 @@ from app.core.exceptions import (
 )
 from app.models.chunk import Chunk
 from app.models.document import Document
+from app.models.document_version import DocumentVersion
 from app.models.enums import DocumentStatus
 from app.models.knowledge_base import KnowledgeBase
 from app.services.document_service import (
@@ -30,6 +31,7 @@ from app.services.document_service import (
     delete_document,
     get_document,
     get_document_chunks,
+    get_document_location,
     list_documents,
     reprocess_document,
     upload_document,
@@ -90,6 +92,7 @@ def _make_doc(
     file_size=1000,
     doc_uuid="doc-uuid-0001",
     kb_uuid="kb-uuid-0001",
+    active_version=None,
 ):
     doc = Document(
         id=doc_id,
@@ -100,6 +103,7 @@ def _make_doc(
         chunk_count=chunk_count,
         file_size=file_size,
         file_path=f"uploads/{kb_id}/{doc_id}/test.pdf",
+        active_version=active_version,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
@@ -109,6 +113,25 @@ def _make_doc(
     kb = _make_kb(kb_id=kb_id, kb_uuid=kb_uuid)
     doc.knowledge_base = kb
     return doc
+
+
+def _make_version(
+    ver_id=10,
+    doc_id=1,
+    version=1,
+    status="ready",
+    ver_uuid="ver-uuid-0001",
+):
+    return DocumentVersion(
+        id=ver_id,
+        uuid=ver_uuid,
+        document_id=doc_id,
+        version=version,
+        status=status,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        published_at=datetime.now(timezone.utc),
+    )
 
 
 def _make_upload_file(filename="test.pdf", size=1000):
@@ -411,6 +434,7 @@ class TestGetDocumentChunks:
             doc_id=5,
             kb_id=1,
             chroma_id="c1",
+            segment_uuid="segment-uuid-0001",
             content="测试分块内容",
             chunk_index=0,
             token_count=50,
@@ -426,6 +450,11 @@ class TestGetDocumentChunks:
         result = await get_document_chunks(mock_db, doc_id=5, kb_id=1, user_id=1, role="user")
         assert result.total == 1
         assert len(result.items) == 1
+        item = result.items[0]
+        # 稳定 Segment ID 契约：segment_id 映射 chunk.segment_uuid，前端据此调用 v1 location API
+        assert item.segment_id == "segment-uuid-0001"
+        # 旧字段兼容：内部整数 id 保留，但不再是前端契约
+        assert item.id == 1
 
     @pytest.mark.asyncio
     async def test_空分块列表(self, mock_db):
@@ -442,6 +471,59 @@ class TestGetDocumentChunks:
         result = await get_document_chunks(mock_db, doc_id=5, kb_id=1, user_id=1, role="user")
         assert result.total == 0
         assert result.items == []
+
+    @pytest.mark.asyncio
+    async def test_chunk列表segment_id可直接调用location(self, mock_db):
+        """稳定 Segment ID 契约：get_document_chunks 暴露的 segment_id（segment_uuid）
+        可直接作为 v1 location API 的 location_id 解析正文。
+
+        对齐 API.md §6.2 与 DATABASE.md §5.5：segment_id 映射 chunk.segment_uuid，
+        绝不使用内部整数 id 作为稳定标识。
+        """
+        # 同一 Chunk 同时驱动 chunk 列表与 location 解析，证明两服务使用同一稳定身份
+        chunk = Chunk(
+            id=7,
+            doc_id=5,
+            kb_id=1,
+            document_version_id=10,
+            segment_uuid="segment-uuid-0001",
+            chroma_id="c1",
+            content="来源最小片段",
+            chunk_index=0,
+            token_count=50,
+            metadata_={"page": 3},
+        )
+
+        # —— 第一步：chunk 列表暴露 segment_id ——
+        doc = _make_doc(doc_id=5, active_version=1)
+        list_mock_db = mock_db
+        list_mock_db.execute = AsyncMock()
+        list_mock_db.execute.side_effect = [
+            _make_scalar_one_or_none_result(_make_kb()),
+            _make_scalar_one_or_none_result(doc),
+            _make_scalar_result(1),
+            _make_scalars_all_result([chunk]),
+        ]
+        listed = await get_document_chunks(list_mock_db, doc_id=5, kb_id=1, user_id=1, role="user")
+        segment_id = listed.items[0].segment_id
+        assert segment_id == "segment-uuid-0001"
+        assert segment_id != str(listed.items[0].id)  # 稳定 ID 不是内部整数 id
+
+        # —— 第二步：该 segment_id 直接调用 location 服务解析正文 ——
+        loc_mock_db = mock_db
+        loc_mock_db.execute = AsyncMock()
+        loc_mock_db.execute.side_effect = [
+            _make_scalar_one_or_none_result(doc),
+            _make_scalar_one_or_none_result(_make_kb()),
+            _make_scalar_one_or_none_result(chunk),
+            _make_scalar_one_or_none_result(_make_version(ver_id=10)),
+        ]
+        located = await get_document_location(
+            loc_mock_db, doc_id=5, location_id=segment_id, user_id=1, role="user"
+        )
+        assert located.segment_id == segment_id
+        assert located.minimal_excerpt == "来源最小片段"
+        assert located.location == {"page_number": 3}
 
 
 # ============================================================

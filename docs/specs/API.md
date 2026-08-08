@@ -133,6 +133,8 @@ READ、owner 和 admin 治理分别判断，权限矩阵引用 PRD §8。
 
 `location_id` 即 Segment 稳定 UUID（`chunks.segment_uuid`）。每次展开原文都按当前用户状态、KB 状态和 READ 权限重新鉴权（IDENTITY_AND_ACCESS §9）；权限撤销、文档删除或来源失效返回明确受限/不可用状态（迁移期 `E2015`）。成功响应为信封 `{"code","message","data"}`，`data` 含 `document_id`/`segment_id`/`minimal_excerpt`/`location`（`page_number` 或 `section_path`）/`source_updated_at`；`minimal_excerpt` 为临时内容，客户端不得持久化。
 
+**Chunk 列表迁移态（2026-08-09）**：分块列表 `GET /api/knowledge-bases/{kb_uuid}/documents/{doc_uuid}/chunks` 响应 items 新增 `segment_id`（映射 `chunks.segment_uuid`，即本节 location 端点的 `location_id`），同时保留旧 `id`（内部整数 PK）字段兼容。`segment_id` 是稳定 Segment ID 契约，前端必须使用它调用本节 location 端点；内部整数 `id` 不作为契约，仅迁移期兼容保留，在观测归零且 Consumer 全部切换后经负责人确认删除（DATABASE.md §5.5「Internal Retrieval 绝不返回 `id`」约束不涉及该管理视图的迁移期字段，location 检索路径始终只返回 `segment_id`）。Consumer 为 React 知识中心切片抽屉（FRONTEND §5.4）；观测方式为后端访问日志按响应字段消费分布，退出门禁为旧 `id` 字段消费归零且前端全量使用 `segment_id`。负责人于 2026-08-09 裁决「增补保留 id」；ADR 检查 1–8：否（向后兼容字段扩展并保留旧字段，暴露 DATABASE.md §5.5 既有稳定 Segment ID，不改变权限模型、服务边界或数据生命周期；裁决记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-09））。
+
 文档状态为 `queued|processing|completed|partial|failed|deleting`（6 值，对齐 ADR-007 与 DATABASE.md §5.2；`deleting` 为异步删除过渡态）。只有满足 Pipeline 有效来源条件的文档可参与检索。文档版本化生命周期与删除一致性决策见 [ADR-007](../decisions/ADR-007-knowledge-document-lifecycle-delete-consistency.md) 与 [RAG_PIPELINE.md](../../services/knowledge/docs/RAG_PIPELINE.md)。
 
 ## 7. Chat 与 Conversation API
