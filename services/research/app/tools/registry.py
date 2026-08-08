@@ -1,9 +1,21 @@
-"""ToolRegistry —— Tool 注册中心，负责 schema 生成、查找、phase 过滤。"""
+"""ToolRegistry —— Tool 注册中心，负责 schema 生成、查找、phase 过滤。
+
+同时承载 Phase Handler 默认注册表构建（原 PipelineOrchestrator 的
+`build_default_phase_handlers`，切片 7 收敛至此）。
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
+from app.pipeline.definition import PhaseFunc
+from app.pipeline.evidence_graph import run_evidence_graph
+from app.pipeline.fetcher import run_fetch
+from app.pipeline.planner import run_planning
+from app.pipeline.renderer import run_render
+from app.pipeline.reranker import run_rerank
+from app.pipeline.searcher import run_search
+from app.pipeline.synthesizer import run_synthesis
 from app.tools.base import PhaseHandlerTool, Tool
 from app.tools.finish_tool import FinishTool
 from app.tools.memory_tool import MemoryTool
@@ -73,6 +85,23 @@ class ToolRegistry:
         return schemas
 
 
+def build_default_phase_handlers() -> dict[str, PhaseFunc]:
+    """构建默认 Phase Handler 注册表。
+
+    Phase 2（§3.3-§3.5）实现的阶段：planning / search / fetch
+    Phase 3 实现的阶段：rerank / synthesis / evidence_graph / render
+    """
+    return {
+        "planning": run_planning,
+        "search": run_search,
+        "fetch": run_fetch,
+        "rerank": run_rerank,
+        "synthesis": run_synthesis,
+        "evidence_graph": run_evidence_graph,
+        "render": run_render,
+    }
+
+
 def build_default_tool_registry(phase_handlers: dict[str, Any] | None = None) -> ToolRegistry:
     """构建默认 ToolRegistry。
 
@@ -83,8 +112,6 @@ def build_default_tool_registry(phase_handlers: dict[str, Any] | None = None) ->
         ToolRegistry 实例
     """
     if phase_handlers is None:
-        from app.services.pipeline_orchestrator import build_default_phase_handlers
-
         phase_handlers = build_default_phase_handlers()
 
     registry = ToolRegistry()

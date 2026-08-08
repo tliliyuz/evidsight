@@ -1,13 +1,14 @@
 """Celery 异步任务入口 —— execute_research_task。
 
-Worker 拾取任务后调用 PipelineOrchestrator 执行全 Pipeline。
+Worker 拾取任务后调用 AgentRuntime 执行全 Pipeline（切片 7：
+原 PipelineOrchestrator 已删除）。
 设计对齐 ARCHITECTURE.md §3.3 / ROADMAP.md §3.2。
 
 执行流程：
 1. Celery Worker 收到 task_id
 2. 获取/创建当前 Worker 进程的事件循环（避免 asyncio.run() 反复关闭 loop）
 3. loop.run_until_complete() 执行异步 Pipeline
-4. 创建 DB session → 加载 ResearchTask → 实例化 Orchestrator → run()
+4. 创建 DB session → 加载 ResearchTask → 实例化 AgentRuntime → run()
 5. 顶层异常捕获 → 更新 task status 为 failed
 6. 无论成功/失败，session 最终 commit
 """
@@ -27,8 +28,8 @@ from app.metrics import emit_task_status_transition
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
+from app.pipeline.definition import PHASE_ORDER
 from app.pipeline.sse_bridge import SSEBridge
-from app.services.pipeline_orchestrator import PHASE_ORDER
 from app.services.task_lifecycle import emergency_fail_task
 from app.tasks.celery_app import celery_app
 from app.tasks.event_loop import get_worker_loop

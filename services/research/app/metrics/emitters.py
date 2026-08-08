@@ -16,6 +16,7 @@ from app.metrics.registry import (
     celery_worker_tasks_active,
     celery_workers_active,
     llm_tokens_counter,
+    old_api_calls,
     phase_duration_histogram,
     task_cost_counter,
     task_failure_counter,
@@ -110,6 +111,19 @@ def emit_agent_loop_iteration(phase: str, outcome: str) -> None:
         ).inc()
     except Exception:
         logger.warning("埋点 agent_loop_iteration 失败", exc_info=True)
+
+
+def emit_old_api_call(route: str) -> None:
+    """记录旧前缀 /api/research 路由调用量（API.md §15 废弃观测）。
+
+    观测窗口内该指标归零且 Consumer 回归通过后，才能删除旧前缀路由。
+    """
+    if not settings.METRICS_ENABLED:
+        return
+    try:
+        old_api_calls.labels(route=_safe_label(route)).inc()
+    except Exception:
+        logger.warning("埋点 old_api_call 失败", exc_info=True)
 
 
 def set_celery_queue_length(queue: str, length: int) -> None:

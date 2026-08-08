@@ -161,6 +161,10 @@ v1.0 Chat 请求只接受一个 `knowledge_base_id`，Conversation 也只绑定�
 | `POST /api/v1/research/tasks/{task_id}/resume` | owner/admin 治理 | 202 |
 | `DELETE /api/v1/research/tasks/{task_id}` | owner/admin 治理 | 204 |
 | `GET /api/v1/research/tasks/{task_id}/events` | owner/admin 审计 | 200 SSE |
+| `GET /api/v1/research/tasks/{task_id}/state` | owner/admin 审计 | 200 |
+| `GET /api/v1/research/tasks/{task_id}/report` | owner/admin 审计 | 200 |
+
+`state` 与 `report` 为切片 8 收敛时并入 v1 的旧前缀语义等价路由（§8.2）；admin 审计/治理权限当前实现为 owner-only，admin 扩展待 Admin API 切片。
 
 ADR 检查 1–8：否。本节的裁决与验证记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05「落地 M3 切片 A」「更新 API.md §8」与 2026-08-06「落地 M3 切片 B」条目）；下方为当前契约事实。
 
@@ -187,7 +191,7 @@ Task/Phase/Step 枚举由 Research Pipeline 权威定义；API 只暴露状态�
 
 当前态：`POST /api/v1/research/tasks` 返回 `{"code":"0","message":"...","data":{...}}`，请求体沿用 `topic + requirements + source_strategy + knowledge_base_ids`，错误信封为 `{"code","message","detail"}`。目标态：API.md §4 `{"error":{...}}` 错误结构与 §3.1 扁平 `ResearchTaskCreate`（含预算摘要）。迁移步骤、Consumer 清单、观测与退出门禁记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05「更新 API.md §8」条目）。
 
-**端点覆盖迁移态（2026-08-07）**：`/api/v1/research` 当前仅落地 `POST /tasks`（§8.1）；任务查询 `GET`、`cancel`、`retry`、`stream`、`state`、`report` 与 `delete` 仍在旧前缀 `/api/research`（§3.1 语义等价）。目标态将全部研究命令与查询收敛到 `/api/v1/research/*`（对齐 ROADMAP 2026-08-05「Research API 路径迁移到 /api/v1/research」裁决）；收敛完成前旧前缀保持可用，Consumer 与退出门禁随迁移记录维护。此处登记为迁移期事实，不新增契约语义。
+**端点覆盖迁移态（2026-08-08 切片 8 收敛）**：`/api/v1/research` 已补齐 §8 全部研究命令与查询 —— `POST /tasks`（§8.1 幂等创建）、`GET /tasks`、`GET /tasks/{task_id}`、`POST /tasks/{task_id}/cancel`、`POST /tasks/{task_id}/resume`、`DELETE /tasks/{task_id}`（204）、`GET /tasks/{task_id}/events`（SSE），并收敛旧前缀 `state`/`report` 为 `GET /tasks/{task_id}/state` 与 `GET /tasks/{task_id}/report`（对齐 ROADMAP 2026-08-05「Research API 路径迁移到 /api/v1/research」裁决）。旧前缀 `/api/research` 收敛期间保持可用：改为薄适配器复用同一 application service（`app/api/research_common.py`），每个旧前缀路由入口记录废弃调用量指标 `researchmind_old_api_calls_total`（按路由标签）。**Consumer 清单与退出门禁**：仓库内前端（`apps/web`）当前不调用 Research CRUD 路由；脚本仅 `scripts/smoke_compose.sh` 使用 `/api/research/health`（健康探针，独立于 CRUD 路由）；旧前缀 CRUD 路由删除需满足 §15「废弃路由必须记录调用量；在观测窗口归零且 Consumer 回归通过后才能删除」，观测指标为旧前缀调用量，删除前由负责人确认窗口关闭。此处登记为迁移期事实，不新增契约语义。
 
 ### 8.3 迁移期错误码映射
 

@@ -36,6 +36,7 @@ from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
 from app.models.section_evidence import SectionEvidence
+from app.pipeline.definition import PHASE_ORDER, STEP_TYPE_TO_PHASE
 from app.schemas.research import (
     VALID_DEPTHS,
     VALID_TASK_TYPES,
@@ -59,7 +60,6 @@ from app.services.intent_classifier import (
     INTENT_DIRECT_ANSWER,
     classify_intent,
 )
-from app.services.pipeline_orchestrator import PHASE_ORDER
 
 logger = logging.getLogger(__name__)
 
@@ -786,19 +786,8 @@ RETRY_ALLOWED_STATUSES: frozenset[str] = frozenset(
     }
 )
 
-# step_type → phase 名称映射（与 pipeline_orchestrator.STEP_TYPE_TO_PHASE 互逆）
-_STEP_TYPE_TO_PHASE: dict[str, str] = {
-    "planning": "planning",
-    "search": "searching",
-    "fetch": "fetching",
-    "rerank": "reranking",
-    "synthesis": "synthesizing",
-    "evidence_graph": "building_evidence_graph",
-    "render": "rendering",
-}
-
-# phase 名称 → step_type 映射
-_PHASE_TO_STEP_TYPE: dict[str, str] = {v: k for k, v in _STEP_TYPE_TO_PHASE.items()}
+# phase 名称 → step_type 映射（正映射唯一权威来源为 app.pipeline.definition.STEP_TYPE_TO_PHASE）
+_PHASE_TO_STEP_TYPE: dict[str, str] = {v: k for k, v in STEP_TYPE_TO_PHASE.items()}
 
 
 async def retry_task(

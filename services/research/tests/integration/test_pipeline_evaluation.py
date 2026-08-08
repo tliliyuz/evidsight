@@ -1,7 +1,8 @@
 """Pipeline 离线评估集成测试
 
-复用 test_pipeline_full.py 的全链路 Mock，在 Pipeline 完成后调用 evaluate_task，
-验证 Search / Fetch / Rerank 指标与 overall_pass 计算。
+复用 test_pipeline_full.py 的全链路 Mock（AgentRuntime 驱动，切片 7：
+原 PipelineOrchestrator 已删除，收敛至 AgentRuntime），在 Pipeline 完成后
+调用 evaluate_task，验证 Search / Fetch / Rerank 指标与 overall_pass 计算。
 """
 
 import json
@@ -9,21 +10,23 @@ from contextlib import ExitStack
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from app.core.llm import LLMResult
+from app.agent.runtime import AgentRuntime
+from app.core.llm import LLMResult, ToolCall
 from app.core.trace_recorder import TraceRecorder
 from app.evaluation.aggregator import evaluate_task
 from app.models.research_source import ResearchSource
-from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.pipeline.reranker import Evidence
 from app.pipeline.sse_bridge import SSEBridge
 from app.pipeline.synthesizer import (
+    ClaimEvidenceRelation,
     ConflictPosition,
+    SynthesisClaim,
     SynthesisCluster,
     SynthesisConflict,
     SynthesisNotes,
 )
-from app.services.pipeline_orchestrator import PipelineOrchestrator, build_default_phase_handlers
+from app.tools.registry import build_default_tool_registry
 from sqlalchemy import select
 
 # ═══════════════════════════════════════════════════════════════
@@ -41,6 +44,18 @@ def _make_llm_result(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         total_tokens=prompt_tokens + completion_tokens,
+    )
+
+
+def _make_llm_tool_result(tool_name: str) -> LLMResult:
+    """构造携带单个 Tool Call 的 LLMResult。"""
+    return LLMResult(
+        content="",
+        reasoning_content=f"调用 {tool_name}",
+        prompt_tokens=1,
+        completion_tokens=1,
+        total_tokens=2,
+        tool_calls=[ToolCall(id=tool_name, name=tool_name, arguments={})],
     )
 
 
@@ -78,17 +93,6 @@ async def _seed_task(db_session) -> ResearchTask:
         total_evidence=0,
     )
     db_session.add(task)
-    await db_session.flush()
-
-    planning_step = ResearchStep(
-        id="step-plan-eval-001",
-        task_id=task.id,
-        step_type="planning",
-        status="pending",
-        label="Planning：拆解研究主题",
-        parent_step=None,
-    )
-    db_session.add(planning_step)
     await db_session.flush()
 
     return task
@@ -167,7 +171,7 @@ def _build_rerank_side_effect(db_session, task_id: str):
 
 
 def _build_synthesis_side_effect():
-    """构造 Synthesis 阶段 Mock side_effect。"""
+    """构造 Synthesis 阶段 Mock side_effect（含 critical Claim，满足 §10.2 发布门禁）。"""
 
     async def _side_effect(
         topic: str, task_type: str, evidence_items_formatted: str, evidence_count: int
@@ -191,6 +195,21 @@ def _build_synthesis_side_effect():
             ],
             knowledge_gaps=["量子计算机实际错误率数据"],
             overall_assessment="证据质量较高。",
+            claims=[
+                SynthesisClaim(
+                    statement="量子计算对现有公钥密码体系构成实际威胁。",
+                    critical=True,
+                    certainty="high",
+                    qualification="需工程化验证。",
+                    evidence_relations=[
+                        ClaimEvidenceRelation(
+                            evidence_index=0,
+                            relation_type="supports",
+                            confidence=0.9,
+                        )
+                    ],
+                ),
+            ],
         )
         return notes, 1000, 500, 0
 
@@ -217,15 +236,30 @@ def _build_render_side_effect():
     return _side_effect
 
 
+def _build_agent_llm():
+    """构造 Agent Loop LLM Mock：按当前 phase 返回对应 Tool Call（真实 Phase Handler 执行）。"""
+
+    async def _agent_llm(messages=None, tools=None, tool_choice=None, **kwargs):
+        for t in tools or []:
+            name = t.get("function", {}).get("name", "")
+            if name.endswith("_tool") and name not in ("finish_tool", "memory_tool"):
+                return _make_llm_tool_result(name)
+        return _make_llm_tool_result("finish_tool")
+
+    return _agent_llm
+
+
 async def _run_pipeline(db_session, task: ResearchTask, failing_url: str | None = None):
-    """使用全 Mock 外部依赖跑通 Pipeline。"""
+    """使用全 Mock 外部依赖经 AgentRuntime 跑通 Pipeline。"""
     task_id = task.id
     sse_bridge = SSEBridge(task_id)
     sse_bridge.publish = AsyncMock()
     trace = TraceRecorder(task_id=task_id, user_id=1, topic=task.topic)
-    handlers = build_default_phase_handlers()
 
+    # searcher §6.1 预检查：web 策略要求 TAVILY_API_KEY 非空（E3102 门禁）。
+    # 测试全程 mock `_call_tavily`，这里只为通过预检查，不产生真实调用。
     patches = [
+        patch("app.config.settings.TAVILY_API_KEY", "test-tavily-key"),
         patch(
             "app.pipeline.planner.chat_completion",
             return_value=_make_llm_result(_valid_planning_json()),
@@ -242,8 +276,7 @@ async def _run_pipeline(db_session, task: ResearchTask, failing_url: str | None 
             "app.pipeline.synthesizer._llm_synthesize", side_effect=_build_synthesis_side_effect()
         ),
         patch("app.pipeline.renderer._call_llm_render", side_effect=_build_render_side_effect()),
-        patch("app.tasks.lock.acquire_step_lock_async", return_value=True),
-        patch("app.tasks.lock.release_step_lock_async", new_callable=AsyncMock),
+        patch("app.agent.loop.chat_completion", side_effect=_build_agent_llm()),
     ]
 
     original_commit = db_session.commit
@@ -256,14 +289,15 @@ async def _run_pipeline(db_session, task: ResearchTask, failing_url: str | None 
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
-            orchestrator = PipelineOrchestrator(
+            runtime = AgentRuntime(
                 task=task,
                 session=db_session,
                 sse_bridge=sse_bridge,
                 trace_recorder=trace,
-                phase_handlers=handlers,
+                tool_registry=build_default_tool_registry(),
+                max_iterations=20,
             )
-            await orchestrator.run()
+            await runtime.run()
     finally:
         db_session.commit = original_commit
 

@@ -128,6 +128,15 @@ celery_worker_tasks_active = Gauge(
     registry=REGISTRY,
 )
 
+# ── 废弃 API 调用量（API.md §15：观测窗口归零后删除旧前缀路由）──
+
+old_api_calls = Counter(
+    "researchmind_old_api_calls_total",
+    "旧前缀 /api/research 调用量（按路由，用于废弃观测）",
+    ["route"],
+    registry=REGISTRY,
+)
+
 
 # ── 输出 ──────────────────────────────────────────────────
 
@@ -155,6 +164,7 @@ def _reset_for_testing() -> None:
         celery_queue_length,
         celery_workers_active,
         celery_worker_tasks_active,
+        old_api_calls,
     ]:
         _reset_metric(metric)
 

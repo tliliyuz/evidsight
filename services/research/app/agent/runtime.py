@@ -35,6 +35,7 @@ from app.metrics import (
 )
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
+from app.pipeline.definition import PHASE_LABELS, PHASE_ORDER, STEP_TYPE_TO_PHASE
 from app.pipeline.sse_bridge import (
     EVENT_CHECKPOINT_SAVED,
     EVENT_PHASE_COMPLETED,
@@ -55,10 +56,6 @@ from app.services.budget_service import (
     budget_stop_reason,
     can_reserve,
     settle_budget,
-)
-from app.services.pipeline_orchestrator import (
-    PHASE_ORDER,
-    STEP_TYPE_TO_PHASE,
 )
 from app.services.task_lifecycle import (
     TaskLeaseHandle,
@@ -990,16 +987,7 @@ class AgentRuntime:
 
     @staticmethod
     def _phase_label(step_type: str) -> str:
-        labels = {
-            "planning": "Planning：拆解研究主题",
-            "search": "Search：多子问题搜索",
-            "fetch": "Fetch：网页内容抓取",
-            "rerank": "Rerank：来源粗筛精排",
-            "synthesis": "Synthesis：跨源综合",
-            "evidence_graph": "来源图谱：结构化认知资产构建",
-            "render": "Render：报告渲染",
-        }
-        return labels.get(step_type, step_type)
+        return PHASE_LABELS.get(step_type, step_type)
 
     @staticmethod
     def _step_duration_ms(step: ResearchStep, now: datetime) -> int | None:
