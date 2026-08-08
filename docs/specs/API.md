@@ -197,6 +197,8 @@ Task/Phase/Step 枚举由 Research Pipeline 权威定义；API 只暴露状态�
 
 **端点覆盖迁移态（2026-08-08 切片 8 收敛）**：`/api/v1/research` 已补齐 §8 全部研究命令与查询 —— `POST /tasks`（§8.1 幂等创建）、`GET /tasks`、`GET /tasks/{task_id}`、`POST /tasks/{task_id}/cancel`、`POST /tasks/{task_id}/resume`、`DELETE /tasks/{task_id}`（204）、`GET /tasks/{task_id}/events`（SSE），并收敛旧前缀 `state`/`report` 为 `GET /tasks/{task_id}/state` 与 `GET /tasks/{task_id}/report`（对齐 ROADMAP 2026-08-05「Research API 路径迁移到 /api/v1/research」裁决）。旧前缀 `/api/research` 收敛期间保持可用：改为薄适配器复用同一 application service（`app/api/research_common.py`），每个旧前缀路由入口记录废弃调用量指标 `researchmind_old_api_calls_total`（按路由标签）。**Consumer 清单与退出门禁**：仓库内前端（`apps/web`）当前不调用 Research CRUD 路由；脚本仅 `scripts/smoke_compose.sh` 使用 `/api/research/health`（健康探针，独立于 CRUD 路由）；旧前缀 CRUD 路由删除需满足 §15「废弃路由必须记录调用量；在观测窗口归零且 Consumer 回归通过后才能删除」，观测指标为旧前缀调用量，删除前由负责人确认窗口关闭。此处登记为迁移期事实，不新增契约语义。
 
+**Research SSE 迁移态（2026-08-08）**：当前 v1 `events` 与旧 `stream` 共用 granular 发布流，真实事件为 `task.status.snapshot`、`task.*`、`phase.*`、`step.*`、`checkpoint.saved` 与安全白名单内的 `agent.action|observation`；现有 Research Provider 测试是该实现的 Consumer，仓库内 Web 尚未消费 Research SSE。已批准目标态是 §13 canonical 事件。迁移顺序为 v1 路由增加独立 canonical 投影、旧路由继续输出 granular 事件并保留既有废弃调用量指标，React Web 只消费 v1。退出门禁为旧路由调用量观测窗口归零、仓库内 Consumer 迁移且 canonical Provider/Consumer 回归通过；满足后经负责人确认删除旧 granular 适配。负责人于 2026-08-08 裁决“实现服从规范”；ADR 检查 1–8：否（只修正 v1 Provider 使其符合既有 §13，不改变目标公共契约、任务状态事实或权限）。裁决记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-08「裁决 M4 SSE 与 Admin 评审阻断项」）。
+
 ### 8.3 迁移期错误码映射
 
 Knowledge Internal 返回的新命名空间错误码在 Research 消费端映射为迁移期外部 E 码；信封统一到 §4 目标态前，本表是当前对外语义（对齐文档治理 §5.3）。退出条件：全平台信封统一落地 §4（§8.2）时随迁新码并删除本表与旧 E 码；观测：后端访问日志 `error_code` 分布与错误映射测试。

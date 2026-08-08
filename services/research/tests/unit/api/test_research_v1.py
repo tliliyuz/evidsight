@@ -322,7 +322,9 @@ class TestV1EventsResearch:
         )
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
-        assert "task.status.snapshot" in response.text
+        assert "event: snapshot" in response.text
+        assert "event: stream.end" in response.text
+        assert "task.status.snapshot" not in response.text
 
 
 class TestV1ReportResearch:

@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from fastapi import Request
@@ -32,6 +33,27 @@ logger = logging.getLogger(__name__)
 
 # 任务终态集合：终态任务 SSE 只推送 snapshot 后关闭连接
 TERMINAL_STATUSES = frozenset({"completed", "failed", "canceled", "partially_completed"})
+
+
+def _canonical_event_name(event_name: str) -> str:
+    if event_name == "task.status.snapshot":
+        return "snapshot"
+    if event_name.startswith("task."):
+        return "task.updated"
+    if event_name.startswith("phase."):
+        return "phase.updated"
+    if event_name.startswith(("step.", "checkpoint.", "agent.")):
+        return "step.updated"
+    return event_name
+
+
+def canonicalize_sse_chunk(chunk: str) -> str:
+    """只改写 v1 事件名；原 data 与持久游标原样保留。"""
+    match = re.search(r"(?m)^event: ([^\n]+)$", chunk)
+    if match is None:
+        return chunk
+    canonical = _canonical_event_name(match.group(1).strip())
+    return chunk[: match.start(1)] + canonical + chunk[match.end(1) :]
 
 
 def _ok(data: Any) -> dict:
@@ -147,6 +169,8 @@ def build_task_events_response(
     task: ResearchTask,
     db: AsyncSession,
     snapshot: dict,
+    *,
+    canonical: bool = False,
 ) -> StreamingResponse:
     """构建 SSE 事件流响应（API.md §13 / RESEARCH_PIPELINE §15）。
 
@@ -158,7 +182,10 @@ def build_task_events_response(
         from app.core.sse import format_sse_event
 
         async def terminal_stream():
-            yield format_sse_event(EVENT_TASK_STATUS_SNAPSHOT, snapshot)
+            event = format_sse_event(EVENT_TASK_STATUS_SNAPSHOT, snapshot)
+            yield canonicalize_sse_chunk(event) if canonical else event
+            if canonical:
+                yield format_sse_event("stream.end", {"reason": "terminal_snapshot"})
 
         return StreamingResponse(
             terminal_stream(),
@@ -184,7 +211,9 @@ def build_task_events_response(
             last_event_id=last_event_id,
             replay_loader=replay_loader,
         ):
-            yield sse_text
+            yield canonicalize_sse_chunk(sse_text) if canonical else sse_text
+        if canonical:
+            yield format_sse_event("stream.end", {"reason": "subscription_ended"})
 
     return StreamingResponse(
         event_stream(),

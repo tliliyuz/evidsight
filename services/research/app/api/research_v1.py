@@ -201,7 +201,7 @@ async def stream_research_task_events_v1(
     Content-Type: text/event-stream，15s 心跳。
     """
     snapshot = await build_task_snapshot(task, db)
-    return build_task_events_response(request, task, db, snapshot)
+    return build_task_events_response(request, task, db, snapshot, canonical=True)
 
 
 @router.get("/tasks/{task_id}/state")
