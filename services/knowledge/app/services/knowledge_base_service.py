@@ -171,7 +171,7 @@ async def get_kb(
     if kb is None:
         raise KnowledgeBaseNotFoundException(kb_id)
     if user_id is not None:
-        require_kb_readable(kb, user_id, role)
+        require_kb_readable(kb, user_id, role or "")
 
     t_chunk = 0.0
     if fill_chunk_count:
@@ -314,7 +314,7 @@ async def update_kb(
     try:
         await db.flush()
     except IntegrityError:
-        raise KnowledgeBaseNameExistsException(data.name)
+        raise KnowledgeBaseNameExistsException(data.name or kb.name)
 
     await db.refresh(kb)
     # B 类：owner 输出 Platform User UUID（admin 修改他人 KB 时以 kb.user_id 为准）

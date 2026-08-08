@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.core.database import async_session
-from app.core.exceptions import ConversationNotFoundException
+from app.core.exceptions import AppException, ConversationNotFoundException
 from app.core.llm import stream_chat_completion
 from app.core.sse import format_sse_event
 from app.models.chat_generation import ChatGeneration
@@ -201,7 +201,7 @@ async def _generate_sse_stream(
 
         error_code = "E4002"
         error_msg = "LLM 调用失败"
-        if hasattr(e, "error_code"):
+        if isinstance(e, AppException):
             error_code = e.error_code
             error_msg = e.error_message
         await fail_generation(task_id, error_code, error_msg)

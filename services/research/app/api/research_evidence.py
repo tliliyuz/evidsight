@@ -67,6 +67,8 @@ async def get_evidence_detail(
 ):
     """单条证据（task READ，按对外 UUID）。"""
     data = await report_reader.get_evidence_detail(db, ev.external_id)
+    if data is None:
+        raise TaskNotFoundException(ev.external_id)
     return _ok(data)
 
 
@@ -77,6 +79,8 @@ async def get_evidence_relations(
 ):
     """证据关系（supports/contradicts/context）。"""
     data = await report_reader.list_evidence_relations(db, ev.external_id)
+    if data is None:
+        raise TaskNotFoundException(ev.external_id)
     return _ok(data)
 
 

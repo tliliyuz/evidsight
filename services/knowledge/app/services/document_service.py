@@ -342,8 +342,8 @@ async def batch_upload_documents(
             )
         except Exception as e:
             filename = file.filename or "unknown"
-            if hasattr(e, "error_code"):
-                detail = getattr(e, "error_detail", "")
+            if isinstance(e, AppException):
+                detail = e.error_detail
                 reason = f"{e.error_code}: {e.error_message}"
                 if detail:
                     reason += f"（{detail}）"

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Claude Code PostToolUse hook：编辑/写入首批范围 .py 后，报告 mypy 类型检查结果。
+# Claude Code PostToolUse hook：编辑/写入当前强制范围 .py 后，报告 mypy 类型检查结果。
 # mypy 为只读类型检查（无 fix/写命令），无需权限门禁；只报告不落盘。
-# 范围镜像 .pre-commit-config.yaml 的 python-mypy 首批范围：
-#   services/{knowledge,research}/app/schemas/* + 指定 app/core/*.py 模块。
+# 范围镜像 .pre-commit-config.yaml 的 python-mypy 当前范围。
 set -uo pipefail
 
 input_file="${1:-}"
@@ -29,13 +28,19 @@ fi
 svc=""
 rel=""
 case "$file_path" in
-  services/knowledge/app/schemas/*.py) svc=knowledge; rel="${file_path#services/knowledge/}" ;;
-  services/research/app/schemas/*.py) svc=research; rel="${file_path#services/research/}" ;;
+  services/knowledge/app/api/*.py|services/knowledge/app/middleware/*.py|services/knowledge/app/schemas/*.py|services/knowledge/app/services/*.py|services/knowledge/app/config.py|services/knowledge/app/dependencies.py)
+    svc=knowledge
+    rel="${file_path#services/knowledge/}"
+    ;;
   services/knowledge/app/core/permissions.py|services/knowledge/app/core/csrf.py|services/knowledge/app/core/exceptions.py|services/knowledge/app/core/security.py|services/knowledge/app/core/service_security.py|services/knowledge/app/core/sse.py|services/knowledge/app/core/utils.py)
     svc=knowledge
     rel="${file_path#services/knowledge/}"
     ;;
-  services/research/app/core/permissions.py|services/research/app/core/utils.py|services/research/app/core/exceptions.py|services/research/app/core/security.py|services/research/app/core/service_security.py|services/research/app/core/sse.py|services/research/app/core/task_state_resolver.py|services/research/app/core/token_counter.py)
+  services/research/app/api/*.py|services/research/app/middleware/*.py|services/research/app/schemas/*.py|services/research/app/services/*.py|services/research/app/config.py|services/research/app/dependencies.py)
+    svc=research
+    rel="${file_path#services/research/}"
+    ;;
+  services/research/app/core/permissions.py|services/research/app/core/utils.py|services/research/app/core/exceptions.py|services/research/app/core/security.py|services/research/app/core/service_security.py|services/research/app/core/sse.py|services/research/app/core/task_state_resolver.py|services/research/app/core/token_counter.py|services/research/app/core/identity_status_client.py|services/research/app/core/internal_retrieval_client.py)
     svc=research
     rel="${file_path#services/research/}"
     ;;
@@ -52,7 +57,7 @@ fi
 # 只运行该文件（mypy 会沿 import 检查依赖），config 用根 pyproject.toml。
 # cd 进服务目录后使用服务内相对路径 .venv/bin/mypy（root 相对路径在此会失效）。
 # 仅当 mypy 报错（exit != 0，如 "Found N errors" 或配置错误）时输出，干净静默。
-out="$( (cd "services/$svc" && .venv/bin/mypy --config-file ../../pyproject.toml "$rel") 2>&1 )"
+out="$( (cd "services/$svc" && .venv/bin/mypy --config-file ../../pyproject.toml --follow-imports=skip "$rel") 2>&1 )"
 rc=$?
 if [[ $rc -eq 0 || -z "$out" ]]; then
   exit 0

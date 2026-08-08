@@ -24,6 +24,7 @@ fi
     app/api \
     app/middleware \
     app/schemas \
+    app/services \
     app/core/permissions.py \
     app/core/csrf.py \
     app/core/exceptions.py \
@@ -43,6 +44,9 @@ fi
     app/api \
     app/middleware \
     app/schemas \
+    app/services \
+    app/core/identity_status_client.py \
+    app/core/internal_retrieval_client.py \
     app/core/permissions.py \
     app/core/utils.py \
     app/core/exceptions.py \

@@ -260,15 +260,17 @@ class TaskLeaseHandle:
 
         续租失败置 `lease_lost=True`，调用方应立即停止后续业务执行。
         """
-        if not self.lease_bound:
+        worker_id = self.worker_id
+        lease_generation = self.lease_generation
+        if worker_id is None or lease_generation is None:
             return True
         try:
             async with async_session_factory() as session:
                 ok = await renew_task_lease(
                     session,
                     self._task_id,
-                    self.worker_id,
-                    self.lease_generation,
+                    worker_id,
+                    lease_generation,
                     ttl_seconds=self._lease_ttl,
                 )
                 await session.commit()
@@ -295,10 +297,11 @@ class TaskLeaseHandle:
     async def release_lease(self) -> None:
         """释放 DB 租约（仅 owner 匹配生效；DATABASE.md §8）。"""
         try:
-            if not self.lease_bound:
+            worker_id = self.worker_id
+            if worker_id is None or self.lease_generation is None:
                 return
             async with async_session_factory() as session:
-                await release_task_lease(session, self._task_id, self.worker_id)
+                await release_task_lease(session, self._task_id, worker_id)
                 await session.commit()
         except Exception:
             logger.exception("DB 租约释放异常: task_id=%s", self._task_id)

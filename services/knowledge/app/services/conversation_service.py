@@ -162,12 +162,13 @@ async def list_conversations(
 
     t0 = time.time()
     # B 类：owner_user_id 输出 Platform User UUID；所有会话同属当前用户，只解析一次
-    owner_uuid = await resolve_user_uuid(db, user_id) if rows else None
     items = []
-    for c in rows:
-        resp = _build_conversation_response(c, owner_uuid)
-        _enrich_kb_status(resp, c, user_id)
-        items.append(resp)
+    if rows:
+        owner_uuid = await resolve_user_uuid(db, user_id)
+        for c in rows:
+            resp = _build_conversation_response(c, owner_uuid)
+            _enrich_kb_status(resp, c, user_id)
+            items.append(resp)
     t_serialize = time.time() - t0
 
     t_total = time.time() - t_start

@@ -16,7 +16,7 @@ SSE 流生成与固定响应已解耦至 app.services.sse_stream。
 import logging
 import time
 from datetime import datetime, timezone
-from typing import AsyncIterator
+from typing import AsyncIterator, cast
 from uuid import uuid4
 
 from fastapi.responses import StreamingResponse
@@ -280,11 +280,12 @@ async def chat(
         # 元问题：不调 LLM，直接返回固定模板 SSE 响应
         # 用户消息已保存，_generate_meta_response 会保存 assistant 消息保持成对
         # Trace: META 路径，recorder 已在 _validate_and_prepare 中记录 intent
-        recorder.conversation_id = e.conv.id
-        recorder.kb_id = e.conv.kb_id
+        conv = cast(Conversation, e.conv)
+        recorder.conversation_id = conv.id
+        recorder.kb_id = conv.kb_id
         generation = await create_generation(
             db,
-            e.conv.id,
+            conv.id,
             platform_user_id or str(user_id),
             kb_id,
         )
@@ -292,7 +293,7 @@ async def chat(
             stream_with_heartbeat(
                 _guard_generation_stream(
                     _generate_meta_response(
-                        conv=e.conv,
+                        conv=conv,
                         is_first_turn=e.is_first_turn,
                         question=question,
                         recorder=recorder,

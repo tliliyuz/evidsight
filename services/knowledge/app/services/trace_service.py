@@ -385,8 +385,8 @@ async def get_trace_stats(
     )
     intent_dist_rows = (await db.execute(intent_dist_q)).all()
     intent_distribution = [
-        TraceIntentDistItem(type=intent_type, count=count)
-        for intent_type, count in intent_dist_rows
+        TraceIntentDistItem(type=row.type, count=int(getattr(row, "count")))
+        for row in intent_dist_rows
     ]
 
     # ===== 5. Response Mode 分布 =====
@@ -398,7 +398,8 @@ async def get_trace_stats(
     )
     response_dist_rows = (await db.execute(response_dist_q)).all()
     response_distribution = [
-        TraceResponseDistItem(mode=mode, count=count) for mode, count in response_dist_rows
+        TraceResponseDistItem(mode=row.mode, count=int(getattr(row, "count")))
+        for row in response_dist_rows
     ]
 
     return TraceStatsResponse(
