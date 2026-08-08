@@ -625,7 +625,7 @@ Redis 不作为唯一业务事实，不以 Redis dump 替代 MySQL 和文件/向
 6. `apps/web/docs/FRONTEND.md` 与 `UIDESIGN.md`：统一路由、模块、状态机、引用交互和 Design Token；
 7. [`docs/specs/DATA_MIGRATION_AND_ROLLBACK.md`](DATA_MIGRATION_AND_ROLLBACK.md)：源数据映射、停机窗口、校验、恢复和回滚；
 8. [`docs/specs/TESTING.md`](TESTING.md)：环境矩阵、契约与端到端用例、性能基线和发布门禁；
-9. [`docs/specs/CONFIGURATION.md`](CONFIGURATION.md)、[`DATA_RETENTION.md`](DATA_RETENTION.md) 与 [`OPERATIONS.md`](OPERATIONS.md)：运行配置、保留清理和运维恢复；
+9. [`CONFIGURATION.md`](CONFIGURATION.md)、[`DATA_RETENTION.md`](DATA_RETENTION.md) 与 [`RELIABILITY.md`](RELIABILITY.md)：运行配置、保留清理和可靠性恢复要求；具体操作见 [`guides/OPERATIONS.md`](../guides/OPERATIONS.md)；
 10. [`docs/CHANGELOG.md`](../CHANGELOG.md) 与 [`docs/decisions/`](../decisions/README.md)：随规范和实现持续记录变更及重要架构决策。
 
 上述专项文档不得改变本文的服务所有权、网络边界和数据隔离原则；确需改变时先更新本文并新增 ADR。

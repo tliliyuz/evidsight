@@ -187,7 +187,7 @@ Knowledge 与 Research 必须使用独立虚拟环境、依赖锁、Alembic 配�
 
 ## 7. 测试与验证
 
-测试策略和发布门禁见 [TESTING.md](../specs/TESTING.md)。M0 目标统一入口为：
+测试矩阵和发布门禁见 [测试规范](../specs/TESTING.md)，命令说明与结果记录见 [测试执行指南](TEST_EXECUTION.md)。当前统一入口为：
 
 ```bash
 python3.12 -m pytest tests/architecture -v
@@ -266,7 +266,7 @@ docker compose config --quiet
 - 停止服务默认保留持久卷；
 - 与开发环境复用同一不可变镜像和配置 Schema，不复用数据与 Secret。
 
-部署、备份、恢复和故障处理见 [OPERATIONS.md](../specs/OPERATIONS.md)。
+运行可靠性、备份恢复目标和故障语义见 [RELIABILITY.md](../specs/RELIABILITY.md)；具体部署、备份、恢复和故障操作见 [OPERATIONS.md](OPERATIONS.md)。
 
 ## 11. 常用检查
 
@@ -289,7 +289,9 @@ rg -n '多 KB Chat|多知识库问答|knowledge_base_ids|knowledge_base_id' docs
 - [总体架构](../specs/ARCHITECTURE.md)
 - [路线图](../plans/ROADMAP.md)
 - [测试策略](../specs/TESTING.md)
+- [测试执行指南](TEST_EXECUTION.md)
 - [配置规范](../specs/CONFIGURATION.md)
-- [运维指南](../specs/OPERATIONS.md)
+- [运行可靠性与恢复规范](../specs/RELIABILITY.md)
+- [运维操作指南](OPERATIONS.md)
 - [数据迁移与回滚](../specs/DATA_MIGRATION_AND_ROLLBACK.md)
 - [变更日志](../CHANGELOG.md)

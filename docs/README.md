@@ -7,7 +7,7 @@
 | 目录或文件 | 职责 | 内容规则 |
 |:---|:---|:---|
 | [`specs/`](specs/README.md) | 权威规范 | 定义产品、架构、接口、权限、配置、测试、数据与运行约束；实现不得与其冲突 |
-| [`guides/`](guides/DEVELOPMENT.md) | 操作指南 | 说明开发者如何搭建环境、执行命令和遵守交付流程，不重复定义产品行为；文档冲突按 [`DOCUMENT_GOVERNANCE.md`](guides/DOCUMENT_GOVERNANCE.md) 裁决 |
+| [`guides/`](guides/README.md) | 操作指南 | 说明如何开发、测试、部署、备份、恢复和执行治理流程，不定义新的系统行为；文档冲突按 [`DOCUMENT_GOVERNANCE.md`](guides/DOCUMENT_GOVERNANCE.md) 裁决 |
 | [`plans/`](plans/ROADMAP.md) | 路线与实施计划 | 记录阶段顺序、依赖、退出门禁和迁移步骤，不代表功能已实现 |
 | [`decisions/`](decisions/README.md) | 架构决策记录 | 记录重要选择、替代方案和后果；不能代替当前规范 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 变更记录 | 记录已经发生的可审查变化及尚未实现项 |
@@ -20,6 +20,15 @@
 | Knowledge 数据与 RAG | [`services/knowledge/docs/`](../services/knowledge/docs/) |
 | Research 数据与 Pipeline | [`services/research/docs/`](../services/research/docs/) |
 | Web 页面、交互与视觉 | [`apps/web/docs/`](../apps/web/docs/) |
+
+## 操作指南
+
+| 主题 | 指南入口 | 权威要求 |
+|:---|:---|:---|
+| 开发环境与工作流 | [`DEVELOPMENT.md`](guides/DEVELOPMENT.md) | 对应任务的项目或模块规范 |
+| 测试执行与发布记录 | [`TEST_EXECUTION.md`](guides/TEST_EXECUTION.md) | [`specs/TESTING.md`](specs/TESTING.md) |
+| 三节点部署与运维 | [`OPERATIONS.md`](guides/OPERATIONS.md) | [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)、[`specs/RELIABILITY.md`](specs/RELIABILITY.md) |
+| 文档治理 | [`DOCUMENT_GOVERNANCE.md`](guides/DOCUMENT_GOVERNANCE.md) | 根 `AGENTS.md` 与 ADR 治理规则 |
 
 ## 维护规则
 

@@ -2,7 +2,7 @@
 
 | 属性 | 值 |
 |:---|:---|
-| 文档状态 | 已确认设计 |
+| 文档状态 | 已确认规范 |
 | 文档版本 | v1.0 |
 | 最后更新 | 2026-08-07 |
 
@@ -323,4 +323,4 @@ Research SSE 是持久任务订阅，断开不得取消研究任务。重连携�
 | FR-RP-001、FR-RP-002、FR-RP-003 | Report API、Evidence/引用联动数据 |
 | FR-AD-001、FR-AD-002 | Admin API 与治理审计 |
 
-PRD §13 的十个端到端场景分别由文档入库/Chat、KB 越权、web/knowledge/hybrid Research、冲突 Evidence、取消、恢复、历史报告二次鉴权和管理员禁用链路覆盖。实际测试名称、环境和结果记录在 `docs/specs/TESTING.md`，不在本文伪造完成状态。
+PRD §13 的十个端到端场景分别由文档入库/Chat、KB 越权、web/knowledge/hybrid Research、冲突 Evidence、取消、恢复、历史报告二次鉴权和管理员禁用链路覆盖。测试矩阵与门禁由 `docs/specs/TESTING.md` 定义，命令和记录格式见 `docs/guides/TEST_EXECUTION.md`；实际结果进入对应评审或发布记录，不在本文伪造完成状态。

@@ -630,6 +630,7 @@ v1.0 发布前至少通过以下端到端验收：
 - [测试策略、环境矩阵和发布验收](TESTING.md)
 - [配置规范](CONFIGURATION.md)
 - [数据保留与清理](DATA_RETENTION.md)
-- [部署与运维](OPERATIONS.md)
+- [运行可靠性与恢复](RELIABILITY.md)
+- [部署与运维操作指南](../guides/OPERATIONS.md)
 - [产品与实现变更记录](../CHANGELOG.md)
 - [架构决策记录](../decisions/README.md)

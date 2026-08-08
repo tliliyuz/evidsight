@@ -134,7 +134,8 @@ Windows 关机、更新或 Docker Desktop 中断会让全部研究任务停止�
 ## 相关规范
 
 - [总体架构](../specs/ARCHITECTURE.md) §6、§11、§13—§16
-- [部署与运维](../specs/OPERATIONS.md)
+- [运行可靠性与恢复规范](../specs/RELIABILITY.md)
+- [运维操作指南](../guides/OPERATIONS.md)
 - [配置规范](../specs/CONFIGURATION.md)
 - [测试规范](../specs/TESTING.md)
 - [开发指南](../guides/DEVELOPMENT.md)

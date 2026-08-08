@@ -59,10 +59,12 @@ ADR 检查与裁决
 | 开发环境、目录、命令与工作流 | `docs/guides/DEVELOPMENT.md` |
 | 文档归属、冲突裁决与状态治理 | `docs/guides/DOCUMENT_GOVERNANCE.md` |
 | 测试矩阵与发布验证 | `docs/specs/TESTING.md` |
+| 测试命令与结果记录方法 | `docs/guides/TEST_EXECUTION.md` |
 | 配置键与运行边界 | `docs/specs/CONFIGURATION.md` |
 | 数据迁移、校验与回滚 | `docs/specs/DATA_MIGRATION_AND_ROLLBACK.md` |
 | 数据保留与清理 | `docs/specs/DATA_RETENTION.md` |
-| 部署、备份、恢复与故障处理 | `docs/specs/OPERATIONS.md` |
+| 运行可靠性、备份恢复目标与故障语义 | `docs/specs/RELIABILITY.md` |
+| 部署、备份、恢复与故障操作步骤 | `docs/guides/OPERATIONS.md` |
 | 阶段目标与排期 | `docs/plans/ROADMAP.md` |
 | 行为变更记录 | `docs/CHANGELOG.md` |
 | 重要架构决策 | `docs/decisions/ADR-NNN.md` |

@@ -1,6 +1,6 @@
 # EvidSight Monorepo 迁移实施计划
 
-> **历史状态（2026-08-02）：** M0 结构迁移已经完成。本文件保留原始实施步骤供追溯，复选框不再承担当前阶段状态；原 `docs/migration/` 下的三份过程记录已由负责人主动删除，不再作为 M0/M1 门禁或后续开发前置条件。当前状态与验证入口分别以 [`ROADMAP.md`](ROADMAP.md) 和 [`../specs/TESTING.md`](../specs/TESTING.md) 为准。
+> **历史状态（2026-08-02）：** M0 结构迁移已经完成。本文件保留原始实施步骤供追溯，复选框不再承担当前阶段状态；原 `docs/migration/` 下的三份过程记录已由负责人主动删除，不再作为 M0/M1 门禁或后续开发前置条件。当前状态以 [`ROADMAP.md`](ROADMAP.md) 为准，验证要求与执行入口分别见 [`../specs/TESTING.md`](../specs/TESTING.md) 和 [`../guides/TEST_EXECUTION.md`](../guides/TEST_EXECUTION.md)。
 
 > **面向 Agent 执行者：** 必须使用 `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans` 子技能，逐个任务执行本计划。步骤使用复选框（`- [ ]`）跟踪状态。
 

@@ -1,4 +1,4 @@
-# TESTING — 测试与发布验证策略
+# TESTING — 测试与发布验证规范
 
 | 属性 | 值 |
 |:---|:---|
@@ -136,49 +136,12 @@ cd services/research && python -m pytest tests/contract
 
 实际结果必须记录评估集版本、提交、镜像、日期、资源、命令、样本数和失败明细。
 
-## 6. Monorepo 基线验证命令
+## 6. 执行与证据要求
 
-```bash
-uvx ruff check services/ scripts/ tests/ packages/contracts/
-uvx ruff format --check services/ scripts/ tests/ packages/contracts/
-python3.12 -m pytest tests/architecture -v
-uv run --project services/knowledge pytest
-uv run --project services/research pytest
-npm --prefix apps/web test
-npm --prefix apps/web run build
-docker compose config --quiet
-```
+- 验证命令、环境准备和发布记录格式由 [测试执行指南](../guides/TEST_EXECUTION.md) 维护，不在规范中复制操作步骤；
+- 命令必须在当前候选提交和登记环境上实际执行；失败、跳过或环境缺失均不得记为通过；
+- 三份生产 Compose 的单独配置解析不能替代联合静态检查、实际私网暴露检查、节点中断演练和跨节点恢复演练；
+- 实际结果必须记录候选版本、环境资源、数据集、命令、通过/失败/跳过、已知偏差、批准人和证据链接；
+- M6 发布验收必须建立带日期的独立候选版本记录。
 
-M5 三节点 Compose 资产落地后，候选版本还必须执行：
-
-```bash
-docker compose -f deploy/compose/cloud-edge.yml config --quiet
-docker compose -f deploy/compose/cloud-data.yml config --quiet
-docker compose -f deploy/compose/cloud-knowledge.yml config --quiet
-```
-
-三条命令仅证明单份配置可解析；仍需执行三份配置联合静态检查、实际私网暴露检查、节点中断演练和跨节点恢复演练。
-
-提交前静态门禁（pre-commit）验证：
-
-```bash
-.venv/bin/pre-commit install
-.venv/bin/pre-commit install --hook-type commit-msg
-.venv/bin/pre-commit run --all-files   # 全仓基线；日常提交由 hook 自动对暂存文件执行
-```
-
-命令必须在当前候选提交上实际执行；失败、跳过或环境缺失均不得记为通过。
-
-## 7. 发布记录模板
-
-```text
-候选版本/提交：
-环境与资源：
-数据集版本：
-执行命令：
-通过/失败/跳过：
-已知偏差与批准人：
-证据链接：
-```
-
-原 `docs/migration/` 过程记录已由负责人于 2026-08-02 主动删除，不再作为 M0 或 M1 门禁。后续候选版本的实际验证结果应使用本节模板记录在对应评审或发布记录中；M6 发布验收必须单独建立带日期的候选版本记录。
+ADR 检查 1–8：否。本文只保留测试矩阵、验收场景和发布门禁；原执行命令与记录模板移入指南，不改变测试要求或发布门禁。
