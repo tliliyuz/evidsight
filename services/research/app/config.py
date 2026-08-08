@@ -9,7 +9,7 @@ ResearchMind 全局配置单例。
 
 from urllib.parse import quote_plus
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,21 +43,9 @@ class Settings(BaseSettings):
     CELERY_IDEMPOTENCY_LOCK_TTL: int = 600  # Step 幂等锁 TTL（秒），防重复入队
 
     # ── Worker 崩溃恢复 ──
-    # 任务级锁 TTL（租约模式）：正常执行时定期刷新，崩溃后旧锁在 TTL 内过期
-    # 配置目标：Worker 崩溃后约 30s 内被超时监察者标记为 failed
+    # 旧编排器（deprecated，切片 7 移除）仍使用 Redis 任务级锁的 TTL 与刷新间隔
     CELERY_TASK_LOCK_TTL: int = 20
-    # 任务级锁刷新间隔（秒），必须显著小于 TTL，确保正常执行时锁始终存在
     CELERY_LOCK_REFRESH_INTERVAL: int = 10
-    # Worker 超时监察者：锁缺失持续该时长后标记任务 failed
-    WORKER_TIMEOUT_SECONDS: int = 10
-    # pending 任务超时：任务创建/重试后该时长内未被 Worker 拾取则标记 failed
-    PENDING_TASK_TIMEOUT_SECONDS: int = 30
-    # 监察者扫描间隔（秒）
-    WORKER_TIMEOUT_CHECK_INTERVAL: int = 5
-    # 启动宽限期：started_at 在该时间内即使锁缺失也不标记失败（避免启动瞬间 race）
-    WORKER_TIMEOUT_GRACE_SECONDS: int = 5
-    # 启动恢复阈值：running 任务超过该时间无活跃 Worker 心跳/锁，则重新投递
-    STALE_TASK_RECOVERY_SECONDS: int = 60
     STARTUP_RECOVERY_ENABLED: bool = True  # 启动时自动恢复过时 running 任务
     # Redis broker visibility_timeout：明确配置，避免依赖 Celery 默认 1h
     CELERY_VISIBILITY_TIMEOUT: int = 1800
@@ -67,6 +55,14 @@ class Settings(BaseSettings):
     # 约束：续租周期 < 租约时长 / 2；单次不可中断操作超时 < 剩余租约；
     #       Recovery Scanner 扫描间隔 <= 租约时长。
     RESEARCH_TASK_LEASE_TTL_SECONDS: int = 300
+    # DB 租约续租周期（秒），必须 < RESEARCH_TASK_LEASE_TTL_SECONDS / 2（§13.1）
+    RESEARCH_TASK_LEASE_RENEW_INTERVAL: int = 60
+    # Recovery Scanner 周期扫描间隔（秒），必须 <= RESEARCH_TASK_LEASE_TTL_SECONDS（§13.1）
+    RESEARCH_RECOVERY_SCAN_INTERVAL_SECONDS: int = 60
+    # pending 重投递（RESEARCH_PIPELINE §13.6）：超过阈值仍 pending 且无有效租约才重投
+    PENDING_REDELIVERY_THRESHOLD_SECONDS: int = 300
+    # 超过最大重投次数后创建受控失败事实（E3118），由 Resolver 推导终态
+    PENDING_REDELIVERY_MAX_RETRIES: int = 3
 
     # ── LLM (DeepSeek) ──
     LLM_API_KEY: str = ""
@@ -170,6 +166,24 @@ class Settings(BaseSettings):
 
     # ── CORS ──
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
+    @model_validator(mode="after")
+    def _validate_lease_interval_relations(self) -> "Settings":
+        """租约时间约束（RESEARCH_PIPELINE §13.1）：续租周期 < 租约时长 / 2；扫描间隔 <= 租约时长。
+
+        配置违反约束时启动即失败（fail-fast），不把错误边界带到运行期。
+        """
+        if self.RESEARCH_TASK_LEASE_RENEW_INTERVAL >= self.RESEARCH_TASK_LEASE_TTL_SECONDS / 2:
+            raise ValueError(
+                "RESEARCH_TASK_LEASE_RENEW_INTERVAL 必须小于 "
+                "RESEARCH_TASK_LEASE_TTL_SECONDS / 2（§13.1）"
+            )
+        if self.RESEARCH_RECOVERY_SCAN_INTERVAL_SECONDS > self.RESEARCH_TASK_LEASE_TTL_SECONDS:
+            raise ValueError(
+                "RESEARCH_RECOVERY_SCAN_INTERVAL_SECONDS 必须 <= "
+                "RESEARCH_TASK_LEASE_TTL_SECONDS（§13.1）"
+            )
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

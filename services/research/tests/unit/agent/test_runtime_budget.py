@@ -78,8 +78,8 @@ def budget_runtime(monkeypatch):
     )
     runtime._agent_context = AgentContext(current_phase="search")
     runtime._working_memory = WorkingMemory()
-    runtime._lock_handle.worker_id = "worker-1"
-    runtime._lock_handle.lease_generation = 1
+    runtime._lease_handle.worker_id = "worker-1"
+    runtime._lease_handle.lease_generation = 1
     monkeypatch.setattr(
         "app.agent.runtime.is_step_commit_allowed",
         AsyncMock(return_value=True),

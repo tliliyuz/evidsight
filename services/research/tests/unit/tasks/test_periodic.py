@@ -13,6 +13,7 @@ from app.tasks import periodic as periodic_module
 from app.tasks.periodic import (
     _check_tasks_exist,
     cleanup_old_research_tasks,
+    recover_expired_research_tasks,
 )
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -93,6 +94,46 @@ class TestCleanupOldResearchTasks:
                 with patch.object(cleanup_old_research_tasks, "retry", return_value=retry_exc):
                     with pytest.raises(RuntimeError) as exc_info:
                         cleanup_old_research_tasks(max_age_days=30)
+
+        assert exc_info.value is retry_exc
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# recover_expired_research_tasks（周期 Recovery Scanner，RESEARCH_PIPELINE §13.5）
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestRecoverExpiredResearchTasks:
+    def test_恢复成功_返回计数(self, fresh_loop):
+        with patch("app.tasks.periodic.get_worker_loop", return_value=fresh_loop):
+            with patch(
+                "app.tasks.recovery.recover_stale_tasks",
+                AsyncMock(return_value=["task-1"]),
+            ):
+                result = recover_expired_research_tasks()
+
+        assert result == {"recovered_tasks": 1}
+
+    def test_无待恢复任务_返回零(self, fresh_loop):
+        with patch("app.tasks.periodic.get_worker_loop", return_value=fresh_loop):
+            with patch(
+                "app.tasks.recovery.recover_stale_tasks",
+                AsyncMock(return_value=[]),
+            ):
+                result = recover_expired_research_tasks()
+
+        assert result == {"recovered_tasks": 0}
+
+    def test_恢复异常_触发Celery重试(self, fresh_loop):
+        retry_exc = RuntimeError("retry")
+        with patch("app.tasks.periodic.get_worker_loop", return_value=fresh_loop):
+            with patch(
+                "app.tasks.recovery.recover_stale_tasks",
+                AsyncMock(side_effect=RuntimeError("DB down")),
+            ):
+                with patch.object(recover_expired_research_tasks, "retry", return_value=retry_exc):
+                    with pytest.raises(RuntimeError) as exc_info:
+                        recover_expired_research_tasks()
 
         assert exc_info.value is retry_exc
 

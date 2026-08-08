@@ -1,10 +1,12 @@
-"""切片 D —— Recovery Scanner 按租约扫描验收测试。
+"""切片 D/3 —— Recovery Scanner 按租约扫描（纯 DB）验收测试。
 
-对齐 RESEARCH_PIPELINE §13.5 / DATABASE.md §8：
-- Scanner 按 (status, lease_expires_at) 查找过期运行任务；
+对齐 RESEARCH_PIPELINE §13.5/§13.6 / DATABASE.md §8：
+- Scanner 按 (status, lease_expires_at) 查找过期运行任务，不依赖 Redis；
 - 锁定后再次确认租约过期；
 - 将遗留 running Step 置为 retrying 或按重试上限 failed；
-- 清除旧 owner、递增恢复计数并重新投递到 research.execute。
+- 清除旧 owner、递增恢复计数并重新投递到 research.execute；
+- 两个 Scanner 并发只恢复一次；
+- pending 任务超过阈值且无有效租约 → 重投；超过上限 → 受控失败事实由 Resolver 推导。
 """
 
 from datetime import datetime, timedelta, timezone
@@ -12,6 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from app.config import settings
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
 from app.tasks.recovery import recover_stale_tasks
@@ -82,9 +85,8 @@ class TestRecoverStaleTasksByLease:
         )
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
-            with patch("app.tasks.recovery.check_task_lock_async", return_value=False):
-                with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                    recovered = await recover_stale_tasks(check_lock=True)
+            with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                recovered = await recover_stale_tasks()
 
         assert str(task.id) in recovered
         mock_task.delay.assert_any_call(str(task.id))
@@ -99,23 +101,7 @@ class TestRecoverStaleTasksByLease:
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
             with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                recovered = await recover_stale_tasks(check_lock=False)
-
-        assert str(task.id) not in recovered
-        mock_task.delay.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_租约过期_但锁存在_跳过(self, db_session):
-        task = await _seed_running_task(
-            db_session,
-            "task-locked-1",
-            lease_expires_at=_now() - timedelta(seconds=30),
-        )
-
-        with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
-            with patch("app.tasks.recovery.check_task_lock_async", return_value=True):
-                with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                    recovered = await recover_stale_tasks(check_lock=True)
+                recovered = await recover_stale_tasks()
 
         assert str(task.id) not in recovered
         mock_task.delay.assert_not_called()
@@ -133,9 +119,8 @@ class TestRecoverStaleTasksByLease:
         await db_session.flush()
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
-            with patch("app.tasks.recovery.check_task_lock_async", return_value=False):
-                with patch("app.tasks.research_task.execute_research_task"):
-                    await recover_stale_tasks(check_lock=True)
+            with patch("app.tasks.research_task.execute_research_task"):
+                await recover_stale_tasks()
 
         await db_session.refresh(task)
         assert task.lease_owner is None
@@ -153,9 +138,8 @@ class TestRecoverStaleTasksByLease:
         await db_session.flush()
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
-            with patch("app.tasks.recovery.check_task_lock_async", return_value=False):
-                with patch("app.tasks.research_task.execute_research_task"):
-                    await recover_stale_tasks(check_lock=True)
+            with patch("app.tasks.research_task.execute_research_task"):
+                await recover_stale_tasks()
 
         await db_session.refresh(step)
         assert step.status == "retrying"
@@ -176,7 +160,7 @@ class TestRecoverStaleTasksByLease:
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
             with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                recovered = await recover_stale_tasks(check_lock=False)
+                recovered = await recover_stale_tasks()
 
         assert str(task.id) not in recovered
         mock_task.delay.assert_not_called()
@@ -191,8 +175,175 @@ class TestRecoverStaleTasksByLease:
         )
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
-            with patch("app.tasks.recovery.check_task_lock_async", return_value=False):
-                with patch("app.tasks.research_task.execute_research_task"):
-                    recovered = await recover_stale_tasks(check_lock=True)
+            with patch("app.tasks.research_task.execute_research_task"):
+                recovered = await recover_stale_tasks()
 
         assert str(task.id) in recovered
+
+    @pytest.mark.asyncio
+    async def test_scanner条件领取_并发第二scanner不重复claim(self, db_session):
+        """两个 Scanner 并发只恢复一次：条件领取把 lease_expires_at 推到未来，
+        并发 Scanner 的 WHERE（租约已过期）不命中，不会重复 claim。"""
+        from app.tasks.recovery import _claim_expired_lease
+
+        task = await _seed_running_task(
+            db_session,
+            "task-concurrent-1",
+            lease_expires_at=_now() - timedelta(seconds=30),
+            recovery_count=0,
+        )
+
+        claimed_a = await _claim_expired_lease(db_session, str(task.id), "scanner-a")
+        assert claimed_a is True
+        await db_session.flush()
+
+        # 第二个 Scanner 在同一窗口内 claim → 租约已在未来，不命中
+        claimed_b = await _claim_expired_lease(db_session, str(task.id), "scanner-b")
+        assert claimed_b is False
+
+        await db_session.refresh(task)
+        assert task.lease_owner == "scanner-a"
+
+    @pytest.mark.asyncio
+    async def test_两轮扫描_各幂等重投一次_不重复完成(self, db_session):
+        """Beat 重复扫描不会重复完成 Step/Evidence/Revision：每轮幂等重投，
+        由重新执行的 Worker 经 DB lease 领取，Scanner 本身不写业务结果。"""
+        task = await _seed_running_task(
+            db_session,
+            "task-twice-1",
+            lease_expires_at=_now() - timedelta(seconds=30),
+            recovery_count=0,
+        )
+        step = ResearchStep(task_id=task.id, step_type="planning", status="completed")
+        db_session.add(step)
+        await db_session.flush()
+
+        with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
+            with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                await recover_stale_tasks()
+                await recover_stale_tasks()
+
+        # 每轮各投递一次（幂等重投），不重复完成业务 Step
+        assert mock_task.delay.call_count == 2
+        await db_session.refresh(task)
+        assert task.recovery_count == 2
+        await db_session.refresh(step)
+        assert step.status == "completed"  # 已 completed 的 Step 不被 Scanner 改动
+
+
+class TestPendingRedelivery:
+    @pytest.mark.asyncio
+    async def test_pending超过阈值_无有效租约_重投并递增计数(self, db_session):
+        user = await _seed_user(db_session)
+        task = ResearchTask(
+            id="task-pending-1",
+            user_id=user.id,
+            topic="pending 重投",
+            requirements={"task_type": "analysis"},
+            status="pending",
+            started_at=_now()
+            - timedelta(seconds=settings.PENDING_REDELIVERY_THRESHOLD_SECONDS + 10),
+            redelivery_count=0,
+        )
+        db_session.add(task)
+        await db_session.flush()
+
+        with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
+            with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                recovered = await recover_stale_tasks()
+
+        assert str(task.id) in recovered
+        mock_task.delay.assert_any_call(str(task.id))
+        await db_session.refresh(task)
+        assert task.redelivery_count == 1
+        assert task.status == "pending"  # 重投不改变状态，由 Worker 领取后转 running
+
+    @pytest.mark.asyncio
+    async def test_pending未超阈值_不重投(self, db_session):
+        user = await _seed_user(db_session)
+        task = ResearchTask(
+            id="task-pending-fresh",
+            user_id=user.id,
+            topic="fresh",
+            requirements={"task_type": "analysis"},
+            status="pending",
+            started_at=_now(),
+            redelivery_count=0,
+        )
+        db_session.add(task)
+        await db_session.flush()
+
+        with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
+            with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                recovered = await recover_stale_tasks()
+
+        assert str(task.id) not in recovered
+        mock_task.delay.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_pending超上限_创建受控失败事实_Resolver推导failed(self, db_session):
+        user = await _seed_user(db_session)
+        task = ResearchTask(
+            id="task-pending-exhausted",
+            user_id=user.id,
+            topic="exhausted",
+            requirements={"task_type": "analysis"},
+            status="pending",
+            started_at=_now()
+            - timedelta(seconds=settings.PENDING_REDELIVERY_THRESHOLD_SECONDS + 10),
+            redelivery_count=settings.PENDING_REDELIVERY_MAX_RETRIES,
+        )
+        db_session.add(task)
+        await db_session.flush()
+
+        with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
+            with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                recovered = await recover_stale_tasks()
+
+        assert str(task.id) not in recovered  # 不再投递
+        mock_task.delay.assert_not_called()
+        await db_session.refresh(task)
+        assert task.status == "failed"  # 由 Resolver 依据 E3118 failed Step 推导
+        assert task.error_code == "E3118"
+
+        # 受控失败事实已落库
+        from sqlalchemy import select as sa_select
+
+        step = (
+            await db_session.execute(
+                sa_select(ResearchStep).where(
+                    ResearchStep.task_id == task.id,
+                    ResearchStep.error_code == "E3118",
+                )
+            )
+        ).scalar_one_or_none()
+        assert step is not None
+        assert step.status == "failed"
+        assert step.step_type == "planning"
+
+    @pytest.mark.asyncio
+    async def test_pending已有有效租约_跳过(self, db_session):
+        user = await _seed_user(db_session)
+        task = ResearchTask(
+            id="task-pending-leased",
+            user_id=user.id,
+            topic="leased",
+            requirements={"task_type": "analysis"},
+            status="pending",
+            started_at=_now()
+            - timedelta(seconds=settings.PENDING_REDELIVERY_THRESHOLD_SECONDS + 10),
+            lease_owner="worker-1",
+            lease_expires_at=_now() + timedelta(seconds=60),
+            redelivery_count=0,
+        )
+        db_session.add(task)
+        await db_session.flush()
+
+        with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
+            with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                recovered = await recover_stale_tasks()
+
+        assert str(task.id) not in recovered
+        mock_task.delay.assert_not_called()
+        await db_session.refresh(task)
+        assert task.redelivery_count == 0

@@ -130,14 +130,7 @@ class TestAgentRuntimeFlag:
 
         monkeypatch.setattr("app.agent.loop.chat_completion", fake_chat)
 
-        # Mock 任务锁，避免 Redis 依赖
-        monkeypatch.setattr(
-            "app.services.task_lifecycle.acquire_task_lock_async", AsyncMock(return_value=True)
-        )
-        monkeypatch.setattr("app.services.task_lifecycle.release_task_lock_async", AsyncMock())
-        monkeypatch.setattr(
-            "app.services.task_lifecycle.refresh_task_lock_async", AsyncMock(return_value=True)
-        )
+        # 目标态无 Redis 任务锁：start_research_task 只走 DB lease，无需 mock 锁函数
 
         # 将 commit 重定向为 flush，避免污染共享的内存 SQLite 测试库
         monkeypatch.setattr(db_session, "commit", db_session.flush)
@@ -315,14 +308,7 @@ class TestAgentRuntimeFlag:
 
         monkeypatch.setattr("app.agent.loop.chat_completion", fake_chat)
 
-        # Mock 任务锁
-        monkeypatch.setattr(
-            "app.services.task_lifecycle.acquire_task_lock_async", AsyncMock(return_value=True)
-        )
-        monkeypatch.setattr("app.services.task_lifecycle.release_task_lock_async", AsyncMock())
-        monkeypatch.setattr(
-            "app.services.task_lifecycle.refresh_task_lock_async", AsyncMock(return_value=True)
-        )
+        # 目标态无 Redis 任务锁：start_research_task 只走 DB lease
 
         # 将 commit 重定向为 flush
         monkeypatch.setattr(db_session, "commit", db_session.flush)

@@ -74,8 +74,8 @@ def runtime(monkeypatch):
     runtime._agent_context = AgentContext(current_phase="planning")
     runtime._working_memory = WorkingMemory()
     # 绑定租约（切片 E）：本组用例不验证租约门禁，默认放行提交
-    runtime._lock_handle.worker_id = "worker-1"
-    runtime._lock_handle.lease_generation = 1
+    runtime._lease_handle.worker_id = "worker-1"
+    runtime._lease_handle.lease_generation = 1
     monkeypatch.setattr(
         "app.agent.runtime.is_step_commit_allowed",
         AsyncMock(return_value=True),
@@ -140,7 +140,8 @@ class TestRunCancel:
             "app.agent.runtime.agent_memory_service.persist_pending_entries",
             AsyncMock(),
         )
-        runtime._lock_handle = AsyncMock()
+        runtime._lease_handle = AsyncMock()
+        runtime._lease_handle.lease_lost = False
         runtime._finalize_task = AsyncMock()
         runtime._task.execution_context = None
 
@@ -162,7 +163,7 @@ class TestRunCancel:
         chat_mock.assert_not_awaited()
         # 取消只写 cancel_requested_at，安全停止后进入最终化，由 Resolver 推导终态
         runtime._finalize_task.assert_awaited_once()
-        runtime._lock_handle.release.assert_awaited_once()
+        runtime._lease_handle.release.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_未取消_正常进入最终化(self, runtime, monkeypatch):
@@ -187,4 +188,4 @@ class TestRunCancel:
         assert runtime._task.status == "running"
         assert runtime._agent_context.finish_reason == "finished_by_llm"
         runtime._finalize_task.assert_awaited_once()
-        runtime._lock_handle.release.assert_awaited_once()
+        runtime._lease_handle.release.assert_awaited_once()

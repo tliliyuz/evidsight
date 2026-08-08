@@ -66,11 +66,21 @@ def execute_research_task(self, task_id: str) -> dict:
         return result
     except Exception as e:
         logger.exception("Celery 任务执行异常: task_id=%s, error=%s", task_id, e)
-        # 兜底：尝试写入失败状态，保留原异常的 recoverable 语义
+        # 兜底：尝试写入失败状态，保留原异常的 recoverable 语义。
+        # ⚠️ 终态纪律（RESEARCH_PIPELINE §13.5）：正常终态只由 TaskStateResolver
+        # 推导；本路径只在异常逃逸了 AgentRuntime 自身处理（无法进入正常 Resolver）
+        # 时才写 failed，并显式分类。
         try:
             loop = get_worker_loop()
             recoverable = extract_recoverable_from_exception(e)
-            loop.run_until_complete(_emergency_fail(task_id, str(e), recoverable))
+            loop.run_until_complete(
+                _emergency_fail(
+                    task_id,
+                    str(e),
+                    recoverable,
+                    failure_classification="worker_unrecoverable",
+                )
+            )
         except Exception:
             logger.exception("紧急写入失败状态也失败了: task_id=%s", task_id)
         # 禁止将原始异常/SQL 等内部细节返回给调用方
@@ -285,15 +295,24 @@ async def _run_pipeline(task_id: str) -> dict:
 
 
 async def _emergency_fail(
-    task_id: str, error_msg: str | None = None, recoverable: bool = False
+    task_id: str,
+    error_msg: str | None = None,
+    recoverable: bool = False,
+    failure_classification: str = "resolver_unreachable",
 ) -> bool:
-    """兜底：在 Pipeline 完全崩溃时写入失败状态。
+    """兜底：在无法进入正常 TaskStateResolver 推导时写入失败状态。
 
     独立 session，不依赖 Orchestrator 或任何可能出错的对象。
     使用 CAS 仅当 status 为 pending/running 时才更新为 failed，避免覆盖终态。
 
+    ⚠️ 终态纪律（RESEARCH_PIPELINE §13.5）：正常终态只由 TaskStateResolver 推导；
+    本方法只允许在数据库损坏、Resolver 本身不可用等极端情况使用，调用处必须提供
+    显式 `failure_classification`（如 `worker_unrecoverable` / `resolver_unreachable`），
+    不得用于常规业务失败。错误码固定 E3999。
+
     Args:
         error_msg: 原始异常描述，仅用于服务端日志排查，不会写入 task.error_message。
+        failure_classification: 失败分类，用于审计追溯触发场景。
 
     Returns:
         bool: CAS 成功返回 True，失败返回 False。
@@ -320,10 +339,15 @@ async def _emergency_fail(
             emit_task_status_transition("failed", recoverable=recoverable, error_code="E3999")
             if error_msg:
                 logger.warning(
-                    "紧急失败原始信息（服务端记录）: task_id=%s, error=%s",
+                    "紧急失败原始信息（分类=%s，仅限极端情况，服务端记录）: task_id=%s, error=%s",
+                    failure_classification,
                     task_id,
                     error_msg[:1000],
                 )
         else:
-            logger.warning("紧急失败写入 CAS 失败，任务已非 pending/running: task_id=%s", task_id)
+            logger.warning(
+                "紧急失败写入 CAS 失败（分类=%s），任务已非 pending/running: task_id=%s",
+                failure_classification,
+                task_id,
+            )
         return updated

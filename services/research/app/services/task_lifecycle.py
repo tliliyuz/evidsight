@@ -1,12 +1,14 @@
-"""任务生命周期共享原语 —— 锁、CAS 状态转换、紧急失败、租约协议。
+"""任务生命周期共享原语 —— DB 租约、CAS 状态转换、紧急失败。
 
-本模块抽取 PipelineOrchestrator 与 AgentRuntime 共用的低风险原语，
-旧编排器内部方法保持不动，避免测试漂移。
+本模块抽取 AgentRuntime 与 Recovery Scanner 共用的租约协议与状态原语。
 
 租约协议对齐 RESEARCH_PIPELINE §13.1 / DATABASE.md §8 / ADR-008：
+- MySQL 是任务生命周期唯一事实源；Redis/Celery 不作为任务事实来源；
 - Worker 领取与续租使用条件更新（WHERE 匹配当前 owner 与 generation）；
 - Step 提交必须与 Task 的 owner、generation 同事务校验；
-- 失去租约的 Worker 立即停止，不提交业务结果。
+- 失去租约的 Worker 立即停止，不提交业务结果；
+- 终态只能由 TaskStateResolver 依据持久 Step/Evidence/Revision 事实推导；
+  `emergency_fail_task` 仅限无法进入正常 Resolver 的极端情况（显式分类）。
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy import case as sa_case
 from sqlalchemy import or_ as sa_or
 from sqlalchemy import select as sa_select
 from sqlalchemy import update as sa_update
@@ -31,11 +34,6 @@ from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import (
     EVENT_TASK_CREATED,
     SSEBridge,
-)
-from app.tasks.lock import (
-    acquire_task_lock_async,
-    refresh_task_lock_async,
-    release_task_lock_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -203,20 +201,22 @@ async def is_task_ownership_valid(
     return owner == worker_id and gen == generation and status in ("pending", "running")
 
 
-class TaskLockHandle:
-    """任务级幂等锁句柄，负责获取、租约刷新与释放，并承载 DB 租约续租/释放。"""
+class TaskLeaseHandle:
+    """纯 DB 任务租约句柄 —— 续租与释放，不依赖 Redis（ADR-008 §MySQL 唯一权威）。
+
+    续租失败（租约已被并发 Worker / Scanner 夺走或已过期）置 `lease_lost=True`，
+    后续 Provider 调用与 Step 提交必须立即停止，不提交业务结果（§13.1）。
+    释放只清当前 owner 的租约（`release_task_lease` 按 owner 匹配），
+    旧 Worker 的 finally 不会释放新 Worker 的租约。
+    """
 
     def __init__(self, task_id: str):
         self._task_id = task_id
-        self._acquired = False
-        self._refresh_task: asyncio.Task | None = None
         self.worker_id: str | None = None
         self.lease_generation: int | None = None
         self._lease_ttl: int | None = None
-
-    @property
-    def acquired(self) -> bool:
-        return self._acquired
+        self.lease_lost: bool = False
+        self._renew_task: asyncio.Task | None = None
 
     @property
     def lease_bound(self) -> bool:
@@ -224,13 +224,18 @@ class TaskLockHandle:
         return self.worker_id is not None and self.lease_generation is not None
 
     def bind_lease(self, worker_id: str, generation: int, ttl_seconds: int | None = None) -> None:
-        """绑定领取后的租约标识，供续租与提交校验使用（§13.1）。"""
+        """绑定领取后的租约标识并启动后台续租（§13.1）。"""
         self.worker_id = worker_id
         self.lease_generation = generation
         self._lease_ttl = ttl_seconds
+        self.lease_lost = False
+        self._start_renewal()
 
     async def renew_lease(self) -> bool:
-        """续租 DB 租约（独立会话，避免与主流程事务冲突；§13.1）。"""
+        """续租 DB 租约（独立会话，避免与主流程事务冲突；§13.1）。
+
+        续租失败置 `lease_lost=True`，调用方应立即停止后续业务执行。
+        """
         if not self.lease_bound:
             return True
         try:
@@ -243,6 +248,15 @@ class TaskLockHandle:
                     ttl_seconds=self._lease_ttl,
                 )
                 await session.commit()
+            if not ok:
+                self.lease_lost = True
+                logger.warning(
+                    "DB 租约续租失败（租约已失效/被接管），Worker 停止执行: "
+                    "task_id=%s, worker=%s, generation=%s",
+                    self._task_id,
+                    self.worker_id,
+                    self.lease_generation,
+                )
             return ok
         except Exception:
             logger.exception("DB 租约续租异常: task_id=%s", self._task_id)
@@ -262,153 +276,122 @@ class TaskLockHandle:
             self.worker_id = None
             self.lease_generation = None
             self._lease_ttl = None
-
-    async def acquire(self, ttl: int | None = None) -> bool:
-        """获取任务级锁；成功后启动租约刷新。"""
-        if self._acquired:
-            return True
-        locked = await acquire_task_lock_async(self._task_id, ttl=ttl)
-        if locked:
-            self._acquired = True
-            self._start_refresh()
-        return locked
+            self.lease_lost = False
 
     async def release(self) -> None:
-        """停止刷新，释放 DB 租约与任务级锁。"""
-        self._stop_refresh()
+        """停止续租协程并释放 DB 租约（仅当前 owner 生效，不影响新 Worker 租约）。"""
+        self._stop_renewal()
         await self.release_lease()
-        if self._acquired:
-            await release_task_lock_async(self._task_id)
-            self._acquired = False
 
-    def _start_refresh(self) -> None:
-        """启动后台协程定期刷新 Redis 锁 TTL 与 DB 租约。"""
-        if self._refresh_task is not None:
+    def _start_renewal(self) -> None:
+        """启动后台协程定期续租 DB 租约（纯 DB，无 Redis）。"""
+        if self._renew_task is not None:
             return
-        interval = settings.CELERY_LOCK_REFRESH_INTERVAL
+        interval = settings.RESEARCH_TASK_LEASE_RENEW_INTERVAL
 
-        async def _refresh_loop():
-            while True:
+        async def _renew_loop():
+            while not self.lease_lost:
                 await asyncio.sleep(interval)
-                try:
-                    refreshed = await refresh_task_lock_async(self._task_id)
-                    if not refreshed:
-                        logger.warning(
-                            "任务级锁续期失败（锁已不存在），停止刷新: task_id=%s",
-                            self._task_id,
-                        )
-                        break
-                    # DB 租约续租失败意味着租约已失效，停止刷新（§13.1 失去租约即停止）
-                    if self.lease_bound and not await self.renew_lease():
-                        logger.warning(
-                            "DB 租约续租失败（租约已失效），停止刷新: task_id=%s",
-                            self._task_id,
-                        )
-                        break
-                except Exception:
-                    logger.exception("任务级锁续期异常: task_id=%s", self._task_id)
+                if self.lease_lost:
+                    break
+                if not await self.renew_lease():
+                    break
 
-        self._refresh_task = asyncio.create_task(_refresh_loop())
+        self._renew_task = asyncio.create_task(_renew_loop())
         logger.debug(
-            "启动任务级锁租约刷新: task_id=%s, interval=%ss",
+            "启动 DB 租约续租: task_id=%s, interval=%ss",
             self._task_id,
             interval,
         )
 
-    def _stop_refresh(self) -> None:
-        """停止租约刷新协程。"""
-        if self._refresh_task is None:
+    def _stop_renewal(self) -> None:
+        """停止租约续租协程。"""
+        if self._renew_task is None:
             return
-        self._refresh_task.cancel()
-        self._refresh_task = None
-        logger.debug("停止任务级锁租约刷新")
+        self._renew_task.cancel()
+        self._renew_task = None
+        logger.debug("停止 DB 租约续租: task_id=%s", self._task_id)
 
 
 async def start_research_task(
     task: ResearchTask,
     session: AsyncSession,
     sse_bridge: SSEBridge,
-    lock_handle: TaskLockHandle,
+    lease_handle: TaskLeaseHandle,
 ) -> bool:
-    """启动研究任务：pending → running CAS，获取任务锁，修正 total_steps，发送 task.created。
+    """启动研究任务：pending→running 与 DB lease 领取合并为一次条件更新。
+
+    单条条件更新（DATABASE.md §8 / ADR-008）原子完成，无 Redis：
+    - 条件：status IN (pending, running)、未请求取消、租约为空或已过期；
+    - 更新：status=running、started_at（pending 首启取 now，崩溃恢复保留原值）、
+      lease_owner、lease_expires_at、lease_generation+1。
+
+    领取失败（并发 Worker / Scanner 已持有有效租约、任务已终态或已取消）立即返回
+    False，不执行业务步骤、不触碰 Redis。旧 Worker 的迟到提交由 generation 条件拒绝。
 
     Args:
         task: 已加载的 ResearchTask
         session: 异步 DB session
         sse_bridge: SSE 桥接器
-        lock_handle: 任务锁句柄
+        lease_handle: 纯 DB 租约句柄（绑定 worker_id/generation 供续租与提交校验）
 
     Returns:
-        True: 成功启动/恢复并持有锁
-        False: 未成功启动（锁被占或 CAS 失败）
+        True: 成功启动/恢复并持有租约
+        False: 领取失败（条件不满足），放弃启动
     """
     task_id = str(task.id)
     await session.refresh(task)
     current_status = task.status
     now = datetime.now(timezone.utc)
+    ttl = settings.RESEARCH_TASK_LEASE_TTL_SECONDS
 
-    if current_status == "pending":
-        locked = await lock_handle.acquire()
-        if not locked:
-            logger.warning("正常路径获取任务级锁失败，尝试强制释放残留锁: task_id=%s", task_id)
-            await release_task_lock_async(task_id)
-            locked = await lock_handle.acquire()
-            if not locked:
-                logger.error(
-                    "强制释放残留锁后仍无法获取任务级锁，但仍提交 running "
-                    "交由超时监察者兜底: task_id=%s",
-                    task_id,
-                )
-
-        result = await session.execute(
-            sa_update(ResearchTask)
-            .where(ResearchTask.id == task_id, ResearchTask.status == "pending")
-            .values(status="running", started_at=now)
-        )
-        if result.rowcount == 0:
-            logger.warning("CAS 失败：任务状态已非 pending，释放锁并跳过: task_id=%s", task_id)
-            await lock_handle.release()
-            return False
-        await session.commit()
-        await session.refresh(task)
-
-        if not locked:
-            logger.warning(
-                "task 已进入 running 但未持有锁，等待超时监察者介入: task_id=%s", task_id
-            )
-            return False
-
-    elif current_status == "running":
-        logger.warning("任务处于 running，进入崩溃恢复路径: task_id=%s", task_id)
-        if not await lock_handle.acquire():
-            logger.warning("崩溃恢复时任务级锁已被占用，跳过: task_id=%s", task_id)
-            return False
-
-    else:
-        logger.warning("任务状态不支持启动: task_id=%s, status=%s", task_id, current_status)
-        return False
-
-    # 领取 DB 租约（§13.1 / DATABASE.md §8）：pending 与崩溃恢复路径统一在此领取
-    # 新 generation。条件更新失败（并发 Worker / 扫描器已持有有效租约）说明已被接管，
-    # 放弃启动并释放锁，避免双 Worker 同时执行。
     worker_id = new_worker_id()
-    generation = await claim_task_lease(session, task_id, worker_id)
-    if generation is None:
+    result = await session.execute(
+        sa_update(ResearchTask)
+        .where(
+            ResearchTask.id == task_id,
+            ResearchTask.status.in_(["pending", "running"]),
+            ResearchTask.cancel_requested_at.is_(None),
+            sa_or(
+                ResearchTask.lease_expires_at.is_(None),
+                ResearchTask.lease_expires_at < now,
+            ),
+        )
+        .values(
+            status="running",
+            # SET 表达式求值于更新前的行：pending 首启取 now，running 恢复保留原 started_at
+            started_at=sa_case(
+                (ResearchTask.status == "pending", now),
+                else_=ResearchTask.started_at,
+            ),
+            lease_owner=worker_id,
+            lease_expires_at=now + timedelta(seconds=ttl),
+            lease_generation=ResearchTask.lease_generation + 1,
+        )
+    )
+    if result.rowcount == 0:
         logger.warning(
-            "租约领取失败（条件不满足），放弃启动: task_id=%s, worker=%s",
+            "租约领取失败（条件不满足，并发 Worker/Scanner 已持有或任务已终态/取消），"
+            "放弃启动: task_id=%s, worker=%s",
             task_id,
             worker_id,
         )
-        await lock_handle.release()
         return False
-    lock_handle.bind_lease(worker_id, generation)
+
+    # 读取递增后的 generation
+    row = await session.execute(
+        sa_select(ResearchTask.lease_generation).where(ResearchTask.id == task_id)
+    )
+    generation = row.scalar_one_or_none()
+    lease_handle.bind_lease(worker_id, generation, ttl_seconds=ttl)
     await session.commit()
     await session.refresh(task)
     logger.info(
-        "Worker 已领取租约: task_id=%s, worker=%s, generation=%s",
+        "Worker 已领取租约: task_id=%s, worker=%s, generation=%s, ttl=%ss",
         task_id,
         worker_id,
         generation,
+        ttl,
     )
 
     # 修正旧任务 total_steps
@@ -423,7 +406,7 @@ async def start_research_task(
             len(PHASE_ORDER),
         )
 
-    # 仅正常启动路径发送 task.created
+    # 仅正常启动路径（pending 首启）发送 task.created
     if current_status == "pending":
         await sse_bridge.publish(
             EVENT_TASK_CREATED,
@@ -492,8 +475,16 @@ async def emergency_fail_task(
     error_code: str = "E3999",
     error_message: str = "未预期的内部错误，请稍后重试",
     recoverable: bool = False,
+    failure_classification: str = "resolver_unreachable",
 ) -> bool:
-    """在 session 内将任务状态 CAS 更新为 failed。"""
+    """在 session 内将任务状态 CAS 更新为 failed。
+
+    ⚠️ 终态纪律（RESEARCH_PIPELINE §13.5）：正常终态只能由 TaskStateResolver 依据
+    持久 Step/Evidence/Revision 事实推导。本方法只允许在无法进入正常 Resolver 的
+    极端情况（数据库损坏、Resolver 本身不可用）使用，调用处必须提供显式
+    `failure_classification`（如 `resolver_unreachable` / `database_corruption`），
+    不得用于常规业务失败。错误码固定 E3999。
+    """
     now = datetime.now(timezone.utc)
     updated = await cas_update_task_status(
         session,
@@ -506,7 +497,16 @@ async def emergency_fail_task(
         recoverable=recoverable,
     )
     if updated:
-        logger.warning("紧急失败写入成功: task_id=%s, error_code=%s", task_id, error_code)
+        logger.warning(
+            "紧急失败写入成功（分类=%s，仅限极端情况）: task_id=%s, error_code=%s",
+            failure_classification,
+            task_id,
+            error_code,
+        )
     else:
-        logger.warning("紧急失败写入 CAS 失败，任务已非 pending/running: task_id=%s", task_id)
+        logger.warning(
+            "紧急失败写入 CAS 失败（分类=%s），任务已非 pending/running: task_id=%s",
+            failure_classification,
+            task_id,
+        )
     return updated

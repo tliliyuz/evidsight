@@ -106,6 +106,13 @@ class ResearchTask(Base):
         nullable=False,
         comment="恢复扫描次数，每次 Recovery Scanner 处理递增",
     )
+    redelivery_count: Mapped[int] = mapped_column(
+        sa.Integer,
+        default=0,
+        server_default=sa.text("0"),
+        nullable=False,
+        comment="pending 重投递次数（RESEARCH_PIPELINE §13.6），条件递增且非负",
+    )
     last_completed_step_id: Mapped[str | None] = mapped_column(
         sa.String(36),
         default=None,

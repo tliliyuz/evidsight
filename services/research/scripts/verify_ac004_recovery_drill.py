@@ -8,7 +8,7 @@
 
 演练步骤（对齐 RESEARCH_PIPELINE §13.5 / DATABASE.md §8）：
 1. 对每个 running 任务把 lease_expires_at 置为过期（模拟 Worker 崩溃）；
-2. 调用 recover_stale_tasks(check_lock=False)；
+2. 调用 recover_stale_tasks()；
 3. 检查任务被重新投递（recovery_count 递增、旧 owner 清除），
    若之后再达终态视为恢复成功，否则视为失败。
 
@@ -104,7 +104,7 @@ async def _drill_one(task_id: str) -> tuple[bool, str]:
         await session.commit()
 
     # 2. 运行恢复扫描（内部使用独立会话，条件领取 + 递增 recovery_count）
-    recovered_ids = await recover_stale_tasks(check_lock=False)
+    recovered_ids = await recover_stale_tasks()
     if task_id not in recovered_ids:
         return False, f"{task_id}: 恢复扫描未重新投递"
 

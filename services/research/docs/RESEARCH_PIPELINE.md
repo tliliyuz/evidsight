@@ -387,6 +387,18 @@ Scanner 查找 running 且租约过期的 Task，锁定后再次确认状态和 
 
 Redis 消息丢失或重复不改变 MySQL 完成事实。启动扫描、周期扫描和手动恢复必须调用同一恢复服务，避免三套逻辑分叉。
 
+Recovery Scanner、API watcher 与 Celery 顶层异常一律不得直接写终态；终态只能由 `TaskStateResolver` 依据持久化 Step、Evidence、Revision、取消请求、完整度与错误事实计算。`emergency_fail_task`（`app/services/task_lifecycle.py`）与 Celery 顶层 `_emergency_fail`（`app/tasks/research_task.py`）只允许在无法进入正常 Resolver 推导的极端情况（如数据库损坏、Resolver 本身不可用）使用，错误码固定 `E3999`，调用处必须显式记录失败分类与原因，不得用于常规业务失败。
+
+### 13.6 Pending 重投递与受控失败
+
+Worker 未拾取的 pending 任务（投递丢失、无 Worker 在线或 Worker 在领取前崩溃）由同一恢复服务周期重投，不直接把长时间 pending 判定为失败：
+
+1. 扫描条件：`status='pending'`、无有效租约（`lease_expires_at` 为空或已过期）、超过 `PENDING_REDELIVERY_THRESHOLD_SECONDS` 阈值。
+2. 重投 `research.execute`（与 API 创建共用执行队列），并在同一条件更新中递增 `redelivery_count`（仅当仍 `pending` 且无有效租约时生效）；重复投递与并发扫描由 DB 租约条件领取收敛，只有一个 Worker 能领取。
+3. 超过 `PENDING_REDELIVERY_MAX_RETRIES` 后不再重投，创建**受控失败事实**：为任务写入一条 `planning` Step（`status='failed'`、`error_code='E3118'`、安全错误摘要），再由 `TaskStateResolver` 依据该 Step 事实推导 `failed` 终态。不得由扫描器直接写终态。
+
+配置值（阈值、最大重投次数）由部署配置定义并登记到 `docs/specs/CONFIGURATION.md`，不硬编码在业务逻辑。
+
 ## 14. 预算、背压与资源约束
 
 Task 创建时冻结最大子问题数、搜索结果数、Fetch 数、LLM Token、Provider 调用、估算成本、Agent 迭代和总时限。每次外部调用前预留预算，完成后结算实际用量；无法预留则停止新调用。
@@ -454,6 +466,8 @@ Research SSE 是持久任务订阅，断开不取消 Task。事件由数据库�
 16. Redis 丢失、重复投递和 Recovery Scanner 重复运行不产生重复完成结果。
 17. Web URL 的私网、重定向绕过、DNS rebinding、超大响应和危险 Content-Type 均被拒绝。
 18. Provider 限流遵守 Retry-After 和预算；重试耗尽后按策略进入 paused、partial 或 failed。
+19. Pending 任务超过阈值后由周期扫描重投，重复投递由 DB 租约条件领取收敛；超过最大重投次数后创建受控失败事实，由 `TaskStateResolver` 推导 `failed`，扫描器不直接写终态。
+20. 任意 watchdog、Recovery Scanner 或 Celery 顶层异常都不绕过 `TaskStateResolver` 写终态；`emergency_fail` 仅限数据库损坏等无法进入 Resolver 的极端情况。
 
 ### 17.4 契约与边界
 

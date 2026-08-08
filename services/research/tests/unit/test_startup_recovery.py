@@ -1,14 +1,14 @@
-"""启动时 / Worker 就绪时过时任务恢复测试 — recover_stale_tasks。
+"""启动时 / Worker 就绪时过时任务恢复测试 — recover_stale_tasks（纯 DB lease）。
 
 覆盖场景：
 - 无 running 任务
-- 有过时任务且锁不存在（重新投递）
-- 有过时任务但锁仍存在（跳过）
-- 阈值内任务不过时
+- 有过时任务（租约过期/为空）→ 重新投递
+- 有效租约存在 → 不过时不投递
 - 非 running 状态不投递
 - 启动恢复被禁用
 - 查询异常不阻塞
 - 投递异常不阻塞后续任务
+- 手动治理 / 启动 / Beat 共用同一恢复服务
 """
 
 from datetime import datetime, timedelta, timezone
@@ -56,7 +56,7 @@ async def _seed_user(db_session):
 
 
 class TestRecoverStaleTasks:
-    """recover_stale_tasks 核心逻辑测试。"""
+    """recover_stale_tasks 核心逻辑测试（纯 DB lease，无 Redis）。"""
 
     @pytest.mark.asyncio
     async def test_无running任务_不投递(self, db_session):
@@ -64,13 +64,13 @@ class TestRecoverStaleTasks:
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
             with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                recovered = await recover_stale_tasks(check_lock=False)
+                recovered = await recover_stale_tasks()
 
         assert recovered == []
         mock_task.delay.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_有过时running任务且锁不存在_重新投递(self, db_session):
+    async def test_有过时running任务_租约为空_重新投递(self, db_session):
         user = await _seed_user(db_session)
         task = ResearchTask(
             user_id=user.id,
@@ -78,71 +78,51 @@ class TestRecoverStaleTasks:
             requirements={"task_type": "analysis"},
             status="running",
             started_at=datetime.now(timezone.utc) - timedelta(seconds=300),
+            lease_owner=None,
+            lease_expires_at=None,
         )
         db_session.add(task)
         await db_session.flush()
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
-            with patch("app.tasks.recovery.check_task_lock_async", return_value=False):
-                with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                    recovered = await recover_stale_tasks(check_lock=True)
+            with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                recovered = await recover_stale_tasks()
 
         assert recovered == [str(task.id)]
         mock_task.delay.assert_called_once_with(str(task.id))
 
     @pytest.mark.asyncio
-    async def test_有过时running任务但锁存在_跳过(self, db_session):
+    async def test_有过时running任务_租约过期_重新投递(self, db_session):
         user = await _seed_user(db_session)
         task = ResearchTask(
             user_id=user.id,
-            topic="锁仍存在",
+            topic="过时任务",
             requirements={"task_type": "analysis"},
             status="running",
             started_at=datetime.now(timezone.utc) - timedelta(seconds=300),
+            lease_owner="worker-old",
+            lease_expires_at=datetime.now(timezone.utc) - timedelta(seconds=30),
+            lease_generation=1,
         )
         db_session.add(task)
         await db_session.flush()
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
-            with patch("app.tasks.recovery.check_task_lock_async", return_value=True):
-                with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                    recovered = await recover_stale_tasks(check_lock=True)
-
-        assert recovered == []
-        mock_task.delay.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_check_lock为False时不检查锁_直接投递(self, db_session):
-        user = await _seed_user(db_session)
-        task = ResearchTask(
-            user_id=user.id,
-            topic="不检查锁",
-            requirements={"task_type": "analysis"},
-            status="running",
-            started_at=datetime.now(timezone.utc) - timedelta(seconds=300),
-        )
-        db_session.add(task)
-        await db_session.flush()
-
-        with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
-            with patch("app.tasks.recovery.check_task_lock_async") as mock_check:
-                with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                    recovered = await recover_stale_tasks(check_lock=False)
+            with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                recovered = await recover_stale_tasks()
 
         assert recovered == [str(task.id)]
-        mock_check.assert_not_called()
         mock_task.delay.assert_called_once_with(str(task.id))
 
     @pytest.mark.asyncio
-    async def test_阈值内running任务_不过时不投递(self, db_session):
+    async def test_有效租约存在_不过时不投递(self, db_session):
         user = await _seed_user(db_session)
         task = ResearchTask(
             user_id=user.id,
-            topic="阈值内任务",
+            topic="有效租约",
             requirements={"task_type": "analysis"},
             status="running",
-            started_at=datetime.now(timezone.utc) - timedelta(seconds=10),
-            # 租约未过期（§13.5：按 (status, lease_expires_at) 扫描，非 started_at）
+            started_at=datetime.now(timezone.utc) - timedelta(seconds=300),
             lease_owner="worker-1",
             lease_expires_at=datetime.now(timezone.utc) + timedelta(seconds=300),
             lease_generation=1,
@@ -152,7 +132,7 @@ class TestRecoverStaleTasks:
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
             with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                recovered = await recover_stale_tasks(check_lock=False)
+                recovered = await recover_stale_tasks()
 
         assert recovered == []
         mock_task.delay.assert_not_called()
@@ -173,7 +153,7 @@ class TestRecoverStaleTasks:
 
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
             with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                recovered = await recover_stale_tasks(check_lock=False)
+                recovered = await recover_stale_tasks()
 
         assert recovered == []
         mock_task.delay.assert_not_called()
@@ -193,7 +173,7 @@ class TestRecoverStaleTasks:
 
         with patch("app.tasks.recovery.settings.STARTUP_RECOVERY_ENABLED", False):
             with patch("app.tasks.research_task.execute_research_task") as mock_task:
-                recovered = await recover_stale_tasks(check_lock=False)
+                recovered = await recover_stale_tasks()
 
         assert recovered == []
         mock_task.delay.assert_not_called()
@@ -204,7 +184,7 @@ class TestRecoverStaleTasks:
             "app.tasks.recovery.async_session_factory",
             side_effect=RuntimeError("DB 连接失败"),
         ):
-            recovered = await recover_stale_tasks(check_lock=False)
+            recovered = await recover_stale_tasks()
 
         assert recovered == []
 
@@ -217,6 +197,8 @@ class TestRecoverStaleTasks:
             requirements={"task_type": "analysis"},
             status="running",
             started_at=datetime.now(timezone.utc) - timedelta(seconds=300),
+            lease_owner=None,
+            lease_expires_at=None,
         )
         task2 = ResearchTask(
             user_id=user.id,
@@ -224,6 +206,8 @@ class TestRecoverStaleTasks:
             requirements={"task_type": "analysis"},
             status="running",
             started_at=datetime.now(timezone.utc) - timedelta(seconds=300),
+            lease_owner=None,
+            lease_expires_at=None,
         )
         db_session.add(task1)
         db_session.add(task2)
@@ -232,7 +216,7 @@ class TestRecoverStaleTasks:
         with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
             with patch("app.tasks.research_task.execute_research_task") as mock_task:
                 mock_task.delay.side_effect = [RuntimeError("投递失败"), None]
-                recovered = await recover_stale_tasks(check_lock=False)
+                recovered = await recover_stale_tasks()
 
         assert mock_task.delay.call_count == 2
         assert recovered == [str(task2.id)]
@@ -246,4 +230,5 @@ class TestMainStartupRecovery:
         with patch("app.main.recover_stale_tasks", return_value=["task-1"]) as mock_recover:
             await _recover_stale_tasks()
 
-        mock_recover.assert_awaited_once_with(check_lock=False)
+        # 启动恢复调用同一恢复服务（无 check_lock，纯 DB lease）
+        mock_recover.assert_awaited_once_with()

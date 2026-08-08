@@ -40,6 +40,7 @@ FATAL_STEP_ERROR_CODES = frozenset(
         "E3109",  # LLMRateLimit — LLM API 限流
         "E3110",  # LLMAuthFailed — LLM 认证失败（重试无意义）
         "E3111",  # LLMUnknown — LLM 调用返回未预期错误
+        "E3118",  # PendingRedeliveryExhausted — pending 重投递超上限的受控失败事实（§13.6）
     }
 )
 

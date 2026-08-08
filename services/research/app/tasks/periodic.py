@@ -1,8 +1,10 @@
 """
-Celery Beat 定时任务 —— 数据 TTL 清理。
+Celery Beat 定时任务 —— 数据 TTL 清理 + 周期恢复扫描。
 
 任务：
 - cleanup_old_research_tasks: 删除已完成超过 N 天的研究任务（DB 级联删除子表 + Redis 孤儿锁清理）
+- recover_expired_research_tasks: 周期 Recovery Scanner（RESEARCH_PIPELINE §13.5/§13.6，
+  纯 DB lease 恢复过期 running 任务 + pending 重投递）
 
 调度入口：app/tasks/celery_app.py 的 beat_schedule。
 """
@@ -22,6 +24,37 @@ from app.tasks.event_loop import get_worker_loop
 from app.tasks.lock import KEY_PREFIX, TASK_LOCK_PREFIX
 
 logger = logging.getLogger(__name__)
+
+
+@celery_app.task(
+    name="app.tasks.periodic.recover_expired_research_tasks",
+    bind=True,
+    max_retries=1,
+    default_retry_delay=60,
+)
+def recover_expired_research_tasks(self) -> dict:
+    """周期 Recovery Scanner：恢复租约过期的 running 任务并重投递长时间 pending 任务。
+
+    与 API 启动、Worker 就绪、手动治理调用同一恢复服务
+    （app.tasks.recovery.recover_stale_tasks，纯 DB lease，不依赖 Redis）。
+    投递失败的任务保持可再次被扫描发现，不留 scanner owner 占用。
+    """
+    from app.tasks.event_loop import get_worker_loop
+    from app.tasks.recovery import recover_stale_tasks
+
+    try:
+        recovered = get_worker_loop().run_until_complete(recover_stale_tasks())
+    except Exception as exc:
+        logger.exception("[recovery] 周期恢复扫描失败")
+        raise self.retry(exc=exc, countdown=60) from exc
+
+    if recovered:
+        logger.warning(
+            "[recovery] 周期扫描：已恢复/重投递 %d 个任务: %s", len(recovered), recovered
+        )
+    else:
+        logger.info("[recovery] 周期扫描完成：无待恢复任务")
+    return {"recovered_tasks": len(recovered)}
 
 
 @celery_app.task(name="app.tasks.periodic.cleanup_old_research_tasks", bind=True, max_retries=3)

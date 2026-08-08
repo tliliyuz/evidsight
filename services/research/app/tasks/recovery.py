@@ -1,19 +1,27 @@
-"""Worker 崩溃恢复逻辑 —— 按数据库租约扫描。
+"""Worker 崩溃恢复与 pending 重投递 —— 按数据库租约扫描（纯 DB，无 Redis）。
 
-提供启动恢复和 Worker 就绪恢复两种入口：
-- 启动恢复：FastAPI lifespan 启动时调用
-- Worker 就绪恢复：Celery Worker 启动完成时调用
+提供三种统一入口（RESEARCH_PIPELINE §13.5）：
+- API 启动恢复：FastAPI lifespan 启动时调用；
+- Worker 就绪恢复：Celery Worker 启动完成时调用；
+- 周期扫描：Celery Beat 周期调用（`RESEARCH_RECOVERY_SCAN_INTERVAL_SECONDS`）。
 
-恢复语义对齐 RESEARCH_PIPELINE §13.5 / DATABASE.md §8 / ADR-008：
-1. Scanner 按 (status='running', lease_expires_at) 查找租约过期或为空的运行任务；
-2. 锁定后再次确认租约过期（条件更新领取，防止与新 Worker 竞争）；
+恢复语义对齐 RESEARCH_PIPELINE §13.5/§13.6、DATABASE.md §8、ADR-008：
+1. Scanner 按 `(status='running', lease_expires_at 为空或已过期)` 查找过期运行任务；
+2. 条件领取 scanner generation 再次确认租约过期（防止与新 Worker 竞争）；
 3. 将遗留 running Step 置为 retrying（或按重试上限 failed）；
-4. 清除旧 owner、递增恢复计数并重新投递到 research.execute（与 API 创建共用执行队列）；
-5. 启动扫描、周期扫描和手动恢复必须调用同一恢复服务。
+4. 清除旧 owner、递增恢复计数并重新投递到 `research.execute`
+   （与 API 创建共用执行队列，不使用独立 recovery 队列）；
+5. pending 任务超过阈值且无有效租约 → 递增 `redelivery_count` 并重投；
+   超过最大重投次数 → 创建受控失败事实（`planning` failed Step E3118），
+   由 `TaskStateResolver` 推导 `failed` 终态，扫描器不直接写终态；
+6. 启动扫描、周期扫描和手动恢复必须调用同一恢复服务。
+
+终态纪律：Scanner 不直接写终态；重投递失败时任务保持可再次被扫描发现，
+不留永久被 scanner owner 占用的租约。
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import or_ as sa_or
 from sqlalchemy import select as sa_select
@@ -21,19 +29,15 @@ from sqlalchemy import update as sa_update
 
 from app.config import settings
 from app.core.database import async_session_factory
+from app.core.task_state_resolver import TaskStateResolver
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
-from app.tasks.lock import check_task_lock_async
 
 logger = logging.getLogger(__name__)
 
 
-async def recover_stale_tasks(check_lock: bool = True) -> list[str]:
-    """扫描并按租约过期恢复过时 running 任务。
-
-    Args:
-        check_lock: 是否检查任务级锁。True 时只有锁不存在才恢复；
-                    False 时仅按租约过期恢复（用于启动恢复兜底）。
+async def recover_stale_tasks() -> list[str]:
+    """扫描并恢复过时 running 任务 + 重投递长时间 pending 任务（纯 DB lease）。
 
     Returns:
         重新投递的任务 ID 列表
@@ -45,7 +49,8 @@ async def recover_stale_tasks(check_lock: bool = True) -> list[str]:
     now = datetime.now(timezone.utc)
     try:
         async with async_session_factory() as session:
-            result = await session.execute(
+            # 1. 租约过期 / 为空的 running 任务
+            running_result = await session.execute(
                 sa_select(ResearchTask.id)
                 .where(
                     ResearchTask.status == "running",
@@ -56,33 +61,39 @@ async def recover_stale_tasks(check_lock: bool = True) -> list[str]:
                 )
                 .order_by(ResearchTask.started_at)
             )
-            candidate_ids = [row[0] for row in result.all()]
+            candidate_ids = [str(row[0]) for row in running_result.all()]
+
+            # 2. 超过阈值仍 pending、无有效租约的任务（§13.6）
+            pending_threshold = now - timedelta(
+                seconds=settings.PENDING_REDELIVERY_THRESHOLD_SECONDS
+            )
+            pending_result = await session.execute(
+                sa_select(ResearchTask.id).where(
+                    ResearchTask.status == "pending",
+                    ResearchTask.started_at.is_not(None),
+                    ResearchTask.started_at < pending_threshold,
+                    sa_or(
+                        ResearchTask.lease_expires_at.is_(None),
+                        ResearchTask.lease_expires_at < now,
+                    ),
+                )
+            )
+            stale_pending_ids = [str(row[0]) for row in pending_result.all()]
     except Exception:
-        logger.exception("扫描租约过期的 running 任务失败")
+        logger.exception("扫描租约过期 / pending 任务失败")
         return recovered
 
-    if not candidate_ids:
-        logger.info("未发现租约过期的 running 任务")
+    if not candidate_ids and not stale_pending_ids:
+        logger.info("未发现租约过期或需重投递的任务")
         return recovered
 
     # 局部导入避免循环依赖
     from app.tasks.research_task import execute_research_task
 
     for task_id in candidate_ids:
-        task_id = str(task_id)
         try:
-            if check_lock:
-                lock_exists = await check_task_lock_async(task_id)
-                if lock_exists:
-                    logger.info(
-                        "任务级锁仍存在，跳过恢复（可能仍有 Worker 执行）: task_id=%s",
-                        task_id,
-                    )
-                    continue
-
             async with async_session_factory() as session:
-                # 锁定并再次确认租约过期：条件更新领取（只有仍过期/为空才成功），
-                # 防止与已恢复的新 Worker 竞争。
+                # 条件领取 scanner generation：只有仍过期/为空才成功，防止与已恢复的新 Worker 竞争
                 claimed = await _claim_expired_lease(session, task_id, "recovery-scanner")
                 if not claimed:
                     logger.info(
@@ -108,11 +119,127 @@ async def recover_stale_tasks(check_lock: bool = True) -> list[str]:
         except Exception:
             logger.exception("重新投递租约过期任务失败: task_id=%s", task_id)
 
+    for task_id in stale_pending_ids:
+        try:
+            outcome = await _handle_stale_pending(task_id)
+            if outcome == "redispatched":
+                execute_research_task.delay(task_id)
+                recovered.append(task_id)
+                logger.warning(
+                    "pending 任务已重投: task_id=%s, redelivery_count 已递增",
+                    task_id,
+                )
+            elif outcome == "failed":
+                logger.warning(
+                    "pending 任务重投超过上限，已创建受控失败事实并由 Resolver 推导终态: "
+                    "task_id=%s",
+                    task_id,
+                )
+        except Exception:
+            logger.exception("pending 重投递处理失败: task_id=%s", task_id)
+
     return recovered
 
 
+async def _handle_stale_pending(task_id: str) -> str:
+    """处理超过阈值仍 pending 且无有效租约的任务（RESEARCH_PIPELINE §13.6）。
+
+    - `redelivery_count` < 上限：条件递增计数并重投；
+    - 达到上限：创建受控失败事实（planning failed Step E3118），
+      由 TaskStateResolver 推导 `failed` 终态。
+
+    Returns:
+        "redispatched" / "failed" / "skipped"
+    """
+    now = datetime.now(timezone.utc)
+    async with async_session_factory() as session:
+        task = await session.get(ResearchTask, task_id)
+        if task is None or task.status != "pending":
+            return "skipped"
+        # 并发 Worker 可能已领取：有有效租约则跳过
+        if task.lease_expires_at is not None and task.lease_expires_at >= now:
+            return "skipped"
+
+        if task.redelivery_count < settings.PENDING_REDELIVERY_MAX_RETRIES:
+            # 条件递增：仅仍 pending 且无有效租约时生效（幂等）
+            result = await session.execute(
+                sa_update(ResearchTask)
+                .where(
+                    ResearchTask.id == task_id,
+                    ResearchTask.status == "pending",
+                    sa_or(
+                        ResearchTask.lease_expires_at.is_(None),
+                        ResearchTask.lease_expires_at < datetime.now(timezone.utc),
+                    ),
+                )
+                .values(redelivery_count=ResearchTask.redelivery_count + 1)
+            )
+            await session.commit()
+            return "redispatched" if result.rowcount > 0 else "skipped"
+
+        # 超过最大重投次数：受控失败事实 → Resolver 推导终态（扫描器不直接写终态）
+        await _create_pending_failure_fact(session, task)
+        await session.commit()
+        return "failed"
+
+
+async def _create_pending_failure_fact(session, task: ResearchTask) -> None:
+    """创建 planning failed Step（E3118）作为受控失败事实，并由 Resolver 推导终态。
+
+    E3118 在 `TaskStateResolver.FATAL_STEP_ERROR_CODES` 中，因此 Resolver
+    依据该 Step 事实推导 `failed`。扫描器只创建事实并执行 Resolver 的推导结果，
+    不自行写死终态（RESEARCH_PIPELINE §13.5/§13.6）。
+    """
+    now = datetime.now(timezone.utc)
+    failure_step = ResearchStep(
+        task_id=task.id,
+        step_type="planning",
+        status="failed",
+        error_code="E3118",
+        error_message="任务长时间未被 Worker 拾取，pending 重投递超过上限，已判定失败",
+        started_at=now,
+        completed_at=now,
+    )
+    session.add(failure_step)
+    await session.flush()
+
+    resolver = TaskStateResolver()
+    new_status, error_info = resolver.resolve(
+        task,
+        steps=[failure_step],
+        evidence_count=0,
+        published_completeness=None,
+    )
+
+    values: dict = {
+        "status": new_status,
+        "completed_at": datetime.now(timezone.utc),
+    }
+    if error_info:
+        values["error_code"] = error_info.get("error_code")
+        values["error_message"] = error_info.get("error_message")
+        values["recoverable"] = error_info.get("recoverable", False)
+
+    await session.execute(
+        sa_update(ResearchTask)
+        .where(ResearchTask.id == task.id, ResearchTask.status == "pending")
+        .values(**values)
+    )
+    logger.warning(
+        "pending 重投递超限，受控失败事实已创建并由 Resolver 推导: task_id=%s, status=%s",
+        task.id,
+        new_status,
+    )
+
+
 async def _claim_expired_lease(session, task_id: str, worker_id: str) -> bool:
-    """条件领取租约，用于再次确认租约确实过期（与 §13.1 同一领取语义）。"""
+    """条件领取租约，用于再次确认租约确实过期（与 §13.1 同一领取语义）。
+
+    `lease_expires_at` 推到未来（租约时长），使并发 Scanner 的 WHERE
+    （租约已过期）不命中，保证「两个 Scanner 并发只恢复一次」；
+    提交后由 `_clear_owner_and_increment_recovery` 清除 owner/过期时间，
+    任务保持可再次被扫描发现，不留 scanner owner 占用。
+    """
     now = datetime.now(timezone.utc)
 
     result = await session.execute(
@@ -128,7 +255,7 @@ async def _claim_expired_lease(session, task_id: str, worker_id: str) -> bool:
         )
         .values(
             lease_owner=worker_id,
-            lease_expires_at=now,
+            lease_expires_at=now + timedelta(seconds=settings.RESEARCH_TASK_LEASE_TTL_SECONDS),
             lease_generation=ResearchTask.lease_generation + 1,
         )
     )

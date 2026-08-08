@@ -61,7 +61,7 @@ from app.services.pipeline_orchestrator import (
     STEP_TYPE_TO_PHASE,
 )
 from app.services.task_lifecycle import (
-    TaskLockHandle,
+    TaskLeaseHandle,
     is_step_commit_allowed,
     is_task_ownership_valid,
     load_task_steps,
@@ -97,7 +97,7 @@ class AgentRuntime:
         )
 
         self._resolver = TaskStateResolver()
-        self._lock_handle = TaskLockHandle(str(task.id))
+        self._lease_handle = TaskLeaseHandle(str(task.id))
         self._agent_context: AgentContext | None = None
         self._working_memory: WorkingMemory | None = None
         self._phase_controller: PhaseController | None = None
@@ -128,7 +128,7 @@ class AgentRuntime:
         task_id = str(self._task.id)
         try:
             started = await start_research_task(
-                self._task, self._session, self._sse, self._lock_handle
+                self._task, self._session, self._sse, self._lease_handle
             )
             if not started:
                 logger.warning("任务未成功启动，停止 Agent Runtime: task_id=%s", task_id)
@@ -184,7 +184,7 @@ class AgentRuntime:
             logger.exception("Agent Runtime 致命错误: task_id=%s, error=%s", task_id, e)
             await self._handle_fatal_error(e)
         finally:
-            await self._lock_handle.release()
+            await self._lease_handle.release()
 
     async def _load_or_create_context(self) -> tuple[AgentContext, WorkingMemory]:
         """从 DB 或 execution_context 恢复或新建 AgentContext / WorkingMemory。"""
@@ -227,8 +227,8 @@ class AgentRuntime:
         失去租约（owner/generation 不匹配、任务终止或已取消）的 Worker 立即停止，
         不提交业务结果；取消请求同样拒绝后续业务提交。
         """
-        worker_id = self._lock_handle.worker_id
-        generation = self._lock_handle.lease_generation
+        worker_id = self._lease_handle.worker_id
+        generation = self._lease_handle.lease_generation
         if worker_id is None or generation is None:
             raise LeaseLostError(
                 f"Worker 未领取任务租约，禁止提交业务结果: task_id={self._task.id}"
@@ -250,8 +250,8 @@ class AgentRuntime:
         与 Step 提交门禁不同：取消已请求时允许推导终态（Resolver 判定 canceled /
         partially_completed），因此只校验 owner/generation 匹配且任务非终态。
         """
-        worker_id = self._lock_handle.worker_id
-        generation = self._lock_handle.lease_generation
+        worker_id = self._lease_handle.worker_id
+        generation = self._lease_handle.lease_generation
         if worker_id is None or generation is None:
             raise LeaseLostError(f"Worker 未领取任务租约，禁止推导终态: task_id={self._task.id}")
         allowed = await is_task_ownership_valid(
@@ -268,6 +268,13 @@ class AgentRuntime:
 
     async def _execute_tool(self, tool: Tool, tool_call: ToolCall) -> ToolExecutionResult:
         """AgentLoop 的 Tool 执行回调：创建 Step → 预留预算 → 执行 Tool → 结算 → 持久化。"""
+        # 续租失败即失去租约（§13.1）：后续 Provider 调用与业务写入立即停止，
+        # 由 Recovery Scanner 接管，不提交新业务结果。
+        if self._lease_handle.lease_lost:
+            raise LeaseLostError(
+                f"Worker 已失去任务租约（续租失败），停止后续调用: task_id={self._task.id}"
+            )
+
         # 预算预留（§14）：无法预留则停止新调用。
         # 总时限到期同样视为预算停止（S2）：标记 budget_stopped_at，使 Resolver
         # 按预算停止推导终态、报告披露缺失，而非走普通路径。

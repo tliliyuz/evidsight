@@ -106,10 +106,15 @@
 | `BUDGET_MAX_PROVIDER_CALLS` | Research | int | `60` | public |
 | `BUDGET_MAX_COST_USD` | Research | float | `1.0` | public |
 | `BUDGET_DEADLINE_SECONDS` | Research | int | `3600`（总时限） | public |
+| `RESEARCH_TASK_LEASE_TTL_SECONDS` | Research | int | `300`（DB 租约时长，RESEARCH_PIPELINE §13.1） | public |
+| `RESEARCH_TASK_LEASE_RENEW_INTERVAL` | Research | int | `60`（续租周期，必须 < 租约时长 / 2，§13.1） | public |
+| `RESEARCH_RECOVERY_SCAN_INTERVAL_SECONDS` | Research | int | `60`（Recovery Scanner 周期，必须 ≤ 租约时长，§13.1） | public |
+| `PENDING_REDELIVERY_THRESHOLD_SECONDS` | Research | int | `300`（pending 重投递阈值，§13.6） | public |
+| `PENDING_REDELIVERY_MAX_RETRIES` | Research | int | `3`（最大重投次数，超限后受控失败 E3118，§13.6） | public |
 
 **规划键（目标态，未实现，暂不登记）**
 
-以下键被 DATA_RETENTION / OPERATIONS / RESEARCH_PIPELINE 引用，但当前实现尚未读取，属目标态规划；实现落地后再按「新增键」流程登记，落地前不作为部署必填：磁盘保护水位（`EVIDSIGHT_KNOWLEDGE_DISK_PROTECTION_PERCENT`）、Research 租约/恢复（`EVIDSIGHT_RESEARCH_LEASE_*`、`RECOVERY_SCAN_*`）、Web 正文保留（`EVIDSIGHT_RESEARCH_WEB_CONTENT_TTL_SECONDS`）、失败 Revision 保留（`EVIDSIGHT_RESEARCH_FAILED_REVISION_TTL_SECONDS`）、审计/Trace 保留（`EVIDSIGHT_AUDIT_RETENTION_DAYS`、`EVIDSIGHT_TRACE_RETENTION_DAYS`）、日志级别与 Web 基础路径等。
+以下键被 DATA_RETENTION / OPERATIONS / RESEARCH_PIPELINE 引用，但当前实现尚未读取，属目标态规划；实现落地后再按「新增键」流程登记，落地前不作为部署必填：磁盘保护水位（`EVIDSIGHT_KNOWLEDGE_DISK_PROTECTION_PERCENT`）、Web 正文保留（`EVIDSIGHT_RESEARCH_WEB_CONTENT_TTL_SECONDS`）、失败 Revision 保留（`EVIDSIGHT_RESEARCH_FAILED_REVISION_TTL_SECONDS`）、审计/Trace 保留（`EVIDSIGHT_AUDIT_RETENTION_DAYS`、`EVIDSIGHT_TRACE_RETENTION_DAYS`）、日志级别与 Web 基础路径等。
 
 生产部署可以覆盖默认值，但必须在变更记录中说明容量、安全和保留影响。新增键（仅登记实现真实读取的键）先进入本表，再进入 `.env.example`、Settings Schema、Compose 和配置测试；未实现键不登记。
 

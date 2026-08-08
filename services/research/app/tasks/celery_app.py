@@ -35,7 +35,7 @@ celery_app.conf.update(
     broker_transport_options={
         "visibility_timeout": settings.CELERY_VISIBILITY_TIMEOUT,
     },
-    # Beat 定时调度：数据 TTL 清理
+    # Beat 定时调度：数据 TTL 清理 + 周期 Recovery Scanner
     beat_schedule={
         "cleanup_old_research_tasks": {
             "task": "app.tasks.periodic.cleanup_old_research_tasks",
@@ -43,6 +43,10 @@ celery_app.conf.update(
             "kwargs": {
                 "max_age_days": getattr(settings, "CLEANUP_TASK_MAX_AGE_DAYS", 30),
             },
+        },
+        "recover_expired_research_tasks": {
+            "task": "app.tasks.periodic.recover_expired_research_tasks",
+            "schedule": settings.RESEARCH_RECOVERY_SCAN_INTERVAL_SECONDS,
         },
     },
     beat_max_loop_interval=300,
@@ -62,8 +66,9 @@ import app.tasks.periodic  # noqa: E402, F401
 def on_worker_ready(sender, **kwargs):
     """Worker 启动完成时触发恢复检查。
 
-    扫描 running 任务，若任务级锁已消失（说明旧 Worker 崩溃），
-    则重新投递任务，实现不依赖 Redis visibility_timeout 的快速恢复。
+    与 API 启动、周期 Beat、手动治理调用同一恢复服务
+    （app.tasks.recovery.recover_stale_tasks，纯 DB lease，不依赖 Redis），
+    实现不依赖 Redis visibility_timeout 的快速恢复。
     """
     logger.info("Celery Worker 已就绪，触发过时任务恢复检查")
     try:
@@ -71,7 +76,7 @@ def on_worker_ready(sender, **kwargs):
         from app.tasks.recovery import recover_stale_tasks
 
         loop = get_worker_loop()
-        recovered = loop.run_until_complete(recover_stale_tasks(check_lock=True))
+        recovered = loop.run_until_complete(recover_stale_tasks())
         if recovered:
             logger.warning("Worker 就绪恢复：已重新投递 %d 个任务: %s", len(recovered), recovered)
     except Exception:

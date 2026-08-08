@@ -70,9 +70,10 @@ def runtime(monkeypatch):
         tool_registry=registry,
     )
     # 绑定租约：worker-1 / generation 1（模拟 start_research_task 领取后的状态）
-    runtime._lock_handle = SimpleNamespace(
+    runtime._lease_handle = SimpleNamespace(
         worker_id="worker-1",
         lease_generation=1,
+        lease_lost=False,
         release=AsyncMock(),
     )
     runtime._agent_context = AgentContext(current_phase="planning")
@@ -196,7 +197,7 @@ class TestRunCancelCheckpoint:
         assert runtime._agent_context.finish_reason == "canceled"
         chat_mock.assert_not_awaited()
         runtime._finalize_task.assert_awaited_once()
-        runtime._lock_handle.release.assert_awaited_once()
+        runtime._lease_handle.release.assert_awaited_once()
 
     async def test_未取消_正常进入最终化(self, runtime, monkeypatch):
         self._prepare_run(runtime, monkeypatch)
@@ -218,4 +219,4 @@ class TestRunCancelCheckpoint:
 
         assert runtime._agent_context.finish_reason == "finished_by_llm"
         runtime._finalize_task.assert_awaited_once()
-        runtime._lock_handle.release.assert_awaited_once()
+        runtime._lease_handle.release.assert_awaited_once()
