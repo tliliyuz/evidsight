@@ -7,7 +7,7 @@ if [[ "${1:-}" == "--production" ]]; then
   shift
 fi
 
-npm --prefix apps/web run build
+pnpm --dir apps/web run build
 
 compose=(docker compose)
 if [[ "$production" == "true" ]]; then

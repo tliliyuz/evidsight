@@ -130,8 +130,9 @@ uv run --project services/research alembic upgrade head
 uv run --project services/research uvicorn app.main:app --reload --port 8001
 
 # Web 前端
-npm --prefix apps/web ci
-npm --prefix apps/web run dev
+corepack enable
+pnpm --dir apps/web install --frozen-lockfile
+pnpm --dir apps/web run dev
 ```
 
 ### 验证命令

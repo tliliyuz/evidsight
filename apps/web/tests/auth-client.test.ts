@@ -1,13 +1,13 @@
 import type { AxiosAdapter, AxiosResponse } from 'axios'
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  createApiClient,
-  readCsrfToken,
-  setAccessToken,
-} from '@/api/client'
+import { createApiClient, readCsrfToken, setAccessToken } from '@/api/client'
 
-function response(config: Parameters<AxiosAdapter>[0], status: number, data: unknown): AxiosResponse {
+function response(
+  config: Parameters<AxiosAdapter>[0],
+  status: number,
+  data: unknown,
+): AxiosResponse {
   return {
     config,
     status,
@@ -30,7 +30,10 @@ describe('API 客户端认证边界', () => {
       if (config.headers.Authorization === 'Bearer access-new') {
         return response(config, 200, { ok: true })
       }
-      const error = new Error('expired') as Error & { response: AxiosResponse; config: typeof config }
+      const error = new Error('expired') as Error & {
+        response: AxiosResponse
+        config: typeof config
+      }
       error.config = config
       error.response = response(config, 401, { error: { error_code: 'E5003' } })
       throw error

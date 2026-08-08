@@ -34,7 +34,11 @@ export function WorkbenchPage({
         <section>
           <h2>RECENT RESEARCH</h2>
           {recentResearch.length ? (
-            <ul>{recentResearch.map((item) => <li key={item.id}>{item.title}</li>)}</ul>
+            <ul>
+              {recentResearch.map((item) => (
+                <li key={item.id}>{item.title}</li>
+              ))}
+            </ul>
           ) : (
             <EmptyState
               title="还没有研究任务"
@@ -46,7 +50,11 @@ export function WorkbenchPage({
         <section>
           <h2>RECENT KNOWLEDGE</h2>
           {recentKnowledge.length ? (
-            <ul>{recentKnowledge.map((item) => <li key={item.id}>{item.title}</li>)}</ul>
+            <ul>
+              {recentKnowledge.map((item) => (
+                <li key={item.id}>{item.title}</li>
+              ))}
+            </ul>
           ) : (
             <EmptyState
               title="还没有知识库"

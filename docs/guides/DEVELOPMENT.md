@@ -15,6 +15,7 @@
 | Python | 3.12+ | Knowledge/Research 服务、契约生成和测试 |
 | uv | 与根 `uv.lock` 兼容 | 根工具与 Python 环境管理 |
 | Node.js | 20+ | Web 构建与测试（Vite；M4 前 Vue，M4 后 React）|
+| pnpm | `apps/web/package.json#packageManager` | Web 依赖、脚本与冻结锁文件管理 |
 | Docker Engine | 24+ | 服务镜像与本地部署 |
 | Docker Compose | v2 | 开发单机全栈与生产三节点编排 |
 | MySQL | 8.0+ | `platform_db`、`knowledge_db`、`research_db` |
@@ -126,6 +127,9 @@ uvx ruff check services/ scripts/ tests/ packages/contracts/
 # Python 格式化一致性检查（--check 不修改文件；正式格式化去掉 --check）
 uvx ruff format --check services/ scripts/ tests/ packages/contracts/
 
+# 首批 Python 类型门禁（分别使用 Knowledge/Research 独立环境）
+bash scripts/check_python_types.sh
+
 # 验证开发单机 Compose 配置
 docker compose config --quiet
 
@@ -158,8 +162,9 @@ uv run --project services/research alembic upgrade head
 uv run --project services/research uvicorn app.main:app --reload --port 8001
 
 # Web
-npm --prefix apps/web ci
-npm --prefix apps/web run dev
+corepack enable
+pnpm --dir apps/web install --frozen-lockfile
+pnpm --dir apps/web run dev
 ```
 
 Knowledge 与 Research 必须使用独立虚拟环境、依赖锁、Alembic 配置和数据库账号。不得从根环境偶然导入某个服务的依赖。
@@ -193,8 +198,10 @@ Knowledge 与 Research 必须使用独立虚拟环境、依赖锁、Alembic 配�
 python3.12 -m pytest tests/architecture -v
 uv run --project services/knowledge pytest
 uv run --project services/research pytest
-npm --prefix apps/web test
-npm --prefix apps/web run build
+pnpm --dir apps/web run lint
+pnpm --dir apps/web run format:check
+pnpm --dir apps/web test
+pnpm --dir apps/web run build
 docker compose config --quiet
 ```
 
@@ -236,12 +243,14 @@ docker compose config --quiet
 - 提交信息 subject 必须使用 `add|fixed|update|refactor: 中文描述`（技术专有名词可保留英文），由 pre-commit 的 `commit-msg` hook（`scripts/check_commit_msg.sh`）强制校验；
 - Python IO 使用 async，数据库 Session 依赖注入；
 - API 层只校验、鉴权并调用 Service；
-- Web 使用 Vue 3 + TypeScript、组合式 API 和统一 API 客户端；M4 迁向 React + TypeScript 函数组件（[ADR-004](../decisions/ADR-004-web-framework-transition.md)）；
+- Web 使用 React + TypeScript 函数组件和统一 API 客户端（[ADR-004](../decisions/ADR-004-web-framework-transition.md)）；依赖与脚本统一由 pnpm 管理，ESLint 检查 TypeScript/React，Prettier 统一格式，根 `.editorconfig` 提供编辑器基础约束；
 - 时间统一存储为 UTC；
 - 日志、Trace、SSE 和错误不得包含密码、Token、服务凭证、完整 Prompt、隐藏推理或内部正文；
 - Chat SSE 与 Research SSE 使用独立解析器和状态机；
 - Python 代码遵循 ruff 约定（规则集 `E4,E7,E9,F,I`，行宽 100），提交前执行 `ruff check` 与 `ruff format --check`；配置见根 `pyproject.toml` `[tool.ruff]`。ruff 为根开发依赖（`uv add --dev ruff`）：Astral 官方活跃维护，单文件 ~8MB 无传递依赖，覆盖静态检查与格式化，替代方案为 black+isort+flake8 三件套（需三份配置）；
-- 提交前静态门禁由 pre-commit 承载（根开发依赖 `uv add --dev pre-commit`，配置 `.pre-commit-config.yaml`）：`ruff check` 与 `ruff format --check` 以 `repo: local` 调用已装 venv 内 ruff（版本随根 uv.lock，不重复固定），`commit-msg` hook 校验提交信息格式。pre-commit 是社区标准 Git Hook 框架（pre-commit org 活跃维护，MIT，约 2MB + cfgv/identify/virtualenv 等小依赖），替代方案为 lefthook（Go 单二进制，需独立配置）或手写 `.git/hooks` 脚本（无法自动管理多语言 hook 环境）。hook 只报告不修改文件，存量 ruff 基线告警按「触碰即清理」增量消解；`pre-commit install` 只对当前 worktree 生效，新增 worktree 需按 §3 重新安装；
+- Python 类型检查使用 mypy，首批强制范围与渐进规则以 [TESTING.md §3.1](../specs/TESTING.md#31-架构与静态边界) 为准。mypy 固定在两个服务各自的 `requirements-dev.txt`，随服务依赖解析 Pydantic/FastAPI/SQLAlchemy 类型，不进入生产镜像；它是活跃维护的开发依赖，本地安装包含 mypy 本体及少量辅助包，生产镜像与运行时体积增量为 0。Pydantic 启用官方 mypy plugin；SQLAlchemy 不启用已废弃的旧 plugin，ORM 后续扩大范围时使用 SQLAlchemy 2 `Mapped[...]`/`mapped_column()` 原生类型。替代方案为 Pyright（高性能，但官方 CLI 主要由 npm 分发，会把 Python 门禁耦合到现有 Web 包或引入第二个 Node 工程）或仅依赖 ruff/测试（无法检查跨函数类型契约）；
+- 提交前静态门禁由 pre-commit 承载（根开发依赖 `uv add --dev pre-commit`，配置 `.pre-commit-config.yaml`）：Python 执行 ruff 与首批 mypy 类型检查，Web 执行 ESLint/Prettier 检查，`commit-msg` hook 校验提交信息格式。pre-commit 是社区标准 Git Hook 框架（pre-commit org 活跃维护，MIT，约 2MB + cfgv/identify/virtualenv 等小依赖），替代方案为 lefthook（Go 单二进制，需独立配置）或手写 `.git/hooks` 脚本（无法自动管理多语言 hook 环境）。hook 只报告不修改文件；`pre-commit install` 只对当前 worktree 生效，新增 worktree 需按 §3 重新安装；
+- pnpm 用于确定性安装和磁盘复用，活跃维护；项目新增的包管理器运行时不进入浏览器产物，替代方案为 npm（当前锁文件与脚本将退出）或 yarn。ESLint、`typescript-eslint`、React Hooks/Refresh 插件用于可执行的 TypeScript/React 静态规则，Prettier 用于确定性格式化；这些均为活跃维护的开发依赖，不进入生产 bundle。替代方案分别为 Biome（单工具但需迁移规则基线）和仅依赖 TypeScript/人工格式审查（覆盖不足且不可重复）；
 - 新依赖必须说明用途、维护状态、体积和替代方案。
 
 ## 10. Docker Compose 与运维

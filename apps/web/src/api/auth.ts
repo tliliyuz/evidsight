@@ -45,11 +45,10 @@ export const authApi = {
   },
 
   async refresh(): Promise<{ access_token: string }> {
-    const { data } = await axios.post<{ access_token: string }>(
-      '/api/v1/auth/refresh',
-      null,
-      { headers: csrfHeaders(), withCredentials: true },
-    )
+    const { data } = await axios.post<{ access_token: string }>('/api/v1/auth/refresh', null, {
+      headers: csrfHeaders(),
+      withCredentials: true,
+    })
     setAccessToken(data.access_token)
     return data
   },

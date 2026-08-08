@@ -9,24 +9,42 @@ import { LandingPage } from '@/features/landing/LandingPage'
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage'
 
 function LoginRoute() {
-  return <><LandingPage /><LoginDrawer /></>
+  return (
+    <>
+      <LandingPage />
+      <LoginDrawer />
+    </>
+  )
 }
 
 function PlaceholderPage({ title }: { title: string }) {
-  return <main><h1>{title}</h1><p>该能力将在后续 M4 切片接入。</p></main>
+  return (
+    <main>
+      <h1>{title}</h1>
+      <p>该能力将在后续 M4 切片接入。</p>
+    </main>
+  )
 }
 
 function AuthenticatedShell() {
   const auth = useSyncExternalStore(authSession.subscribe, authSession.getSnapshot)
   if (!auth.user) return null
-  return <AppShell user={auth.user}><Outlet /></AppShell>
+  return (
+    <AppShell user={auth.user}>
+      <Outlet />
+    </AppShell>
+  )
 }
 
 export const router = createBrowserRouter([
   { path: '/', element: <LandingPage /> },
   { path: '/login', element: <LoginRoute /> },
   {
-    element: <ProtectedRoute><AuthenticatedShell /></ProtectedRoute>,
+    element: (
+      <ProtectedRoute>
+        <AuthenticatedShell />
+      </ProtectedRoute>
+    ),
     children: [
       { path: '/workbench', element: <WorkbenchPage /> },
       { path: '/chat', element: <PlaceholderPage title="据见问答" /> },

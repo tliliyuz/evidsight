@@ -12,11 +12,14 @@
 ```bash
 uvx ruff check services/ scripts/ tests/ packages/contracts/
 uvx ruff format --check services/ scripts/ tests/ packages/contracts/
+bash scripts/check_python_types.sh
 python3.12 -m pytest tests/architecture -v
 uv run --project services/knowledge pytest
 uv run --project services/research pytest
-npm --prefix apps/web test
-npm --prefix apps/web run build
+pnpm --dir apps/web run lint
+pnpm --dir apps/web run format:check
+pnpm --dir apps/web test
+pnpm --dir apps/web run build
 docker compose config --quiet
 ```
 
@@ -50,6 +53,15 @@ docker compose -f deploy/compose/cloud-knowledge.yml config --quiet
 ```
 
 日常提交由 hook 对暂存文件执行；hook 失败不得绕过后声称门禁通过。
+
+mypy 必须通过 `scripts/check_python_types.sh` 分别调用两个服务虚拟环境；首次准备环境时执行：
+
+```bash
+services/knowledge/.venv/bin/pip install -r services/knowledge/requirements-dev.txt
+services/research/.venv/bin/pip install -r services/research/requirements-dev.txt
+```
+
+不得从根 `.venv` 偶然解析任一服务依赖，也不得把 mypy 加入生产镜像使用的 `requirements.txt`。
 
 ## 4. 发布记录模板
 

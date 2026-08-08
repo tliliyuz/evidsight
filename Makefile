@@ -10,10 +10,10 @@ test-research:
 	services/research/.venv/bin/python -m pytest -c services/research/pytest.ini services/research/tests
 
 test-web:
-	npm --prefix apps/web test
+	pnpm --dir apps/web test
 
 build-web:
-	npm --prefix apps/web run build
+	pnpm --dir apps/web run build
 
 compose-config:
 	docker compose config --quiet

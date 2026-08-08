@@ -17,6 +17,20 @@ repos:
         files: ^(services|scripts|tests|packages/contracts)/.*\.py$
         exclude: ^services/[^/]+/alembic/versions/.*\.py$
         stages: [pre-commit]
+      - id: web-eslint
+        name: web eslint
+        entry: pnpm --dir apps/web run lint
+        language: system
+        files: ^apps/web/.*\.[cm]?[jt]sx?$
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: web-prettier
+        name: web prettier --check
+        entry: pnpm --dir apps/web run format:check
+        language: system
+        files: ^apps/web/
+        pass_filenames: false
+        stages: [pre-commit]
       - id: commit-msg-lint
         name: commit message format
         entry: bash scripts/check_commit_msg.sh

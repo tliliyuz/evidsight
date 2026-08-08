@@ -3,7 +3,8 @@ import { authApi, type UserSummary } from '@/api/auth'
 
 type AuthStatus = 'restoring' | 'authenticated' | 'anonymous'
 type AuthState = { status: AuthStatus; user: UserSummary | null }
-type AuthApi = Pick<typeof authApi, 'login' | 'me'> & Partial<Pick<typeof authApi, 'refresh' | 'logout'>>
+type AuthApi = Pick<typeof authApi, 'login' | 'me'> &
+  Partial<Pick<typeof authApi, 'refresh' | 'logout'>>
 type Listener = () => void
 type Cleanup = () => void
 

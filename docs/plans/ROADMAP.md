@@ -52,7 +52,7 @@
 | M1 | 已完成 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
 | M2 | 已完成 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence | M1 的身份与 Contract 基线 |
 | M3 | 已完成 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 |
-| M4 | 未开始 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
+| M4 | 进行中 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
 | M5 | 未开始 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的三节点 2C2G 试点部署 | M1—M4 |
 | M6 | 未开始 | v1.0 发布门禁与后续演进 | 全部 P0、成功指标和端到端场景完成发布验收 | M0—M5 |
 
@@ -323,6 +323,8 @@ M3 已完成（2026-08-08）。八条退出门禁逐项核对证据与回归基�
 - 内部 Evidence 原文访问的实时权限复核接口可用。
 
 进入条件核验（2026-08-07）：第 1 项缺口「API.md §9 Evidence 与 Report 读取端点」已补齐（目标态数据层 reports/report_revisions/claims/evidence_relations + 对外 UUID + 5 个读取端点 + renderer 原子发布，验证记录见 [CHANGELOG](../CHANGELOG.md) 2026-08-07 条目）；第 3 项「内部 Evidence 原文访问实时权限复核接口」已落地（`GET /api/v1/documents/{document_id}/locations/{location_id}`，CHANGELOG 2026-08-07 条目）。三项进入条件均已有可复核证据。
+
+阶段状态（2026-08-08）：M4 已进入实施，当前按前端专项规范分切片完成统一 Web；阶段仍为「进行中」，不得将 React 工程基线或单个页面切片误报为 M4 已完成。
 
 ### 范围内工作
 

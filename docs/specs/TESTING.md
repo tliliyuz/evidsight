@@ -36,6 +36,8 @@
 - Redis Key、队列和 Metric 带服务命名空间；
 - 文档相对链接、OpenAPI、JSON Schema 和 `$ref` 可解析；
 - Python 代码通过 ruff 静态检查（规则集 `E4,E7,E9,F,I`，行宽 100，配置见根 `pyproject.toml`）；lint 只报告，不改文件。提交时由 pre-commit hook（`.pre-commit-config.yaml`，`repo: local` 调用 venv 内 ruff）对暂存文件自动执行 `ruff check` 与 `ruff format --check`，存量基线告警按「触碰即清理」增量消解；提交信息由 `commit-msg` hook（`scripts/check_commit_msg.sh`）强制 `add|fixed|update|refactor: 中文描述` 格式。
+- Python 类型检查采用 mypy 渐进门禁。首批强制范围为 Knowledge/Research 的 `app/schemas/`、两服务 `app/core/permissions.py` 及 Research `app/core/utils.py`；两服务必须在各自虚拟环境中使用同一根配置分别检查，结果为零错误。首批启用 Pydantic mypy plugin、`check_untyped_defs`、严格 Optional、冗余 cast 与无效 ignore 检查；不得用全局 `ignore_missing_imports`、全局 `ignore_errors` 或批量 `# type: ignore` 伪造通过。ORM、Pipeline、脚本、测试和 Contract 生成物尚不属于强制范围，扩大范围时必须先记录新范围、观察基线并清零后再接入阻断门禁。
+- Web 只保留 `pnpm-lock.yaml`，冻结安装、ESLint、Prettier 检查、TypeScript 类型检查、Vitest 与 Vite 构建均通过；前端相关暂存文件由 pre-commit 调用 `lint` 与 `format:check`，hook 只报告、不修改文件。具体工具边界与验收条件以 [FRONTEND.md §2.2](../../apps/web/docs/FRONTEND.md#22-工程工具链) 为准。
 
 ### 3.2 身份与权限
 

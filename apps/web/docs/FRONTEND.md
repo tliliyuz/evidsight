@@ -1,7 +1,7 @@
 # EvidSight Web 前端页面、交互与状态机设计
 
 > 状态：v1.0 实施基线  
-> 最后更新：2026-08-06  
+> 最后更新：2026-08-08
 > 权威范围：`apps/web/` 的信息架构、页面行为、客户端状态机与前端验收  
 > 视觉规范：[UIDESIGN.md](UIDESIGN.md)  
 > 产品需求：[PRD.md](../../../docs/specs/PRD.md)
@@ -37,7 +37,18 @@ v1.0 前端采用：
 
 除非新增依赖能够显著降低状态机、无障碍或测试复杂度，否则不引入大型 UI 组件库。图标使用统一图标源并通过组件封装，不混用 Emoji、字符图标和多套图标库。
 
-### 2.2 建议目录
+### 2.2 工程工具链
+
+- `apps/web` 统一使用 `pnpm`，版本由 `package.json#packageManager` 固定；仓库只保留 `pnpm-lock.yaml`，不得并存 `package-lock.json`、`yarn.lock` 或 bun 锁文件；
+- 依赖安装使用 `pnpm --dir apps/web install --frozen-lockfile`，开发、测试和构建均通过 `package.json` scripts 进入；
+- ESLint 负责 TypeScript、React Hooks 和 Vite React Refresh 的静态检查；`lint` 与提交 hook 只报告，不自动修改；
+- Prettier 是 Web 源码与工程文件的唯一格式化器；`format:check` 与提交 hook 只检查，显式执行 `format` 才允许写入；
+- 根 `.editorconfig` 统一 UTF-8、LF、文件末尾换行和两空格缩进，Prettier 负责的格式规则以 Prettier 配置为准；
+- 根 `.pre-commit-config.yaml` 在前端相关文件进入暂存区时执行 ESLint 与 Prettier 检查，并继续复用现有 Python ruff 与提交信息门禁；任何 hook 均不得静默改写暂存文件。
+
+工具链验收条件：锁文件可由固定 pnpm 版本冻结安装；`lint`、`format:check`、`test`、`build` 全部通过；pre-commit 配置合法，前端 lint 或格式错误会使对应 hook 非零退出；仓库当前执行入口不再调用 npm。ADR 检查 1–8：否（可逆、低成本的局部开发工具链调整，不改变服务边界、公共契约、数据、安全或产品行为）。（2026-08-08）
+
+### 2.3 建议目录
 
 ```text
 apps/web/src/
