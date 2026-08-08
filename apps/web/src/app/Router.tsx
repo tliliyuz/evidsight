@@ -1,18 +1,20 @@
 import { createBrowserRouter } from 'react-router-dom'
 
-function BaselinePage() {
-  return (
-    <main className="baseline" aria-labelledby="baseline-title">
-      <p className="baseline__eyebrow">据见 · Evidence workspace</p>
-      <h1 id="baseline-title">EvidSight</h1>
-      <p>没有凭据，不立结论。</p>
-    </main>
-  )
+import { LoginDrawer } from '@/features/auth/LoginDrawer'
+import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
+import { LandingPage } from '@/features/landing/LandingPage'
+import { WorkbenchPage } from '@/features/workbench/WorkbenchPage'
+
+function LoginRoute() {
+  return <><LandingPage /><LoginDrawer /></>
 }
 
 export const router = createBrowserRouter([
+  { path: '/', element: <LandingPage /> },
+  { path: '/login', element: <LoginRoute /> },
   {
-    path: '*',
-    element: <BaselinePage />,
+    path: '/workbench',
+    element: <ProtectedRoute><WorkbenchPage /></ProtectedRoute>,
   },
+  { path: '*', element: <LandingPage /> },
 ])
