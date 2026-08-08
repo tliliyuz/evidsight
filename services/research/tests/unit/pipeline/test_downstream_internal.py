@@ -60,6 +60,21 @@ async def _make_task(db_session, task_id: str = "task-downstream-001") -> Resear
         output={
             "sub_questions": ["量子计算威胁", "PQC 标准化进展"],
             "rationale": "两维度",
+            # 评审 🔴4：真实口径唯一，Planning questions 稳定结构（§5.1/§10.1）
+            "questions": [
+                {
+                    "question_id": "q1",
+                    "text": "量子计算威胁",
+                    "required": True,
+                    "planned_channels": ["knowledge", "web"],
+                },
+                {
+                    "question_id": "q2",
+                    "text": "PQC 标准化进展",
+                    "required": True,
+                    "planned_channels": ["knowledge", "web"],
+                },
+            ],
         },
         started_at=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
         completed_at=datetime(2026, 1, 1, 0, 0, 1, tzinfo=timezone.utc),

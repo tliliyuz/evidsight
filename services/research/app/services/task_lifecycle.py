@@ -40,6 +40,12 @@ logger = logging.getLogger(__name__)
 
 PHASE_ORDER: list[str] = list(STEP_TYPE_ENUM)
 
+# Recovery Scanner 的条件领取 worker 标识（§13.5）。
+# Scanner 恢复成功后保留该 handoff 租约直至新 Worker 领取：下一轮扫描条件
+# （租约为空或已过期）不命中，保证「只恢复一次」（评审 🔴2）；Worker 领取条件
+# 显式接受该标识，避免被 handoff 租约阻塞。
+RECOVERY_SCANNER_WORKER_ID = "recovery-scanner"
+
 
 def new_worker_id() -> str:
     """生成当前执行 Worker 的唯一标识（每次执行新建，用于租约领取/续租/提交校验）。"""
@@ -78,6 +84,8 @@ async def claim_task_lease(
             sa_or(
                 ResearchTask.lease_expires_at.is_(None),
                 ResearchTask.lease_expires_at < now,
+                # Scanner 恢复后保留的 handoff 租约：新 Worker 可立即接手（§13.5，🔴2）
+                ResearchTask.lease_owner == RECOVERY_SCANNER_WORKER_ID,
             ),
         )
         .values(
@@ -124,6 +132,10 @@ async def renew_task_lease(
             ResearchTask.lease_generation == generation,
             ResearchTask.status.in_(["pending", "running"]),
             ResearchTask.cancel_requested_at.is_(None),
+            # §13.1：过期租约不可被旧 Worker 复活；续租必须仍持有未过期租约，
+            # 否则崩溃/挂起 Worker 会在 Scanner 接管前自行续约，使恢复失效（评审 🔴1）。
+            ResearchTask.lease_expires_at.is_not(None),
+            ResearchTask.lease_expires_at > now,
         )
         .values(lease_expires_at=now + timedelta(seconds=ttl_seconds))
     )
@@ -152,8 +164,9 @@ async def is_step_commit_allowed(
 ) -> bool:
     """Step 提交条件校验（DATABASE.md §5.3 / §8）。
 
-    Task 的 lease_owner 与 lease_generation 仍匹配、Task 未终止或取消，
-    才允许写业务结果并标记 Step completed。过期 Worker 的迟到提交返回 False。
+    Task 的 lease_owner 与 lease_generation 仍匹配、Task 未终止或取消、
+    租约未过期，才允许写业务结果并标记 Step completed。过期 Worker 的
+    迟到提交返回 False（§13.1，评审 🔴1）。
     """
     row = await session.execute(
         sa_select(
@@ -161,17 +174,20 @@ async def is_step_commit_allowed(
             ResearchTask.lease_generation,
             ResearchTask.status,
             ResearchTask.cancel_requested_at,
+            ResearchTask.lease_expires_at,
         ).where(ResearchTask.id == task_id)
     )
     task_row = row.one_or_none()
     if task_row is None:
         return False
-    owner, gen, status, cancel_at = task_row
+    owner, gen, status, cancel_at, expires_at = task_row
     return (
         owner == worker_id
         and gen == generation
         and status in ("pending", "running")
         and cancel_at is None
+        and expires_at is not None
+        and expires_at > datetime.now(timezone.utc)
     )
 
 
@@ -185,20 +201,28 @@ async def is_task_ownership_valid(
 
     与 is_step_commit_allowed 的区别：Step 提交必须同时满足「未请求取消」，
     而取消安全停止后的 Resolver 终态推导需要允许 cancel_requested_at 已设置的
-    情况，因此本方法只校验 owner/generation 匹配且任务非终态。
+    情况，因此本方法只校验 owner/generation 匹配、任务非终态且租约未过期。
+    失去租约的 Worker 不推导终态（§13.1，评审 🔴1）。
     """
     row = await session.execute(
         sa_select(
             ResearchTask.lease_owner,
             ResearchTask.lease_generation,
             ResearchTask.status,
+            ResearchTask.lease_expires_at,
         ).where(ResearchTask.id == task_id)
     )
     task_row = row.one_or_none()
     if task_row is None:
         return False
-    owner, gen, status = task_row
-    return owner == worker_id and gen == generation and status in ("pending", "running")
+    owner, gen, status, expires_at = task_row
+    return (
+        owner == worker_id
+        and gen == generation
+        and status in ("pending", "running")
+        and expires_at is not None
+        and expires_at > datetime.now(timezone.utc)
+    )
 
 
 class TaskLeaseHandle:
@@ -262,6 +286,10 @@ class TaskLeaseHandle:
             return ok
         except Exception:
             logger.exception("DB 租约续租异常: task_id=%s", self._task_id)
+            # 续租异常与续租返回 False 同权：租约状态未知即视为失去租约，
+            # 立即停止后续调用（§13.1，评审 🔴1）。
+            self.lease_lost = True
+            self._stop_renewal()
             return False
 
     async def release_lease(self) -> None:
@@ -357,6 +385,8 @@ async def start_research_task(
             sa_or(
                 ResearchTask.lease_expires_at.is_(None),
                 ResearchTask.lease_expires_at < now,
+                # Scanner 恢复后保留的 handoff 租约：新 Worker 可立即接手（§13.5，🔴2）
+                ResearchTask.lease_owner == RECOVERY_SCANNER_WORKER_ID,
             ),
         )
         .values(

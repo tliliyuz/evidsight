@@ -113,7 +113,10 @@ async def migrate_legacy_report_sections(
 
         # 校验门禁：迁移后无 task 级 sections 残留（候选任务应全部归入 revision）
         remaining = await _legacy_section_task_ids(session)
-        still_legacy = [tid for tid in remaining if tid in candidates]
+        # 评审 🔴5：candidates 为 (task_id, task) 元组列表，字符串 tid 直接判成员
+        # 永不命中；改为对候选 task_id 集合判成员，残留校验才能正确命中。
+        candidate_ids = {c[0] for c in candidates}
+        still_legacy = [tid for tid in remaining if tid in candidate_ids]
         if still_legacy:
             result.errors.append(
                 f"迁移后仍存在 task 级 sections 残留: {len(still_legacy)} 个任务: {still_legacy[:10]}"

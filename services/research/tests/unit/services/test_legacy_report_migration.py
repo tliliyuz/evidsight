@@ -11,6 +11,8 @@ service `migrate_legacy_report_sections`：
 """
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from app.models.evidence_item import EvidenceItem
 from app.models.report import Report
@@ -19,6 +21,7 @@ from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_task import ResearchTask
 from app.models.section_evidence import SectionEvidence
+from app.services import legacy_report_migration
 from app.services.legacy_report_migration import migrate_legacy_report_sections
 from sqlalchemy import func, select
 
@@ -205,3 +208,87 @@ class TestMigrateLegacySections:
             await db_session.execute(select(Report).where(Report.task_id == task.id))
         ).scalar_one_or_none()
         assert report is None, "dry-run 不应写入"
+
+
+class _TrackingSessionContextManager:
+    """包装测试 session 供脚本复用，保留真实 commit（用于断言脚本显式提交）。"""
+
+    def __init__(self, session):
+        self._session = session
+
+    async def __aenter__(self):
+        return self._session
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+class TestScriptCommitsMigration:
+    """评审 🔴5：迁移脚本非 dry-run 必须显式 session.commit()。
+
+    否则退出 `async with async_session_factory()` 时未提交写入被回滚，
+    脚本仍返回成功（迁移实际未落库）。
+    """
+
+    async def test_脚本非dryrun_显式提交迁移(self, db_session, monkeypatch):
+        import scripts.migrate_legacy_report_sections as script
+
+        task, _, _ = await _seed_legacy_task(db_session, "legacy-script-1")
+
+        commit_spy = AsyncMock()
+        monkeypatch.setattr(db_session, "commit", commit_spy)
+
+        def _factory():
+            return _TrackingSessionContextManager(db_session)
+
+        monkeypatch.setattr(script, "async_session_factory", _factory)
+        monkeypatch.setattr(script, "_parse_args", lambda: SimpleNamespace(dry_run=False))
+
+        rc = await script.run()
+
+        assert rc == 0
+        assert commit_spy.await_count >= 1, "非 dry-run 必须显式提交迁移写入"
+
+    async def test_脚本dryrun_不提交(self, db_session, monkeypatch):
+        import scripts.migrate_legacy_report_sections as script
+
+        await _seed_legacy_task(db_session, "legacy-script-2")
+
+        commit_spy = AsyncMock()
+        monkeypatch.setattr(db_session, "commit", commit_spy)
+
+        def _factory():
+            return _TrackingSessionContextManager(db_session)
+
+        monkeypatch.setattr(script, "async_session_factory", _factory)
+        monkeypatch.setattr(script, "_parse_args", lambda: SimpleNamespace(dry_run=True))
+
+        rc = await script.run()
+
+        assert rc == 0
+        assert commit_spy.await_count == 0, "dry-run 只扫描不提交"
+
+
+class TestResidualValidationMembership:
+    """评审 🔴5：迁移后残留校验必须正确命中。
+
+    candidates 为 (task_id, task) 元组列表；原先用字符串 tid 直接判成员
+    永不命中，残留校验形同虚设。
+    """
+
+    async def test_迁移失败任务_残留校验命中(self, db_session):
+        await _seed_legacy_task(db_session, "legacy-residual-1")
+        await _seed_legacy_task(db_session, "legacy-residual-2")
+
+        real = legacy_report_migration._migrate_one
+
+        async def _fail_second(session, task):
+            if task.id == "legacy-residual-2":
+                raise RuntimeError("模拟迁移失败")
+            await real(session, task)
+
+        with patch.object(legacy_report_migration, "_migrate_one", side_effect=_fail_second):
+            result = await migrate_legacy_report_sections(db_session)
+
+        assert result.failed >= 1
+        assert any("残留" in err for err in result.errors), "残留校验未命中失败任务"

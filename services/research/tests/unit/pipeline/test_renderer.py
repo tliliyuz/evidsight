@@ -182,7 +182,18 @@ async def _seed_render_task(
         step_type="planning",
         status="completed",
         label="Planning",
-        output={"sub_questions": ["量子计算威胁"]},
+        output={
+            "sub_questions": ["量子计算威胁"],
+            # 评审 🔴4：真实口径唯一，Planning questions 稳定结构（§5.1/§10.1）
+            "questions": [
+                {
+                    "question_id": "q1",
+                    "text": "量子计算威胁",
+                    "required": True,
+                    "planned_channels": ["web"],
+                }
+            ],
+        },
         started_at=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
         completed_at=datetime(2026, 1, 1, 0, 0, 1, tzinfo=timezone.utc),
         duration_ms=1000,
@@ -231,6 +242,8 @@ async def _seed_render_task(
             step_id=rerank_step.id,
             content=contents[i] if i < len(contents) else f"内容 {i}",
             relevance_score=scores[i] if i < len(scores) else 0.5,
+            # 评审 🔴4：真实口径下 evidence 归属 Planning question（§10.1）
+            question_id="q1",
         )
         db_session.add(ev)
         await db_session.flush()

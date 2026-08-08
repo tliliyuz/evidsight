@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, patch
 
 from app.models.research_task import ResearchTask
 from app.services.task_lifecycle import (
+    RECOVERY_SCANNER_WORKER_ID,
     TaskLeaseHandle,
     claim_task_lease,
     is_step_commit_allowed,
@@ -168,7 +169,39 @@ class TestRedisDown:
             await handle.release()
 
 
-class TestRecoveryScanner:
+class TestRenewExceptionLeaseLost:
+    """验收 1 补充：续租异常（DB 瞬时故障等）必须置 lease_lost=True 并停续租（评审 🔴1）。
+
+    §13.1 失去租约的 Worker 立即停止：续租异常与续租返回 False 同权，不能让 Worker
+    在未知租约状态下继续执行 Provider 调用或提交业务结果。
+    """
+
+    async def test_续租异常_置lease_lost并停止续租(self, db_session):
+        task = await _seed_task(db_session, "conflict-regen-1")
+        handle = TaskLeaseHandle(str(task.id))
+        handle.bind_lease("worker-1", 1, ttl_seconds=120)
+        try:
+            with patch(
+                "app.services.task_lifecycle.renew_task_lease",
+                AsyncMock(side_effect=RuntimeError("db down")),
+            ):
+                with patch(
+                    "app.services.task_lifecycle.async_session_factory",
+                    new=_session_factory(db_session),
+                ):
+                    ok = await handle.renew_lease()
+
+            assert ok is False
+            assert handle.lease_lost is True
+            # 已停止续租协程（不再尝试 DB），后续续租无副作用
+            assert handle._renew_task is None
+        finally:
+            with patch(
+                "app.services.task_lifecycle.async_session_factory",
+                new=_session_factory(db_session),
+            ):
+                await handle.release()
+
     """验收 3：有效 lease 不被 Recovery Scanner 接管，扫描不依赖 Redis。"""
 
     async def test_有效lease的running任务_不被扫描接管(self, db_session):
@@ -295,8 +328,9 @@ class TestTerminalWriteDiscipline:
 
         await db_session.refresh(task)
         # Scanner 不写终态：任务仍为 running（不被标记 completed/failed/canceled），
-        # owner 已清除；generation 因 scanner 条件领取递增（使旧 Worker 迟到提交失效）。
+        # owner 为 scanner handoff（评审 🔴2：保留 handoff 租约阻止下轮重复投递）；
+        # generation 因 scanner 条件领取递增（使旧 Worker 迟到提交失效）。
         assert task.status == "running"
-        assert task.lease_owner is None
+        assert task.lease_owner == RECOVERY_SCANNER_WORKER_ID
         assert task.lease_generation == 2
         assert task.recovery_count == 1

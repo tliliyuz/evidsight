@@ -13,6 +13,7 @@ from app.models.research_task import ResearchTask
 from app.services.task_lifecycle import (
     claim_task_lease,
     is_step_commit_allowed,
+    is_task_ownership_valid,
     release_task_lease,
     renew_task_lease,
 )
@@ -121,6 +122,24 @@ class TestRenewTaskLease:
 
         assert ok is False
 
+    async def test_租约已过期_续租失败_不复活(self, db_session: AsyncSession):
+        """§13.1 失去租约的 Worker 不得续租：过期租约不可被旧 Worker 复活。
+
+        续租 WHERE 必须校验 lease_expires_at 未过期；否则崩溃/挂起 Worker 可在
+        Scanner 接管前自行续约，使恢复机制失效（评审 🔴1）。
+        """
+        task = await _seed_task(db_session)
+        await claim_task_lease(db_session, str(task.id), "worker-1", ttl_seconds=1)
+        task.lease_expires_at = _now() - timedelta(seconds=5)
+        await db_session.flush()
+
+        ok = await renew_task_lease(db_session, str(task.id), "worker-1", 1, ttl_seconds=120)
+
+        assert ok is False
+        await db_session.refresh(task)
+        # 过期租约未被延长
+        assert task.lease_expires_at <= _now()
+
 
 class TestReleaseTaskLease:
     async def test_owner释放_清除owner(self, db_session: AsyncSession):
@@ -186,3 +205,51 @@ class TestIsStepCommitAllowed:
         allowed = await is_step_commit_allowed(db_session, str(task.id), "worker-1", 0)
 
         assert allowed is False
+
+    async def test_租约已过期_拒绝迟到提交(self, db_session: AsyncSession):
+        """§13.1 过期租约不得提交业务结果（评审 🔴1）。
+
+        Scanner 接管前，过期 Worker 即使 owner/generation 仍匹配也不得提交迟到 Step。
+        """
+        task = await _seed_task(db_session, status="running")
+        await claim_task_lease(db_session, str(task.id), "worker-1", ttl_seconds=1)
+        task.lease_expires_at = _now() - timedelta(seconds=5)
+        await db_session.flush()
+
+        allowed = await is_step_commit_allowed(db_session, str(task.id), "worker-1", 1)
+
+        assert allowed is False
+
+
+class TestIsTaskOwnershipValid:
+    """终态推导前所有权校验：owner/generation 匹配且租约未过期（§13.1/§17.12）。"""
+
+    async def test_owner与generation匹配_未过期_放行(self, db_session: AsyncSession):
+        task = await _seed_task(db_session, status="running")
+        await claim_task_lease(db_session, str(task.id), "worker-1", ttl_seconds=120)
+
+        allowed = await is_task_ownership_valid(db_session, str(task.id), "worker-1", 1)
+
+        assert allowed is True
+
+    async def test_租约已过期_拒绝推导终态(self, db_session: AsyncSession):
+        """失去租约的 Worker 不得推导终态（评审 🔴1）。"""
+        task = await _seed_task(db_session, status="running")
+        await claim_task_lease(db_session, str(task.id), "worker-1", ttl_seconds=1)
+        task.lease_expires_at = _now() - timedelta(seconds=5)
+        await db_session.flush()
+
+        allowed = await is_task_ownership_valid(db_session, str(task.id), "worker-1", 1)
+
+        assert allowed is False
+
+    async def test_取消已请求_owner匹配_未过期_仍放行(self, db_session: AsyncSession):
+        """取消安全停止后可推导终态（区别于 is_step_commit_allowed 的取消拒绝）。"""
+        task = await _seed_task(db_session, status="running")
+        await claim_task_lease(db_session, str(task.id), "worker-1", ttl_seconds=120)
+        task.cancel_requested_at = _now()
+        await db_session.flush()
+
+        allowed = await is_task_ownership_valid(db_session, str(task.id), "worker-1", 1)
+
+        assert allowed is True

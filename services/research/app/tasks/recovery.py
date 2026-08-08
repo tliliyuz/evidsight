@@ -9,8 +9,10 @@
 1. Scanner 按 `(status='running', lease_expires_at 为空或已过期)` 查找过期运行任务；
 2. 条件领取 scanner generation 再次确认租约过期（防止与新 Worker 竞争）；
 3. 将遗留 running Step 置为 retrying（或按重试上限 failed）；
-4. 清除旧 owner、递增恢复计数并重新投递到 `research.execute`
+4. 递增恢复计数并保留 scanner handoff 租约，重新投递到 `research.execute`
    （与 API 创建共用执行队列，不使用独立 recovery 队列）；
+   handoff 租约使下一轮扫描条件不命中 → 只恢复一次（评审 🔴2）；
+   投递失败时清除 handoff 租约，下轮可再发现；
 5. pending 任务超过阈值且无有效租约 → 递增 `redelivery_count` 并重投；
    超过最大重投次数 → 创建受控失败事实（`planning` failed Step E3118），
    由 `TaskStateResolver` 推导 `failed` 终态，扫描器不直接写终态；
@@ -32,6 +34,7 @@ from app.core.database import async_session_factory
 from app.core.task_state_resolver import TaskStateResolver
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
+from app.services.task_lifecycle import RECOVERY_SCANNER_WORKER_ID
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +97,7 @@ async def recover_stale_tasks() -> list[str]:
         try:
             async with async_session_factory() as session:
                 # 条件领取 scanner generation：只有仍过期/为空才成功，防止与已恢复的新 Worker 竞争
-                claimed = await _claim_expired_lease(session, task_id, "recovery-scanner")
+                claimed = await _claim_expired_lease(session, task_id, RECOVERY_SCANNER_WORKER_ID)
                 if not claimed:
                     logger.info(
                         "恢复扫描领取租约失败（租约已被新 Worker 领取）: task_id=%s",
@@ -105,19 +108,31 @@ async def recover_stale_tasks() -> list[str]:
                 # 遗留 running Step → retrying（或按重试上限 failed）
                 await _mark_stale_running_steps(session, task_id)
 
-                # 清除旧 owner，递增恢复计数（DATABASE.md §8）
-                await _clear_owner_and_increment_recovery(session, task_id)
+                # 递增恢复计数，保留 scanner handoff 租约（§13.5，评审 🔴2）：
+                # 下一轮扫描条件（租约为空/已过期）不命中 → 只恢复一次；
+                # 新 Worker 领取条件接受 scanner handoff 并立即接手。
+                await _increment_recovery(session, task_id)
 
                 await session.commit()
-
-            execute_research_task.delay(task_id)
-            recovered.append(task_id)
-            logger.warning(
-                "已重新投递租约过期的任务: task_id=%s, recovery_count 已递增",
-                task_id,
-            )
         except Exception:
             logger.exception("重新投递租约过期任务失败: task_id=%s", task_id)
+            continue
+
+        try:
+            execute_research_task.delay(task_id)
+        except Exception:
+            # 投递失败：清除 scanner handoff 租约，保证下轮可再被发现（§13.5）
+            async with async_session_factory() as session:
+                await _clear_recovery_lease(session, task_id)
+                await session.commit()
+            logger.exception("恢复投递失败，已清除 scanner 租约待下轮重扫: task_id=%s", task_id)
+            continue
+
+        recovered.append(task_id)
+        logger.warning(
+            "已重新投递租约过期的任务: task_id=%s, recovery_count 已递增",
+            task_id,
+        )
 
     for task_id in stale_pending_ids:
         try:
@@ -237,8 +252,8 @@ async def _claim_expired_lease(session, task_id: str, worker_id: str) -> bool:
 
     `lease_expires_at` 推到未来（租约时长），使并发 Scanner 的 WHERE
     （租约已过期）不命中，保证「两个 Scanner 并发只恢复一次」；
-    提交后由 `_clear_owner_and_increment_recovery` 清除 owner/过期时间，
-    任务保持可再次被扫描发现，不留 scanner owner 占用。
+    提交后保留 scanner handoff 租约（评审 🔴2），新 Worker 领取后接手，
+    下轮扫描不再命中；投递失败由 `_clear_recovery_lease` 清除。
     """
     now = datetime.now(timezone.utc)
 
@@ -284,19 +299,40 @@ async def _mark_stale_running_steps(session, task_id: str) -> None:
         )
 
 
-async def _clear_owner_and_increment_recovery(session, task_id: str) -> None:
-    """清除旧 owner、递增恢复计数（DATABASE.md §8 第 3 步）。"""
+async def _increment_recovery(session, task_id: str) -> None:
+    """递增恢复计数，保留 scanner handoff 租约（DATABASE.md §8 / §13.5，评审 🔴2）。
+
+    不清除 owner/expiry：Scanner 恢复成功后保留 handoff 租约，下一轮扫描
+    （租约为空或已过期）不命中，保证「只恢复一次」；新 Worker 领取条件接受
+    scanner handoff 并立即接手。投递失败时由 `_clear_recovery_lease` 清除。
+    """
     result = await session.execute(
         sa_update(ResearchTask)
         .where(ResearchTask.id == task_id)
-        .values(
-            lease_owner=None,
-            lease_expires_at=None,
-            recovery_count=ResearchTask.recovery_count + 1,
-        )
+        .values(recovery_count=ResearchTask.recovery_count + 1)
     )
     if result.rowcount > 0:
         logger.info(
-            "恢复扫描清除旧 owner 并递增恢复计数: task_id=%s",
+            "恢复扫描递增恢复计数并保留 scanner handoff 租约: task_id=%s",
+            task_id,
+        )
+
+
+async def _clear_recovery_lease(session, task_id: str) -> None:
+    """投递失败时清除 scanner handoff 租约，使任务下轮可再被发现（§13.5）。
+
+    仅当 owner 仍是 scanner 时清除，避免误清已接手 Worker 的租约。
+    """
+    result = await session.execute(
+        sa_update(ResearchTask)
+        .where(
+            ResearchTask.id == task_id,
+            ResearchTask.lease_owner == RECOVERY_SCANNER_WORKER_ID,
+        )
+        .values(lease_owner=None, lease_expires_at=None)
+    )
+    if result.rowcount > 0:
+        logger.warning(
+            "已清除 scanner handoff 租约（投递失败，下轮重扫）: task_id=%s",
             task_id,
         )

@@ -42,6 +42,11 @@ async def run() -> int:
     args = _parse_args()
     async with async_session_factory() as session:
         result = await migrate_legacy_report_sections(session, dry_run=args.dry_run)
+        # 评审 🔴5：非 dry-run 必须显式提交；否则退出会话时未提交写入被回滚，
+        # 脚本仍返回成功（迁移实际未落库）。迁移幂等可重跑，部分失败不阻塞提交，
+        # 失败任务由 result.failed/errors 报告，修复后可再次运行。
+        if not args.dry_run:
+            await session.commit()
 
     print(f"[migrate-legacy-sections] {'dry-run 扫描' if args.dry_run else '迁移'}完成")
     print(

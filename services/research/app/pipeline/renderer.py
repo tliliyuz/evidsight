@@ -535,7 +535,8 @@ async def _load_planning_questions(
 ) -> list[dict]:
     """读取最新 completed Planning Step 的 questions 稳定结构（切片 6 §5.1）。
 
-    旧 planning 无 questions 时返回空列表（report_publisher 走派生口径）。
+    旧 planning 无 questions 时返回空列表；`report_publisher` 对空结构
+    发布失败（真实口径唯一，评审 🔴4），不再走近似口径。
     """
     stmt = (
         select(ResearchStep)

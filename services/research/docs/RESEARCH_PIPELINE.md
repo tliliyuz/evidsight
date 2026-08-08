@@ -284,7 +284,7 @@ evidence_completeness =
 
 所有分子、分母、分项分数、最终分数和规则版本必须持久化到 Report Revision 的完整度摘要，便于审计。不得由 LLM直接给出该分数。摘要结构（切片 6，2026-08-08）：`question_coverage` / `channel_success` / `claim_coverage` 各含 `{numerator, denominator, ratio}`，另含顶层 `score` 与 `rule_version`。
 
-**迁移态（2026-08-07）**：目标态三分项分母依赖 Planning 的 `required` 子问题与计划通道口径。当前 `report_publisher.publish_report` 以最小可审计近似落地：`required_questions` 用 `max(1, task.total_steps)` 近似（§5.1 的 `total_steps`），`channel_success` 按来源策略以「有任意 evidence 即计成功」近似，`claim_coverage` 按 critical Claim 的 supports 关系计算；三分项与总分持久化到 Revision 摘要，供 Resolver 预算停止完整度判定（§10.2/§10.3）与审计读取。该近似由完整通道计划（Planning 输出 required 子问题与通道明细）替代前保持有效，属已登记迁移态，不视为 §10.1 的最终口径。
+**真实口径唯一（2026-08-08）**：完整度分子/分母一律来自 Planning 稳定结构 `questions`（required 子问题与计划通道）与 `evidence_items.question_id` 归属。`report_publisher.publish_report` 不再使用 `total_steps`/`total_evidence` 近似口径（评审 🔴4/🟡6）：Planning 未产出 `questions` 结构或零 required 子问题时报告不可发布（§10.1/§10.2）。三分项与总分持久化到 Revision 摘要，供 Resolver 预算停止完整度判定（§10.2/§10.3）与审计读取。2026-08-07 登记的最小可审计近似口径已移除，本节与 §17.2-13 一致。
 
 ### 10.2 发布硬门槛
 
@@ -355,7 +355,7 @@ Hybrid 的“单通道可部分完成”只适用于瞬时能力失败，不适�
 
 ### 13.1 租约协议
 
-Worker 使用 `research_tasks.lease_owner`、`lease_expires_at` 和单调 `lease_generation` 领取与续租。每个 Provider 调用前后、每个 Step 提交前和每个 Phase 边界检查租约。失去租约的 Worker 立即停止，不提交业务结果。
+Worker 使用 `research_tasks.lease_owner`、`lease_expires_at` 和单调 `lease_generation` 领取与续租。每个 Provider 调用前后、每个 Step 提交前和每个 Phase 边界检查租约。失去租约的 Worker 立即停止，不提交业务结果。过期租约不可被旧 Worker 续租复活：续租、Step 提交与终态推导均校验 `lease_expires_at` 未过期（评审 🔴1，2026-08-08）。
 
 具体租约时长由部署配置设置，但必须满足：续租周期小于租约时长的一半；单次不可中断操作超时短于剩余租约；Recovery Scanner 的扫描间隔不大于租约时长。配置值及边界测试归实现配置规范，不硬编码在业务逻辑。
 
@@ -393,7 +393,7 @@ Internal Retrieval、Rerank 和 Synthesis 可以记录 Step 完成及结构化�
 
 ### 13.5 Recovery Scanner
 
-Scanner 查找 running 且租约过期的 Task，锁定后再次确认状态和 generation，将遗留 running Step 置为 retrying 或 failed，清除旧 owner，并重新投递到 `research.execute`（与 API 创建任务共用执行队列，不再使用独立 recovery 队列）。新 Worker 跳过可复用 completed Step；旧 Worker 的迟到提交被 generation 条件拒绝。
+Scanner 查找 running 且租约过期的 Task，锁定后再次确认状态和 generation，将遗留 running Step 置为 retrying 或 failed，递增恢复计数并保留 scanner handoff 租约，并重新投递到 `research.execute`（与 API 创建任务共用执行队列，不再使用独立 recovery 队列）。handoff 租约使下一轮扫描不再投递同一任务（只恢复一次，评审 🔴2，2026-08-08）；新 Worker 领取条件接受该租约并立即接手；投递失败时清除 handoff 租约，任务下轮可再被发现。新 Worker 跳过可复用 completed Step；旧 Worker 的迟到提交被 generation 条件拒绝。
 
 Redis 消息丢失或重复不改变 MySQL 完成事实。启动扫描、周期扫描和手动恢复必须调用同一恢复服务，避免三套逻辑分叉。
 

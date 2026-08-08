@@ -23,6 +23,7 @@ from sqlalchemy import update as sa_update
 from app.agent.runtime import AgentRuntime
 from app.core.database import async_session_factory
 from app.core.exceptions import extract_recoverable_from_exception
+from app.core.task_state_resolver import TaskStateResolver
 from app.core.trace_recorder import TraceRecorder
 from app.metrics import emit_task_status_transition
 from app.models.research_step import ResearchStep
@@ -30,7 +31,6 @@ from app.models.research_task import ResearchTask
 from app.models.research_task_knowledge_base import ResearchTaskKnowledgeBase
 from app.pipeline.definition import PHASE_ORDER
 from app.pipeline.sse_bridge import SSEBridge
-from app.services.task_lifecycle import emergency_fail_task
 from app.tasks.celery_app import celery_app
 from app.tasks.event_loop import get_worker_loop
 
@@ -203,12 +203,45 @@ async def _enforce_strategy_dependency(session, task: ResearchTask) -> bool:
         task.source_strategy,
         task.id,
     )
-    await emergency_fail_task(
-        session,
-        str(task.id),
+    # §13.5 终态纪律（评审 🔴3）：E3114 属常规业务失败，不得经 emergency_fail_task
+    # 直写终态（后者仅限数据库损坏/Resolver 不可用，固定 E3999）。创建 planning
+    # failed Step 事实（E3114，FATAL_STEP_ERROR_CODES），由 TaskStateResolver 推导终态。
+    now = datetime.now(timezone.utc)
+    failure_step = ResearchStep(
+        task_id=task.id,
+        step_type="planning",
+        status="failed",
         error_code="E3114",
         error_message="该研究任务依赖内部知识库，但未绑定任何知识库，任务已失败关闭",
-        recoverable=False,
+        started_at=now,
+        completed_at=now,
+    )
+    session.add(failure_step)
+    await session.flush()
+
+    resolver = TaskStateResolver()
+    new_status, error_info = resolver.resolve(
+        task,
+        steps=[failure_step],
+        evidence_count=0,
+        published_completeness=None,
+    )
+    values: dict = {
+        "status": new_status,
+        "completed_at": now,
+    }
+    if error_info:
+        values["error_code"] = error_info.get("error_code")
+        values["error_message"] = error_info.get("error_message")
+        values["recoverable"] = error_info.get("recoverable", False)
+
+    await session.execute(
+        sa_update(ResearchTask)
+        .where(
+            ResearchTask.id == task.id,
+            ResearchTask.status.in_(["pending", "running"]),
+        )
+        .values(**values)
     )
     emit_task_status_transition("failed", recoverable=False, error_code="E3114")
     return False

@@ -41,6 +41,10 @@ FATAL_STEP_ERROR_CODES = frozenset(
         "E3110",  # LLMAuthFailed — LLM 认证失败（重试无意义）
         "E3111",  # LLMUnknown — LLM 调用返回未预期错误
         "E3118",  # PendingRedeliveryExhausted — pending 重投递超上限的受控失败事实（§13.6）
+        # E3114 KnowledgeBasesMissing — 来源策略依赖不变量破坏（§1.7/§6.1/§12.1 fail-closed）。
+        # 常规业务失败，必须作为 failed Step 事实经 Resolver 推导终态（评审 🔴3），
+        # 不得经 emergency_fail 直写。recoverable=false（不可恢复）。
+        "E3114",
     }
 )
 

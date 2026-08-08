@@ -194,7 +194,8 @@ class TestHandleLeaseRelease:
             user_id=user.id,
             status="running",
             lease_owner="worker-1",
-            lease_expires_at=_now() - timedelta(seconds=10),
+            # §13.1/评审 🔴1：健康 Worker 在租约未过期时续租；过期租约不可被复活
+            lease_expires_at=_now() + timedelta(seconds=10),
             lease_generation=1,
         )
 

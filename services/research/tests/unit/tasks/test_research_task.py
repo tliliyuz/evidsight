@@ -344,6 +344,48 @@ class TestRunPipelineStrategyGuard:
         mock_runtime_cls.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_无KB_创建失败Step事实_由Resolver推导终态(self, db_session):
+        """§13.5/评审 🔴3：E3114 属常规业务失败，不得经 emergency_fail 直写终态；
+        必须创建 failed Step 事实，由 TaskStateResolver 推导 failed。"""
+        task = await _seed_user_and_task(db_session, source_strategy="knowledge")
+
+        with patch(
+            "app.tasks.research_task.async_session_factory",
+            new=_emergency_fail_session_factory(db_session),
+        ):
+            with patch("app.tasks.research_task.AgentRuntime") as mock_runtime_cls:
+                result = await _run_pipeline(str(task.id))
+
+        assert result["status"] == "failed"
+        mock_runtime_cls.assert_not_called()
+        # 结构断言：模块已不导入 emergency_fail_task（直写终态路径已移除）
+        import app.tasks.research_task as module
+
+        assert not hasattr(module, "emergency_fail_task")
+
+        # 失败 Step 事实已落库（planning / E3114）
+        from sqlalchemy import select as sa_select
+
+        step = (
+            await db_session.execute(
+                sa_select(ResearchStep).where(
+                    ResearchStep.task_id == task.id,
+                    ResearchStep.error_code == "E3114",
+                )
+            )
+        ).scalar_one_or_none()
+        assert step is not None
+        assert step.status == "failed"
+        assert step.step_type == "planning"
+
+        # 终态由 Resolver 推导结果写入
+        await db_session.refresh(task)
+        assert task.status == "failed"
+        assert task.error_code == "E3114"
+        assert task.recoverable is False
+        assert task.completed_at is not None
+
+    @pytest.mark.asyncio
     async def test_web_无KB_不受守卫影响(self, db_session):
         task = await _seed_user_and_task(db_session, source_strategy="web")
 

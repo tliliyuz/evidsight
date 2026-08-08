@@ -39,13 +39,6 @@ logger = logging.getLogger(__name__)
 # 受控通道 → EvidenceItem.source_type（RESEARCH_PIPELINE §6.1/§6.2）
 _CHANNEL_SOURCE_TYPE = {"knowledge": "internal", "web": "web"}
 
-# 无 questions 结构时的兼容通道派生（§5.1）
-_STRATEGY_CHANNELS = {
-    "knowledge": ["knowledge"],
-    "web": ["web"],
-    "hybrid": ["knowledge", "web"],
-}
-
 
 async def _compute_real_coverage(
     session: AsyncSession,
@@ -59,24 +52,45 @@ async def _compute_real_coverage(
     - question_coverage = 有至少一条 available Evidence 的 required 问题 / required 总数；
     - channel_success = 成功产出至少一条 available Evidence 的计划通道 / 计划通道总数。
 
-    planning_questions 为空（旧 planning 无 questions 结构）时回退到派生口径：
-    required 数 = 全部 sub_questions（全 required），通道 = 任务 source_strategy。
+    planning_questions 为空（旧 planning 无 questions 结构）时不得用近似口径：
+    §10.1 分子/分母必须来自 Planning 稳定结构（评审 🔴4/🟡6），缺失即发布失败。
     """
-    if planning_questions:
-        required = [q for q in planning_questions if q.get("required")]
-        required_questions = len(required)
-        # §10.2：Planning 产生零个 required 子问题 → Schema 校验失败，不发布
-        if required_questions == 0:
-            raise ReportPublishFailedException("零 required 子问题，报告不可发布（§10.2）")
-        required_qids = {q.get("question_id") for q in required if q.get("question_id")}
-        if not required_qids:
-            # 防御：questions 缺 question_id（不应发生，校验会派生）
-            required_qids = {f"q{i}" for i in range(1, required_questions + 1)}
+    if not planning_questions:
+        raise ReportPublishFailedException(
+            "Planning 未产出 questions 稳定结构，无法计算真实完整度，报告不可发布（§10.1）"
+        )
+    required = [q for q in planning_questions if q.get("required")]
+    required_questions = len(required)
+    # §10.2：Planning 产生零个 required 子问题 → Schema 校验失败，不发布
+    if required_questions == 0:
+        raise ReportPublishFailedException("零 required 子问题，报告不可发布（§10.2）")
+    required_qids = {q.get("question_id") for q in required if q.get("question_id")}
+    if not required_qids:
+        # 防御：questions 缺 question_id（不应发生，校验会派生）
+        required_qids = {f"q{i}" for i in range(1, required_questions + 1)}
 
-        covered_qids = set(
+    covered_qids = set(
+        (
+            await session.execute(
+                select(EvidenceItem.question_id).where(
+                    EvidenceItem.task_id == task.id,
+                    EvidenceItem.question_id.in_(required_qids),
+                    EvidenceItem.validity == "available",
+                )
+            )
+        ).scalars()
+    )
+    question_coverage = compute_question_coverage(required_questions, len(covered_qids))
+
+    planned_channels = set()
+    for q in required:
+        planned_channels.update(q.get("planned_channels") or [])
+    succeeded: set[str] = set()
+    if planned_channels:
+        source_types = set(
             (
                 await session.execute(
-                    select(EvidenceItem.question_id).where(
+                    select(EvidenceItem.source_type).where(
                         EvidenceItem.task_id == task.id,
                         EvidenceItem.question_id.in_(required_qids),
                         EvidenceItem.validity == "available",
@@ -84,40 +98,10 @@ async def _compute_real_coverage(
                 )
             ).scalars()
         )
-        question_coverage = compute_question_coverage(required_questions, len(covered_qids))
-
-        planned_channels = set()
-        for q in required:
-            planned_channels.update(q.get("planned_channels") or [])
-        succeeded: set[str] = set()
-        if planned_channels:
-            source_types = set(
-                (
-                    await session.execute(
-                        select(EvidenceItem.source_type).where(
-                            EvidenceItem.task_id == task.id,
-                            EvidenceItem.question_id.in_(required_qids),
-                            EvidenceItem.validity == "available",
-                        )
-                    )
-                ).scalars()
-            )
-            for ch in planned_channels:
-                if _CHANNEL_SOURCE_TYPE.get(ch) in source_types:
-                    succeeded.add(ch)
-        channel_success = compute_channel_success(len(planned_channels), len(succeeded))
-        return question_coverage, channel_success
-
-    # 兼容派生口径（旧 planning 无 questions）：全 required + 策略通道
-    required_questions = max(1, task.total_steps or 1)
-    evidence_count = task.total_evidence or 0
-    question_coverage = compute_question_coverage(
-        required_questions=required_questions,
-        questions_with_evidence=min(evidence_count, required_questions),
-    )
-    channels = _STRATEGY_CHANNELS.get(task.source_strategy, ["web"])
-    succeeded = 1 if evidence_count > 0 else 0
-    channel_success = compute_channel_success(len(channels), min(succeeded, len(channels)))
+        for ch in planned_channels:
+            if _CHANNEL_SOURCE_TYPE.get(ch) in source_types:
+                succeeded.add(ch)
+    channel_success = compute_channel_success(len(planned_channels), len(succeeded))
     return question_coverage, channel_success
 
 
@@ -166,6 +150,33 @@ async def _persist_claims_and_relations(
         statement = c.get("statement")
         if not statement:
             continue
+        critical = bool(c.get("critical"))
+
+        # §10.2 门禁 4（§11 重跑引用闭包）：Claim 关系必须闭合到当前 Task 的
+        # Evidence，未知/跨任务 evidence 一律发布失败，不静默忽略（评审 🔴4）。
+        valid_relations: list[dict] = []
+        for rel in c.get("relations", []) or []:
+            if not isinstance(rel, dict):
+                continue
+            evidence_id = rel.get("evidence_item_id")
+            if evidence_id is None or evidence_id not in evidence_by_id:
+                raise ReportPublishFailedException(
+                    detail=(
+                        f"Claim 关系未闭合到当前 Task 的 Evidence（§10.2 门禁 4）: "
+                        f"statement={statement[:40]!r}"
+                    )
+                )
+            valid_relations.append(rel)
+
+        # §10.2 门禁 3：每个 critical Claim 必须至少一条 supports Relation（评审 🔴4）
+        if critical and not any(r.get("relation_type") == "supports" for r in valid_relations):
+            raise ReportPublishFailedException(
+                detail=(
+                    f"critical Claim 缺少 supports 关系（§10.2 门禁 3）: "
+                    f"statement={statement[:40]!r}"
+                )
+            )
+
         claim = Claim(
             revision_id=revision.id,
             section_id=primary_section.id if primary_section else None,
@@ -180,12 +191,8 @@ async def _persist_claims_and_relations(
         # §9 门禁 4：重复 (claim, evidence, relation_type) 合并，不能覆盖其他关系类型。
         # 同 key 去重并保留更高 confidence（DATABASE.md §7.5 (claim,evidence,relation_type) 唯一）。
         merged: dict[tuple[int, str], dict] = {}
-        for rel in c.get("relations", []) or []:
-            if not isinstance(rel, dict):
-                continue
-            evidence_id = rel.get("evidence_item_id")
-            if evidence_id is None or evidence_id not in evidence_by_id:
-                continue
+        for rel in valid_relations:
+            evidence_id = rel["evidence_item_id"]
             relation_type = rel.get("relation_type", "context")
             key = (evidence_id, relation_type)
             confidence = float(rel.get("confidence", 0.0))
@@ -239,7 +246,7 @@ async def publish_report(
         index_to_evidence_id: evidence_index → evidence_item_id 映射。
         claims_raw: Evidence Graph 的 claims（含 relations）。
         planning_questions: Planning 稳定结构 questions（§5.1），用于完整度真实口径；
-            为空时按 §5.1 派生口径计算。
+            为空时发布失败（真实口径唯一，评审 🔴4/🟡6）。
 
     Returns:
         已发布的 ReportRevision。
@@ -291,12 +298,18 @@ async def publish_report(
             revision_sections.append(copy)
         await session.flush()
 
-        # §9 门禁 1：引用闭合到当前 Task（evidence_by_id 已由 Renderer 做 task_id 过滤）
+        # §9 门禁 1 / §10.2 门禁 4（§11 重跑引用闭包）：章节引用必须闭合到当前
+        # Task 的 Evidence；无法闭合的引用发布失败，不静默丢弃（评审 🔴4）。
         for rs, section in zip(revision_sections, sections):
             for src in section.sources or []:
                 evidence_id = index_to_evidence_id.get(src["evidence_index"])
                 if evidence_id is None or evidence_id not in evidence_by_id:
-                    continue
+                    raise ReportPublishFailedException(
+                        detail=(
+                            f"章节引用未闭合到当前 Task 的 Evidence（§10.2 门禁 4）: "
+                            f"section={section.heading!r}, evidence_index={src.get('evidence_index')!r}"
+                        )
+                    )
                 session.add(SectionEvidence(section_id=rs.id, evidence_id=evidence_id))
         await session.flush()
 

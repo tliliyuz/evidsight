@@ -106,6 +106,15 @@ class TestDuplicateRelationMerge:
                 }
             ],
             evidence_by_id=evidence_by_id,
+            # 评审 🔴4：真实口径唯一，发布必须携带 Planning questions 稳定结构
+            planning_questions=[
+                {
+                    "question_id": "q1",
+                    "text": "结论是否正确",
+                    "required": True,
+                    "planned_channels": ["web"],
+                }
+            ],
         )
 
         report = (

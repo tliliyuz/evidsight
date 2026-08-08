@@ -107,7 +107,9 @@ class TestRecoverStaleTasksByLease:
         mock_task.delay.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_恢复后_清除旧owner_递增恢复计数(self, db_session):
+    async def test_恢复后_保留scanner租约_递增恢复计数(self, db_session):
+        """§13.5 评审 🔴2：恢复成功后保留 scanner handoff 租约（不立即清空），
+        使下一轮扫描条件不命中 → 只恢复一次；恢复计数递增。"""
         task = await _seed_running_task(
             db_session,
             "task-owner-1",
@@ -123,7 +125,8 @@ class TestRecoverStaleTasksByLease:
                 await recover_stale_tasks()
 
         await db_session.refresh(task)
-        assert task.lease_owner is None
+        assert task.lease_owner == "recovery-scanner"
+        assert task.lease_expires_at is not None  # handoff 租约仍在未来
         assert task.recovery_count == 3
 
     @pytest.mark.asyncio
@@ -205,9 +208,12 @@ class TestRecoverStaleTasksByLease:
         assert task.lease_owner == "scanner-a"
 
     @pytest.mark.asyncio
-    async def test_两轮扫描_各幂等重投一次_不重复完成(self, db_session):
-        """Beat 重复扫描不会重复完成 Step/Evidence/Revision：每轮幂等重投，
-        由重新执行的 Worker 经 DB lease 领取，Scanner 本身不写业务结果。"""
+    async def test_两轮扫描_只恢复一次(self, db_session):
+        """§13.5/评审 🔴2：Beat 重复扫描只投递一次。
+
+        恢复成功后保留 scanner handoff 租约，第二轮扫描条件（租约为空/已过期）
+        不命中 → 不再重复投递，也不重复完成 Step/Evidence/Revision。
+        """
         task = await _seed_running_task(
             db_session,
             "task-twice-1",
@@ -223,12 +229,34 @@ class TestRecoverStaleTasksByLease:
                 await recover_stale_tasks()
                 await recover_stale_tasks()
 
-        # 每轮各投递一次（幂等重投），不重复完成业务 Step
-        assert mock_task.delay.call_count == 2
+        # 两轮只投递一次（handoff 租约阻断重复扫描）
+        assert mock_task.delay.call_count == 1
         await db_session.refresh(task)
-        assert task.recovery_count == 2
+        assert task.recovery_count == 1
+        assert task.lease_owner == "recovery-scanner"
         await db_session.refresh(step)
         assert step.status == "completed"  # 已 completed 的 Step 不被 Scanner 改动
+
+    @pytest.mark.asyncio
+    async def test_投递失败_清除scanner租约_下轮可再发现(self, db_session):
+        """§13.5：投递失败（broker 不可用）时清除 scanner handoff 租约，
+        任务保持可再次被扫描发现，不留 scanner owner 永久占用。"""
+        task = await _seed_running_task(
+            db_session,
+            "task-dispatch-fail-1",
+            lease_expires_at=_now() - timedelta(seconds=30),
+            recovery_count=0,
+        )
+
+        with patch("app.tasks.recovery.async_session_factory", new=_session_factory(db_session)):
+            with patch("app.tasks.research_task.execute_research_task") as mock_task:
+                mock_task.delay.side_effect = RuntimeError("broker down")
+                recovered = await recover_stale_tasks()
+
+        assert str(task.id) not in recovered
+        await db_session.refresh(task)
+        assert task.lease_owner is None
+        assert task.lease_expires_at is None
 
 
 class TestPendingRedelivery:
