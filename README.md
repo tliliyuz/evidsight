@@ -72,30 +72,25 @@
 | **向量存储** | ChromaDB（嵌入式，Knowledge 服务管理） |
 | **LLM / Embedding** | OpenAI 兼容接口（DeepSeek / 通义千问等） |
 | **RAG Pipeline** | LangChain、BM25 + 向量召回、RRF 融合、Rerank |
-| **部署** | Docker Compose、Nginx、单机 2C2G 基线 |
+| **部署** | Docker Compose、Nginx、生产三节点 2C2G、开发单机全栈 |
 
 ## 部署架构
 
-默认单机 Docker Compose 部署，面向 10–30 名试点用户。只有 Nginx 暴露公网端口，MySQL、Redis 和 Internal API 都在内部网络，不对外映射。
+v1.0 目标生产环境按三台 2C2G 云服务器拆分为 Edge/Research、Data 和 Knowledge 三个数据岛，面向 10–30 名低并发试点用户。只有云节点 1 的 Nginx 暴露公网端口，MySQL、Redis、Knowledge API 和 Internal API 均只通过生产私网访问。该目标拓扑已由 [ADR-011](docs/decisions/ADR-011-three-node-distributed-deployment.md) 接受，生产 Compose 资产与实际部署验证属于 M5，当前不得视为已经落地。
 
 ```
-Browser ──► Nginx (80/443)
-              │
-    ┌─────────┼─────────┐
-    │         │         │
-    ▼         ▼         ▼
-  Web SPA  K-Edge    R-Edge     ← edge 网络
-              │         │
-    ┌─────────┼─────────┼─────────┐
-    │         ▼         ▼         │
-    │    K-Worker  R-Worker   Beat │
-    │         │         │         │
-    │         ▼         ▼         │
-    │       MySQL     Redis       │  ← internal 网络
-    │         │                   │
-    │    uploads   chroma         │
-    └─────────────────────────────┘
+Browser ──► 云节点 1：Nginx / Web
+                        │
+                        ├── Research API / Worker / Beat
+                        │
+                        ├────私网────► 云节点 2：MySQL / Redis
+                        │
+                        └────私网────► 云节点 3：Knowledge API / Worker / Beat
+                                                    │
+                                              uploads / Chroma
 ```
+
+Mac 继续通过根 `docker-compose.yml` 在本地启动完整开发栈，不依赖生产节点；Windows 与 Mac 均不承担生产唯一职责。
 
 ## 快速开始
 
@@ -108,7 +103,7 @@ Browser ──► Nginx (80/443)
 | Docker Engine | 24+ |
 | Docker Compose | v2 |
 
-### Docker Compose 一键部署
+### Mac/开发机 Docker Compose 一键启动
 
 ```bash
 # 复制环境变量并填写 LLM/Embedding 等 API Key
@@ -152,13 +147,13 @@ make build-web
 docker compose config --quiet
 ```
 
-部署完成后，管理员可以通过管理中心管理用户、知识库和研究任务：
+本地启动完成后，管理员可以通过管理中心管理用户、知识库和研究任务：
 
 ![管理中心：用户、知识库、研究任务的管理和审计](resource/prototype/light/11-admin-overview.png)
 
 ## 项目状态
 
-据见当前处于 **M3：Research Service 接入内部知识（进行中）**。M0 规范基线与 Monorepo 迁移、M1 统一身份与权限、M2 Knowledge 稳定化与 Internal Retrieval 均已完成；统一前端、治理与部署验收、v1.0 发布门禁为后续里程碑。当前前端为 M0 迁入的 Vue 基线，M4 将按前端专项规范迁向 React。里程碑状态与验证记录以 [路线图](docs/plans/ROADMAP.md) 为准。
+据见已完成 M0—M3，**M4：统一 Web、报告与证据联动尚未开始**。统一前端、三节点生产部署资产、治理与部署验收、v1.0 发布门禁为后续里程碑。当前前端为 M0 迁入的 Vue 基线，M4 将按前端专项规范迁向 React。里程碑状态与验证记录以 [路线图](docs/plans/ROADMAP.md) 为准。
 
 ## 开发说明
 

@@ -16,7 +16,7 @@
 | uv | 与根 `uv.lock` 兼容 | 根工具与 Python 环境管理 |
 | Node.js | 20+ | Web 构建与测试（Vite；M4 前 Vue，M4 后 React）|
 | Docker Engine | 24+ | 服务镜像与本地部署 |
-| Docker Compose | v2 | 单机 2C2G 编排基线 |
+| Docker Compose | v2 | 开发单机全栈与生产三节点编排 |
 | MySQL | 8.0+ | `platform_db`、`knowledge_db`、`research_db` |
 | Redis | 7.0+ | 队列、锁、租约和短期缓存 |
 | Git | 2.39+ | 历史保留迁移与常规协作 |
@@ -50,10 +50,10 @@ evidsight/
 ├── apps/
 │   └── web/                       # M0 迁入的 Vue Web 基线与专项文档
 ├── resource/prototype/            # 界面原型基线：dark/ 与 light/ 各 20 张，light 为默认主题
-├── deploy/                        # Nginx、Prometheus 与 Grafana 编排资产
+├── deploy/                        # 生产节点 Compose、Nginx、监控与数据初始化资产
 ├── scripts/                       # 全仓测试、配置与 smoke 入口
 ├── tests/architecture/            # 服务边界与 Compose 契约测试
-└── docker-compose.yml             # 单机编排骨架
+└── docker-compose.yml             # Mac 等开发机的单机全栈入口
 ```
 
 ### 2.2 后续里程碑目标结构
@@ -126,7 +126,7 @@ uvx ruff check services/ scripts/ tests/ packages/contracts/
 # Python 格式化一致性检查（--check 不修改文件；正式格式化去掉 --check）
 uvx ruff format --check services/ scripts/ tests/ packages/contracts/
 
-# 验证 Compose 配置
+# 验证开发单机 Compose 配置
 docker compose config --quiet
 
 # 检查工作区状态（只读）
@@ -134,6 +134,15 @@ git status --short
 ```
 
 ## 4. 本地启动
+
+Mac 的完整 Docker 开发环境继续使用根 Compose，不依赖三台生产云节点：
+
+```bash
+docker compose up -d
+docker compose ps
+```
+
+本地环境只使用开发卷、开发密钥和 Compose 服务名；不得注入生产私网地址、生产 Secret 或连接生产 MySQL/Redis。停止服务默认保留本地卷。
 
 以下命令使用各服务独立环境；首次运行前先按各自锁文件安装依赖：
 
@@ -237,14 +246,25 @@ docker compose config --quiet
 
 ## 10. Docker Compose 与运维
 
-M0 目标是单机 2 vCPU / 2 GB RAM 基线。正式 Compose 必须：
+按 [ADR-011](../decisions/ADR-011-three-node-distributed-deployment.md)，编排入口分为：
 
-- 只由 Nginx 暴露 Web 和 `/api/v1/*`；
-- 不对外暴露 `/internal/v1/*`、MySQL、Redis、Chroma 和 `/metrics`；
-- Knowledge/Research 使用独立队列和资源限制；
-- 默认不常驻完整 Prometheus/Grafana 套件；
-- 提供 liveness、readiness 和配置 smoke；
-- 停止服务默认保留持久卷。
+| 入口 | 用途 | 组件范围 |
+|:---|:---|:---|
+| 根 `docker-compose.yml` | Mac 等开发机单机全栈 | 全部核心组件与本地卷 |
+| `deploy/compose/cloud-edge.yml` | 生产云节点 1 | Nginx、Web、Research API/Worker/Beat |
+| `deploy/compose/cloud-data.yml` | 生产云节点 2 | MySQL、Redis、主备份调度 |
+| `deploy/compose/cloud-knowledge.yml` | 生产云节点 3 | Knowledge API/Worker/Beat、uploads、Chroma |
+
+三份生产 Compose 是 M5 目标资产，当前未落地前不得执行或声称三节点部署已实现。实现后必须：
+
+- 只由云节点 1 的 Nginx 暴露 Web 和外部 API；
+- 不对公网暴露 `/internal/v1/*`、MySQL、Redis、Knowledge API、Chroma 和 `/metrics`；
+- Knowledge/Research 使用独立队列、单 Worker 并发和节点级资源限制；
+- Knowledge API/Worker/Beat 与持久卷保持在云节点 3；
+- 默认不常驻完整 Prometheus/Grafana/Loki；
+- 提供跨节点 liveness、readiness、配置和网络边界 smoke；
+- 停止服务默认保留持久卷；
+- 与开发环境复用同一不可变镜像和配置 Schema，不复用数据与 Secret。
 
 部署、备份、恢复和故障处理见 [OPERATIONS.md](../specs/OPERATIONS.md)。
 

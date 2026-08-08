@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 规范基线 |
-| 最后更新 | 2026-08-03 |
+| 最后更新 | 2026-08-08 |
 
 ## 1. 原则
 
@@ -19,9 +19,9 @@
 |:---|:---|:---|
 | 单元 | 每次变更 | 纯函数、Service、状态解析、Schema |
 | 集成 | 每次候选版本 | API + DB、Worker、Provider/Consumer、SSE |
-| Compose | M0 后每次候选版本 | 配置、网络边界、健康、迁移和 smoke |
-| 2C2G | M5/M6 | 内存、背压、低并发、恢复和磁盘保护 |
-| 恢复环境 | 首次发布和存储变更 | RPO/RTO、备份、恢复、前滚/回滚 |
+| 开发单机 Compose | 每次候选版本 | Mac 可离线启动完整栈、配置、网络边界、健康、迁移和 smoke |
+| 生产三节点 Compose | M5/M6 | 三台 2C2G 节点落位、私网、资源、背压、故障语义和节点联合 smoke |
+| 恢复环境 | 首次发布和存储变更 | 跨节点同批次 RPO/RTO、备份、恢复、前滚/回滚 |
 
 ## 3. 分层测试
 
@@ -30,6 +30,9 @@
 - 必需目录、独立依赖和独立 Alembic 链；
 - Research 无 Knowledge DB、Chroma、上传卷或 `app` import；
 - Nginx 不暴露 `/internal/v1`、`/metrics` 和数据服务；
+- 三份生产 Compose 的组件全集无缺失，Knowledge/Research Beat 各只有一个，外部端口只存在于云节点 1；
+- Knowledge API、Worker、Beat、uploads 与 Chroma 同属云节点 3，Research 不挂载 Knowledge 卷；
+- Mac/Windows 不出现在生产核心依赖或 readiness 中；
 - Redis Key、队列和 Metric 带服务命名空间；
 - 文档相对链接、OpenAPI、JSON Schema 和 `$ref` 可解析；
 - Python 代码通过 ruff 静态检查（规则集 `E4,E7,E9,F,I`，行宽 100，配置见根 `pyproject.toml`）；lint 只报告，不改文件。提交时由 pre-commit hook（`.pre-commit-config.yaml`，`repo: local` 调用 venv 内 ruff）对暂存文件自动执行 `ruff check` 与 `ruff format --check`，存量基线告警按「触碰即清理」增量消解；提交信息由 `commit-msg` hook（`scripts/check_commit_msg.sh`）强制 `add|fixed|update|refactor: 中文描述` 格式。
@@ -83,6 +86,18 @@
 - 权限撤销后清理内部正文；
 - 键盘、焦点、对比度和 reduced motion。
 
+### 3.6 部署拓扑与故障演练
+
+- 根 `docker-compose.yml` 在不连接生产私网的 Mac 上启动完整开发栈，且只使用开发卷、开发密钥和 Compose 服务发现；
+- `deploy/compose/cloud-edge.yml` 只包含 Edge/Research 组件，`cloud-data.yml` 只包含 MySQL/Redis/备份组件，`cloud-knowledge.yml` 只包含完整 Knowledge 数据岛；
+- 三份生产 Compose 独立通过配置解析，联合检查组件实例数、队列、卷、Secret 和端口边界；
+- 公网探测只能访问云节点 1 的 `80/443`，MySQL、Redis、Knowledge API、Internal API 与 metrics 公网不可达；
+- 私网 DNS 解析失败、时间偏差超限或节点间连接中断时 readiness 失败，不回退公网地址或放宽鉴权；
+- 云节点 1、2、3 分别中断时符合 ADR-011 故障语义，恢复后不会重复 Beat、重复提交 Step 或绕过当前权限；
+- Mac/Windows 中断时生产核心 API、Worker、数据库和 Broker 不受影响；
+- 生产允许 Knowledge 与 Research 各执行一个重任务；开发单机模式通过跨服务重任务准入锁避免 OOM；
+- MySQL 与 uploads/Chroma 使用同一 `backup_batch_id` 完成空环境恢复，实际 `RPO ≤ 24h`、`RTO ≤ 4h`。
+
 ## 4. Contract 门禁
 
 Internal Contract 每个版本必须通过 Meta-Schema、唯一 `$id`、可解析 `$ref`、有效/无效 Fixture、生成物无差异、Knowledge Provider 和 Research Consumer 测试。External OpenAPI 必须通过语法、引用、示例和 Breaking Change 检查。
@@ -133,6 +148,16 @@ npm --prefix apps/web test
 npm --prefix apps/web run build
 docker compose config --quiet
 ```
+
+M5 三节点 Compose 资产落地后，候选版本还必须执行：
+
+```bash
+docker compose -f deploy/compose/cloud-edge.yml config --quiet
+docker compose -f deploy/compose/cloud-data.yml config --quiet
+docker compose -f deploy/compose/cloud-knowledge.yml config --quiet
+```
+
+三条命令仅证明单份配置可解析；仍需执行三份配置联合静态检查、实际私网暴露检查、节点中断演练和跨节点恢复演练。
 
 提交前静态门禁（pre-commit）验证：
 

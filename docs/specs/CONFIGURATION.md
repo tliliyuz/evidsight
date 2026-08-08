@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 配置基线 |
-| 最后更新 | 2026-08-06 |
+| 最后更新 | 2026-08-08 |
 
 ## 1. 规则
 
@@ -12,6 +12,24 @@
 - 未知键告警，类型或边界错误使启动/配置 smoke 失败；
 - `.env.example` 只放键名和安全示例，不放真实凭证；
 - 两个服务不得读取对方私有配置命名空间。
+
+### 1.1 部署模式与配置注入
+
+按 [ADR-011](../decisions/ADR-011-three-node-distributed-deployment.md)，开发与生产复用同一 Settings Schema，但使用完全隔离的配置值和 Secret：
+
+| 模式 | 编排入口 | 连接地址规则 | 数据与 Secret |
+|:---|:---|:---|:---|
+| 开发单机全栈 | 根 `docker-compose.yml` | 使用 `mysql`、`redis`、`knowledge-api` 等 Compose 服务名 | 仅开发卷和开发密钥，不连接生产私网 |
+| 生产云节点 1 | `deploy/compose/cloud-edge.yml` | MySQL、Redis、Knowledge 使用稳定私网 DNS | 只注入 Research、Nginx 所需配置和 Secret |
+| 生产云节点 2 | `deploy/compose/cloud-data.yml` | 数据服务仅监听受控私网接口 | 只注入数据库、Redis、备份所需配置和 Secret |
+| 生产云节点 3 | `deploy/compose/cloud-knowledge.yml` | MySQL、Redis 使用稳定私网 DNS；uploads/Chroma 使用本机容器卷 | 只注入 Knowledge 所需配置和 Secret |
+
+- 生产配置不得使用开发 Compose 服务名、`localhost`、公网 IP、默认密码或开发 JWT Key 连接跨节点依赖；
+- `MYSQL_HOST`、`REDIS_URL`、`CELERY_BROKER_URL`、`CELERY_RESULT_BACKEND` 和 `EVIDSIGHT_KNOWLEDGE_INTERNAL_BASE_URL` 已能表达私网地址，本次拓扑变更不新增业务配置键；
+- 生产 Redis URL 必须携带受控认证信息，值仍按 `secret` 处理；MySQL 使用各服务最小权限账号，不使用 root；
+- 云节点 1 与云节点 3 注入的用户 JWT 和 Service JWT 材料必须来自同一发布批次；Research 私钥只进入云节点 1，Knowledge 公钥集合只进入云节点 3；
+- Mac 不注入生产配置或 Secret；Windows 只获得其非关键辅助职责必需的最小凭证；
+- 私网 DNS、接口监听与防火墙由部署资产管理，不在业务代码中增加环境分支。
 
 ## 2. 命名空间
 
@@ -132,7 +150,12 @@ Service JWT 只由 Research 签发、由 Knowledge 验证，使用独立于用�
 - Chat v1.0 不提供启用多 KB 的 Feature Flag；多选不能通过配置绕过权威规范；
 - 外部 Provider 不作为 API 启动硬依赖，但能力不可用必须进入 readiness capability、错误和指标；
 - `DEBUG` 不得改变权限、验签、正文外发或敏感日志边界。
+- 生产三个节点的 `ENV` 必须为 production，`DEBUG` 必须为 false；任一节点不满足时阻止发布。
+- 生产连接地址必须通过私网 DNS 解析到受控私网；不得在解析失败时回退公网地址。
+- 开发配置 smoke 必须拒绝生产域名、生产凭证标识或生产 Secret 文件路径，避免 Mac 本地误连生产。
 
 ## 5. 配置验证
 
-M0 应提供统一配置 smoke，验证必需键、前缀隔离、URL、范围、队列、Redis DB 冲突、生产默认密钥和 Compose 注入完整性。错误输出只显示键名和安全原因，不回显值。
+统一配置 smoke 必须分别验证开发根 Compose 与三个生产节点 Compose：必需键、前缀隔离、URL、范围、队列、Redis DB 冲突、生产默认密钥、跨节点私网地址、节点最小 Secret 集合、Compose 注入完整性，以及 Mac/Windows 不进入生产 readiness。错误输出只显示键名、节点和安全原因，不回显值。
+
+生产三份配置的联合检查还必须确认：组件全集无缺失、Knowledge/Research Beat 各只有一个、Knowledge API/Worker/卷同属云节点 3、Research 无 Knowledge 卷、云节点 2 不包含业务 API、外部端口只出现在云节点 1。
