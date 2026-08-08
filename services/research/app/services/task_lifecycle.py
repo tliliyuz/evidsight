@@ -250,6 +250,8 @@ class TaskLeaseHandle:
                 await session.commit()
             if not ok:
                 self.lease_lost = True
+                # 租约已失效/被接管：立即停止续租协程，避免空转（§13.1 停止后续调用）
+                self._stop_renewal()
                 logger.warning(
                     "DB 租约续租失败（租约已失效/被接管），Worker 停止执行: "
                     "task_id=%s, worker=%s, generation=%s",

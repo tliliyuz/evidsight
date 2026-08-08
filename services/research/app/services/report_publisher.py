@@ -20,31 +20,105 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ReportPublishFailedException
 from app.evaluation.completeness import (
     build_completeness_summary,
+    compute_channel_success,
     compute_claim_coverage,
     compute_question_coverage,
 )
 from app.models.claim import Claim
+from app.models.evidence_item import EvidenceItem
 from app.models.evidence_relation import EvidenceRelation
 from app.models.report import Report
 from app.models.report_revision import ReportRevision
 from app.models.report_section import ReportSection
 from app.models.research_task import ResearchTask
+from app.models.section_evidence import SectionEvidence
 
 logger = logging.getLogger(__name__)
 
 
-def _compute_channel_success(task: ResearchTask) -> float:
-    """按来源策略推导通道成功数（最小可审计实现）。
+# 受控通道 → EvidenceItem.source_type（RESEARCH_PIPELINE §6.1/§6.2）
+_CHANNEL_SOURCE_TYPE = {"knowledge": "internal", "web": "web"}
 
-    knowledge：内部通道（成功与否由 evidence 数体现）；
-    web/hybrid：内部 + 外部两通道，有任意 evidence 的通道计为成功。
-    该推导后续由 RESEARCH_PIPELINE §10.1 的完整通道计划替代。
+# 无 questions 结构时的兼容通道派生（§5.1）
+_STRATEGY_CHANNELS = {
+    "knowledge": ["knowledge"],
+    "web": ["web"],
+    "hybrid": ["knowledge", "web"],
+}
+
+
+async def _compute_real_coverage(
+    session: AsyncSession,
+    task: ResearchTask,
+    planning_questions: list[dict] | None,
+) -> tuple[tuple[float, int, int], tuple[float, int, int]]:
+    """按 Planning questions 与 evidence 归属计算 question_coverage / channel_success。
+
+    对齐 RESEARCH_PIPELINE §10.1（切片 6 真实口径）：
+    - 只统计 required 子问题与计划通道；
+    - question_coverage = 有至少一条 available Evidence 的 required 问题 / required 总数；
+    - channel_success = 成功产出至少一条 available Evidence 的计划通道 / 计划通道总数。
+
+    planning_questions 为空（旧 planning 无 questions 结构）时回退到派生口径：
+    required 数 = 全部 sub_questions（全 required），通道 = 任务 source_strategy。
     """
+    if planning_questions:
+        required = [q for q in planning_questions if q.get("required")]
+        required_questions = len(required)
+        # §10.2：Planning 产生零个 required 子问题 → Schema 校验失败，不发布
+        if required_questions == 0:
+            raise ReportPublishFailedException("零 required 子问题，报告不可发布（§10.2）")
+        required_qids = {q.get("question_id") for q in required if q.get("question_id")}
+        if not required_qids:
+            # 防御：questions 缺 question_id（不应发生，校验会派生）
+            required_qids = {f"q{i}" for i in range(1, required_questions + 1)}
+
+        covered_qids = set(
+            (
+                await session.execute(
+                    select(EvidenceItem.question_id).where(
+                        EvidenceItem.task_id == task.id,
+                        EvidenceItem.question_id.in_(required_qids),
+                        EvidenceItem.validity == "available",
+                    )
+                )
+            ).scalars()
+        )
+        question_coverage = compute_question_coverage(required_questions, len(covered_qids))
+
+        planned_channels = set()
+        for q in required:
+            planned_channels.update(q.get("planned_channels") or [])
+        succeeded: set[str] = set()
+        if planned_channels:
+            source_types = set(
+                (
+                    await session.execute(
+                        select(EvidenceItem.source_type).where(
+                            EvidenceItem.task_id == task.id,
+                            EvidenceItem.question_id.in_(required_qids),
+                            EvidenceItem.validity == "available",
+                        )
+                    )
+                ).scalars()
+            )
+            for ch in planned_channels:
+                if _CHANNEL_SOURCE_TYPE.get(ch) in source_types:
+                    succeeded.add(ch)
+        channel_success = compute_channel_success(len(planned_channels), len(succeeded))
+        return question_coverage, channel_success
+
+    # 兼容派生口径（旧 planning 无 questions）：全 required + 策略通道
+    required_questions = max(1, task.total_steps or 1)
     evidence_count = task.total_evidence or 0
-    if evidence_count <= 0:
-        return 0.0
-    # 有 evidence 即视为内部通道成功（channel_success 至少 1/计划通道）
-    return 1.0
+    question_coverage = compute_question_coverage(
+        required_questions=required_questions,
+        questions_with_evidence=min(evidence_count, required_questions),
+    )
+    channels = _STRATEGY_CHANNELS.get(task.source_strategy, ["web"])
+    succeeded = 1 if evidence_count > 0 else 0
+    channel_success = compute_channel_success(len(channels), min(succeeded, len(channels)))
+    return question_coverage, channel_success
 
 
 async def _create_or_get_report(session: AsyncSession, task_id: str) -> Report:
@@ -142,22 +216,30 @@ async def publish_report(
     task: ResearchTask,
     build_step_id: str,
     title: str,
-    sections: list[ReportSection],
+    sections: list,
+    index_to_evidence_id: dict[int, int],
     claims_raw: list[dict],
     evidence_by_id: dict,
+    planning_questions: list[dict] | None = None,
     language: str = "zh",
     content_hash: str | None = None,
     limitations_summary: str | None = None,
 ) -> ReportRevision:
-    """目标态原子发布报告 Revision。
+    """目标态原子发布报告 Revision（切片 4 单写口径，RESEARCH_PIPELINE §11）。
 
-    方案 X：revision 发布时为 sections 创建独立副本（revision 专属），
-    不修改迁移态 task 级 sections。因此 reports/revision 的级联删除
-    只影响 revision 专属副本，不破坏迁移态展示数据。
+    切片 4 起 Renderer 单写：revision 发布时直接据渲染 DTO 创建 revision 专属
+    sections（revision_id 归属）并在同一事务同步写 `section_evidence`（证据引用
+    经 `index_to_evidence_id` 解析、按 §9 门禁 1 闭合到当前 Task）。
+    不再复制/挂载 task 级迁移态 sections。reports/revision 的级联删除只影响
+    revision 专属副本。
 
     Args:
-        sections: 迁移态 ReportSection 列表（仅读取 heading/content/sort_order 复制）。
+        sections: 渲染 DTO 列表（鸭子类型），每项需提供 `heading`、`content`
+            与 `sources`（list[dict]，每项含 `evidence_index`）。
+        index_to_evidence_id: evidence_index → evidence_item_id 映射。
         claims_raw: Evidence Graph 的 claims（含 relations）。
+        planning_questions: Planning 稳定结构 questions（§5.1），用于完整度真实口径；
+            为空时按 §5.1 派生口径计算。
 
     Returns:
         已发布的 ReportRevision。
@@ -195,7 +277,7 @@ async def publish_report(
         session.add(revision)
         await session.flush()
 
-        # 方案 X：复制独立 sections（不挂载/不修改迁移态 sections）
+        # 切片 4 单写：直接据渲染 DTO 创建 revision 专属 sections，并同步写 section_evidence
         revision_sections: list[ReportSection] = []
         for i, s in enumerate(sections):
             copy = ReportSection(
@@ -209,6 +291,15 @@ async def publish_report(
             revision_sections.append(copy)
         await session.flush()
 
+        # §9 门禁 1：引用闭合到当前 Task（evidence_by_id 已由 Renderer 做 task_id 过滤）
+        for rs, section in zip(revision_sections, sections):
+            for src in section.sources or []:
+                evidence_id = index_to_evidence_id.get(src["evidence_index"])
+                if evidence_id is None or evidence_id not in evidence_by_id:
+                    continue
+                session.add(SectionEvidence(section_id=rs.id, evidence_id=evidence_id))
+        await session.flush()
+
         # 写入 claims 与 relations
         await _persist_claims_and_relations(
             session,
@@ -219,23 +310,21 @@ async def publish_report(
             evidence_by_id=evidence_by_id,
         )
 
-        # 完整度三分项（RESEARCH_PIPELINE §10）
-        required_questions = max(1, task.total_steps or 1)
-        evidence_count = task.total_evidence or 0
-        question_coverage, _, _ = compute_question_coverage(
-            required_questions=required_questions,
-            questions_with_evidence=min(evidence_count, required_questions),
-        )
-        # 通道成功：有证据视为内部通道成功；按策略近似
-        channel_success = _compute_channel_success(task)
-        # claim 覆盖：critical claim 有 supports 的比例
+        # 完整度三分项（切片 6 真实口径，RESEARCH_PIPELINE §10.1）
         critical_claims = [c for c in claims_raw if isinstance(c, dict) and c.get("critical")]
+        if not critical_claims:
+            # §10.2：Synthesis 产生零个 critical Claim，报告不可发布
+            raise ReportPublishFailedException("零 critical Claim，报告不可发布（§10.2）")
         critical_with_supports = sum(
             1
             for c in critical_claims
             if any(r.get("relation_type") == "supports" for r in (c.get("relations") or []))
         )
-        claim_coverage, _, _ = compute_claim_coverage(
+
+        question_coverage, channel_success = await _compute_real_coverage(
+            session, task, planning_questions
+        )
+        claim_coverage = compute_claim_coverage(
             critical_claims=len(critical_claims),
             claims_with_supports=critical_with_supports,
         )

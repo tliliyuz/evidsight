@@ -9,6 +9,7 @@ from app.config import settings
 from app.core.exceptions import RenderFailedException
 from app.core.llm import LLMResult
 from app.models.evidence_item import EvidenceItem
+from app.models.report import Report
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
@@ -82,6 +83,23 @@ def _valid_evidence_graph(
         "conflicts": [],
         "knowledge_gaps": [],
         "sources": graph_sources,
+        # 切片 6 门禁：零 critical Claim 不可发布（§10.2），默认给一个 critical claim
+        "claims": [
+            {
+                "statement": "测试关键结论。",
+                "critical": True,
+                "certainty": "high",
+                "qualification": "测试限定。",
+                "relations": [
+                    {
+                        "evidence_item_id": items[0]["evidence_item_id"] if items else None,
+                        "evidence_index": 0,
+                        "relation_type": "supports",
+                        "confidence": 0.9,
+                    }
+                ],
+            }
+        ],
     }
 
 
@@ -108,6 +126,21 @@ def _valid_report_sections() -> list[dict]:
             "content": "Shor 算法可分解大整数[来源0]，中国建设量子通信骨干网[来源2]。",
         },
     ]
+
+
+async def _load_revision_sections(db_session, task_id: str) -> list[ReportSection]:
+    """切片 4 单写同源：读取当前 published Revision 的 sections（按 sort_order）。"""
+    report = (
+        await db_session.execute(select(Report).where(Report.task_id == task_id))
+    ).scalar_one_or_none()
+    if report is None or not report.current_revision_id:
+        return []
+    result = await db_session.execute(
+        select(ReportSection)
+        .where(ReportSection.revision_id == report.current_revision_id)
+        .order_by(ReportSection.sort_order)
+    )
+    return list(result.scalars().all())
 
 
 async def _seed_render_task(
@@ -275,14 +308,8 @@ class TestRenderSuccess:
         assert output["completion_tokens"] == 1500
         assert output["citation_issues"] is False
 
-        # 验证 report_sections 写入
-        stmt = (
-            select(ReportSection)
-            .where(ReportSection.task_id == task.id, ReportSection.revision_id.is_(None))
-            .order_by(ReportSection.sort_order)
-        )
-        result = await db_session.execute(stmt)
-        report_sections = list(result.scalars().all())
+        # 验证 revision sections 单写
+        report_sections = await _load_revision_sections(db_session, task.id)
         assert len(report_sections) == 2
         assert report_sections[0].heading == "1. 概述"
         assert report_sections[1].heading == "2. 详细分析"
@@ -469,11 +496,9 @@ class TestRenderSuccess:
 
         assert output["citations_count"] == 3
 
-        stmt = select(ReportSection).where(
-            ReportSection.task_id == task.id, ReportSection.revision_id.is_(None)
-        )
-        result = await db_session.execute(stmt)
-        report_section = result.scalar_one()
+        report_sections = await _load_revision_sections(db_session, task.id)
+        assert len(report_sections) == 1
+        report_section = report_sections[0]
 
         # 验证 section_evidence 数量 = 去重后 3 条
         stmt = select(SectionEvidence).where(SectionEvidence.section_id == report_section.id)
@@ -497,13 +522,7 @@ class TestRenderSuccess:
 
         assert output["citation_issues"] is True
 
-        stmt = (
-            select(ReportSection)
-            .where(ReportSection.task_id == task.id, ReportSection.revision_id.is_(None))
-            .order_by(ReportSection.sort_order)
-        )
-        result = await db_session.execute(stmt)
-        report_sections = list(result.scalars().all())
+        report_sections = await _load_revision_sections(db_session, task.id)
         section_ids = [s.id for s in report_sections]
         stmt = select(SectionEvidence).where(SectionEvidence.section_id.in_(section_ids))
         result = await db_session.execute(stmt)
@@ -626,11 +645,9 @@ class TestRenderConsistency:
         assert output["citation_issues"] is True
         assert output["citations_count"] == 1
 
-        stmt = select(ReportSection).where(
-            ReportSection.task_id == task.id, ReportSection.revision_id.is_(None)
-        )
-        result = await db_session.execute(stmt)
-        report_section = result.scalar_one()
+        report_sections = await _load_revision_sections(db_session, task.id)
+        assert len(report_sections) == 1
+        report_section = report_sections[0]
         stmt = select(SectionEvidence).where(SectionEvidence.section_id == report_section.id)
         result = await db_session.execute(stmt)
         associations = list(result.scalars().all())
@@ -718,11 +735,9 @@ class TestCitationNormalization:
 
         assert output["citations_count"] == 2
 
-        stmt = select(ReportSection).where(
-            ReportSection.task_id == task.id, ReportSection.revision_id.is_(None)
-        )
-        result = await db_session.execute(stmt)
-        report_section = result.scalar_one()
+        report_sections = await _load_revision_sections(db_session, task.id)
+        assert len(report_sections) == 1
+        report_section = report_sections[0]
         assert report_section.content == "量子计算威胁[来源0][来源1]。"
 
         stmt = select(SectionEvidence).where(SectionEvidence.section_id == report_section.id)

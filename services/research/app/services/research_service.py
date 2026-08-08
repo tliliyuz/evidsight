@@ -29,6 +29,8 @@ from app.core.exceptions import (
 from app.core.identity_status_client import check_user_status
 from app.metrics import emit_task_status_transition
 from app.models.evidence_item import EvidenceItem
+from app.models.report import Report
+from app.models.report_revision import ReportRevision
 from app.models.report_section import ReportSection
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
@@ -331,10 +333,25 @@ async def _create_direct_answer_task(
     db.add(task)
     await db.flush()
 
-    # 单章节报告
+    # 单章节报告（切片 4 目标态单写：reports → revision → sections）
     heading = "回答" if language.startswith("zh") else "Answer"
+    report = Report(task_id=task.id)
+    db.add(report)
+    await db.flush()
+    revision = ReportRevision(
+        report_id=report.id,
+        revision_number=1,
+        status="published",
+        title=request.topic.strip(),
+        language=language,
+        published_at=now,
+    )
+    db.add(revision)
+    await db.flush()
+    report.current_revision_id = revision.id
     section = ReportSection(
         task_id=task.id,
+        revision_id=revision.id,
         heading=heading,
         content=answer_text,
         sort_order=0,
@@ -556,10 +573,20 @@ async def get_report(
         if isinstance(item, dict) and "evidence_item_id" in item and "index" in item:
             evidence_id_to_index[item["evidence_item_id"]] = item["index"]
 
+    # 切片 4 单写同源：经 reports → current_revision_id → revision sections 读取（RESEARCH_PIPELINE §11）
+    report = (
+        await db.execute(select(Report).where(Report.task_id == task.id))
+    ).scalar_one_or_none()
+    if report is None or not report.current_revision_id:
+        raise TaskStatusConflictException(detail="报告尚未生成")
+    revision = await db.get(ReportRevision, report.current_revision_id)
+    if revision is None or revision.status != "published":
+        raise TaskStatusConflictException(detail="报告尚未生成")
+
     # 组装章节（显式查询，避免 lazy load）
     stmt = (
         select(ReportSection)
-        .where(ReportSection.task_id == task.id)
+        .where(ReportSection.revision_id == revision.id)
         .order_by(ReportSection.sort_order)
     )
     result = await db.execute(stmt)

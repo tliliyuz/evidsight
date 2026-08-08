@@ -713,6 +713,16 @@ async def _clear_task_evidence(session: AsyncSession, task_id: str) -> None:
     await session.execute(delete(EvidenceItem).where(EvidenceItem.task_id == task_id))
 
 
+def _question_id_from_index(sub_question_index: int | None) -> str | None:
+    """1-based sub_question_index → Planning 稳定 question_id（q1…qN；切片 6 §5.1）。
+
+    index 无效（None/<=0）时返回 None（evidence 不归属任何问题，不计入完整度分子）。
+    """
+    if not sub_question_index or int(sub_question_index) <= 0:
+        return None
+    return f"q{int(sub_question_index)}"
+
+
 async def _persist_evidence(
     session: AsyncSession,
     task: ResearchTask,
@@ -743,6 +753,7 @@ async def _persist_evidence(
                 source_type="internal",
                 source_id=None,
                 step_id=step.id,
+                question_id=_question_id_from_index(ev.sub_question_index),
                 content=None,
                 relevance_score=ev.relevance_score,
                 used_in_sections=None,
@@ -763,6 +774,7 @@ async def _persist_evidence(
                 source_type="web",
                 source_id=ev.source_id,
                 step_id=step.id,
+                question_id=_question_id_from_index(ev.sub_question_index),
                 content=ev.content,
                 relevance_score=ev.relevance_score,
                 used_in_sections=None,

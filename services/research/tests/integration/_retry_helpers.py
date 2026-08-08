@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from app.core.llm import LLMResult
 from app.models.evidence_item import EvidenceItem
+from app.models.report import Report
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
@@ -986,9 +987,13 @@ async def _assert_sources_count(db_session: AsyncSession, task_id: str, expected
 async def _assert_report_sections_exist(
     db_session: AsyncSession, task_id: str, expected_count: int
 ) -> None:
-    """验证 ReportSection 已写入。"""
+    """验证 ReportSection 已写入（切片 4 单写：读当前 published Revision）。"""
+    report = await db_session.scalar(select(Report).where(Report.task_id == task_id))
+    assert report is not None and report.current_revision_id, "目标态 reports 未创建"
     count = await db_session.scalar(
-        select(func.count()).select_from(ReportSection).where(ReportSection.task_id == task_id)
+        select(func.count())
+        .select_from(ReportSection)
+        .where(ReportSection.revision_id == report.current_revision_id)
     )
     assert count == expected_count, (
         f"ReportSection 数量不匹配: expected={expected_count}, actual={count}"
@@ -999,6 +1004,6 @@ async def _assert_report_sections_exist(
             select(func.count())
             .select_from(SectionEvidence)
             .join(ReportSection, SectionEvidence.section_id == ReportSection.id)
-            .where(ReportSection.task_id == task_id)
+            .where(ReportSection.revision_id == report.current_revision_id)
         )
         assert se_count > 0, "ReportSection 存在但无 SectionEvidence 关联"

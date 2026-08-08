@@ -155,6 +155,14 @@ Planner 不保存或展示内部思考理由；可以保存面向用户的简短
 
 输出 Schema 不合法时允许有限次数的模型重试；重试仍失败是不可恢复 Planning 错误。空 Topic、非法来源策略或超预算请求在创建 Task 前拒绝。
 
+**稳定结构（切片 6，2026-08-08）**：Planning 输出同时包含 `sub_questions`（字符串列表，供搜索/重排引用）与 `questions`（稳定结构化问题清单），每项 `{question_id, text, required, planned_channels}`：
+
+- `question_id`：稳定 ID（`"q1"`…`"qN"`，与 `sub_questions` 按序一一对应）；
+- `required`：布尔，是否计入完整度分母（§10.1）；
+- `planned_channels`：受控枚举 `["knowledge", "web"]`，该问题计划使用的来源通道（与任务 `source_strategy` 一致，hybrid 允许两者）。
+
+LLM 未输出 `questions` 时按 `sub_questions` 派生（`required=True`，`planned_channels` 取任务 source_strategy 对应通道：knowledge→`[knowledge]`、web→`[web]`、hybrid→`[knowledge, web]`）。Evidence 经 `evidence_items.question_id` 归属到问题（DATABASE.md §6.2）。
+
 ### 5.3 查询域隔离
 
 Knowledge Query 可保留用户明确提供的内部实体名称，但 Web Query 只能来自原始用户 Topic、公开 Requirements 和 Planner 产生的公开子问题。Internal Retrieval 的 excerpt、内部文档标题、内部命名、检索结果或报告草稿不得自动进入 Web Query。
@@ -274,7 +282,7 @@ evidence_completeness =
   + 0.25 × claim_coverage
 ```
 
-所有分子、分母、分项分数、最终分数和规则版本必须持久化到 Report Revision 的完整度摘要，便于审计。不得由 LLM直接给出该分数。
+所有分子、分母、分项分数、最终分数和规则版本必须持久化到 Report Revision 的完整度摘要，便于审计。不得由 LLM直接给出该分数。摘要结构（切片 6，2026-08-08）：`question_coverage` / `channel_success` / `claim_coverage` 各含 `{numerator, denominator, ratio}`，另含顶层 `score` 与 `rule_version`。
 
 **迁移态（2026-08-07）**：目标态三分项分母依赖 Planning 的 `required` 子问题与计划通道口径。当前 `report_publisher.publish_report` 以最小可审计近似落地：`required_questions` 用 `max(1, task.total_steps)` 近似（§5.1 的 `total_steps`），`channel_success` 按来源策略以「有任意 evidence 即计成功」近似，`claim_coverage` 按 critical Claim 的 supports 关系计算；三分项与总分持久化到 Revision 摘要，供 Resolver 预算停止完整度判定（§10.2/§10.3）与审计读取。该近似由完整通道计划（Planning 输出 required 子问题与通道明细）替代前保持有效，属已登记迁移态，不视为 §10.1 的最终口径。
 
@@ -315,6 +323,8 @@ Renderer 根据通过校验的 Graph 和报告模板生成 Section、Claim 展�
 6. TaskStateResolver 基于已发布 Revision 计算最终 Task 状态。
 
 构建失败时 Revision 标记 `failed`，当前报告不变；重试创建更高 revision number。v1.0 只支持整份重生成，不原地修改 published Revision，不实现局部 Section 替换。
+
+**切片 4 单写收敛（2026-08-08）**：Renderer 不再写 task 级迁移态 `report_sections`/`section_evidence`（单写）；发布时由 `report_publisher.publish_report` 据渲染 DTO（heading/content/sources）直接创建 revision 专属 sections，并在同一事务同步写 `section_evidence`（证据引用经 `index_to_evidence_id` 解析、按 §9 门禁 1 闭合到当前 Task）。读取统一走 `reports → current_revision_id → revision sections`：v1 读取 API（`report_reader.get_report_detail`）与旧 API `GET /api/research/{task_id}/report` 同源，同一 Task 新旧接口返回同一份报告内容（响应格式可不同）。存量 task 级 sections 由切片 5 专项迁移归入 Revision 1。
 
 ## 12. 错误分类与降级
 
@@ -455,6 +465,9 @@ Research SSE 是持久任务订阅，断开不取消 Task。事件由数据库�
 8. 完整度三分项和总分由固定 Fixture 计算，边界 `0.699...` 失败、`0.70` 可部分完成。
 9. 零 required 子问题、零 critical Claim 或零 Evidence 不得利用空集合通过。
 10. failed Revision 不切换当前报告；成功 Revision 原子发布且旧版不可变。
+11. 渲染只写目标态 Revision sections 并同步写 `section_evidence`，不再写 task 级迁移态 sections；新旧 API 经 `reports → current_revision_id` 同源读取，同一 Task 新旧接口返回同一份报告内容。
+12. 切片 4 前的存量 task 级 sections 经迁移脚本归入目标态 Revision 1（保留 section_evidence），迁移幂等且无 `revision_id IS NULL` 残留；非终态任务保留 task 级 sections 待渲染发布。
+13. 完整度三分项由 Planning 稳定结构 questions（required 子问题与计划通道）+ evidence 的 question_id 归属计算真实分子/分母；零 required 子问题或零 critical Claim 时报告不可发布（§10.2）；Revision 摘要持久化分子/分母/ratio/score/rule_version。
 
 ### 17.3 失败、取消与恢复
 

@@ -66,6 +66,10 @@ _SYSTEM_PROMPT_TEMPLATE = """你是一个专业研究规划师。你的任务是
     "子问题 1 文本",
     "子问题 2 文本"
   ],
+  "questions": [
+    {{"question_id": "q1", "text": "子问题 1 文本", "required": true, "planned_channels": ["web"]}},
+    {{"question_id": "q2", "text": "子问题 2 文本", "required": false, "planned_channels": ["knowledge", "web"]}}
+  ],
   "rationale": "拆解逻辑简述（1-2 句）"
 }}"""
 
@@ -279,6 +283,60 @@ def _validate_sub_questions(sub_questions: list[str]) -> list[str]:
     return errors
 
 
+# 受控通道枚举（RESEARCH_PIPELINE §6.1/§6.2 / §5.1 稳定结构）
+PLANNED_CHANNEL_ENUM = ("knowledge", "web")
+
+# source_strategy → 计划通道（§5.1：hybrid 允许两者）
+_CHANNEL_BY_STRATEGY: dict[str, list[str]] = {
+    "knowledge": ["knowledge"],
+    "web": ["web"],
+    "hybrid": ["knowledge", "web"],
+}
+
+
+def _derive_questions(sub_questions: list[str], source_strategy: str) -> list[dict]:
+    """按 sub_questions + source_strategy 派生 questions（LLM 未输出 questions 时）。
+
+    required 全部置 True（§5.1：不得因缺失信息把 required 误判为 optional）；
+    planned_channels 取任务策略对应通道。
+    """
+    channels = _CHANNEL_BY_STRATEGY.get(source_strategy, ["web"])
+    return [
+        {
+            "question_id": f"q{i}",
+            "text": sq,
+            "required": True,
+            "planned_channels": list(channels),
+        }
+        for i, sq in enumerate(sub_questions, start=1)
+    ]
+
+
+def _validate_questions(questions: list[dict], sub_questions: list[str]) -> list[str]:
+    """校验 questions 结构，返回错误列表（空列表 = 通过）。"""
+    errors: list[str] = []
+    if len(questions) != len(sub_questions):
+        errors.append(
+            f"questions 数量 {len(questions)} 与 sub_questions {len(sub_questions)} 不一致"
+        )
+    for i, q in enumerate(questions):
+        if not isinstance(q, dict):
+            errors.append(f"questions[{i}] 不是对象")
+            continue
+        qid = q.get("question_id")
+        if not isinstance(qid, str) or not qid.strip():
+            errors.append(f"questions[{i}] 缺少合法 question_id")
+        if not isinstance(q.get("required"), bool):
+            errors.append(f"questions[{i}] required 必须为布尔")
+        channels = q.get("planned_channels")
+        if not isinstance(channels, list) or not channels:
+            errors.append(f"questions[{i}] planned_channels 必须为非空列表")
+        elif any(c not in PLANNED_CHANNEL_ENUM for c in channels):
+            errors.append(f"questions[{i}] planned_channels 含非法通道")
+
+    return errors
+
+
 def _parse_planning_output(raw_text: str) -> dict:
     """解析 LLM 输出为 dict，提取 JSON 并校验顶层字段。
 
@@ -309,8 +367,15 @@ def _parse_planning_output(raw_text: str) -> dict:
     if not isinstance(rationale, str):
         rationale = str(rationale)
 
+    # questions 为可选增强结构（切片 6）：缺失或非法时由 run_planning 按
+    # sub_questions + source_strategy 派生（§5.1 稳定结构）。
+    questions = data.get("questions")
+    if questions is not None and not isinstance(questions, list):
+        raise ValueError("'questions' 不是数组")
+
     return {
         "sub_questions": [str(sq) for sq in sub_questions],
+        "questions": questions,
         "rationale": rationale,
     }
 
@@ -418,6 +483,11 @@ async def run_planning(
 
         sub_questions = parsed["sub_questions"]
 
+        # 切片 6 稳定结构：questions 缺失或非法时按 sub_questions + 策略派生（§5.1）
+        questions = parsed["questions"]
+        if not questions or _validate_questions(questions, sub_questions):
+            questions = _derive_questions(sub_questions, task.source_strategy or "web")
+
         # 校验
         validation_errors = _validate_sub_questions(sub_questions)
         if not validation_errors:
@@ -428,12 +498,14 @@ async def run_planning(
                     "step_id": step_id,
                     "sub_questions_generated": len(sub_questions),
                     "sub_questions": sub_questions,
+                    "questions": questions,
                     "rationale": parsed["rationale"],
                 },
             )
 
             output = {
                 "sub_questions": sub_questions,
+                "questions": questions,
                 "rationale": parsed["rationale"],
                 "model": settings.LLM_MODEL,
                 "retry_count": attempt,

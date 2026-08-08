@@ -176,7 +176,7 @@ Web 正文只在同一 Task 内使用，不跨用户或任务共享。默认保�
 
 `evidence_items` 是 Contract `EvidenceReference` 的关系化持久表示。`source_type` 为 `internal|web`，两类字段严格互斥。
 
-共同字段包括：`id`、`task_id`、`source_type`、`display_title`、`location_summary`、`captured_at`、`source_observed_at`、`score_summary`、`validity`、`created_by_step_id` 和 `created_at`。
+共同字段包括：`id`、`task_id`、`source_type`、`display_title`、`location_summary`、`captured_at`、`source_observed_at`、`score_summary`、`validity`、`created_by_step_id` 和 `created_at`。切片 6 新增 `question_id`（String(36)，可空）：evidence 归属 Planning 稳定结构问题的 ID（`q1`…`qN`，RESEARCH_PIPELINE §5.1），用于完整度 `question_coverage`/`channel_success` 真实分子统计（§10.1）；无 Planning 归属（如 direct_answer 等）时为空。
 
 内部来源字段：
 
@@ -231,7 +231,7 @@ Revision 构建失败标记 failed，不成为当前版本。重试创建新 Rev
 - `body_markdown` 可包含综合结论和引用标记，但不得嵌入内部来源摘录或可绕过权限的历史正文。
 - published Revision 下的 Section 不可更新或删除。
 
-> 落地说明（2026-08-07，负责人裁决方案 X）：迁移态 task 级 `report_sections`（直挂 task_id）保留用于 AC 验证与历史数据；目标态发布为每个 Revision **复制独立 sections 副本**（revision_id 归属，不挂载/修改迁移态 sections）。因此 reports/revision 的级联删除只影响 revision 专属副本，不破坏迁移态展示数据。两份数据并存为迁移态，后续统一归属 revision 时由专项迁移收敛。
+> 落地说明（2026-08-07，负责人裁决方案 X；切片 4 更新 2026-08-08）：迁移态 task 级 `report_sections`（直挂 task_id）在切片 4 前保留用于 AC 验证与历史数据；切片 4 起 Renderer 单写目标态 Revision sections——`publish_report` 直接据渲染 DTO 创建 revision 专属 sections（revision_id 归属）并同步写 `section_evidence`，不再复制/不挂载迁移态 sections。存量 task 级 sections 由切片 5 专项迁移归入 Revision 1（保留 section_evidence）。reports/revision 的级联删除只影响 revision 专属副本。
 
 ### 7.4 `claims`
 
@@ -340,6 +340,8 @@ Redis 丢失不得改变 MySQL 中的任务完成事实。消息重复投递通�
 7. 运行外键、同 Task/Revision、正文禁入、租约竞争、恢复幂等和报告发布验收后再切换流量。
 
 由于两个旧项目没有生产用户，不设计用户名合并、用户映射表或双写身份过渡。迁移环境中的 Task 如需保留，必须由受控脚本显式赋予合法 Platform User UUID；否则只作为离线测试 Fixture，不进入目标业务库。
+
+**切片 5 存量 sections 迁移（2026-08-08）**：切片 4 单写前的存量 task 级 sections（`revision_id IS NULL`）由 `scripts/migrate_legacy_report_sections.py` 幂等迁移（service `app/services/legacy_report_migration.py`）：为有 task 级 sections 且无 reports 根的可迁移终态任务创建 Report + published Revision 1，把 sections 归入 Revision（`revision_id` 更新，保留 `section_evidence`，不重建、不复制正文）；非终态任务保留 task 级 sections 待任务完成后经渲染发布。遵循 DATA_MIGRATION_AND_ROLLBACK.md（先备份、版本化脚本、幂等、迁移记录）。观测窗口后收紧 `revision_id NOT NULL` 并移除 task 级读取逻辑（后续切片）。
 
 ## 13. 验收场景
 

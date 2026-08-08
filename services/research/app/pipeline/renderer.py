@@ -5,7 +5,7 @@
 - 按 task_type 选择模板
 - 调用 deepseek-v4-pro（deep_thinking=False, temperature=0.5, max_tokens=8000）
 - 正文中使用 [来源N] 标注引用，N 即 GraphItem.index
-- 解析并持久化 report_sections / section_evidence
+- 切片 4 单写：解析的 Section 直接交 report_publisher 创建 revision sections 并同步写 section_evidence
 - 更新 evidence_items.used_in_sections
 
 引用锚点说明：
@@ -28,10 +28,8 @@ from app.core.exceptions import RenderFailedException, TaskCanceledException
 from app.core.llm import LLMResult, chat_completion
 from app.core.token_counter import estimate_tokens
 from app.models.evidence_item import EvidenceItem
-from app.models.report_section import ReportSection
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
-from app.models.section_evidence import SectionEvidence
 from app.pipeline import cancel_guard
 from app.pipeline.sse_bridge import (
     EVENT_STEP_COMPLETED,
@@ -456,52 +454,6 @@ def _parse_render_output(
     return sections, citation_issues
 
 
-async def _persist_sections(
-    session: AsyncSession,
-    task_id: str,
-    sections: list[RenderSection],
-    index_to_evidence_id: dict[int, int],
-) -> list[ReportSection]:
-    """写入 report_sections 并建立 section_evidence 关联。"""
-    report_sections: list[ReportSection] = []
-    for i, section in enumerate(sections):
-        rs = ReportSection(
-            task_id=task_id,
-            heading=section.heading,
-            content=section.content,
-            sort_order=i,
-        )
-        session.add(rs)
-        report_sections.append(rs)
-
-    await session.flush()
-
-    for rs, section in zip(report_sections, sections):
-        for src in section.sources:
-            evidence_id = index_to_evidence_id.get(src["evidence_index"])
-            if evidence_id is None:
-                continue
-            se = SectionEvidence(section_id=rs.id, evidence_id=evidence_id)
-            session.add(se)
-
-    await session.flush()
-    return report_sections
-
-
-async def _load_recent_report_sections(
-    session: AsyncSession,
-    task_id: str,
-) -> list[ReportSection]:
-    """读取本次渲染刚写入的 report_sections（按 sort_order）。"""
-    stmt = (
-        select(ReportSection)
-        .where(ReportSection.task_id == task_id)
-        .order_by(ReportSection.sort_order)
-    )
-    result = await session.execute(stmt)
-    return list(result.scalars().all())
-
-
 async def _update_evidence_used_in_sections(
     session: AsyncSession,
     task_id: str,
@@ -575,6 +527,34 @@ async def _load_evidence_graph(
 
 
 # ── 主入口 ────────────────────────────────────────────────────
+
+
+async def _load_planning_questions(
+    session: AsyncSession,
+    task: ResearchTask,
+) -> list[dict]:
+    """读取最新 completed Planning Step 的 questions 稳定结构（切片 6 §5.1）。
+
+    旧 planning 无 questions 时返回空列表（report_publisher 走派生口径）。
+    """
+    stmt = (
+        select(ResearchStep)
+        .where(
+            ResearchStep.task_id == task.id,
+            ResearchStep.step_type == "planning",
+            ResearchStep.status == "completed",
+        )
+        .order_by(ResearchStep.completed_at.desc())
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    step: ResearchStep | None = result.scalar_one_or_none()
+    if step is None or not isinstance(step.output, dict):
+        return []
+    questions = step.output.get("questions")
+    if not isinstance(questions, list):
+        return []
+    return questions
 
 
 async def run_render(
@@ -672,19 +652,17 @@ async def run_render(
     # 5. 解析 Section 与引用
     sections, citation_issues = _parse_render_output(raw_text, index_to_item)
 
-    # 6. 迁移态持久化（AC-001 等验证脚本依赖 report_sections + section_evidence）
-    await _persist_sections(session, task_id, sections, index_to_evidence_id)
+    # 6. 更新 evidence_items.used_in_sections
     await _update_evidence_used_in_sections(session, task_id, sections, index_to_evidence_id)
 
-    # 6.1 目标态原子发布（DATABASE.md §7.6 / ADR-009）：
-    #     reports → building Revision → sections(挂 revision) → claims/relations → published
+    # 7. 目标态原子发布（DATABASE.md §7.6 / ADR-009 / 切片 4 单写）：
+    #     reports → building Revision → revision sections + section_evidence → claims/relations → published
     from app.services.report_publisher import publish_report
 
     # §13.2：Report 发布事务前检查取消请求，取消后不发布新 Revision（§17.3-15）。
     if await cancel_guard.is_task_canceled(session, task_id):
         raise TaskCanceledException()
 
-    report_sections_rows = await _load_recent_report_sections(session, task_id)
     claims_raw = graph.get("claims") or []
     evidence_ids = list(index_to_evidence_id.values())
     evidence_by_id: dict = {}
@@ -696,14 +674,17 @@ async def run_render(
         )
         result = await session.execute(stmt)
         evidence_by_id = {ev.id: ev for ev in result.scalars().all()}
+    planning_questions = await _load_planning_questions(session, task)
     await publish_report(
         session,
         task=task,
         build_step_id=step_id,
         title=task.topic,
-        sections=report_sections_rows,
+        sections=sections,
+        index_to_evidence_id=index_to_evidence_id,
         claims_raw=claims_raw,
         evidence_by_id=evidence_by_id,
+        planning_questions=planning_questions,
         language=language,
         content_hash=None,
         limitations_summary="；".join(graph.get("knowledge_gaps") or []) or None,

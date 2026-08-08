@@ -172,6 +172,13 @@ class EvidenceItem(Base):
         server_default=sa.text("NULL"),
         comment="产生此证据的 Step（NULL = 非 Step 产生）",
     )
+    question_id: Mapped[str | None] = mapped_column(
+        sa.String(36),
+        nullable=True,
+        default=None,
+        server_default=sa.text("NULL"),
+        comment="归属 Planning 问题的稳定 question_id（q1…qN，RESEARCH_PIPELINE §5.1/§10.1）",
+    )
 
     # 内部证据禁止正文；web 迁移态正文存于此（目标态移除）
     content: Mapped[str | None] = mapped_column(

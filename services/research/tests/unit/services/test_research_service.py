@@ -12,6 +12,8 @@ from app.core.exceptions import (
     TaskStatusConflictException,
 )
 from app.models.evidence_item import EvidenceItem
+from app.models.report import Report
+from app.models.report_revision import ReportRevision
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
@@ -754,8 +756,24 @@ async def _seed_report_task(db: AsyncSession, status: str = "completed") -> Rese
     )
     db.add(evidence_graph_step)
 
+    # 切片 4 单写同源：get_report 经 reports → current_revision_id → revision sections 读取
+    report = Report(task_id=task.id)
+    db.add(report)
+    await db.flush()
+    revision = ReportRevision(
+        report_id=report.id,
+        revision_number=1,
+        status="published",
+        title=task.topic,
+        published_at=datetime(2026, 1, 1, 0, 0, 8, tzinfo=timezone.utc),
+    )
+    db.add(revision)
+    await db.flush()
+    report.current_revision_id = revision.id
+
     section = ReportSection(
         task_id=task.id,
+        revision_id=revision.id,
         heading="1. 概述",
         content="量子计算威胁[来源0]。",
         sort_order=0,

@@ -15,6 +15,7 @@ import pytest
 from app.core.llm import LLMResult
 from app.core.trace_recorder import TraceRecorder
 from app.models.evidence_item import EvidenceItem
+from app.models.report import Report
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
@@ -362,10 +363,12 @@ class TestPipelineFullFlow:
         assert len(evidence_items) == 4
         assert all(ev.source_id in {s.id for s in sources} for ev in evidence_items)
 
-        # ── Render 数据链路 ──
+        # ── Render 数据链路（切片 4 单写：读当前 published Revision）──
+        report = await db_session.scalar(select(Report).where(Report.task_id == task_id))
+        assert report is not None and report.current_revision_id, "目标态 reports 未创建"
         sections_result = await db_session.execute(
             select(ReportSection)
-            .where(ReportSection.task_id == task_id)
+            .where(ReportSection.revision_id == report.current_revision_id)
             .order_by(ReportSection.sort_order)
         )
         report_sections = list(sections_result.scalars().all())

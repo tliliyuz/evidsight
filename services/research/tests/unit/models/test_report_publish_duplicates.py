@@ -5,10 +5,11 @@
 - 重复 (claim, evidence, relation_type) 合并，不能覆盖其他关系类型。
 """
 
+from types import SimpleNamespace
+
 from app.models.evidence_item import EvidenceItem
 from app.models.evidence_relation import EvidenceRelation
 from app.models.report import Report
-from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
@@ -63,12 +64,12 @@ class TestDuplicateRelationMerge:
         task, step, evidence_by_id = await _seed_publish_task(db_session)
         ev_ids = list(evidence_by_id.keys())
 
+        # 切片 4 单写：publish_report 接收渲染 DTO（heading/content/sources）+ index_to_evidence_id
         sections = [
-            ReportSection(
-                task_id=task.id,
+            SimpleNamespace(
                 heading="1. 概述",
                 content="正文",
-                sort_order=0,
+                sources=[],
             )
         ]
 
@@ -78,6 +79,7 @@ class TestDuplicateRelationMerge:
             build_step_id=str(step.id),
             title="重复关系合并",
             sections=sections,
+            index_to_evidence_id={},
             claims_raw=[
                 {
                     "statement": "结论。",

@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.database import async_session_factory  # noqa: E402
 from app.evaluation.ac_metrics import evaluate_citation_validity  # noqa: E402
+from app.models.report import Report  # noqa: E402
 from app.models.report_section import ReportSection  # noqa: E402
 from app.models.research_step import ResearchStep  # noqa: E402
 from app.models.research_task import ResearchTask  # noqa: E402
@@ -53,9 +54,15 @@ def _parse_args() -> argparse.Namespace:
 
 
 async def _load_sections(session: AsyncSession, task_id: str) -> list[ReportSection]:
+    """切片 4 单写同源：经 reports → current_revision_id → revision sections 读取。"""
+    report = (
+        await session.execute(select(Report).where(Report.task_id == task_id))
+    ).scalar_one_or_none()
+    if report is None or not report.current_revision_id:
+        return []
     result = await session.execute(
         select(ReportSection)
-        .where(ReportSection.task_id == task_id)
+        .where(ReportSection.revision_id == report.current_revision_id)
         .order_by(ReportSection.sort_order)
     )
     return list(result.scalars().all())

@@ -76,23 +76,42 @@ def compute_evidence_completeness(
 
 
 def build_completeness_summary(
-    question_coverage: float,
-    channel_success: float,
-    claim_coverage: float,
+    question_coverage: tuple[float, int, int],
+    channel_success: tuple[float, int, int],
+    claim_coverage: tuple[float, int, int],
 ) -> dict:
     """构建持久化到 ReportRevision.evidence_completeness 的完整摘要。
 
-    含三分项、总分与规则版本，便于审计与复算。
+    对齐 RESEARCH_PIPELINE §10.1（切片 6）：三分项各含 `{numerator, denominator,
+    ratio}`，另含总分 `score` 与 `rule_version`，便于审计与复算。
+
+    Args:
+        三分项参数均为 compute_* 的 (ratio, numerator, denominator) 返回元组。
     """
+    q_ratio, q_num, q_den = question_coverage
+    c_ratio, c_num, c_den = channel_success
+    k_ratio, k_num, k_den = claim_coverage
     score = compute_evidence_completeness(
-        question_coverage=question_coverage,
-        channel_success=channel_success,
-        claim_coverage=claim_coverage,
+        question_coverage=q_ratio,
+        channel_success=c_ratio,
+        claim_coverage=k_ratio,
     )
     return {
-        "question_coverage": round(question_coverage, 4),
-        "channel_success": round(channel_success, 4),
-        "claim_coverage": round(claim_coverage, 4),
+        "question_coverage": {
+            "numerator": q_num,
+            "denominator": q_den,
+            "ratio": round(q_ratio, 4),
+        },
+        "channel_success": {
+            "numerator": c_num,
+            "denominator": c_den,
+            "ratio": round(c_ratio, 4),
+        },
+        "claim_coverage": {
+            "numerator": k_num,
+            "denominator": k_den,
+            "ratio": round(k_ratio, 4),
+        },
         "score": round(score, 4),
         "rule_version": COMPLETENESS_RULE_VERSION,
     }

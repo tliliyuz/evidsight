@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from app.core.internal_retrieval_client import ResolvedReference
 from app.models.evidence_item import EvidenceItem
+from app.models.report import Report
 from app.models.report_section import ReportSection
 from app.models.research_source import ResearchSource
 from app.models.research_step import ResearchStep
@@ -363,6 +364,22 @@ class TestRenderInternalEvidence:
                     "conflicts": [],
                     "knowledge_gaps": [],
                     "sources": [],
+                    "claims": [
+                        {
+                            "statement": "量子计算对 RSA 构成实际威胁。",
+                            "critical": True,
+                            "certainty": "high",
+                            "qualification": "需工程化验证。",
+                            "relations": [
+                                {
+                                    "evidence_item_id": 1,
+                                    "evidence_index": 0,
+                                    "relation_type": "supports",
+                                    "confidence": 0.9,
+                                }
+                            ],
+                        }
+                    ],
                 },
                 "item_count": 2,
                 "cluster_count": 1,
@@ -403,11 +420,12 @@ class TestRenderInternalEvidence:
         # internal 证据不把正文塞进报告 prompt
         assert "Shor" not in system_content
 
-        # 报告 Section 已持久化
+        # 报告 Section 已持久化（切片 4 单写：读当前 published Revision）
+        report = (
+            await db_session.execute(select(Report).where(Report.task_id == task.id))
+        ).scalar_one()
         result = await db_session.execute(
-            select(ReportSection).where(
-                ReportSection.task_id == task.id, ReportSection.revision_id.is_(None)
-            )
+            select(ReportSection).where(ReportSection.revision_id == report.current_revision_id)
         )
         sections = list(result.scalars().all())
         assert len(sections) == 1
