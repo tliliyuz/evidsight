@@ -114,7 +114,11 @@ evidsight/
 # 安装根工具环境
 uv sync --locked
 
-# 安装提交前静态门禁（pre-commit：ruff + 提交信息格式），每个 worktree 初始化时各执行一次
+# 安装两个服务的开发依赖（包含首批 mypy 类型门禁）
+uv pip install --python services/knowledge/.venv/bin/python -r services/knowledge/requirements-dev.txt
+uv pip install --python services/research/.venv/bin/python -r services/research/requirements-dev.txt
+
+# 安装提交前静态门禁（ruff + mypy + Web + 提交信息格式），每个 worktree 初始化时各执行一次
 .venv/bin/pre-commit install
 .venv/bin/pre-commit install --hook-type commit-msg
 

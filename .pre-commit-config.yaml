@@ -17,6 +17,13 @@ repos:
         files: ^(services|scripts|tests|packages/contracts)/.*\.py$
         exclude: ^services/[^/]+/alembic/versions/.*\.py$
         stages: [pre-commit]
+      - id: python-mypy
+        name: python mypy (首批范围)
+        entry: bash scripts/check_python_types.sh
+        language: system
+        files: ^services/(knowledge/app/(schemas/.*|core/permissions\.py)|research/app/(schemas/.*|core/(permissions|utils)\.py))$
+        pass_filenames: false
+        stages: [pre-commit]
       - id: web-eslint
         name: web eslint
         entry: pnpm --dir apps/web run lint

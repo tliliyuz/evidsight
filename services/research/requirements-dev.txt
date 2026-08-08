@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# 静态类型检查：仅开发/CI 使用，不进入生产镜像。
+mypy==2.3.*

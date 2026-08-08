@@ -1,4 +1,4 @@
-.PHONY: test test-knowledge test-research test-web build-web config compose-config
+.PHONY: test test-knowledge test-research test-web type-check build-web config compose-config
 
 test:
 	bash scripts/test_all.sh
@@ -11,6 +11,9 @@ test-research:
 
 test-web:
 	pnpm --dir apps/web test
+
+type-check:
+	bash scripts/check_python_types.sh
 
 build-web:
 	pnpm --dir apps/web run build
