@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.uuid_helpers import resolve_uuid_to_id
-from app.dependencies import get_db, require_admin
+from app.dependencies import AuthenticatedUser, get_db, require_admin
 from app.models.knowledge_base import KnowledgeBase
 from app.schemas.admin import (
     AdminUserResetPasswordRequest,
@@ -37,7 +37,7 @@ router = APIRouter(prefix="/api/admin", tags=["管理后台"])
 @router.get("/stats")
 async def get_admin_stats(
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_admin),
+    current_user: AuthenticatedUser = Depends(require_admin),
 ):
     """获取系统全局统计概览"""
     data = await get_stats(db)
@@ -225,7 +225,7 @@ async def update_admin_user_status(
     user_id: str,
     body: AdminUserStatusRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_admin),
+    current_user: AuthenticatedUser = Depends(require_admin),
 ):
     """禁用/启用用户
 
@@ -236,7 +236,7 @@ async def update_admin_user_status(
         db,
         user_id=resolved,
         new_status=body.status,
-        current_user_id=current_user.get("user_id"),
+        current_user_id=current_user["user_id"],
     )
     message = "用户已禁用" if body.status == "disabled" else "用户已启用"
     return {"code": "0", "message": message, "data": data.model_dump()}

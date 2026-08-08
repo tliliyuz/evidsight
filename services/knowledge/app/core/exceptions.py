@@ -10,6 +10,7 @@ class AppException(HTTPException):
         self.error_code = code
         self.error_message = message
         self.error_detail = detail
+        self.clear_auth_cookies = False
         super().__init__(
             status_code=status_code,
             detail={
@@ -261,7 +262,7 @@ class TraceNotFoundException(AppException):
 
 
 class UserNotFoundException(AppException):
-    def __init__(self, user_id: int):
+    def __init__(self, user_id: int | str):
         super().__init__("E7002", "用户不存在", 404, f"user_id={user_id} 不存在")
 
 

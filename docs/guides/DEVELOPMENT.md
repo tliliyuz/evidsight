@@ -131,7 +131,7 @@ uvx ruff check services/ scripts/ tests/ packages/contracts/
 # Python 格式化一致性检查（--check 不修改文件；正式格式化去掉 --check）
 uvx ruff format --check services/ scripts/ tests/ packages/contracts/
 
-# 首批 Python 类型门禁（分别使用 Knowledge/Research 独立环境）
+# 当前 Python 类型门禁（分别使用 Knowledge/Research 独立环境）
 bash scripts/check_python_types.sh
 
 # 验证开发单机 Compose 配置
@@ -252,7 +252,8 @@ docker compose config --quiet
 - 日志、Trace、SSE 和错误不得包含密码、Token、服务凭证、完整 Prompt、隐藏推理或内部正文；
 - Chat SSE 与 Research SSE 使用独立解析器和状态机；
 - Python 代码遵循 ruff 约定（规则集 `E4,E7,E9,F,I`，行宽 100），提交前执行 `ruff check` 与 `ruff format --check`；配置见根 `pyproject.toml` `[tool.ruff]`。ruff 为根开发依赖（`uv add --dev ruff`）：Astral 官方活跃维护，单文件 ~8MB 无传递依赖，覆盖静态检查与格式化，替代方案为 black+isort+flake8 三件套（需三份配置）；
-- Python 类型检查使用 mypy，首批强制范围与渐进规则以 [TESTING.md §3.1](../specs/TESTING.md#31-架构与静态边界) 为准。mypy 固定在两个服务各自的 `requirements-dev.txt`，随服务依赖解析 Pydantic/FastAPI/SQLAlchemy 类型，不进入生产镜像；它是活跃维护的开发依赖，本地安装包含 mypy 本体及少量辅助包，生产镜像与运行时体积增量为 0。Pydantic 启用官方 mypy plugin；SQLAlchemy 不启用已废弃的旧 plugin，ORM 后续扩大范围时使用 SQLAlchemy 2 `Mapped[...]`/`mapped_column()` 原生类型。替代方案为 Pyright（高性能，但官方 CLI 主要由 npm 分发，会把 Python 门禁耦合到现有 Web 包或引入第二个 Node 工程）或仅依赖 ruff/测试（无法检查跨函数类型契约）；
+- Python 类型检查使用 mypy，当前强制范围与渐进规则以 [TESTING.md §3.1](../specs/TESTING.md#31-架构与静态边界) 为准。mypy 与 `types-python-jose` 类型桩固定在两个服务各自的 `requirements-dev.txt`，随服务依赖解析 Pydantic/FastAPI/SQLAlchemy/JWT 类型，不进入生产镜像；二者均由活跃维护的 mypy/Typeshed 生态提供，本地安装包含 mypy 本体、类型桩及少量辅助包，生产镜像与运行时体积增量为 0。Research 开发依赖另包含既有异步 SQLite 测试 Fixture 所需的 `aiosqlite`，同样不进入生产镜像。Pydantic 启用官方 mypy plugin；SQLAlchemy 不启用已废弃的旧 plugin，ORM 后续扩大范围时使用 SQLAlchemy 2 `Mapped[...]`/`mapped_column()` 原生类型。替代方案为 Pyright（高性能，但官方 CLI 主要由 npm 分发，会把 Python 门禁耦合到现有 Web 包或引入第二个 Node 工程）或仅依赖 ruff/测试（无法检查跨函数类型契约）；
+- mypy 分六批收口：① Schema/权限纯函数，② 安全与状态核心，③ 配置/依赖注入/API，④ Service 与跨服务客户端，⑤ Pipeline/任务/Worker，⑥ ORM/脚本/测试/Contract 生成链。每批只有在权威范围已记录、基线错误清零并完成受影响验证后才进入阻断门禁；不得用后续批次尚未纳入为由降低当前批次要求。
 - 提交前静态门禁由 pre-commit 承载（根开发依赖 `uv add --dev pre-commit`，配置 `.pre-commit-config.yaml`）：Python 执行 ruff 与首批 mypy 类型检查，Web 执行 ESLint/Prettier 检查，`commit-msg` hook 校验提交信息格式。pre-commit 是社区标准 Git Hook 框架（pre-commit org 活跃维护，MIT，约 2MB + cfgv/identify/virtualenv 等小依赖），替代方案为 lefthook（Go 单二进制，需独立配置）或手写 `.git/hooks` 脚本（无法自动管理多语言 hook 环境）。hook 只报告不修改文件；`pre-commit install` 只对当前 worktree 生效，新增 worktree 需按 §3 重新安装；
 - pnpm 用于确定性安装和磁盘复用，活跃维护；项目新增的包管理器运行时不进入浏览器产物，替代方案为 npm（当前锁文件与脚本将退出）或 yarn。ESLint、`typescript-eslint`、React Hooks/Refresh 插件用于可执行的 TypeScript/React 静态规则，Prettier 用于确定性格式化；这些均为活跃维护的开发依赖，不进入生产 bundle。替代方案分别为 Biome（单工具但需迁移规则基线）和仅依赖 TypeScript/人工格式审查（覆盖不足且不可重复）；
 - 新依赖必须说明用途、维护状态、体积和替代方案。

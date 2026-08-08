@@ -18,10 +18,10 @@ repos:
         exclude: ^services/[^/]+/alembic/versions/.*\.py$
         stages: [pre-commit]
       - id: python-mypy
-        name: python mypy (首批范围)
+        name: python mypy (当前范围)
         entry: bash scripts/check_python_types.sh
         language: system
-        files: ^services/(knowledge/app/(schemas/.*|core/permissions\.py)|research/app/(schemas/.*|core/(permissions|utils)\.py))$
+        files: ^services/(knowledge/app/((api|middleware|schemas)/.*\.py|(config|dependencies)\.py|core/(permissions|csrf|exceptions|security|service_security|sse|utils)\.py)|research/app/((api|middleware|schemas)/.*\.py|(config|dependencies)\.py|core/(permissions|utils|exceptions|security|service_security|sse|task_state_resolver|token_counter)\.py))$
         pass_filenames: false
         stages: [pre-commit]
       - id: web-eslint

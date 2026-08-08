@@ -7,6 +7,14 @@
           {
             "type": "command",
             "command": ".claude/hooks/ruff-report.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/mypy-report.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/web-lint-report.sh"
           }
         ]
       }
@@ -15,7 +23,14 @@
   "permissions": {
     "ask": [
       "Bash(ruff format*)",
-      "Bash(ruff check --fix*)"
+      "Bash(ruff check --fix*)",
+      "Bash(uvx ruff format*)",
+      "Bash(uvx ruff check --fix*)",
+      "Bash(pnpm --dir apps/web run format*)",
+      "Bash(pnpm --dir apps/web exec eslint --fix*)",
+      "Bash(pnpm --dir apps/web exec prettier --write*)",
+      "Bash(npx eslint --fix*)",
+      "Bash(npx prettier --write*)"
     ]
   }
 }

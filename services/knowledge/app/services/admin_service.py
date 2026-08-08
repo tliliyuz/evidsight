@@ -454,7 +454,7 @@ async def change_user_status(
     if new_status == "disabled":
         from app.services.auth_service import revoke_all_user_tokens
 
-        await revoke_all_user_tokens(db, user_id)
+        await revoke_all_user_tokens(db, user.platform_user_id)
 
     logger.info("用户状态变更: user_id=%d, new_status=%s", user_id, new_status)
     return AdminUserStatusResponse(
@@ -485,7 +485,7 @@ async def reset_user_password(
     # 吊销全部 refresh_token（密码已变更，强制重新登录）
     from app.services.auth_service import revoke_all_user_tokens
 
-    await revoke_all_user_tokens(db, user_id)
+    await revoke_all_user_tokens(db, user.platform_user_id)
 
     logger.info("管理员重置用户密码: user_id=%d", user_id)
     return AdminUserResetPasswordResponse(id=user.platform_user_id, username=user.username)

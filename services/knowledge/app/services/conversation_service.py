@@ -3,10 +3,12 @@
 import logging
 import time
 import uuid as uuid_lib
+from typing import cast
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.pool import QueuePool
 
 from app.core.database import engine
 from app.core.exceptions import (
@@ -32,7 +34,7 @@ logger = logging.getLogger(__name__)
 def _pool_status() -> str:
     """获取数据库连接池状态（用于诊断连接池耗尽）"""
     try:
-        pool = engine.sync_engine.pool
+        pool = cast(QueuePool, engine.sync_engine.pool)
         return (
             f"pool[size={pool.size()}, checkedin={pool.checkedin()}, "
             f"checkedout={pool.checkedout()}, overflow={pool.overflow()}]"

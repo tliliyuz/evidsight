@@ -91,8 +91,8 @@ async def get_current_user_profile(db: AsyncSession, platform_user_id: str) -> U
     - username / role / status 均从数据库当前状态读取，不拼装 Token Claim。
     用户不存在或已禁用统一返回 401 E5010（与身份规范「不区分」原则一致）。
     """
-    result = await db.execute(select(User).where(User.platform_user_id == platform_user_id))
-    user = result.scalar_one_or_none()
+    user_result = await db.execute(select(User).where(User.platform_user_id == platform_user_id))
+    user = user_result.scalar_one_or_none()
     if user is None or user.status == "disabled":
         raise UserDisabledException()
     return UserSummary(
@@ -250,8 +250,8 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
     if family is None or family.revoked_at is not None or family.expires_at < now:
         raise RefreshTokenRevokedException()
 
-    result = await db.execute(select(User).where(User.platform_user_id == platform_user_id))
-    user = result.scalar_one_or_none()
+    user_result = await db.execute(select(User).where(User.platform_user_id == platform_user_id))
+    user = user_result.scalar_one_or_none()
     if user is None:
         raise InvalidRefreshTokenException("用户不存在")
 

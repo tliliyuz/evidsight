@@ -18,15 +18,37 @@ fi
   cd services/knowledge
   .venv/bin/mypy \
     --config-file ../../pyproject.toml \
+    --follow-imports=skip \
+    app/config.py \
+    app/dependencies.py \
+    app/api \
+    app/middleware \
     app/schemas \
-    app/core/permissions.py
+    app/core/permissions.py \
+    app/core/csrf.py \
+    app/core/exceptions.py \
+    app/core/security.py \
+    app/core/service_security.py \
+    app/core/sse.py \
+    app/core/utils.py
 )
 
 (
   cd services/research
   .venv/bin/mypy \
     --config-file ../../pyproject.toml \
+    --follow-imports=skip \
+    app/config.py \
+    app/dependencies.py \
+    app/api \
+    app/middleware \
     app/schemas \
     app/core/permissions.py \
-    app/core/utils.py
+    app/core/utils.py \
+    app/core/exceptions.py \
+    app/core/security.py \
+    app/core/service_security.py \
+    app/core/sse.py \
+    app/core/task_state_resolver.py \
+    app/core/token_counter.py
 )

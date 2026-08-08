@@ -29,7 +29,7 @@ async def _canonical_stream(response: StreamingResponse) -> AsyncIterator[str]:
         if text.startswith(":"):
             yield text
             continue
-        event_name = None
+        event_name: str | None = None
         data = None
         for line in text.splitlines():
             if line.startswith("event: "):
@@ -38,9 +38,9 @@ async def _canonical_stream(response: StreamingResponse) -> AsyncIterator[str]:
                 data = json.loads(line[6:])
         if event_name == "thinking":
             continue
-        event_name = {"message": "message.delta", "finish": "done"}.get(event_name, event_name)
         if event_name is None or data is None:
             continue
+        event_name = {"message": "message.delta", "finish": "done"}.get(event_name, event_name)
         if event_name == "meta" and "task_id" in data:
             data["generation_id"] = data.pop("task_id")
         sequence += 1

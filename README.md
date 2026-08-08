@@ -144,7 +144,7 @@ bash scripts/test_all.sh
 # 前端构建
 make build-web
 
-# 首批 Python 类型检查
+# 当前 Python 类型检查
 make type-check
 
 # Compose 配置校验

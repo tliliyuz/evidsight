@@ -1,6 +1,6 @@
 """依赖注入 — DB session、当前用户等"""
 
-from typing import AsyncGenerator
+from typing import AsyncGenerator, TypedDict
 
 from fastapi import Depends, Request
 from sqlalchemy import select
@@ -9,6 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import async_session
 from app.core.exceptions import PermissionDeniedException, UserDisabledException
 from app.models.user import User
+
+
+class AuthenticatedUser(TypedDict):
+    """认证中间件与数据库共同确认后的当前用户上下文。"""
+
+    user_id: int
+    platform_user_id: str
+    username: str
+    role: str
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -22,7 +31,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+async def get_current_user(
+    request: Request, db: AsyncSession = Depends(get_db)
+) -> AuthenticatedUser:
     """从 request.state 中获取已认证用户信息（由 AuthMiddleware 注入），
     并校验用户 status 是否被禁用。
 
@@ -42,7 +53,9 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     }
 
 
-def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+def require_admin(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> AuthenticatedUser:
     """依赖注入：要求当前用户为 admin 角色。
 
     对齐 API.md §7.1：所有 /api/admin/* 端点要求 role=admin，

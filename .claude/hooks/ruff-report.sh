@@ -46,5 +46,5 @@ if [[ -n "$check_diff" ]]; then
   echo "── lint 修复（ruff check --diff）──"
   echo "$check_diff"
 fi
-echo "批准方式：执行 \`ruff format <file>\` / \`ruff check --fix <file>\` 时在权限弹窗中允许。"
+echo "批准方式：执行 \`ruff format <file>\` / \`uvx ruff format <file>\` / \`ruff check --fix <file>\` 时在权限弹窗中允许。"
 echo ""

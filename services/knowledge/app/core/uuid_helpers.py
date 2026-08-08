@@ -14,6 +14,7 @@ from app.core.exceptions import (
     ConversationNotFoundException,
     DocumentNotFoundException,
     KnowledgeBaseNotFoundException,
+    UserNotFoundException,
 )
 
 # UUID 格式校验（RFC 4122，支持 v1/v3/v4/v5）
@@ -120,4 +121,7 @@ async def resolve_user_uuid(db: AsyncSession, user_id: int) -> str:
     from app.models.user import User
 
     result = await db.execute(select(User.platform_user_id).where(User.id == user_id))
-    return result.scalar_one_or_none()
+    platform_user_id = result.scalar_one_or_none()
+    if platform_user_id is None:
+        raise UserNotFoundException(user_id)
+    return platform_user_id
