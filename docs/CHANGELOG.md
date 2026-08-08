@@ -118,7 +118,7 @@
 
 ### Refactored
 
-（仅记录外部行为不变、内部结构/设计整理的重构；当前无此类条目。）
+- 将 `apps/web` 工程基线从 Vue 原地替换为 React + TypeScript（M4 切片 0，对齐 ADR-004、FRONTEND §2.2、UIDESIGN §4；仓库仍只有一个可运行前端）。删除 Vue/Pinia/Element Plus 源码与专属测试，建立 React 单根节点、Router/Provider/ErrorBoundary 分层、Vite React/TypeScript/Vitest/Testing Library/MSW/Playwright 工具链、TanStack Query 基线及 Tailwind Token 映射；完整落地浅色默认与深色可选的 `--es-*` 色彩、字体、圆角和焦点 Token，主题使用 `<html data-theme>` 与 `evidsight-theme` 持久化。依赖用途、维护与替代方案按获批 M4 方案登记；构建未产生第二前端目录。验证：Docker Node 22 容器内 React 基线测试 1 项全绿，`tsc --noEmit && vite build` 通过（初始基线产物 JS gzip 100.73KB）；屏蔽未跟踪本机 `.opencode/package.json` 后 Architecture 17 项全绿；Vue 源码、`.vue`、Pinia 与 plugin-vue 引用扫描无残留。ADR 检查 1–8：否（执行已接受 ADR-004 的前端原地替换，不改变服务边界、公共契约或数据生命周期）。（2026-08-08）
 
 ### Not Yet Implemented
 
