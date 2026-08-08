@@ -1,6 +1,7 @@
 """Chat generation 生命周期服务验收测试。"""
 
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -139,6 +140,7 @@ async def test_chat服务创建running_generation并把uuid写入meta():
 
 @pytest.mark.asyncio
 async def test_generation已取消时固定响应不持久化assistant且无成功终态():
+    from app.models.conversation import Conversation
     from app.services import sse_stream
 
     conv = SimpleNamespace(id=9, uuid="conv-1")
@@ -156,7 +158,7 @@ async def test_generation已取消时固定响应不持久化assistant且无成�
         events = [
             event
             async for event in sse_stream._generate_meta_response(
-                conv,
+                cast(Conversation, conv),
                 False,
                 "测试",
                 generation_uuid="gen-1",

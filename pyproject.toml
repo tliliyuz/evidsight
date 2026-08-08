@@ -59,6 +59,7 @@ exclude = [
 [tool.mypy]
 python_version = "3.12"
 plugins = ["pydantic.mypy"]
+mypy_path = ["$MYPY_CONFIG_FILE_DIR/packages/contracts/generated/python"]
 check_untyped_defs = true
 strict_optional = true
 warn_redundant_casts = true
@@ -72,7 +73,17 @@ exclude = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["celery", "celery.*", "fitz", "jieba", "rank_bm25"]
+module = [
+    "celery",
+    "celery.*",
+    "fitz",
+    "jieba",
+    "locust",
+    "locust.*",
+    "ragas",
+    "ragas.*",
+    "rank_bm25",
+]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

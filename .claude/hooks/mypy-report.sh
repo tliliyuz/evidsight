@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Claude Code PostToolUse hook：编辑/写入当前强制范围 .py 后，报告 mypy 类型检查结果。
+# Claude Code PostToolUse hook：编辑/写入全量强制范围 .py 后，报告 mypy 类型检查结果。
 # mypy 为只读类型检查（无 fix/写命令），无需权限门禁；只报告不落盘。
-# 范围镜像 .pre-commit-config.yaml 的 python-mypy 当前范围。
+# 范围镜像 .pre-commit-config.yaml 的 python-mypy 全量范围。
 set -uo pipefail
 
 input_file="${1:-}"
@@ -28,21 +28,20 @@ fi
 svc=""
 rel=""
 case "$file_path" in
-  services/knowledge/app/api/*.py|services/knowledge/app/middleware/*.py|services/knowledge/app/schemas/*.py|services/knowledge/app/services/*.py|services/knowledge/app/rag/*.py|services/knowledge/app/ingest/*.py|services/knowledge/app/config.py|services/knowledge/app/dependencies.py)
+  services/knowledge/scripts/.ab/*.py|services/research/scripts/.ab/*.py)
+    exit 0
+    ;;
+  services/knowledge/app/*.py|services/knowledge/scripts/*.py|services/knowledge/tests/*.py|services/knowledge/alembic/env.py)
     svc=knowledge
     rel="${file_path#services/knowledge/}"
     ;;
-  services/knowledge/app/core/permissions.py|services/knowledge/app/core/csrf.py|services/knowledge/app/core/exceptions.py|services/knowledge/app/core/security.py|services/knowledge/app/core/service_security.py|services/knowledge/app/core/sse.py|services/knowledge/app/core/utils.py)
+  services/research/app/*.py|services/research/scripts/*.py|services/research/tests/*.py|services/research/alembic/env.py)
+    svc=research
+    rel="${file_path#services/research/}"
+    ;;
+  packages/contracts/generated/python/*.py|packages/contracts/tests/*.py|tests/*.py)
     svc=knowledge
-    rel="${file_path#services/knowledge/}"
-    ;;
-  services/research/app/api/*.py|services/research/app/middleware/*.py|services/research/app/schemas/*.py|services/research/app/services/*.py|services/research/app/pipeline/*.py|services/research/app/agent/*.py|services/research/app/tasks/*.py|services/research/app/tools/*.py|services/research/app/config.py|services/research/app/dependencies.py)
-    svc=research
-    rel="${file_path#services/research/}"
-    ;;
-  services/research/app/core/permissions.py|services/research/app/core/utils.py|services/research/app/core/exceptions.py|services/research/app/core/security.py|services/research/app/core/service_security.py|services/research/app/core/sse.py|services/research/app/core/task_state_resolver.py|services/research/app/core/token_counter.py|services/research/app/core/identity_status_client.py|services/research/app/core/internal_retrieval_client.py)
-    svc=research
-    rel="${file_path#services/research/}"
+    rel="../../$file_path"
     ;;
   *) exit 0 ;;
 esac

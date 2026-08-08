@@ -62,43 +62,29 @@ run_mypy() {
 
 if [[ "$service" == "all" || "$service" == "knowledge" ]]; then
   run_mypy knowledge \
-    app/config.py \
-    app/dependencies.py \
-    app/api \
-    app/middleware \
-    app/schemas \
-    app/services \
-    app/rag \
-    app/ingest \
-    app/core/permissions.py \
-    app/core/csrf.py \
-    app/core/exceptions.py \
-    app/core/security.py \
-    app/core/service_security.py \
-    app/core/sse.py \
-    app/core/utils.py
+    app scripts tests alembic/env.py
 fi
 
 if [[ "$service" == "all" || "$service" == "research" ]]; then
   run_mypy research \
-    app/config.py \
-    app/dependencies.py \
-    app/api \
-    app/middleware \
-    app/schemas \
-    app/services \
-    app/pipeline \
-    app/agent \
-    app/tasks \
-    app/tools \
-    app/core/identity_status_client.py \
-    app/core/internal_retrieval_client.py \
-    app/core/permissions.py \
-    app/core/utils.py \
-    app/core/exceptions.py \
-    app/core/security.py \
-    app/core/service_security.py \
-    app/core/sse.py \
-    app/core/task_state_resolver.py \
-    app/core/token_counter.py
+    app scripts tests alembic/env.py
+fi
+
+if [[ "$service" == "all" || "$service" == "knowledge" ]]; then
+  if [[ "$runner" == "module" ]]; then
+    shared_mypy_command=(python -m mypy)
+  else
+    shared_mypy_command=("$repo_root/services/knowledge/.venv/bin/mypy")
+  fi
+
+  (
+    cd "$repo_root"
+    "${shared_mypy_command[@]}" \
+      --config-file pyproject.toml \
+      --cache-dir "$cache_dir" \
+      --follow-imports=skip \
+      packages/contracts/generated/python \
+      packages/contracts/tests \
+      tests
+  )
 fi

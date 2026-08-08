@@ -99,7 +99,10 @@ class TraceRecorder:
         因此 record_* 不会被调用，预加载数据将直接出现在 finish() 输出中。
         若某阶段被重新执行（如失败的 phase 重置后重跑），record_* 会覆盖预加载数据。
         """
-        prev_phases = self._previous_trace.get("phases") or {}
+        previous_trace = self._previous_trace
+        if previous_trace is None:
+            return
+        prev_phases = previous_trace.get("phases") or {}
         if not isinstance(prev_phases, dict):
             return
         for phase_name in self.PHASES:

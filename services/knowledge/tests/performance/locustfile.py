@@ -44,6 +44,7 @@ import json
 import os
 import random
 import time
+from typing import Any
 
 import httpx
 from locust import HttpUser, between, events, tag, task
@@ -107,9 +108,9 @@ CASUAL_QUESTIONS = [
 # ============================================================================
 
 
-def _parse_sse_stream(response: httpx.Response) -> dict:
+def _parse_sse_stream(response: httpx.Response) -> dict[str, Any]:
     """解析 SSE 流，返回统计信息"""
-    result = {
+    result: dict[str, Any] = {
         "events_received": set(),
         "has_error": False,
         "error_code": None,

@@ -18,6 +18,7 @@ class TestUTCDateTime:
         utc_dt = UTCDateTime()
         aware = datetime(2026, 6, 20, 12, 0, 0, tzinfo=timezone.utc)
         result = utc_dt.process_bind_param(aware, dialect=None)
+        assert result is not None
         assert result.tzinfo is None
         assert result == datetime(2026, 6, 20, 12, 0, 0)
 
@@ -28,6 +29,7 @@ class TestUTCDateTime:
         cst = timezone(timedelta(hours=8))
         aware_cst = datetime(2026, 6, 20, 12, 0, 0, tzinfo=cst)
         result = utc_dt.process_bind_param(aware_cst, dialect=None)
+        assert result is not None
         assert result.tzinfo is None
         assert result.hour == 4  # 转为 UTC
 
@@ -36,6 +38,7 @@ class TestUTCDateTime:
         utc_dt = UTCDateTime()
         naive = datetime(2026, 6, 20, 12, 0, 0)
         result = utc_dt.process_bind_param(naive, dialect=None)
+        assert result is not None
         assert result.tzinfo is None
         assert result == naive
 
@@ -48,6 +51,7 @@ class TestUTCDateTime:
         utc_dt = UTCDateTime()
         naive = datetime(2026, 6, 20, 12, 0, 0)
         result = utc_dt.process_result_value(naive, dialect=None)
+        assert result is not None
         assert result.tzinfo == timezone.utc
         # 时间数值不变
         assert result.year == 2026
@@ -74,7 +78,9 @@ class TestUtcnow:
         now = utcnow()
         # 模拟写入→读取完整链路
         stored = utc_dt.process_bind_param(now, dialect=None)
+        assert stored is not None
         restored = utc_dt.process_result_value(stored, dialect=None)
+        assert restored is not None
         # 恢复后的 aware datetime 应与原始值在同一时刻
         assert restored.tzinfo == timezone.utc
         # 数值相同（去掉微秒因为 MySQL DATETIME 可能不支持微秒）

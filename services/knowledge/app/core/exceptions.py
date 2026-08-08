@@ -25,7 +25,7 @@ class AppException(HTTPException):
 
 
 class KnowledgeBaseNotFoundException(AppException):
-    def __init__(self, kb_id: int):
+    def __init__(self, kb_id: int | str):
         super().__init__("E1001", "知识库不存在", 404, f"kb_id={kb_id} 不存在或已被删除")
 
 
@@ -38,7 +38,7 @@ class KnowledgeBaseNameExistsException(AppException):
 
 
 class DocumentNotFoundException(AppException):
-    def __init__(self, doc_id: int):
+    def __init__(self, doc_id: int | str):
         super().__init__("E2001", "文档不存在", 404, f"doc_id={doc_id} 不存在或已被删除")
 
 

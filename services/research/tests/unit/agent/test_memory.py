@@ -1,6 +1,7 @@
 """WorkingMemory / ReActEntry 单元测试。"""
 
 from datetime import datetime, timezone
+from typing import Any, cast
 
 from app.agent.memory import ReActEntry, WorkingMemory
 
@@ -75,7 +76,7 @@ class TestWorkingMemory:
 
     def test_from_dict_list_过滤非dict(self):
         restored = WorkingMemory.from_dict_list(
-            [None, {"iteration": 1, "phase": "p"}], max_entries=5
+            cast(list[dict[str, Any]], [None, {"iteration": 1, "phase": "p"}]), max_entries=5
         )
         assert len(restored.recent()) == 1
 

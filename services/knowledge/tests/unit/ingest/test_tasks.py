@@ -7,6 +7,7 @@
 - Clean 阶段接线：parse 之后、chunk 之前清洗页面结构
 """
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -248,8 +249,8 @@ class TestSectionPersistence:
         db = AsyncMock()
         db.execute = AsyncMock()
         db.flush = AsyncMock()
-        added_sections = []
-        added_chunks = []
+        added_sections: list[Any] = []
+        added_chunks: list[Any] = []
 
         def _add(obj):
             if obj.__class__.__name__ == "Section":

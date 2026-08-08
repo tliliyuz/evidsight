@@ -46,6 +46,7 @@ async def test_v1_chat_stream输出canonical事件与单调id(async_client, auth
         "id: 3",
         "id: 4",
     ]
+    assert mock_chat.await_args is not None
     assert mock_chat.await_args.kwargs["platform_user_id"] == "550e8400-e29b-41d4-a716-446655440001"
 
 

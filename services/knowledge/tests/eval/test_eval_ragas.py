@@ -63,7 +63,15 @@ def _make_pipeline_result(answer_contexts=True):
         prompt = PromptBuildResult(
             system_prompt="你是一个知识库助手",
             user_prompt="测试问题？",
-            used_chunks=[{"content": "chunk 0 的测试内容", "doc_id": 1, "chunk_index": 0}],
+            used_chunks=[
+                RetrievalResult(
+                    content="chunk 0 的测试内容",
+                    doc_id=1,
+                    chunk_index=0,
+                    score=0.9,
+                    page=1,
+                )
+            ],
             total_context_tokens=100,
             chunks_count=1,
             history_messages=[],

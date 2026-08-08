@@ -66,6 +66,9 @@ class TestEvaluateTask:
         assert report.status == "completed"
         assert report.task_type == "analysis"
         assert report.overall_pass is True
+        assert report.search is not None
+        assert report.fetch is not None
+        assert report.rerank is not None
         assert report.search.coverage_rate == 1.0
         assert report.fetch.success_rate == 1.0
         assert report.rerank.mean_score == pytest.approx(0.75)
@@ -99,6 +102,7 @@ class TestEvaluateTask:
                     report = await evaluate_task(session, "task-uuid-1", targets=TARGETS)
 
         assert report.overall_pass is False
+        assert report.search is not None
         assert report.search.coverage_rate == pytest.approx(1 / 3)
 
     async def test_任务不存在抛出异常(self):

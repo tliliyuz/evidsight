@@ -52,7 +52,7 @@ class TestRequirementsSchema:
 
     def test_task_type非法_抛出ValidationError(self):
         with pytest.raises(ValidationError) as exc_info:
-            RequirementsSchema(task_type="invalid_type")  # type: ignore[arg-type]
+            RequirementsSchema(task_type="invalid_type")
         assert "task_type" in str(exc_info.value)
 
     def test_max_sources小于1_抛出ValidationError(self):
@@ -67,7 +67,7 @@ class TestRequirementsSchema:
 
     def test_三种task_type全部合法(self):
         for tt in ("comparison", "explainer", "analysis"):
-            req = RequirementsSchema(task_type=tt)  # type: ignore[arg-type]
+            req = RequirementsSchema(task_type=tt)
             assert req.task_type == tt
 
 
@@ -125,13 +125,13 @@ class TestResearchCreateRequest:
 
     def test_requirements缺失_抛出ValidationError(self):
         with pytest.raises(ValidationError):
-            ResearchCreateRequest(topic="test")  # type: ignore[call-arg]
+            ResearchCreateRequest(topic="test")
 
     def test_requirements缺少task_type_抛出ValidationError(self):
         with pytest.raises(ValidationError):
             ResearchCreateRequest(
                 topic="test",
-                requirements={"depth": "quick"},  # type: ignore[typeddict-item]
+                requirements={"depth": "quick"},
             )
 
 

@@ -2,8 +2,10 @@
 
 import json
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
+from app.models.research_task import ResearchTask
 
 
 @pytest.mark.parametrize(
@@ -47,7 +49,7 @@ async def test_v1终态响应发送canonical快照与stream_end():
 
     response = build_task_events_response(
         SimpleNamespace(headers={}),
-        SimpleNamespace(status="completed"),
+        cast(ResearchTask, SimpleNamespace(status="completed")),
         None,
         {"task_id": "t1", "status": "completed"},
         canonical=True,
@@ -65,7 +67,7 @@ async def test_旧终态响应仍只发送granular快照():
 
     response = build_task_events_response(
         SimpleNamespace(headers={}),
-        SimpleNamespace(status="completed"),
+        cast(ResearchTask, SimpleNamespace(status="completed")),
         None,
         {"task_id": "t1", "status": "completed"},
     )

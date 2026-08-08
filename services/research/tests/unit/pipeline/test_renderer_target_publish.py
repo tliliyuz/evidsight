@@ -10,6 +10,7 @@
 """
 
 import json
+from typing import cast
 from unittest.mock import patch
 
 from app.core.llm import LLMResult
@@ -20,6 +21,7 @@ from app.models.report_revision import ReportRevision
 from app.models.report_section import ReportSection
 from app.models.section_evidence import SectionEvidence
 from app.pipeline.renderer import run_render
+from app.pipeline.sse_bridge import SSEBridge
 from sqlalchemy import select
 
 from .test_renderer import _seed_render_task, _valid_report_sections
@@ -76,7 +78,7 @@ class TestRenderTargetPublish:
 
         with patch("app.pipeline.renderer.chat_completion") as mock_llm:
             mock_llm.return_value = _mock_llm_report(_valid_report_sections())
-            await run_render(task, render_step, db_session, sse)
+            await run_render(task, render_step, db_session, cast(SSEBridge, sse))
 
         # 目标态 reports 根存在
         report = (
@@ -151,7 +153,7 @@ class TestRenderTargetPublish:
 
         with patch("app.pipeline.renderer.chat_completion") as mock_llm:
             mock_llm.return_value = _mock_llm_report(_valid_report_sections())
-            await run_render(task, render_step, db_session, sse)
+            await run_render(task, render_step, db_session, cast(SSEBridge, sse))
 
         report = (
             await db_session.execute(select(Report).where(Report.task_id == task.id))
@@ -183,8 +185,8 @@ class TestRenderTargetPublish:
 
         with patch("app.pipeline.renderer.chat_completion") as mock_llm:
             mock_llm.return_value = _mock_llm_report(_valid_report_sections())
-            await run_render(task, render_step, db_session, sse)
-            await run_render(task, render_step, db_session, sse)
+            await run_render(task, render_step, db_session, cast(SSEBridge, sse))
+            await run_render(task, render_step, db_session, cast(SSEBridge, sse))
 
         report = (
             await db_session.execute(select(Report).where(Report.task_id == task.id))

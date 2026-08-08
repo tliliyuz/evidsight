@@ -68,4 +68,5 @@ class TestRendererBudgetDisclosure:
             items=graph["items"],
         )
         system_prompt = messages[0]["content"]
+        assert disclosure is not None
         assert disclosure in system_prompt

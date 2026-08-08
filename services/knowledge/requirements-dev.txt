@@ -4,3 +4,5 @@
 mypy==2.3.*
 types-python-jose==3.5.*
 types-psutil==7.2.*
+types-PyYAML==6.*
+types-jsonschema==4.*

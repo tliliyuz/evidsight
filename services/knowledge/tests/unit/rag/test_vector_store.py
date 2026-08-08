@@ -1,5 +1,6 @@
 """向量存储抽象层单元测试 — ChromaVectorStore 委托验证（Per-KB Collection）"""
 
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,7 +15,7 @@ class TestBaseVectorStore:
     def test_无法直接实例化(self):
         """BaseVectorStore 是 ABC，不能直接实例化"""
         with pytest.raises(TypeError):
-            BaseVectorStore()  # type: ignore[abstract]
+            cast(Any, BaseVectorStore)()
 
     def test_子类必须实现抽象方法(self):
         """子类缺少抽象方法时无法实例化"""
@@ -23,7 +24,7 @@ class TestBaseVectorStore:
             pass
 
         with pytest.raises(TypeError):
-            IncompleteStore()  # type: ignore[abstract]
+            cast(Any, IncompleteStore)()
 
     def test_实现全部方法的子类可实例化(self):
         """实现了 search/add/delete/get_ids（含 kb_id）的子类可正常实例化"""

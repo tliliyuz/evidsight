@@ -83,12 +83,12 @@ class AgentLoop:
             iteration += 1
             agent_ctx.iteration_count = iteration
             current_phase = self._phase_controller.current_phase
-            iteration_phase = current_phase
 
             if current_phase is None:
                 logger.info("所有 phase 已完成，结束 Agent Loop")
                 agent_ctx.finished = True
                 break
+            iteration_phase = current_phase
 
             messages = self._build_messages()
             available_tools = self._phase_controller.get_available_tools()

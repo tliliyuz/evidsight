@@ -201,7 +201,7 @@ async def worker_health_check():
             },
         }
 
-    workers = []
+    workers: list[str] = []
     for ping in pings:
         if isinstance(ping, dict):
             workers.extend(ping.keys())

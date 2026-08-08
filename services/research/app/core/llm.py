@@ -28,6 +28,13 @@ from app.core.exceptions import (
 )
 from app.tools.base import ToolCall
 
+type LLMExceptionType = (
+    type[LLMTimeoutException]
+    | type[LLMRateLimitException]
+    | type[LLMAuthFailedException]
+    | type[LLMUnknownException]
+)
+
 logger = logging.getLogger(__name__)
 
 # 模块级单例：AsyncOpenAI 客户端（避免每次请求新建实例）
@@ -72,7 +79,7 @@ def _get_llm_client() -> AsyncOpenAI:
 # ── 错误分类 ────────────────────────────────────────────
 
 
-def _classify_llm_error(error_msg: str) -> type:
+def _classify_llm_error(error_msg: str) -> LLMExceptionType:
     """根据错误信息分类 LLM 异常类型。
 
     用于重试策略决策：
@@ -99,7 +106,7 @@ def _classify_llm_error(error_msg: str) -> type:
 # ── 重试策略 ────────────────────────────────────────────
 
 
-def _retry_delay(attempt: int, exc_type: type) -> float:
+def _retry_delay(attempt: int, exc_type: LLMExceptionType) -> float:
     """计算重试延迟（秒）。
 
     - timeout：固定 2s/4s/8s
@@ -113,7 +120,7 @@ def _retry_delay(attempt: int, exc_type: type) -> float:
     return 2.0
 
 
-def _max_retries(exc_type: type) -> int:
+def _max_retries(exc_type: LLMExceptionType) -> int:
     """返回每种异常类型的最大重试次数。
 
     - timeout：3 次
@@ -177,7 +184,7 @@ async def stream_chat_completion(
     if tool_choice is not None:
         request_kwargs["tool_choice"] = tool_choice
 
-    last_exc_type = LLMUnknownException
+    last_exc_type: LLMExceptionType = LLMUnknownException
     for attempt in range(1, 4):  # 最多 3 次尝试（含首次）
         try:
             logger.info(
@@ -361,7 +368,7 @@ async def chat_completion(
     if tool_choice is not None:
         request_kwargs["tool_choice"] = tool_choice
 
-    last_exc_type = LLMUnknownException
+    last_exc_type: LLMExceptionType = LLMUnknownException
     for attempt in range(1, 4):
         try:
             logger.info(f"调用 LLM (非流式): model={llm_model}")

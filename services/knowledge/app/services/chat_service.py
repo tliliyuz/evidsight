@@ -16,7 +16,7 @@ SSE 流生成与固定响应已解耦至 app.services.sse_stream。
 import logging
 import time
 from datetime import datetime, timezone
-from typing import AsyncIterator, cast
+from typing import AsyncGenerator, AsyncIterator, cast
 from uuid import uuid4
 
 from fastapi.responses import StreamingResponse
@@ -81,7 +81,7 @@ _pipeline = KnowledgePipeline(bm25_retriever_factory=_get_bm25_retriever)
 
 async def _guard_generation_stream(
     event_generator: AsyncIterator[str], generation_uuid: str
-) -> AsyncIterator[str]:
+) -> AsyncGenerator[str, None]:
     """确保正常结束、异常、显式取消和连接断开只留下一个终态。"""
     try:
         async for event in event_generator:

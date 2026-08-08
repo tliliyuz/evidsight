@@ -173,8 +173,8 @@ class TestRequestIDFilter:
 
             result = filt.filter(record)
             assert result is True
-            assert record.request_id == "req-filter-001"
-            assert record.user_id == 42
+            assert getattr(record, "request_id") == "req-filter-001"
+            assert getattr(record, "user_id") == 42
         finally:
             request_id_var.reset(token_rid)
             user_id_var.reset(token_uid)
@@ -195,8 +195,8 @@ class TestRequestIDFilter:
         )
 
         filt.filter(record)
-        assert record.request_id == ""
-        assert record.user_id == 0
+        assert getattr(record, "request_id") == ""
+        assert getattr(record, "user_id") == 0
 
 
 class TestSetupLogging:
@@ -213,6 +213,7 @@ class TestSetupLogging:
 
         # debug 模式：非 JSON formatter
         formatter = handler.formatter
+        assert formatter is not None
         assert not isinstance(formatter, JSONFormatter)
 
         # 输出人类可读日志以验证

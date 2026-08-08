@@ -15,6 +15,7 @@
 
 import json
 import time
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jieba
@@ -1108,7 +1109,7 @@ class TestDetectSectionNumbers:
 
     def test_空文本(self):
         assert detect_section_numbers("") == []
-        assert detect_section_numbers(None) == []  # type: ignore
+        assert detect_section_numbers(cast(str, None)) == []
 
     def test_无章节号(self):
         assert detect_section_numbers("报销制度是什么？") == []

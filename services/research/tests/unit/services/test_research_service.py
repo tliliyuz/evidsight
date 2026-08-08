@@ -37,6 +37,9 @@ from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+_USER_ID = "1"
+_OTHER_USER_ID = "2"
+
 # ═══════════════════════════════════════════════════════════════
 # _build_progress
 # ═══════════════════════════════════════════════════════════════
@@ -163,7 +166,7 @@ class TestCreateTask:
 
     async def test_正常创建_返回task_id和pending状态(self, db_session: AsyncSession):
         req = _make_request()
-        result = await create_task(db_session, user_id=1, request=req)
+        result = await create_task(db_session, user_id=_USER_ID, request=req)
 
         assert result.task_id != ""
         assert len(result.task_id) == 36  # UUID 格式
@@ -172,7 +175,7 @@ class TestCreateTask:
 
     async def test_创建后task写入数据库(self, db_session: AsyncSession):
         req = _make_request()
-        result = await create_task(db_session, user_id=1, request=req)
+        result = await create_task(db_session, user_id=_USER_ID, request=req)
 
         # 验证 task 行存在
         task = await db_session.get(ResearchTask, result.task_id)
@@ -185,7 +188,7 @@ class TestCreateTask:
 
     async def test_创建后附首个planning_step(self, db_session: AsyncSession):
         req = _make_request()
-        result = await create_task(db_session, user_id=1, request=req)
+        result = await create_task(db_session, user_id=_USER_ID, request=req)
 
         # 验证 research_step 行存在
         q = select(ResearchStep).where(ResearchStep.task_id == result.task_id)
@@ -198,7 +201,7 @@ class TestCreateTask:
 
     async def test_requirements正确存储(self, db_session: AsyncSession):
         req = _make_request(task_type="comparison", max_sources=25, language="en")
-        result = await create_task(db_session, user_id=1, request=req)
+        result = await create_task(db_session, user_id=_USER_ID, request=req)
 
         task = await db_session.get(ResearchTask, result.task_id)
         assert task.requirements["task_type"] == "comparison"
@@ -208,16 +211,16 @@ class TestCreateTask:
     async def test_三种task_type全部可创建(self, db_session: AsyncSession):
         for tt in ("comparison", "explainer", "analysis"):
             req = _make_request(task_type=tt)
-            result = await create_task(db_session, user_id=1, request=req)
+            result = await create_task(db_session, user_id=_USER_ID, request=req)
             task = await db_session.get(ResearchTask, result.task_id)
             assert task.requirements["task_type"] == tt
 
     async def test_不同用户创建任务隔离(self, db_session: AsyncSession):
         req1 = _make_request(topic="用户1的研究")
-        r1 = await create_task(db_session, user_id=1, request=req1)
+        r1 = await create_task(db_session, user_id=_USER_ID, request=req1)
 
         req2 = _make_request(topic="用户2的研究")
-        r2 = await create_task(db_session, user_id=2, request=req2)
+        r2 = await create_task(db_session, user_id=_OTHER_USER_ID, request=req2)
 
         t1 = await db_session.get(ResearchTask, r1.task_id)
         t2 = await db_session.get(ResearchTask, r2.task_id)
@@ -404,7 +407,7 @@ class TestGetTaskList:
     """研究任务列表"""
 
     async def test_空列表_返回total为0(self, db_session: AsyncSession):
-        result = await get_task_list(db_session, user_id=1)
+        result = await get_task_list(db_session, user_id=_USER_ID)
         assert result.total == 0
         assert result.page == 1
         assert len(result.items) == 0
@@ -412,7 +415,7 @@ class TestGetTaskList:
     async def test_单条记录_返回正确列表项(self, db_session: AsyncSession):
         await _seed_task(db_session, user_id=1, topic="测试主题")
 
-        result = await get_task_list(db_session, user_id=1)
+        result = await get_task_list(db_session, user_id=_USER_ID)
         assert result.total == 1
         assert len(result.items) == 1
         assert result.items[0].topic == "测试主题"
@@ -430,7 +433,7 @@ class TestGetTaskList:
         t2.created_at = now
         await db_session.flush()
 
-        result = await get_task_list(db_session, user_id=1)
+        result = await get_task_list(db_session, user_id=_USER_ID)
         assert result.total == 2
         # 最新创建的排前面
         assert result.items[0].topic == "新任务"
@@ -440,7 +443,7 @@ class TestGetTaskList:
         for i in range(5):
             await _seed_task(db_session, user_id=1, topic=f"任务{i}")
 
-        result = await get_task_list(db_session, user_id=1, page=1, page_size=2)
+        result = await get_task_list(db_session, user_id=_USER_ID, page=1, page_size=2)
         assert result.total == 5
         assert result.page == 1
         assert result.page_size == 2
@@ -450,7 +453,7 @@ class TestGetTaskList:
         for i in range(5):
             await _seed_task(db_session, user_id=1, topic=f"任务{i}")
 
-        result = await get_task_list(db_session, user_id=1, page=2, page_size=2)
+        result = await get_task_list(db_session, user_id=_USER_ID, page=2, page_size=2)
         assert result.total == 5
         assert result.page == 2
         assert len(result.items) == 2
@@ -459,7 +462,7 @@ class TestGetTaskList:
         for i in range(3):
             await _seed_task(db_session, user_id=1, topic=f"任务{i}")
 
-        result = await get_task_list(db_session, user_id=1, page=10, page_size=20)
+        result = await get_task_list(db_session, user_id=_USER_ID, page=10, page_size=20)
         assert result.total == 3
         assert len(result.items) == 0
 
@@ -468,7 +471,7 @@ class TestGetTaskList:
         await _seed_task(db_session, user_id=1, topic="completed任务", status="completed")
         await _seed_task(db_session, user_id=1, topic="failed任务", status="failed")
 
-        result = await get_task_list(db_session, user_id=1, status="completed")
+        result = await get_task_list(db_session, user_id=_USER_ID, status="completed")
         assert result.total == 1
         assert result.items[0].status == "completed"
         assert result.items[0].topic == "completed任务"
@@ -477,17 +480,17 @@ class TestGetTaskList:
         await _seed_task(db_session, user_id=1, topic="用户1的任务")
         await _seed_task(db_session, user_id=2, topic="用户2的任务")
 
-        result = await get_task_list(db_session, user_id=1)
+        result = await get_task_list(db_session, user_id=_USER_ID)
         assert result.total == 1
         assert result.items[0].topic == "用户1的任务"
 
     async def test_page_size上限100(self, db_session: AsyncSession):
         """page_size > 100 时被限制为 100。"""
-        result = await get_task_list(db_session, user_id=1, page_size=200)
+        result = await get_task_list(db_session, user_id=_USER_ID, page_size=200)
         assert result.page_size == 100
 
     async def test_page为0自动修正为1(self, db_session: AsyncSession):
-        result = await get_task_list(db_session, user_id=1, page=0)
+        result = await get_task_list(db_session, user_id=_USER_ID, page=0)
         assert result.page == 1
 
 
@@ -1191,7 +1194,7 @@ class TestCreateTaskIntent:
 
     async def test_非研究输入创建direct_answer任务(self, db_session: AsyncSession):
         req = _make_request(topic="你好")
-        result = await create_task(db_session, user_id=1, request=req)
+        result = await create_task(db_session, user_id=_USER_ID, request=req)
 
         assert result.direct_answer is True
         assert result.status == "completed"
@@ -1202,7 +1205,7 @@ class TestCreateTaskIntent:
 
     async def test_研究输入仍走pending流程(self, db_session: AsyncSession):
         req = _make_request(topic="量子计算对密码学的影响")
-        result = await create_task(db_session, user_id=1, request=req)
+        result = await create_task(db_session, user_id=_USER_ID, request=req)
 
         assert result.direct_answer is False
         assert result.status == "pending"
@@ -1210,7 +1213,7 @@ class TestCreateTaskIntent:
 
     async def test_direct_answer任务可被get_report读取(self, db_session: AsyncSession):
         req = _make_request(topic="谢谢")
-        result = await create_task(db_session, user_id=1, request=req)
+        result = await create_task(db_session, user_id=_USER_ID, request=req)
 
         task = await db_session.get(ResearchTask, result.task_id)
         report_result = await get_report(db_session, task)

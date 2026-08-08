@@ -83,8 +83,10 @@ class TestMatchSentencesSingleSentence:
         result = match_sentences(output, "请假申请流程")
 
         # _SENTENCE_SEP 按 。！？!?\n 切句，切分后 strip() 去除标点
-        assert "员工须提前3个工作日提交请假申请" in result.results[0].matched_sentence
-        assert len(result.results[0].matched_sentence) >= 10
+        matched_sentence = result.results[0].matched_sentence
+        assert matched_sentence is not None
+        assert "员工须提前3个工作日提交请假申请" in matched_sentence
+        assert len(matched_sentence) >= 10
         assert isinstance(result.results[0].matched_sentence_score, float)
         # BM25 在单文档语料中 IDF 可为负值，仅验证类型为 float
 
@@ -116,7 +118,9 @@ class TestMatchSentencesMultiChunk:
         result = match_sentences(output, "年假天数计算")
 
         # chunk1 应匹配到年假相关句子
-        assert "年假" in result.results[0].matched_sentence
+        first_sentence = result.results[0].matched_sentence
+        assert first_sentence is not None
+        assert "年假" in first_sentence
         # chunk2 应匹配到病假相关句子（因为 question 含"年假"，与 chunk2 相关性低）
         assert result.results[1].matched_sentence is not None
         assert "病假" in result.results[1].matched_sentence, (
@@ -140,6 +144,8 @@ class TestMatchSentencesMultiChunk:
         # 不同 question 应命中不同句子
         s1 = r1.results[0].matched_sentence
         s2 = r2.results[0].matched_sentence
+        assert s1 is not None
+        assert s2 is not None
         assert s1 != s2
         assert "差旅费" in s1
         assert "办公用品" in s2
@@ -202,7 +208,9 @@ class TestMatchSentencesScore:
         result = match_sentences(output, "年假申请流程提前几天")
 
         # 验证最佳句确实是关于年假的
-        assert "年假" in result.results[0].matched_sentence
+        matched_sentence = result.results[0].matched_sentence
+        assert matched_sentence is not None
+        assert "年假" in matched_sentence
         assert isinstance(result.results[0].matched_sentence_score, float)
 
 

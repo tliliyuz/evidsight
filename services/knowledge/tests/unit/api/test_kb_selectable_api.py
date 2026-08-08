@@ -109,7 +109,7 @@ class TestSelectableKB:
     @pytest.mark.asyncio
     async def test_空数据返回空列表(self, async_client, auth_headers):
         """用户无 KB 且无公共 KB 时应返回空列表"""
-        mock_data = {"mine": [], "public": []}
+        mock_data: dict[str, list[object]] = {"mine": [], "public": []}
 
         with patch("app.api.knowledge_base.get_selectable_kbs", new_callable=AsyncMock) as mock:
             mock.return_value = mock_data

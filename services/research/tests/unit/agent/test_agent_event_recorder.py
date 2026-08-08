@@ -6,12 +6,15 @@
 - 事件与 SSE 载荷不暴露模型隐藏推理。
 """
 
+from typing import cast
+
 from app.agent.event_recorder import AgentEventRecorder
 from app.models.research_task import ResearchTask
 from app.pipeline.sse_bridge import (
     EVENT_AGENT_ACTION,
     EVENT_AGENT_OBSERVATION,
     EVENT_PHASE_STARTED,
+    SSEBridge,
 )
 from app.services.agent_event_service import (
     EVENT_TYPE_PHASE_ENTER,
@@ -42,7 +45,7 @@ class TestAgentEventRecorder:
     async def test_record_持久化并带sequence发布SSE(self, db_session):
         task_id = await _make_task(db_session)
         sse = RecordingSSE()
-        recorder = AgentEventRecorder(task_id, db_session, sse)
+        recorder = AgentEventRecorder(task_id, db_session, cast(SSEBridge, sse))
 
         seq1 = await recorder.record(
             event_type=EVENT_TYPE_PHASE_ENTER,
@@ -71,7 +74,7 @@ class TestAgentEventRecorder:
     async def test_record_不发布也不落库隐藏推理(self, db_session):
         task_id = await _make_task(db_session)
         sse = RecordingSSE()
-        recorder = AgentEventRecorder(task_id, db_session, sse)
+        recorder = AgentEventRecorder(task_id, db_session, cast(SSEBridge, sse))
 
         await recorder.record(
             event_type=EVENT_TYPE_TOOL_RESULT,
@@ -101,7 +104,7 @@ class TestAgentEventRecorder:
 
     async def test_record_支持duration与cost观测字段(self, db_session):
         task_id = await _make_task(db_session)
-        recorder = AgentEventRecorder(task_id, db_session, RecordingSSE())
+        recorder = AgentEventRecorder(task_id, db_session, cast(SSEBridge, RecordingSSE()))
         await recorder.record(
             event_type=EVENT_TYPE_TOOL_RESULT,
             sse_event=EVENT_AGENT_OBSERVATION,

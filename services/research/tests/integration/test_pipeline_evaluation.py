@@ -7,6 +7,7 @@
 
 import json
 from contextlib import ExitStack
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -253,8 +254,8 @@ async def _run_pipeline(db_session, task: ResearchTask, failing_url: str | None 
     """使用全 Mock 外部依赖经 AgentRuntime 跑通 Pipeline。"""
     task_id = task.id
     sse_bridge = SSEBridge(task_id)
-    sse_bridge.publish = AsyncMock()
-    trace = TraceRecorder(task_id=task_id, user_id=1, topic=task.topic)
+    setattr(sse_bridge, "publish", AsyncMock())
+    trace = TraceRecorder(task_id=task_id, user_id="1", topic=task.topic)
 
     # searcher §6.1 预检查：web 策略要求 TAVILY_API_KEY 非空（E3102 门禁）。
     # 测试全程 mock `_call_tavily`，这里只为通过预检查，不产生真实调用。
@@ -288,7 +289,7 @@ async def _run_pipeline(db_session, task: ResearchTask, failing_url: str | None 
     try:
         with ExitStack() as stack:
             for p in patches:
-                stack.enter_context(p)
+                stack.enter_context(cast(Any, p))
             runtime = AgentRuntime(
                 task=task,
                 session=db_session,
@@ -343,6 +344,7 @@ class TestPipelineEvaluation:
 
         report = await evaluate_task(db_session, task.id)
 
+        assert report.fetch is not None
         assert report.fetch.successful == 9
         assert report.fetch.failed == 1
         assert report.fetch.success_rate == pytest.approx(0.9)

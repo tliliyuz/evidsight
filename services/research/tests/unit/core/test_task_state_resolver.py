@@ -106,6 +106,7 @@ class TestTaskStateResolver:
         ]
         status, err = self.resolver.resolve(task, steps, evidence_count=5)
         assert status == "failed"
+        assert err is not None
         assert err["error_code"] == "E3105"
 
     def test_EvidenceGraphFailed_E3106_立即返回failed(self):
@@ -116,6 +117,7 @@ class TestTaskStateResolver:
         ]
         status, err = self.resolver.resolve(task, steps, evidence_count=5)
         assert status == "failed"
+        assert err is not None
         assert err["error_code"] == "E3106"
 
     def test_LLMAuthFailed_E3110_立即返回failed(self):
@@ -126,6 +128,7 @@ class TestTaskStateResolver:
         ]
         status, err = self.resolver.resolve(task, steps, evidence_count=10)
         assert status == "failed"
+        assert err is not None
         assert err["error_code"] == "E3110"
         assert err["recoverable"] is False
 
@@ -168,6 +171,7 @@ class TestTaskStateResolver:
         ]
         status, err = self.resolver.resolve(task, steps, evidence_count=4)
         assert status == "failed"
+        assert err is not None
         assert err["error_code"] == "E3103"
 
         status, err = self.resolver.resolve(task, steps, evidence_count=5)
@@ -280,6 +284,7 @@ class TestTaskStateResolver:
         ]
         status, err = self.resolver.resolve(task, steps, evidence_count=10)
         assert status == "failed"
+        assert err is not None
         assert err["error_code"] == "E3102"
         assert err["error_message"] == "致命错误，任务无法继续"
         assert "SQL" not in err["error_message"]

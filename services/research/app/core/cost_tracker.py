@@ -114,7 +114,8 @@ def extract_step_cost(output: dict, default_model: str | None = None) -> dict | 
     if not isinstance(output, dict):
         return None
 
-    usage = output.get("usage") if isinstance(output.get("usage"), dict) else {}
+    raw_usage = output.get("usage")
+    usage: dict = raw_usage if isinstance(raw_usage, dict) else {}
 
     input_tokens = _safe_int(output.get("prompt_tokens"))
     if input_tokens is None:

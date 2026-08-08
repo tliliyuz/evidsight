@@ -69,6 +69,7 @@ class TestExtractStepCost:
             "model": "deepseek-v4-pro",
         }
         cost = extract_step_cost(output)
+        assert cost is not None
         assert cost["input_tokens"] == 300
         assert cost["output_tokens"] == 150
 
@@ -83,11 +84,13 @@ class TestExtractStepCost:
     def test_无model字段使用default_model(self):
         output = {"prompt_tokens": 1000, "completion_tokens": 200}
         cost = extract_step_cost(output, default_model="deepseek-v4-pro")
+        assert cost is not None
         assert cost["model"] == "deepseek-v4-pro"
 
     def test_无model且无default返回unknown(self):
         output = {"prompt_tokens": 1000, "completion_tokens": 200}
         cost = extract_step_cost(output)
+        assert cost is not None
         assert cost["model"] == "unknown"
         assert cost["estimated_cost_usd"] == 0.0
 

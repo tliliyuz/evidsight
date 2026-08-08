@@ -1,6 +1,7 @@
 """Planner 单元测试 — 验证 LLM 调用、JSON 解析、输出校验、重试逻辑。"""
 
 import json
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -128,7 +129,7 @@ class TestValidateSubQuestions:
         assert any("为空" in e for e in errors)
 
     def test_非列表输入(self):
-        errors = _validate_sub_questions("not a list")
+        errors = _validate_sub_questions(cast(list[str], "not a list"))
         assert len(errors) == 1
         assert "不是数组" in errors[0]
 

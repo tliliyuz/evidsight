@@ -343,6 +343,7 @@ class TestV1RefreshAPI:
 
         assert response.status_code == 200
         mock_refresh.assert_awaited_once()
+        assert mock_refresh.await_args is not None
         # 服务层拿到的是 Refresh Cookie 中的旧 Token（未被 body 覆盖）
         assert mock_refresh.await_args.args[1] == "old-refresh-token"
 
@@ -513,6 +514,7 @@ class TestV1LogoutAPI:
 
         assert response.status_code == 204
         mock_logout.assert_awaited_once()
+        assert mock_logout.await_args is not None
         # 服务层拿到 Refresh Cookie 中的 Token 与当前用户的 Platform UUID
         assert mock_logout.await_args.args[1] == "old-refresh-token"
         assert mock_logout.await_args.args[2] == "550e8400-e29b-41d4-a716-446655440001"
@@ -599,6 +601,7 @@ class TestCompatAPI:
 
         assert response.status_code == 200
         mock_refresh.assert_awaited_once()
+        assert mock_refresh.await_args is not None
         # 服务层拿到的是 body 中的 Token
         assert mock_refresh.await_args.args[1] == "body-refresh-token"
         # 弃用日志记录调用，但不得包含 Token 明文
@@ -631,6 +634,7 @@ class TestCompatAPI:
 
         assert response.status_code == 200
         mock_refresh.assert_awaited_once()
+        assert mock_refresh.await_args is not None
         assert mock_refresh.await_args.args[1] == "cookie-refresh-token"
 
     @pytest.mark.asyncio
@@ -665,6 +669,7 @@ class TestCompatAPI:
 
         assert response.status_code == 204
         mock_logout.assert_awaited_once()
+        assert mock_logout.await_args is not None
         assert mock_logout.await_args.args[1] == "body-refresh-token"
         cookies = _cookies_from_response(response)
         assert cookies[self.REFRESH_COOKIE]["max-age"] == "0"

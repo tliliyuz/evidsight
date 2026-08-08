@@ -16,6 +16,7 @@
 import asyncio
 import json
 from contextlib import ExitStack, contextmanager
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -183,7 +184,7 @@ def _mock_chat_pipeline(
     )
 
     with ExitStack() as stack:
-        mocks = {}
+        mocks: dict[str, Any] = {}
 
         # Mock async_session：generator 内部自管短 session（ADR-017）
         mock_session = AsyncMock()

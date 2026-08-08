@@ -39,6 +39,12 @@ def _make_pdfplumber_page(text: str) -> MagicMock:
     return page
 
 
+def _error(page: ParsedPage) -> str:
+    """断言失败页面具有错误信息，并向类型检查器缩窄为 str。"""
+    assert page.error is not None
+    return page.error
+
+
 class TestParsedPage:
     """ParsedPage 数据类测试"""
 
@@ -153,7 +159,7 @@ class TestParseText:
         result = _parse_text(str(file_path))
         assert result.failed_pages == 1
         assert result.failure_rate == 1.0
-        assert "内容为空" in result.pages[0].error
+        assert "内容为空" in _error(result.pages[0])
 
     def test_gbk编码_自动回退解析(self, tmp_path):
         file_path = tmp_path / "gbk.txt"
@@ -208,7 +214,7 @@ class TestParsePdf:
         assert result.total_pages == 3
         assert result.failed_pages == 1
         assert not result.pages[1].success
-        assert "无文本" in result.pages[1].error
+        assert "无文本" in _error(result.pages[1])
 
     def test_单页解析异常_跳过继续(self):
         """第 2 页 get_text 抛异常 → 跳过，其他页正常"""
@@ -225,7 +231,7 @@ class TestParsePdf:
         assert result.failed_pages == 1
         assert result.pages[0].success is True
         assert result.pages[1].success is False
-        assert "PDF 解析错误" in result.pages[1].error
+        assert "PDF 解析错误" in _error(result.pages[1])
 
     def test_全部页面失败(self):
         """所有页面均无文本或异常 → failure_rate=1.0"""
@@ -263,8 +269,8 @@ class TestParsePdf:
 
         assert result.failed_pages == 1
         assert result.failure_rate == 1.0
-        assert "fitz 错误" in result.pages[0].error
-        assert "plumber 错误" in result.pages[0].error
+        assert "fitz 错误" in _error(result.pages[0])
+        assert "plumber 错误" in _error(result.pages[0])
 
     def test_空文档_0页(self):
         """0 页 PDF → ParseResult 正常返回，failure_rate=1.0"""
@@ -388,7 +394,7 @@ class TestParseDocx:
 
         assert result.failed_pages == 2
         assert result.failure_rate == 1.0
-        assert "无有效文本" in result.pages[0].error
+        assert "无有效文本" in _error(result.pages[0])
 
     def test_DOCX单段解析异常_跳过继续(self):
         bad_para = MagicMock()
@@ -415,7 +421,7 @@ class TestParseDocx:
 
         assert result.failed_pages == 1
         assert result.failure_rate == 1.0
-        assert "DOCX 文件损坏" in result.pages[0].error
+        assert "DOCX 文件损坏" in _error(result.pages[0])
 
     def test_DOCX无段落(self):
         mock_doc = MagicMock()
@@ -425,7 +431,7 @@ class TestParseDocx:
             result = _parse_docx("empty.docx")
 
         assert result.failed_pages == 1
-        assert "无段落" in result.pages[0].error
+        assert "无段落" in _error(result.pages[0])
 
 
 class TestParseDocumentDispatch:
@@ -434,7 +440,7 @@ class TestParseDocumentDispatch:
     def test_文件不存在(self):
         result = parse_document("/nonexistent/test.pdf")
         assert result.failed_pages == 1
-        assert "不存在" in result.pages[0].error
+        assert "不存在" in _error(result.pages[0])
 
     def test_不支持的文件类型(self, tmp_path):
         file_path = tmp_path / "test.xyz"
@@ -442,7 +448,7 @@ class TestParseDocumentDispatch:
 
         result = parse_document(str(file_path), "xyz")
         assert result.failed_pages == 1
-        assert "不支持" in result.pages[0].error
+        assert "不支持" in _error(result.pages[0])
 
     def test_从扩展名自动推断类型_txt(self, tmp_path):
         file_path = tmp_path / "readme.txt"
@@ -535,7 +541,7 @@ class TestTableToMarkdown:
 
     def test_3列表格含None单元格(self):
         """None 单元格 → 空字符串占位，列数按最大补齐"""
-        data = [
+        data: list[list[str | None]] = [
             ["A", "B", "C"],
             ["1", None, "3"],
             [None, "2", None],
@@ -559,7 +565,7 @@ class TestTableToMarkdown:
 
     def test_管道符转义和多行文本(self):
         """| 转义为 \\|，换行符替换为 <br>"""
-        data = [
+        data: list[list[str | None]] = [
             ["名称", "描述"],
             ["A|B", "第一行\n第二行"],
         ]
@@ -571,7 +577,7 @@ class TestTableToMarkdown:
 
     def test_全空行被过滤(self):
         """表中包含全 None 空行 → 过滤掉"""
-        data = [
+        data: list[list[str | None]] = [
             ["姓名", "年龄"],
             [None, None],
             ["张三", "30"],
@@ -636,5 +642,5 @@ class TestParsePdfWithPlumber:
             result = _parse_pdf_with_pdfplumber("bad.pdf", original_error="fitz 失败")
 
         assert result.failed_pages == 1
-        assert "fitz 失败" in result.pages[0].error
-        assert "plumber 失败" in result.pages[0].error
+        assert "fitz 失败" in _error(result.pages[0])
+        assert "plumber 失败" in _error(result.pages[0])

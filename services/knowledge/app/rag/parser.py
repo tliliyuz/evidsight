@@ -17,6 +17,7 @@ PDF 解析引擎（对齐 ADR-025）：
 
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -130,7 +131,7 @@ def parse_document(file_path: str, file_type: str | None = None) -> ParseResult:
         )
 
 
-def _table_to_markdown(table_data: list[list[str | None]]) -> str:
+def _table_to_markdown(table_data: Sequence[Sequence[str | None]]) -> str:
     """将 pdfplumber 原始表格数据转换为 GitHub-flavored Markdown 表格。
 
     纯函数。对齐 ADR-025：表格嵌入 page.content 为 Markdown 字符串，
@@ -156,7 +157,7 @@ def _table_to_markdown(table_data: list[list[str | None]]) -> str:
     rows: list[list[str | None]] = []
     for row in table_data:
         if row and any(cell is not None and str(cell).strip() for cell in row):
-            rows.append(row)
+            rows.append(list(row))
 
     if not rows:
         return ""

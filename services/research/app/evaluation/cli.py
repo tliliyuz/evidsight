@@ -254,8 +254,8 @@ async def run_cli(argv: list[str] | None = None) -> int:
 
     if args.manual_round:
         records = load_manual_records(args.manual_round)
-        aggregate = aggregate_manual_records(records)
-        data = aggregate.to_dict()
+        manual_aggregate = aggregate_manual_records(records)
+        data = manual_aggregate.to_dict()
         if args.json:
             print(json.dumps(data, ensure_ascii=False, indent=2))
         else:
@@ -264,8 +264,8 @@ async def run_cli(argv: list[str] | None = None) -> int:
 
     if args.manual_all_rounds:
         records = load_all_manual_rounds()
-        aggregate = aggregate_manual_records(records)
-        data = aggregate.to_dict()
+        manual_aggregate = aggregate_manual_records(records)
+        data = manual_aggregate.to_dict()
         if args.json:
             print(json.dumps(data, ensure_ascii=False, indent=2))
         else:
@@ -293,12 +293,12 @@ async def run_cli(argv: list[str] | None = None) -> int:
 
         task_ids = await _load_completed_task_ids(session, args.limit)
         reports = await evaluate_tasks(session, task_ids, targets=TARGETS)
-        system = (
+        system_metrics = (
             await evaluate_system_reliability(session, targets=TARGETS) if args.system else None
         )
-        aggregate = aggregate_reports(reports, system=system)
+        report_aggregate = aggregate_reports(reports, system=system_metrics)
         if args.json:
-            print(json.dumps(aggregate, ensure_ascii=False, indent=2))
+            print(json.dumps(report_aggregate, ensure_ascii=False, indent=2))
         else:
-            print(_render_aggregate(aggregate))
+            print(_render_aggregate(report_aggregate))
         return 0

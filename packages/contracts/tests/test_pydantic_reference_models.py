@@ -16,8 +16,9 @@ from evidsight_contracts.v1 import (
     retrieval_request,
     retrieval_response,
 )
+from pydantic import BaseModel
 
-MODELS = {
+MODELS: dict[str, type[BaseModel]] = {
     "retrieval-request": retrieval_request.RetrievalRequest,
     "retrieval-response": retrieval_response.RetrievalResponse,
     "retrieval-hit": retrieval_hit.RetrievalHit,

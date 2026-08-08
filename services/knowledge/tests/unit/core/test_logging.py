@@ -146,7 +146,7 @@ class TestRequestIDFilter:
         token = request_id_var.set("req-123")
         try:
             f.filter(record)
-            assert record.request_id == "req-123"
+            assert getattr(record, "request_id") == "req-123"
         finally:
             request_id_var.reset(token)
 
@@ -164,7 +164,7 @@ class TestRequestIDFilter:
         token = user_id_var.set(99)
         try:
             f.filter(record)
-            assert record.user_id == 99
+            assert getattr(record, "user_id") == 99
         finally:
             user_id_var.reset(token)
 
@@ -180,8 +180,8 @@ class TestRequestIDFilter:
             exc_info=None,
         )
         f.filter(record)
-        assert record.request_id == ""
-        assert record.user_id == 0
+        assert getattr(record, "request_id") == ""
+        assert getattr(record, "user_id") == 0
 
 
 class TestSetupLogging:
