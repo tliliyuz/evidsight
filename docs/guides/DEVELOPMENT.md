@@ -3,10 +3,10 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 开发基线 |
-| 最后更新 | 2026-08-08 |
-| 当前阶段 | M4：统一 Web、报告与证据联动 |
+| 最后更新 | 2026-08-09 |
+| 当前阶段 | M2：Knowledge v1 外部 API 收口；M4 业务页面受阻 |
 
-> 本文定义开发入口、Monorepo 目录职责、环境准备、常用命令和交付门禁。产品行为以 [PRD.md](../specs/PRD.md) 为准，服务边界以 [ARCHITECTURE.md](../specs/ARCHITECTURE.md) 为准。M0 结构迁移、M1 统一身份与权限、M2 Knowledge 稳定化与 Internal Retrieval、M3 Research Service 接入内部知识均已完成；M4 起的新功能仍须按 SDD 门禁先执行 ADR 检查、再以验收测试观察正确 RED 后进入生产实现。
+> 本文定义开发入口、Monorepo 目录职责、环境准备、常用命令和交付门禁。产品行为以 [PRD.md](../specs/PRD.md) 为准，服务边界以 [ARCHITECTURE.md](../specs/ARCHITECTURE.md) 为准。M0、M1 与 M3 已完成；M2 的 Pipeline/Internal Retrieval 已验证，但 Knowledge v1 外部 API 尚未通过退出门禁，因此重新进入收口。M4 已完成 React 工程基线、身份认证、应用壳层与工作台，API 依赖业务页面按 ROADMAP 标为受阻；解除前只进入规范、OpenAPI、验收场景与 RED，不以 legacy 路由固化新 Consumer。
 
 ## 1. 环境要求
 

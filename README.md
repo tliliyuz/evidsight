@@ -157,7 +157,7 @@ docker compose config --quiet
 
 ## 项目状态
 
-据见已完成 M0—M3，**M4：统一 Web、报告与证据联动尚未开始**。统一前端、三节点生产部署资产、治理与部署验收、v1.0 发布门禁为后续里程碑。当前前端为 M0 迁入的 Vue 基线，M4 将按前端专项规范迁向 React。里程碑状态与验证记录以 [路线图](docs/plans/ROADMAP.md) 为准。
+据见已完成 M0、M1、M3；M2 的 Pipeline/Internal Retrieval 已验证，Knowledge v1 外部 API 正在收口。M4 已完成 React 工程基线、身份认证、应用壳层与工作台，但知识库、文档和会话页面受 Provider 就绪门禁阻塞。三节点生产部署资产、治理与部署验收、v1.0 发布门禁仍属于后续里程碑。状态与解除条件以 [路线图](docs/plans/ROADMAP.md) 为准。
 
 ## 开发说明
 

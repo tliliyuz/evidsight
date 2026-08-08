@@ -3,8 +3,8 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | 已确认 |
-| 文档版本 | v1.0 |
-| 最后更新 | 2026-08-08 |
+| 文档版本 | v1.1 |
+| 最后更新 | 2026-08-09 |
 | 排期方式 | 阶段里程碑与验收门禁，不绑定具体日期 |
 
 > 本文档是据见实施顺序、阶段依赖和发布门禁的权威计划。产品范围与成功指标见 [PRD.md](../specs/PRD.md)，总体服务边界与部署约束见 [ARCHITECTURE.md](../specs/ARCHITECTURE.md)，第一阶段代码布局迁移步骤见 [MONOREPO_MIGRATION_PLAN.md](MONOREPO_MIGRATION_PLAN.md)。字段、状态机、算法和界面细节由对应专项规范定义，本文不复制其定义。
@@ -50,13 +50,15 @@
 |:---|:---|:---|:---|:---|
 | M0 | 已完成 | 规范基线与 Monorepo 迁移 | 两个来源项目进入统一仓库并保持独立构建、测试和数据边界 | 已确认 PRD、总体架构、来源基线 |
 | M1 | 已完成 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
-| M2 | 已完成 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence | M1 的身份与 Contract 基线 |
-| M3 | 已完成 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 |
-| M4 | 进行中 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
+| M2 | 进行中 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence，并完成供 Web 消费的 Knowledge v1 外部 API | M1 的身份与 Contract 基线 |
+| M3 | 已完成 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 已验证的 Internal Retrieval 与权限切片 |
+| M4 | 受阻 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
 | M5 | 未开始 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的三节点 2C2G 试点部署 | M1—M4 |
 | M6 | 未开始 | v1.0 发布门禁与后续演进 | 全部 P0、成功指标和端到端场景完成发布验收 | M0—M5 |
 
 M0 的结构迁移与单机运行基线已完成。原 `docs/migration/` 下的迁移过程记录已由负责人于 2026-08-02 主动删除，不再作为阶段状态门禁；当前仓库结构、保留的 Git 历史、`docs/specs/TESTING.md` 的验证要求和 `docs/guides/TEST_EXECUTION.md` 的执行入口是后续复核入口。统一身份、Internal Retrieval、Research 前端整合及生产数据迁移仍属于后续里程碑，不因 M0 完成而视为完成。
+
+状态校正（2026-08-09）：反向审计发现 M2 的「必须完成的规范」包含 Knowledge 外部 API，但原退出门禁只验证了入库、问答和 Internal Retrieval，导致阶段被提前标记为完成；M4 进入核验又只补查 Evidence/Report 与原文位置端点，未逐项核对前端所需 Provider。依据文档治理的事实状态模型，M2 重新进入「进行中」，M4 在 API 依赖页面解除前置阻塞前标为「受阻」。已完成的 React 工程基线、身份认证、应用壳层与工作台切片保留，不回退或重复实施。ADR 检查 1–8：否（纠正里程碑状态和既有规范的执行门禁，不改变服务边界、公共契约、权限、数据生命周期或技术机制）。
 
 总体主线为：`M0 → M1 → M2 → M3 → M4 → M5 → M6`。
 
@@ -189,6 +191,9 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 
 - [x] `ADR-007` 已接受为 `accepted`（命中检查项 4、5，2026-08-04）；检索权限语义由 `ADR-002`/`ADR-005` 交叉引用覆盖，不另建重复 ADR。
 - [x] Internal Retrieval/Evidence Contract、权限感知 Provider 端点、版本化写路径与 PRD AC-005/006/010 真机验收均已落地；契约/Provider/全量测试结果与异常演练记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-04、2026-08-05 条目）。
+- [ ] Knowledge v1 外部 API 尚未收口：Knowledge Base CRUD 仍只有 `/api/knowledge-bases/*`；文档上传、列表、详情、重试、删除和分块列表仍依赖 `/api/knowledge-bases/{kb_id}/documents/*`；Conversation CRUD 仍只有 `/api/conversations/*`。仅 Auth、Chat 与文档 location 已有对应 v1 Provider。
+- [ ] `GET /api/v1/knowledge-bases` 尚未提供 FRONTEND §5.3 要求的单一可见集合、「全部 / 我创建的 / 组织公开」范围筛选和名称搜索；当前 mine、public 是两个独立分页端点，`selectable` 只服务可问答 KB 选择，不等价于知识库管理列表。
+- [ ] `docs/openapi/evidsight-v1.yaml` 尚未建立，Knowledge v1 相关请求、响应、分页、查询和错误 Schema 还不能作为已发布前端契约。
 
 
 ### 范围内工作
@@ -219,13 +224,16 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 
 ### 退出门禁
 
-- 文档入库、重处理、删除和失败恢复通过自动化与异常演练；
-- private Knowledge Base 的未授权检索路径为零；
-- Internal Retrieval 对每次请求实时校验用户与知识库 READ 权限；
-- Internal Retrieval Provider 测试与共享 Contract 样例一致；
-- 内部 Evidence 可定位到用户当前有权访问的文档位置；
-- Research Service 无需了解 Knowledge 数据库、Chroma Collection、缓存或文件路径；
-- PRD AC-005、AC-006 和 AC-010 对应验证入口已建立。
+- [x] 文档入库、重处理、删除和失败恢复通过自动化与异常演练；
+- [x] private Knowledge Base 的未授权检索路径为零；
+- [x] Internal Retrieval 对每次请求实时校验用户与知识库 READ 权限；
+- [x] Internal Retrieval Provider 测试与共享 Contract 样例一致；
+- [x] 内部 Evidence 可定位到用户当前有权访问的文档位置；
+- [x] Research Service 无需了解 Knowledge 数据库、Chroma Collection、缓存或文件路径；
+- [x] PRD AC-005、AC-006 和 AC-010 对应验证入口已建立；
+- [ ] API.md §6—§7 中供 Web 消费的 Knowledge Base、Document 与 Conversation v1 端点全部注册，method、路径、权限、成功状态和错误语义与规范一致；legacy 路由只能作为带调用量观测的兼容适配器，不能替代本门禁；
+- [ ] Knowledge Base v1 列表以一个分页端点提供当前可见集合、三类范围筛选和名称搜索，并有普通用户权限、分页去重和搜索 Provider 测试；
+- [ ] `docs/openapi/evidsight-v1.yaml` 至少覆盖上述 Knowledge v1 路径，且 FastAPI 路由清单、OpenAPI 路径清单与 Provider 契约测试三方一致。
 
 ### 本阶段不做
 
@@ -301,7 +309,7 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 - [x] 可恢复任务在 Worker 中断后从安全断点继续，且不重复已完成结果；
 - [x] PRD AC-001、AC-003、AC-004 和 AC-010 对应验证入口已建立（切片 H，2026-08-07）。
 
-M3 已完成（2026-08-08）。八条退出门禁逐项核对证据与回归基线（research 全量 unit 1084 passed / 1 skipped / 1 failed 环境依赖、契约 204 passed、Architecture 16 passed / 1 failed 既有布局失败）见 [CHANGELOG](../CHANGELOG.md)（2026-08-08 条目）；S5（Rerank 确定性回退+公平抽取）与 S7（Web Query 外发校验器）已确认排期至后续切片，不构成 M3 遗留缺口。
+M3 已完成（2026-08-08）。八条 Research Pipeline 退出门禁逐项核对证据与回归基线（research 全量 unit 1084 passed / 1 skipped / 1 failed 环境依赖、契约 204 passed、Architecture 16 passed / 1 failed 既有布局失败）见 [CHANGELOG](../CHANGELOG.md)（2026-08-08 条目）；S5（Rerank 确定性回退+公平抽取）与 S7（Web Query 外发校验器）已确认排期至后续切片，不构成 M3 遗留缺口。Research v1 CRUD 与 canonical SSE 是在 M3 标记完成后的 2026-08-08 后续提交中收口，其就绪证据可用于 M4，但不得反向解释为 M3 标记完成时已经满足全部外部 API 条件。
 
 ### 本阶段不做
 
@@ -318,13 +326,27 @@ M3 已完成（2026-08-08）。八条退出门禁逐项核对证据与回归基�
 
 ### 进入条件
 
-- M2、M3 的外部 API、SSE 和 Evidence Contract 已稳定；
+- M2、M3 供 Web 消费的外部 API、SSE 和 Evidence Contract 已稳定：API.md 目标路由已注册、相关字段契约已进入 `docs/openapi/evidsight-v1.yaml`、Provider 契约测试通过，legacy 路由不计作目标态就绪；
 - 统一导航、路由、页面状态和 Design Token 已形成专项规范；
 - 内部 Evidence 原文访问的实时权限复核接口可用。
 
-进入条件核验（2026-08-07）：第 1 项缺口「API.md §9 Evidence 与 Report 读取端点」已补齐（目标态数据层 reports/report_revisions/claims/evidence_relations + 对外 UUID + 5 个读取端点 + renderer 原子发布，验证记录见 [CHANGELOG](../CHANGELOG.md) 2026-08-07 条目）；第 3 项「内部 Evidence 原文访问实时权限复核接口」已落地（`GET /api/v1/documents/{document_id}/locations/{location_id}`，CHANGELOG 2026-08-07 条目）。三项进入条件均已有可复核证据。
+进入条件重新核验（2026-08-09）：第 2、3 项已满足；第 1 项未满足。2026-08-07 的核验只证明 Evidence/Report 读取与内部原文 location 可用，不能证明全部外部 API 已稳定。Research v1 CRUD、Research canonical SSE、Chat v1 已于 2026-08-08 收口；Knowledge Base、Document、Conversation v1 与 External OpenAPI 仍缺失，具体事实见 M2 当前状态。因此原「三项进入条件均已有证据」声明撤销。
 
-阶段状态（2026-08-08）：M4 已进入实施，当前按前端专项规范分切片完成统一 Web；阶段仍为「进行中」，不得将 React 工程基线或单个页面切片误报为 M4 已完成。
+阶段状态（2026-08-09）：M4 为「受阻」。React 工程基线、身份认证、应用壳层与工作台不依赖缺失的业务 Provider，已完成结果保留；知识库、文档、会话及其后续联调切片暂停进入生产实现。解除条件是 M2 新增的三条外部 API 退出门禁全部通过并留下可复核证据；解除前只允许完成规范、OpenAPI、验收场景和正确 RED，不得继续用 legacy 路由固化 React Consumer。
+
+#### M4 Provider 就绪清单
+
+| 前端能力 | 目标 Provider | 2026-08-09 状态 | M4 判定 |
+|:---|:---|:---|:---|
+| Auth | `/api/v1/auth/*` | 已实现 | 可消费 |
+| Chat | `/api/v1/chat/*` + canonical SSE | 已实现 | 可消费 |
+| Research | `/api/v1/research/*` + canonical SSE | 已实现 | 可消费 |
+| Evidence / Report | API.md §9 v1 读取端点 | 已实现 | 可消费 |
+| 内部原文位置 | `/api/v1/documents/{document_id}/locations/{location_id}` | 已实现 | 可消费 |
+| Knowledge Base CRUD / 统一列表 / 名称搜索 | `/api/v1/knowledge-bases/*` | 未实现 | 阻塞知识中心与 KB 选择器 |
+| Document 上传 / 列表 / 详情 / 重试 / 删除 / 分块 | API.md §6.2 v1 端点 | 除 location 外未实现 | 阻塞知识库详情与来源抽屉 |
+| Conversation 列表 / 详情 / 更新 / 删除 | `/api/v1/conversations/*` | 未实现 | 阻塞问答历史 |
+| External OpenAPI | `docs/openapi/evidsight-v1.yaml` | 未建立 | 阻塞上述缺失能力形成稳定 Consumer 契约 |
 
 ### 范围内工作
 
