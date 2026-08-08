@@ -149,7 +149,7 @@ class AgentRuntime:
 
             tool_context = ToolContext(
                 task=self._task,
-                step=None,  # type: ignore[arg-type]
+                step=None,
                 session=self._session,
                 sse_bridge=self._sse,
                 trace_recorder=self._trace,
@@ -411,18 +411,21 @@ class AgentRuntime:
 
     def _tool_context_with_step(self, step: ResearchStep | None) -> ToolContext:
         """构造包含指定 Step 的 ToolContext。"""
+        assert self._agent_context is not None
+        assert self._working_memory is not None
         return ToolContext(
             task=self._task,
-            step=step,  # type: ignore[arg-type]
+            step=step,
             session=self._session,
             sse_bridge=self._sse,
             trace_recorder=self._trace,
-            agent_context=self._agent_context,  # type: ignore[arg-type]
-            working_memory=self._working_memory,  # type: ignore[arg-type]
+            agent_context=self._agent_context,
+            working_memory=self._working_memory,
         )
 
     async def _create_step(self, step_type: str) -> ResearchStep:
         """创建当前 Tool 执行的 ResearchStep。"""
+        assert self._agent_context is not None
         step = ResearchStep(
             task_id=self._task.id,
             step_type=step_type,
@@ -484,6 +487,7 @@ class AgentRuntime:
 
     async def _complete_step(self, step: ResearchStep, result: ToolResult) -> None:
         """Step 成功完成：写入 output、trace、SSE、checkpoint。"""
+        assert self._agent_context is not None
         # 租约门禁：失去租约的 Worker 不提交业务结果（§13.1 / §17.12）
         await self._assert_lease()
         now = datetime.now(timezone.utc)
@@ -597,6 +601,7 @@ class AgentRuntime:
 
     async def _update_execution_context(self, step: ResearchStep, phase_name: str) -> None:
         """更新 execution_context（包含 agent_context）。"""
+        assert self._agent_context is not None
         total = self._task.total_steps or 1
 
         terminal_statuses = {"completed", "skipped", "failed"}

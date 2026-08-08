@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 规范基线 |
-| 最后更新 | 2026-08-08 |
+| 最后更新 | 2026-08-09 |
 
 ## 1. 原则
 
@@ -36,7 +36,8 @@
 - Redis Key、队列和 Metric 带服务命名空间；
 - 文档相对链接、OpenAPI、JSON Schema 和 `$ref` 可解析；
 - Python 代码通过 ruff 静态检查（规则集 `E4,E7,E9,F,I`，行宽 100，配置见根 `pyproject.toml`）；lint 只报告，不改文件。提交时由 pre-commit hook（`.pre-commit-config.yaml`，`repo: local` 调用 venv 内 ruff）对暂存文件自动执行 `ruff check` 与 `ruff format --check`，存量基线告警按「触碰即清理」增量消解；提交信息由 `commit-msg` hook（`scripts/check_commit_msg.sh`）强制 `add|fixed|update|refactor: 中文描述` 格式。
-- Python 类型检查采用 mypy 渐进门禁。当前强制范围包括：① Knowledge/Research 的 `app/schemas/`、两服务 `app/core/permissions.py` 及 Research `app/core/utils.py`；② 两服务 `app/core/exceptions.py`、`security.py`、`service_security.py`、`sse.py`，Knowledge `app/core/csrf.py`/`utils.py`，Research `app/core/task_state_resolver.py`/`token_counter.py`；③ 两服务 `app/config.py`、`app/dependencies.py`、`app/middleware/` 与 `app/api/`；④ 两服务 `app/services/`，以及 Research `app/core/identity_status_client.py`/`internal_retrieval_client.py` 两个跨服务客户端。两服务必须在各自虚拟环境中使用同一根配置分别检查，结果为零错误；渐进阶段使用 `--follow-imports=skip`，只检查命令显式列出的模块，导入到尚未纳入批次的 Pipeline/Worker/ORM 等模块不得被隐式计入或作为跳过当前门禁的理由。启用 Pydantic mypy plugin、`check_untyped_defs`、严格 Optional、冗余 cast 与无效 ignore 检查；不得用全局 `ignore_missing_imports`、全局 `ignore_errors` 或批量 `# type: ignore` 伪造通过。基础设施与外部 Provider 客户端、ORM、Pipeline（Task State Resolver 除外）、任务调度、脚本、测试和 Contract 生成物尚不属于强制范围，扩大范围时必须先记录新范围、观察基线并清零后再接入阻断门禁。
+- Python 类型检查采用 mypy 全量门禁。六批收口后的最终强制范围为：① Knowledge/Research 两服务完整 `app/`（包括 Schema、Core、API、Service、Pipeline/Task/Worker、基础设施与外部 Provider 客户端、ORM、Evaluation、Metrics、Utils 和入口）；② 两服务 `scripts/`（不含 `.ab/` 临时噪声实验目录）、`tests/` 与 `alembic/env.py`；③ 根 `tests/`；④ `packages/contracts/generated/python/` 与 `packages/contracts/tests/`。Alembic 历史 revision 属生成且已落库的迁移事实，继续由迁移往返验证，不纳入 mypy；缓存、venv 与其他生成目录继续排除。两服务及共享范围必须使用同一根配置分别检查，全部结果为零错误；日常检查与 pre-commit 使用 `make setup-python-dev` 建立的各服务 Python 3.12 `.venv`，检查过程不得临时安装依赖；候选版及 Python requirements/Dockerfile 变化必须再执行 `make type-check-docker`，使用 Dockerfile 缓存的 `typecheck` target 在 Linux Python 3.12 中复核，运行容器不得联网安装依赖。启用 Pydantic mypy plugin、`check_untyped_defs`、严格 Optional、冗余 cast 与无效 ignore 检查；不得用全局 `ignore_missing_imports`、全局 `ignore_errors` 或批量 `# type: ignore` 伪造通过。新增 Python 文件必须在所属环境的全量门禁中立即清零，不再保留后续批次豁免。
+- Mac 上仅编辑器解析、ruff、mypy、pre-commit 与不依赖外部服务的纯单元检查可使用服务 `.venv`；API+DB、迁移、Worker/Celery、Redis、跨服务、Provider、SSE、smoke 及完整回归必须使用根 Docker Compose 环境。不得为绕过容器依赖缺失而在一次性运行容器中 `pip install`，开发/测试依赖必须进入版本化 requirements 与可缓存构建 target。
 - Web 只保留 `pnpm-lock.yaml`，冻结安装、ESLint、Prettier 检查、TypeScript 类型检查、Vitest 与 Vite 构建均通过；前端相关暂存文件由 pre-commit 调用 `lint` 与 `format:check`，hook 只报告、不修改文件。具体工具边界与验收条件以 [FRONTEND.md §2.2](../../apps/web/docs/FRONTEND.md#22-工程工具链) 为准。
 
 ### 3.2 身份与权限

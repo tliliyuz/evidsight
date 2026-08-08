@@ -394,7 +394,7 @@ def _aggregate_sources(items: list[GraphItem]) -> list[dict]:
         if key not in source_meta:
             source_meta[key] = item
 
-    sources = []
+    sources: list[dict[str, Any]] = []
     for key in counts:
         meta = source_meta[key]
         if key[0] == "internal":
@@ -423,7 +423,7 @@ def _aggregate_sources(items: list[GraphItem]) -> list[dict]:
             )
 
     # 按 evidence_count 降序、来源类型稳定排序
-    sources.sort(key=lambda s: (-s["evidence_count"], str(s["title"])))
+    sources.sort(key=lambda s: (-int(s["evidence_count"]), str(s["title"])))
     return sources
 
 

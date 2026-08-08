@@ -21,7 +21,7 @@ repos:
         name: python mypy (当前范围)
         entry: bash scripts/check_python_types.sh
         language: system
-        files: ^services/(knowledge/app/((api|middleware|schemas|services)/.*\.py|(config|dependencies)\.py|core/(permissions|csrf|exceptions|security|service_security|sse|utils)\.py)|research/app/((api|middleware|schemas|services)/.*\.py|(config|dependencies)\.py|core/(permissions|utils|exceptions|security|service_security|sse|task_state_resolver|token_counter|identity_status_client|internal_retrieval_client)\.py))$
+        files: ^services/(knowledge/app/((api|middleware|schemas|services|rag|ingest)/.*\.py|(config|dependencies)\.py|core/(permissions|csrf|exceptions|security|service_security|sse|utils)\.py)|research/app/((api|middleware|schemas|services|pipeline|agent|tasks|tools)/.*\.py|(config|dependencies)\.py|core/(permissions|utils|exceptions|security|service_security|sse|task_state_resolver|token_counter|identity_status_client|internal_retrieval_client)\.py))$
         pass_filenames: false
         stages: [pre-commit]
       - id: web-eslint

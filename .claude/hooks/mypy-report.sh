@@ -28,7 +28,7 @@ fi
 svc=""
 rel=""
 case "$file_path" in
-  services/knowledge/app/api/*.py|services/knowledge/app/middleware/*.py|services/knowledge/app/schemas/*.py|services/knowledge/app/services/*.py|services/knowledge/app/config.py|services/knowledge/app/dependencies.py)
+  services/knowledge/app/api/*.py|services/knowledge/app/middleware/*.py|services/knowledge/app/schemas/*.py|services/knowledge/app/services/*.py|services/knowledge/app/rag/*.py|services/knowledge/app/ingest/*.py|services/knowledge/app/config.py|services/knowledge/app/dependencies.py)
     svc=knowledge
     rel="${file_path#services/knowledge/}"
     ;;
@@ -36,7 +36,7 @@ case "$file_path" in
     svc=knowledge
     rel="${file_path#services/knowledge/}"
     ;;
-  services/research/app/api/*.py|services/research/app/middleware/*.py|services/research/app/schemas/*.py|services/research/app/services/*.py|services/research/app/config.py|services/research/app/dependencies.py)
+  services/research/app/api/*.py|services/research/app/middleware/*.py|services/research/app/schemas/*.py|services/research/app/services/*.py|services/research/app/pipeline/*.py|services/research/app/agent/*.py|services/research/app/tasks/*.py|services/research/app/tools/*.py|services/research/app/config.py|services/research/app/dependencies.py)
     svc=research
     rel="${file_path#services/research/}"
     ;;
@@ -51,6 +51,7 @@ cd "$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 
 mypy_bin="services/$svc/.venv/bin/mypy"
 if [[ ! -x "$mypy_bin" ]]; then
+  echo "mypy 环境未就绪；请在仓库根目录执行 make setup-python-dev。" >&2
   exit 0
 fi
 

@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS base
 
 ENV TZ=UTC \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -21,6 +21,16 @@ WORKDIR /app
 COPY requirements.txt ./requirements.txt
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
     && pip install --no-cache-dir -r requirements.txt
+
+FROM base AS typecheck
+
+COPY requirements-dev.txt ./requirements-dev.txt
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+COPY . .
+RUN mkdir -p /app/chroma_data /app/uploads
+
+FROM base AS runtime
 
 COPY . .
 RUN mkdir -p /app/chroma_data /app/uploads

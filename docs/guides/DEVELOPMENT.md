@@ -112,11 +112,11 @@ evidsight/
 
 ```bash
 # 安装根工具环境
-uv sync --locked
+uv sync --locked --no-install-project
 
-# 安装两个服务的开发依赖（包含首批 mypy 类型门禁）
-uv pip install --python services/knowledge/.venv/bin/python -r services/knowledge/requirements-dev.txt
-uv pip install --python services/research/.venv/bin/python -r services/research/requirements-dev.txt
+# 一次性建立/更新根工具环境与两个 Python 3.12 服务开发环境
+# 服务 .venv 固定安装 requirements.txt + requirements-dev.txt，后续静态检查不临时联网装包
+make setup-python-dev
 
 # 安装提交前静态门禁（ruff + mypy + Web + 提交信息格式），每个 worktree 初始化时各执行一次
 .venv/bin/pre-commit install
@@ -132,7 +132,11 @@ uvx ruff check services/ scripts/ tests/ packages/contracts/
 uvx ruff format --check services/ scripts/ tests/ packages/contracts/
 
 # 当前 Python 类型门禁（分别使用 Knowledge/Research 独立环境）
-bash scripts/check_python_types.sh
+make type-check
+
+# 候选版/依赖变更后的 Linux Python 3.12 复核
+# 首次或 requirements 变化时构建 typecheck target；后续复用 Docker 层，不在运行容器中 pip install
+make type-check-docker
 
 # 验证开发单机 Compose 配置
 docker compose config --quiet
@@ -143,7 +147,7 @@ git status --short
 
 ## 4. 本地启动
 
-Mac 的完整 Docker 开发环境继续使用根 Compose，不依赖三台生产云节点：
+Mac 的完整 Docker 开发环境继续使用根 Compose，不依赖三台生产云节点。服务 `.venv` 只承载编辑器解析、ruff、mypy、pre-commit 及不依赖 MySQL/Redis/Celery/外部 Provider 的纯单元检查；集成测试、Worker、迁移、smoke 与依赖外部服务的测试一律在 Docker Compose 中执行，不得用本机进程替代：
 
 ```bash
 docker compose up -d
@@ -252,7 +256,7 @@ docker compose config --quiet
 - 日志、Trace、SSE 和错误不得包含密码、Token、服务凭证、完整 Prompt、隐藏推理或内部正文；
 - Chat SSE 与 Research SSE 使用独立解析器和状态机；
 - Python 代码遵循 ruff 约定（规则集 `E4,E7,E9,F,I`，行宽 100），提交前执行 `ruff check` 与 `ruff format --check`；配置见根 `pyproject.toml` `[tool.ruff]`。ruff 为根开发依赖（`uv add --dev ruff`）：Astral 官方活跃维护，单文件 ~8MB 无传递依赖，覆盖静态检查与格式化，替代方案为 black+isort+flake8 三件套（需三份配置）；
-- Python 类型检查使用 mypy，当前强制范围与渐进规则以 [TESTING.md §3.1](../specs/TESTING.md#31-架构与静态边界) 为准。mypy 与 `types-python-jose` 类型桩固定在两个服务各自的 `requirements-dev.txt`，随服务依赖解析 Pydantic/FastAPI/SQLAlchemy/JWT 类型，不进入生产镜像；二者均由活跃维护的 mypy/Typeshed 生态提供，本地安装包含 mypy 本体、类型桩及少量辅助包，生产镜像与运行时体积增量为 0。Research 开发依赖另包含既有异步 SQLite 测试 Fixture 所需的 `aiosqlite`，同样不进入生产镜像。Pydantic 启用官方 mypy plugin；SQLAlchemy 不启用已废弃的旧 plugin，ORM 后续扩大范围时使用 SQLAlchemy 2 `Mapped[...]`/`mapped_column()` 原生类型。替代方案为 Pyright（高性能，但官方 CLI 主要由 npm 分发，会把 Python 门禁耦合到现有 Web 包或引入第二个 Node 工程）或仅依赖 ruff/测试（无法检查跨函数类型契约）；
+- Python 类型检查使用 mypy，当前强制范围与渐进规则以 [TESTING.md §3.1](../specs/TESTING.md#31-架构与静态边界) 为准。mypy 与 `types-python-jose` 类型桩固定在两个服务各自的 `requirements-dev.txt`，Knowledge 另含 `types-psutil`，随服务依赖解析 Pydantic/FastAPI/SQLAlchemy/JWT/psutil 类型；Research 开发依赖另包含既有异步 SQLite 测试 Fixture 所需的 `aiosqlite`。这些依赖只进入服务 `.venv` 和 Dockerfile 的 `typecheck` 构建 target，不进入默认生产 `runtime` 阶段，生产镜像与运行时体积增量为 0。`make setup-python-dev` 是服务 `.venv` 的唯一初始化入口，固定 Python 3.12 并安装 `requirements-dev.txt`；日常 `make type-check` 和 pre-commit 直接复用该环境，禁止在检查过程中临时安装依赖。`make type-check-docker` 只在首次或 requirements 变化时构建依赖层，运行时以只读工作区挂载复核 Linux Python 3.12，不执行 `pip install`。mypy/Typeshed 生态均活跃维护；Pydantic 启用官方 mypy plugin，SQLAlchemy 不启用已废弃的旧 plugin，ORM 后续扩大范围时使用 SQLAlchemy 2 `Mapped[...]`/`mapped_column()` 原生类型。替代方案为 Pyright（高性能，但官方 CLI 主要由 npm 分发，会把 Python 门禁耦合到现有 Web 包或引入第二个 Node 工程）或仅依赖 ruff/测试（无法检查跨函数类型契约）；
 - mypy 分六批收口：① Schema/权限纯函数，② 安全与状态核心，③ 配置/依赖注入/API，④ Service 与跨服务客户端，⑤ Pipeline/任务/Worker，⑥ ORM/脚本/测试/Contract 生成链。每批只有在权威范围已记录、基线错误清零并完成受影响验证后才进入阻断门禁；不得用后续批次尚未纳入为由降低当前批次要求。
 - 提交前静态门禁由 pre-commit 承载（根开发依赖 `uv add --dev pre-commit`，配置 `.pre-commit-config.yaml`）：Python 执行 ruff 与首批 mypy 类型检查，Web 执行 ESLint/Prettier 检查，`commit-msg` hook 校验提交信息格式。pre-commit 是社区标准 Git Hook 框架（pre-commit org 活跃维护，MIT，约 2MB + cfgv/identify/virtualenv 等小依赖），替代方案为 lefthook（Go 单二进制，需独立配置）或手写 `.git/hooks` 脚本（无法自动管理多语言 hook 环境）。hook 只报告不修改文件；`pre-commit install` 只对当前 worktree 生效，新增 worktree 需按 §3 重新安装；
 - pnpm 用于确定性安装和磁盘复用，活跃维护；项目新增的包管理器运行时不进入浏览器产物，替代方案为 npm（当前锁文件与脚本将退出）或 yarn。ESLint、`typescript-eslint`、React Hooks/Refresh 插件用于可执行的 TypeScript/React 静态规则，Prettier 用于确定性格式化；这些均为活跃维护的开发依赖，不进入生产 bundle。替代方案分别为 Biome（单工具但需迁移规则基线）和仅依赖 TypeScript/人工格式审查（覆盖不足且不可重复）；

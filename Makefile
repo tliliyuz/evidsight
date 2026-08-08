@@ -1,4 +1,7 @@
-.PHONY: test test-knowledge test-research test-web type-check build-web config compose-config
+.PHONY: setup-python-dev test test-knowledge test-research test-web type-check type-check-docker build-web config compose-config
+
+setup-python-dev:
+	bash scripts/setup_python_dev.sh
 
 test:
 	bash scripts/test_all.sh
@@ -14,6 +17,9 @@ test-web:
 
 type-check:
 	bash scripts/check_python_types.sh
+
+type-check-docker:
+	bash scripts/check_python_types_docker.sh
 
 build-web:
 	pnpm --dir apps/web run build

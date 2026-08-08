@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 class BaseReranker(ABC):
     """Reranker 基类，定义重排序接口"""
 
+    name: str
+
     @abstractmethod
     async def rerank(
         self,

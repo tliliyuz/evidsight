@@ -940,7 +940,7 @@ async def retry_task(
 
     # 查找下一个待执行的 step_type
     next_step_type = None
-    if last_phase:
+    if isinstance(last_phase, str) and last_phase:
         last_step_type = _PHASE_TO_STEP_TYPE.get(last_phase, last_phase)
         try:
             idx = PHASE_ORDER.index(last_step_type)
