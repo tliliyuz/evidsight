@@ -51,7 +51,7 @@
 | M0 | 已完成 | 规范基线与 Monorepo 迁移 | 两个来源项目进入统一仓库并保持独立构建、测试和数据边界 | 已确认 PRD、总体架构、来源基线 |
 | M1 | 已完成 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
 | M2 | 已完成 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence | M1 的身份与 Contract 基线 |
-| M3 | 进行中 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 |
+| M3 | 已完成 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 |
 | M4 | 未开始 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
 | M5 | 未开始 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的 2C2G 试点部署 | M1—M4 |
 | M6 | 未开始 | v1.0 发布门禁与后续演进 | 全部 P0、成功指标和端到端场景完成发布验收 | M0—M5 |
@@ -292,14 +292,16 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 
 ### 退出门禁
 
-- `knowledge` 任务只使用用户选择且当前有权访问的内部知识；
-- `web` 任务输出带 URL 和获取时间的外部 Evidence；
-- `hybrid` 任务在报告中明确区分内部与外部 Evidence；
-- 私有文档内容不会自动进入互联网搜索词；
-- 冲突来源不会被合成为无条件确定结论（2026-08-07 补齐直接测试证据：`tests/unit/pipeline/test_synthesis_conflict_consensus.py`，对齐 RESEARCH_PIPELINE §9.5 / PRD FR-EV-003——含 `conflicting_evidence_indices` 的 cluster 标记 `consensus_level=strong` 时被 `_parse_synthesis_output` 拒绝）；
-- 取消后 Worker 不继续产生业务结果；
-- 可恢复任务在 Worker 中断后从安全断点继续，且不重复已完成结果；
+- [x] `knowledge` 任务只使用用户选择且当前有权访问的内部知识；
+- [x] `web` 任务输出带 URL 和获取时间的外部 Evidence；
+- [x] `hybrid` 任务在报告中明确区分内部与外部 Evidence；
+- [x] 私有文档内容不会自动进入互联网搜索词；
+- [x] 冲突来源不会被合成为无条件确定结论（2026-08-07 补齐直接测试证据：`tests/unit/pipeline/test_synthesis_conflict_consensus.py`，对齐 RESEARCH_PIPELINE §9.5 / PRD FR-EV-003——含 `conflicting_evidence_indices` 的 cluster 标记 `consensus_level=strong` 时被 `_parse_synthesis_output` 拒绝）；
+- [x] 取消后 Worker 不继续产生业务结果；
+- [x] 可恢复任务在 Worker 中断后从安全断点继续，且不重复已完成结果；
 - [x] PRD AC-001、AC-003、AC-004 和 AC-010 对应验证入口已建立（切片 H，2026-08-07）。
+
+M3 已完成（2026-08-08）。八条退出门禁逐项核对证据与回归基线（research 全量 unit 1084 passed / 1 skipped / 1 failed 环境依赖、契约 204 passed、Architecture 16 passed / 1 failed 既有布局失败）见 [CHANGELOG](../CHANGELOG.md)（2026-08-08 条目）；S5（Rerank 确定性回退+公平抽取）与 S7（Web Query 外发校验器）已确认排期至后续切片，不构成 M3 遗留缺口。
 
 ### 本阶段不做
 

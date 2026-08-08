@@ -3,10 +3,10 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 开发基线 |
-| 最后更新 | 2026-08-07 |
-| 当前阶段 | M3：Research Service 接入内部知识（进行中） |
+| 最后更新 | 2026-08-08 |
+| 当前阶段 | M4：统一 Web、报告与证据联动 |
 
-> 本文定义开发入口、Monorepo 目录职责、环境准备、常用命令和交付门禁。产品行为以 [PRD.md](../specs/PRD.md) 为准，服务边界以 [ARCHITECTURE.md](../specs/ARCHITECTURE.md) 为准。M0 结构迁移、M1 统一身份与权限、M2 Knowledge 稳定化与 Internal Retrieval 均已完成；M3 起的新功能仍须按 SDD 门禁先执行 ADR 检查、再以验收测试观察正确 RED 后进入生产实现。
+> 本文定义开发入口、Monorepo 目录职责、环境准备、常用命令和交付门禁。产品行为以 [PRD.md](../specs/PRD.md) 为准，服务边界以 [ARCHITECTURE.md](../specs/ARCHITECTURE.md) 为准。M0 结构迁移、M1 统一身份与权限、M2 Knowledge 稳定化与 Internal Retrieval、M3 Research Service 接入内部知识均已完成；M4 起的新功能仍须按 SDD 门禁先执行 ADR 检查、再以验收测试观察正确 RED 后进入生产实现。
 
 ## 1. 环境要求
 
