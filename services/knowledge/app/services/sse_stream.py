@@ -13,11 +13,14 @@ from datetime import datetime, timezone
 from typing import AsyncIterator
 from uuid import uuid4
 
+from sqlalchemy import select
+
 from app.config import settings
 from app.core.database import async_session
 from app.core.exceptions import ConversationNotFoundException
 from app.core.llm import stream_chat_completion
 from app.core.sse import format_sse_event
+from app.models.chat_generation import ChatGeneration
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.rag.chunker import estimate_tokens
@@ -25,6 +28,7 @@ from app.rag.evidence_auditor import EvidenceAuditResult, audit_evidence
 from app.rag.prompt_builder import PromptBuildResult
 from app.rag.retriever import RetrievalOutput
 from app.rag.trace_recorder import TraceRecorder
+from app.services.chat_generation_service import fail_generation, is_generation_canceled
 from app.services.chat_helpers import (
     _CITATION_PATTERN,
     _NOT_FOUND_KEYWORDS,
@@ -101,6 +105,8 @@ async def _generate_sse_stream(
             messages=messages,
             deep_thinking=deep_thinking,
         ):
+            if await is_generation_canceled(task_id):
+                return
             if chunk.finish_reason:
                 llm_finish_reason = chunk.finish_reason
             if chunk.reasoning_content and deep_thinking:
@@ -198,6 +204,7 @@ async def _generate_sse_stream(
         if hasattr(e, "error_code"):
             error_code = e.error_code
             error_msg = e.error_message
+        await fail_generation(task_id, error_code, error_msg)
         # Trace 记录 LLM 错误（独立短 session，对齐 ADR-017）
         if recorder:
             recorder.record_error(error_msg)
@@ -284,6 +291,8 @@ async def _generate_sse_stream(
     # LLM 流式期间不持有 DB 连接，session 仅在最后持久化阶段短暂占用
     title = None
     message_id = 0  # 异常回退时的默认值
+    if await is_generation_canceled(task_id):
+        return
     msg_id, title = await _persist_message(
         conv,
         is_first_turn,
@@ -292,8 +301,11 @@ async def _generate_sse_stream(
         "STREAM",
         recorder,
         token_count=token_usage.get("total", 0),
+        generation_uuid=task_id,
     )
     if msg_id is None:
+        if await is_generation_canceled(task_id):
+            return
         yield format_sse_event(
             "error",
             {
@@ -358,6 +370,7 @@ async def _persist_message(
     recorder: TraceRecorder | None = None,
     *,
     token_count: int = 0,
+    generation_uuid: str | None = None,
 ) -> tuple[int | None, str | None]:
     """消息公共持久化：创建 Message → 更新 Conversation → 写入 Trace。
 
@@ -385,12 +398,24 @@ async def _persist_message(
                 logger.error("会话 %d 在 %s 持久化时已不存在", conv.id, log_label)
                 raise ConversationNotFoundException(conv.id)
 
+            generation = None
+            if generation_uuid:
+                result = await s.execute(
+                    select(ChatGeneration)
+                    .where(ChatGeneration.uuid == generation_uuid)
+                    .with_for_update()
+                )
+                generation = result.scalar_one_or_none()
+                if generation is None or generation.status not in {"pending", "running"}:
+                    return None, None
+
             assistant_msg = Message(
                 conversation_id=conv_in.id,
                 role="assistant",
                 content=content,
                 thinking_content=None,
                 token_count=token_count,
+                generation_id=generation.id if generation else None,
             )
             s.add(assistant_msg)
             conv_in.message_count += 1
@@ -408,6 +433,11 @@ async def _persist_message(
             if recorder:
                 await recorder.finish(s, commit=False)
 
+            if generation is not None:
+                generation.status = "completed"
+                generation.completed_at = _now
+                generation.output_tokens = token_count
+
             await s.commit()
 
         except Exception:
@@ -423,14 +453,20 @@ async def _generate_reject_response(
     is_first_turn: bool,
     question: str,
     recorder: TraceRecorder | None = None,
+    generation_uuid: str | None = None,
 ) -> AsyncIterator[str]:
     """证据审查 REJECT 时的固定 SSE 响应：不调 LLM，直接返回兜底消息。
 
     SSE 事件序列（对齐 ADR-021 §7b）：
     meta → message("未找到相关信息") → sources(空) → finish
     """
-    yield format_sse_event("meta", {"conversation_id": conv.uuid, "task_id": str(uuid4())})
+    yield format_sse_event(
+        "meta", {"conversation_id": conv.uuid, "task_id": generation_uuid or str(uuid4())}
+    )
     yield format_sse_event("message", {"delta": _REJECT_RESPONSE})
+
+    if generation_uuid and await is_generation_canceled(generation_uuid):
+        return
 
     message_id, title = await _persist_message(
         conv,
@@ -439,8 +475,11 @@ async def _generate_reject_response(
         _REJECT_RESPONSE,
         "REJECT",
         recorder,
+        generation_uuid=generation_uuid,
     )
     if message_id is None:
+        if generation_uuid and await is_generation_canceled(generation_uuid):
+            return
         yield format_sse_event("sources", {"chunks": []})
         yield format_sse_event(
             "finish",
@@ -468,10 +507,16 @@ async def _generate_meta_response(
     is_first_turn: bool,
     question: str,
     recorder: TraceRecorder | None = None,
+    generation_uuid: str | None = None,
 ) -> AsyncIterator[str]:
     """META 意图的固定 SSE 响应：不调 LLM，直接返回模板。"""
-    yield format_sse_event("meta", {"conversation_id": conv.uuid, "task_id": str(uuid4())})
+    yield format_sse_event(
+        "meta", {"conversation_id": conv.uuid, "task_id": generation_uuid or str(uuid4())}
+    )
     yield format_sse_event("message", {"delta": _META_RESPONSE})
+
+    if generation_uuid and await is_generation_canceled(generation_uuid):
+        return
 
     message_id, title = await _persist_message(
         conv,
@@ -480,6 +525,7 @@ async def _generate_meta_response(
         _META_RESPONSE,
         "META",
         recorder,
+        generation_uuid=generation_uuid,
     )
 
     yield format_sse_event("sources", {"chunks": []})

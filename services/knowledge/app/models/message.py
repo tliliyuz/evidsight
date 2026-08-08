@@ -13,6 +13,12 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    generation_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("chat_generations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     conversation_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True
     )

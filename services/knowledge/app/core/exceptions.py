@@ -184,6 +184,21 @@ class MetaQuestionException(AppException):
         self.is_first_turn = is_first_turn
 
 
+class ChatGenerationNotFoundException(AppException):
+    def __init__(self):
+        super().__init__("CHAT_GENERATION_NOT_FOUND", "生成任务不存在", 404)
+
+
+class ChatGenerationStateConflictException(AppException):
+    def __init__(self, status: str):
+        super().__init__(
+            "CHAT_GENERATION_STATE_CONFLICT",
+            "当前生成状态不支持取消",
+            409,
+            f"status={status}",
+        )
+
+
 # ==================== 认证错误 E5xxx ====================
 
 

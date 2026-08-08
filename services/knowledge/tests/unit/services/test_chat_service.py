@@ -253,6 +253,34 @@ def _mock_chat_pipeline(
         mocks["heartbeat"] = stack.enter_context(
             patch("app.services.chat_service.stream_with_heartbeat", side_effect=lambda g, **kw: g)
         )
+        mock_generation = MagicMock(id=20, uuid="cccccccc-cccc-4ccc-cccc-cccccccccccc")
+        mock_generation.status = "running"
+        generation_result = MagicMock()
+        generation_result.scalar_one_or_none.return_value = mock_generation
+        mock_session.execute = AsyncMock(return_value=generation_result)
+        mocks["create_generation"] = stack.enter_context(
+            patch(
+                "app.services.chat_service.create_generation",
+                new_callable=AsyncMock,
+                return_value=mock_generation,
+            )
+        )
+        mocks["disconnect_generation"] = stack.enter_context(
+            patch(
+                "app.services.chat_service.cancel_generation_on_disconnect",
+                new_callable=AsyncMock,
+            )
+        )
+        mocks["generation_canceled"] = stack.enter_context(
+            patch(
+                "app.services.sse_stream.is_generation_canceled",
+                new_callable=AsyncMock,
+                return_value=False,
+            )
+        )
+        mocks["fail_generation"] = stack.enter_context(
+            patch("app.services.sse_stream.fail_generation", new_callable=AsyncMock)
+        )
         mocks["intent"] = stack.enter_context(
             patch("app.services.chat_service.classify_intent", new_callable=AsyncMock)
         )

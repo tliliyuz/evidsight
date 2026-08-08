@@ -148,6 +148,10 @@ READ、owner 和 admin 治理分别判断，权限矩阵引用 PRD §8。
 
 v1.0 Chat 请求只接受一个 `knowledge_base_id`，Conversation 也只绑定一个 KB。每次问答实时校验该 KB；多轮上下文不得扩展到其他或已撤权 KB。多 KB Chat 属于 v1.x 规划能力，不得由客户端并发请求模拟。取消命令幂等，SSE 断开也可终止当前生成。检索或生成失败不得发送成功终态或伪造答案。
 
+**Chat 迁移态（2026-08-08）**：当前旧入口 `POST /api/chat` 使用 `kb_id` 请求字段并输出 `meta`、可选 `thinking`、`message`、`sources`、`finish|error`；现有 Vue Web、Knowledge 回归/评估与性能脚本是该入口的 Consumer。已批准目标态是本节的 `/api/v1/chat/*` 与 §12 canonical 事件。迁移顺序为先落地 v1 `stream`、generation 生命周期和幂等 `cancel`，再让 React Web 只消费 v1；旧入口保持薄兼容并记录按路由标签区分的废弃调用量。退出门禁为旧入口观测窗口归零、仓库内 Consumer 全部迁移且 v1 Consumer 回归通过；满足后经负责人确认删除旧入口、旧事件适配和对应测试。负责人于 2026-08-08 裁决“实现服从规范”；ADR 检查 1–8：否（让实现回到既有 API、DATABASE 与 FRONTEND 目标态，不改变公共契约、权限或数据生命周期）。裁决记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-08「裁决 M4 SSE 与 Admin 评审阻断项」）。
+
+Chat generation 取消状态机：仅 `pending|running` 可迁移到 `canceled`；对已 `canceled` generation 重复取消返回 `202` 且 `idempotent_replayed=true`；对 `completed|failed` 取消返回 `409 CHAT_GENERATION_STATE_CONFLICT`。generation 不存在或不属于当前创建者统一返回安全 `404 CHAT_GENERATION_NOT_FOUND`，不得借此枚举其他用户的 generation。负责人于 2026-08-08 批准该规范补充；ADR 检查 1–8：否（补齐既有取消端点的局部失败与幂等语义，不改变权限模型、公共机制或数据生命周期）。
+
 外部 API 的字段级请求、响应和事件 `data` Schema 由后续建立的 `docs/openapi/evidsight-v1.yaml` 统一维护；本文只定义行为、权限、状态码和兼容语义。在该 OpenAPI 文件建立前，不得把实现中的临时 DTO 视为已发布契约。
 
 ## 8. Research Task API

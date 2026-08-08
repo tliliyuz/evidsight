@@ -2,6 +2,7 @@
 
 from app.core.database import Base
 
+from .chat_generation import ChatGeneration
 from .chunk import Chunk
 from .conversation import Conversation
 from .document import Document
@@ -27,6 +28,7 @@ __all__ = [
     "DocumentVersion",
     "Section",
     "Chunk",
+    "ChatGeneration",
     "Conversation",
     "Message",
     "IdentityAuditEvent",
