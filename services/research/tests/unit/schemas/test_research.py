@@ -200,6 +200,8 @@ class TestResearchTaskListItem:
             topic="研究主题",
             status="completed",
             task_type="analysis",
+            source_strategy="hybrid",
+            progress=0.5,
             total_sources=10,
             total_evidence=18,
             created_at=datetime.now(timezone.utc),
@@ -207,6 +209,22 @@ class TestResearchTaskListItem:
         assert item.task_id == "uuid-1"
         assert item.status == "completed"
         assert item.task_type == "analysis"
+        assert item.source_strategy == "hybrid"
+        assert item.progress == 0.5
+
+    def test_默认来源策略与进度(self):
+        from datetime import datetime, timezone
+
+        item = ResearchTaskListItem(
+            task_id="uuid-1",
+            topic="研究主题",
+            status="pending",
+            task_type="analysis",
+            created_at=datetime.now(timezone.utc),
+        )
+        # 向后兼容：旧 Consumer 未提供新字段时安全降级
+        assert item.source_strategy == "web"
+        assert item.progress == 0.0
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -26,6 +26,9 @@
   --es-font-display: 'Space Grotesk', 'PingFang SC', system-ui, sans-serif;
   --es-font-mono: 'JetBrains Mono', ui-monospace, monospace;
   --es-overlay: rgb(0 0 0 / 40%);
+  /* 主题选择卡片的固定色板：与当前主题无关，浅色/深色选项恒为该表示 */
+  --es-swatch-light: linear-gradient(145deg, #ffffff, #e8ecf0);
+  --es-swatch-dark: linear-gradient(145deg, #0a0e15, #202b38);
   --es-shadow-drawer: -24px 0 80px rgb(0 0 0 / 16%);
   --es-shadow-popover: 0 16px 40px rgb(0 0 0 / 14%);
   --es-shadow-dialog: 0 24px 80px rgb(0 0 0 / 20%);

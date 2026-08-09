@@ -142,6 +142,9 @@ async def _seed_task(db: AsyncSession, user_id: int = 1, **overrides) -> Researc
         requirements=overrides.get("requirements", {"task_type": "analysis", "depth": "quick"}),
         status=overrides.get("status", "pending"),
         current_phase=overrides.get("current_phase"),
+        source_strategy=overrides.get("source_strategy", "web"),
+        completed_steps=overrides.get("completed_steps"),
+        total_steps=overrides.get("total_steps"),
     )
     db.add(task)
     await db.flush()
@@ -483,6 +486,23 @@ class TestGetTaskList:
         result = await get_task_list(db_session, user_id=_USER_ID)
         assert result.total == 1
         assert result.items[0].topic == "用户1的任务"
+
+    async def test_列表项携带来源策略与进度(self, db_session: AsyncSession):
+        """工作台 RECENT RESEARCH 需要真实来源类型与进度（纠偏 2）。"""
+        await _seed_task(
+            db_session,
+            user_id=1,
+            topic="混合研究",
+            source_strategy="hybrid",
+            completed_steps=3,
+            total_steps=7,
+        )
+
+        result = await get_task_list(db_session, user_id=_USER_ID)
+        item = result.items[0]
+        assert item.source_strategy == "hybrid"
+        # _build_progress fallback 将进度四舍五入到两位小数
+        assert item.progress == 0.43
 
     async def test_page_size上限100(self, db_session: AsyncSession):
         """page_size > 100 时被限制为 100。"""

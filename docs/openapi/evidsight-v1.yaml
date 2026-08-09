@@ -1404,12 +1404,14 @@ components:
         completed_at: {type: [string, "null"], format: date-time}
     ResearchTaskListItem:
       type: object
-      required: [task_id, topic, status, task_type, total_sources, total_evidence, created_at, report_id]
+      required: [task_id, topic, status, task_type, source_strategy, progress, total_sources, total_evidence, created_at, report_id]
       properties:
         task_id: {type: string, format: uuid}
         topic: {type: string}
         status: {type: string}
         task_type: {type: string}
+        source_strategy: {type: string, enum: [knowledge, web, hybrid], default: web}
+        progress: {type: number, minimum: 0, maximum: 1}
         total_sources: {type: integer, minimum: 0}
         total_evidence: {type: integer, minimum: 0}
         report_id: {type: [string, "null"], format: uuid}

@@ -509,7 +509,8 @@ async def get_task_list(
 def _build_list_item(task: ResearchTask, report_id: str | None = None) -> ResearchTaskListItem:
     """从 ORM 对象构建列表项响应。
 
-    从 requirements JSON 中提取 task_type 字段。
+    从 requirements JSON 中提取 task_type 字段；
+    来源策略直接读既有列，进度复用 _build_progress 同源口径，不虚构。
     """
     requirements = task.requirements or {}
     task_type = requirements.get("task_type", "unknown")
@@ -519,6 +520,8 @@ def _build_list_item(task: ResearchTask, report_id: str | None = None) -> Resear
         topic=task.topic,
         status=task.status,
         task_type=task_type,
+        source_strategy=task.source_strategy or "web",
+        progress=_build_progress(task).progress,
         total_sources=task.total_sources or 0,
         total_evidence=task.total_evidence or 0,
         report_id=report_id,

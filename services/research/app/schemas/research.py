@@ -137,12 +137,18 @@ class ResearchTaskResponse(BaseModel):
 
 
 class ResearchTaskListItem(BaseModel):
-    """研究任务列表项 — 对齐 API.md §3.1 GET /api/research。"""
+    """研究任务列表项 — 对齐 API.md §3.1 GET /api/research。
+
+    工作台 RECENT RESEARCH 依赖 source_strategy（来源类型）与 progress（进度），
+    两者均为向后兼容的既有字段投影，列表项不虚构来源与进度。
+    """
 
     task_id: str = Field(..., description="任务 UUID")
     topic: str = Field(..., description="研究主题")
     status: str = Field(..., description="Task 状态")
     task_type: str = Field(..., description="研究类型")
+    source_strategy: str = Field("web", description="来源策略：knowledge/web/hybrid")
+    progress: float = Field(0.0, ge=0.0, le=1.0, description="任务进度 0-1")
     total_sources: int = Field(0, description="来源总数")
     total_evidence: int = Field(0, description="证据总数")
     report_id: str | None = Field(None, description="已发布正式报告 UUID；尚未发布时为 null")

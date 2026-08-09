@@ -84,6 +84,8 @@ Token 约束：
 | 字体 | `--es-font-display` | `Space Grotesk` + 中文系统黑体 + `system-ui` |
 | 字体 | `--es-font-mono` | `JetBrains Mono` + `ui-monospace` |
 | 遮罩 | `--es-overlay` | `rgb(0 0 0 / 40%)`，Drawer 与 Dialog 共用 |
+| 主题选择 | `--es-swatch-light` | 浅色选项色板（固定表示，与当前主题无关） |
+| 主题选择 | `--es-swatch-dark` | 深色选项色板（固定表示，与当前主题无关） |
 | 阴影 | `--es-shadow-drawer` | `-24px 0 80px rgb(0 0 0 / 16%)` |
 | 阴影 | `--es-shadow-popover` | `0 16px 40px rgb(0 0 0 / 14%)` |
 | 阴影 | `--es-shadow-dialog` | `0 24px 80px rgb(0 0 0 / 20%)` |
@@ -102,7 +104,7 @@ Token 约束：
 ### 4.1 主题与默认
 
 - 默认主题为浅色（`data-theme="light"`）：登录抽屉与登录后的工作区默认浅色。
-- 深色主题（`data-theme="dark"`）是用户可选外观：通过账号菜单「主题选择」切换，选择立即生效并持久化到 `localStorage`（键 `evidsight-theme`）。
+- 深色主题（`data-theme="dark"`）是用户可选外观：通过账号菜单「主题选择」的两步骤确认流程切换（视觉规格见 §7.21 主题选择卡片），确认后生效并持久化到 `localStorage`（键 `evidsight-theme`）。
 - 入口叙事页固定深色品牌氛围，不随主题切换。
 - 入口深色作用域：`tokens.css` 的深色块把 `.landing`（含 `.landing[data-theme='light']`）一并纳入选择器，因此入口子树无论工作区主题如何恒取深色 Token 值；登录抽屉与入口页是同层兄弟，不受该作用域影响，默认浅色。
 - 切换机制：`<html data-theme="light|dark">` + CSS Variables；未显式选择时可参考 `prefers-color-scheme` 降级，但用户显式选择始终优先。
@@ -262,6 +264,59 @@ border: 1px
 | 报告 | 章节 160–170px + 正文弹性列 + 证据 300–320px |
 | 抽屉 | 420–520px，切片或 Trace 可更宽 |
 
+### 5.5 Surface 层级与容器语法
+
+本节定义页面何处使用画布、容器、面板、卡片和列表，是所有业务页面的强制布局输入。组件名称不能自行决定视觉层级；同一个 `Card` 组件不得被当作任意内容的默认包装。
+
+| 层级 | 视觉事实 | 适用内容 | 禁止用法 |
+|---|---|---|---|
+| `Canvas` 画布 | 使用 `--es-canvas`；无边框、圆角和阴影 | 普通壳层主内容区的最外层背景 | 直接在画布上散放互不关联的白色卡片 |
+| `Route Surface` 路由大容器 | 使用 `--es-surface`、1px `--es-border-default`、`--es-radius-major`；不使用阴影 | 工作台、创建研究、各类账本、研究运行态、问答历史、知识库列表与详情 | 用灰色大块替代白色容器；在 Chat、报告或 Admin 上机械套用 |
+| `Inset Panel` 内嵌面板 | 使用 `--es-surface-muted`、1px `--es-border-default`、`--es-radius-panel`；不使用阴影 | 启动器、表单主体、摘要条、活动任务、诊断分组 | 与 Route Surface 同为白底造成白卡套白卡；每条列表都做面板 |
+| `Action Card` 动作卡片 | 使用 `--es-surface`、1px `--es-border-default`、`--es-radius-panel`；Hover 只改变边框/背景，不抬高阴影 | 具有完整点击目标、独立标题、说明和动作的入口；角色方案等有限实体比较 | 普通数据行、段落、统计数字或装饰性信息卡片化 |
+| `Metric Strip` 指标条 | 一个 `Inset Panel` 内以 Hairline 等分；数字、标签与趋势共用一条基线 | 知识库脉冲、管理概览与费用摘要 | 把每个数字拆成彩色 KPI 卡片 |
+| `Ledger` 账本/列表 | 继承父表面；列头与数据行使用 Hairline；Hover 使用 `--es-surface-muted`；行本身无圆角、边框和阴影 | 研究任务、知识库、文档、会话、用户、Trace、审计、费用明细 | 一行一卡、瀑布流、只在 Hover 出现关键状态或主操作 |
+| `Context Rail` 上下文栏 | 与主列以单条 Hairline 分隔；外层透明且无圆角 | 工作台右栏、创建研究原则、报告章节栏与证据栏 | 为整条右栏再套白色大卡；与主任务争夺视觉主次 |
+| `Reader Surface` 阅读器 | 正文连续排版；外层无通用 Route Surface 圆角；段落靠排版和章节间距分组 | 最终报告 | 每个 Claim、段落或章节独立卡片化 |
+| `Overlay Surface` 浮层 | Drawer/Dialog/Popover 使用 §6.6 的尺寸、遮罩、阴影和焦点规则 | 登录、上传、来源、切片、Trace、账号与确认 | 用永久右栏代替临时任务；叠加两层遮罩 |
+| `Admin Surface` 管理表面 | 独立管理壳层中的连续主区域；分区以 Hairline、Inset Panel 和 Ledger 组织 | `/admin/*` | 嵌套普通应用壳层或再包 Route Surface |
+| `Full-bleed` 满幅区域 | 主任务直接占据壳层可用区域，无 Route Surface 外框 | 入口、Chat、报告 | 将普通账本页错误改成满幅灰底 |
+
+层级约束：
+
+- 普通页面必须呈现“灰色 Canvas → 白色 Route Surface → 灰色 Inset Panel/连续 Ledger”的方向；浅色主题下 Route Surface 是页面主体，不能把主体本身做成灰色。
+- 一个区域最多出现两层有明确边界的嵌套表面：`Route Surface → Inset Panel → Action Card` 已是上限；第三层内容改用 Hairline、排版或 Accordion。
+- 白色 `Action Card` 只允许出现在 `Inset Panel` 或 Canvas 上；放在白色 Route Surface 内时必须有明确的动作边界，不能用作无意义分组。
+- 列表默认是 `Ledger`。只有对象本身需要独立比较、整体点击或不同高度内容时，页面规格才能显式批准卡片布局。
+- 深色主题保持相同结构和边界数量，只替换 Token 值；不得因深色主题增加发光、渐变或阴影层。
+
+### 5.6 页面 Frame 矩阵
+
+下表直接决定页面最外层容器。后续实现不得从相邻页面推断，也不得用一个全局 `.card` 覆盖这些差异。
+
+| 页面/路由 | Frame | 主列结构 | 主体表面与列表策略 |
+|---|---|---|---|
+| 入口 `/` | `Full-bleed` | 纵向品牌叙事 | 固定深色，无普通壳层与 Route Surface |
+| 工作台 `/workbench` | `Route Surface` | 主列 + 约 315–320px Context Rail | 启动器/活动任务用 Inset Panel；最近记录用 Ledger |
+| 创建研究 `/research/new` | `Route Surface` | 表单主列 + 约 280px Context Rail | 表单用 Inset Panel；原则用连续编号列表 |
+| 研究任务 `/research` | `Route Surface` | 单列全宽 | 筛选工具栏 + Ledger |
+| 研究运行态 `/research/:taskId` | `Route Surface` | 执行主列 + Context Rail | 总进度用 Inset Panel；阶段和事件连续排列 |
+| 报告 `/reports/:reportId` | `Reader Surface` | 160–170px 章节 + 正文 + 300–320px Evidence | 正文连续阅读；证据节点才允许卡片 |
+| 问答 `/chat` | `Full-bleed` | 单一会话主列 | 消息流连续；来源使用临时 Drawer |
+| 问答历史 `/chat/history` | `Route Surface` | 单列全宽 | 筛选工具栏 + Ledger |
+| 知识库 `/knowledge-bases` | `Route Surface` | 单列全宽 | 筛选工具栏 + Ledger |
+| 知识库详情 `/knowledge-bases/:kbId` | `Route Surface` | 单列全宽 | Metric Strip + 文档 Ledger |
+| Admin 总览 `/admin` | `Admin Surface` | 摘要 + 两列运营区 | Metric Strip + 有限诊断面板 |
+| Admin 知识库 `/admin/knowledge-bases` | `Admin Surface` | 单列全宽 | 摘要条 + Ledger |
+| Admin 文档 `/admin/documents` | `Admin Surface` | 单列全宽 | Metric Strip + Ledger |
+| Knowledge Trace `/admin/knowledge-traces` | `Admin Surface` | 单列全宽 | 摘要条 + Trace Ledger + Drawer |
+| Research Trace `/admin/research-traces` | `Admin Surface` | 单列全宽 | 摘要条 + Trace Ledger + Drawer |
+| 费用 `/admin/billing` | `Admin Surface` | 图表主列 + 费用分解侧列 | Metric Strip + 图表面板 + Ledger，P1 |
+| 用户 `/admin/users` | `Admin Surface` | 单列全宽 | 筛选工具栏 + Ledger |
+| 角色 `/admin/roles` | `Admin Surface` | 三列角色比较 | 仅此页允许实体 Action Card，P1 只读 |
+| 审计 `/admin/audit` | `Admin Surface` | 单列全宽 | 筛选工具栏 + 不可变 Ledger |
+| 设置 `/admin/settings` | `Admin Surface` | 三列设置分组 | 分组 Inset Panel + 页面底部动作，P1 |
+
 ## 6. 核心组件
 
 ### 6.1 Button
@@ -363,27 +418,170 @@ Chat 可以保留未来多选所需的列表宽度和信息层级，但不得显
 
 空态使用一句原因、一个示例和一个直接动作。Skeleton 复制最终结构的节奏。错误表面展示：问题摘要、安全错误 ID、有效恢复动作；不展示堆栈或内部路径。
 
+### 6.13 Toast
+
+Toast 用于轻量操作反馈（如主题切换成功），不作为错误主通道——错误仍走表单内错误或 Error Surface。规格：
+
+- 顶部居中固定，`z-index` 高于普通 Overlay；同一时间只显示一条，新反馈替换旧反馈并重置自动消失计时；
+- 视觉：`--es-surface` 底、1px `--es-border-default` 描边、`--es-radius-panel` 圆角与 `--es-shadow-floating` 阴影，正文 13px；成功类反馈以 `--es-success` 图标为前缀；
+- 语义：`role="status"`，约 2.6 秒自动消失；不承载操作按钮，不替代 Dialog、错误表面或表单校验；
+- Toast 不拦截焦点，出现与消失不打断键盘焦点；主题切换确认后焦点仍按 §6.6 返回账号触发器。
+
 ## 7. 页面视觉规则
 
-### 7.1 工作台
+本节逐页定义 1280 × 720 基准视口下的可见结构。页面行为、权限与真实状态仍由 [FRONTEND.md](FRONTEND.md) 定义；本节不允许用尚未实现的后端能力填充视觉空位。
 
-主动作优先于统计。`RECENT RESEARCH` 和 `RECENT KNOWLEDGE` 使用一致的 14px 标题、12px正文和 10–11px 元数据尺度。页面可以有两列，但不拆成大量松散卡片。
+### 7.1 入口 `/`
 
-### 7.2 知识库与研究任务
+- 使用固定深色 `Full-bleed` 叙事，不渲染普通应用侧栏、顶部栏、灰色 Canvas 或白色 Route Surface。
+- 公共 Header 覆盖在 Hero 顶部：品牌在左，短导航与描边登录动作在右；Hero 标题是第一视觉层，轨道、节点和坐标只做低亮背景。
+- 页面按 Hero、信息汇聚、研究过程、证据安全纵向展开；每段靠留白和轨迹连续，不使用营销卡片墙。
+- 登录是 460px 左右右侧 Drawer，叠加统一遮罩；关闭后入口页位置不变。入口页不得跟随工作区主题变浅。
 
-两类账本共享行高、标题、元数据和按钮规格。可见性、索引状态和任务状态保持列对齐。进入知识库、进入现场、查看报告必须是清晰按钮。
+### 7.2 工作台 `/workbench`
 
-### 7.3 问答
+- 普通壳层内使用单个白色 Route Surface，四周保留浅灰 Canvas；页面标题与欢迎/上下文信息位于容器顶部。
+- 内容为主列与约 315–320px 右侧 Context Rail。两列间只有一条纵向 Hairline，右栏不得再包整块白卡。
+- 主列顶部“快速开始”是 `Inset Panel`，内部最多两个白色 `Action Card`：快速提问、深度研究。每卡包含图标、标题、说明和明确动作，整卡或按钮命中行为必须一致。
+- `RECENT RESEARCH` 是连续 Ledger：标题、状态、更新时间和动作列对齐；无数据时在同一列表区域显示真实空态，不制造统计数字。
+- 右栏“活动任务”可使用单个 `Inset Panel`；`RECENT KNOWLEDGE` 紧随其下并使用 Hairline 列表，不增加外层卡片。浅色主题下页面主体必须是白色大容器，不能呈现为整页灰底。
 
-对话空间是页面主角。历史会话使用独立页面；知识库选择和来源详情使用临时右侧表面。消息区域在 1280 × 720 下仍能显示足够上下文，避免只显示一两段就需要滚动。
+### 7.3 创建研究 `/research/new`
 
-### 7.4 研究运行态
+- 使用 Route Surface；标题、简短说明与返回任务列表的次级入口处于首行。
+- 主体为弹性表单列 + 约 280px Context Rail。研究问题、来源策略、知识库范围等表单字段放入一个 Inset Panel；字段之间用 24–32px 垂直节奏，不为每个字段建卡。
+- 右侧“研究原则/将会发生什么”使用有序编号和 Hairline，外层透明，不与表单争夺视觉重量。
+- 主提交动作位于表单末端并与表单内容左边界对齐；禁用、提交中与错误状态保持同一尺寸，不移动布局。
 
-运行态与工作台使用相同可读字号，不因信息密度回退到 10px 正文。阶段、耗时和事件建立清晰纵向节奏；连接状态与任务状态在视觉上分开。
+### 7.4 研究任务 `/research`
 
-### 7.5 管理中心
+- 使用 Route Surface；标题与“新建研究”主动作同一标题行对齐。
+- 标题下方是筛选 Tab、搜索和必要筛选项组成的单行工具栏；工具栏上下使用 Hairline，不使用工具栏卡片。
+- 任务以 Ledger 呈现：研究主题为主标题，状态、来源策略、更新时间和动作保持稳定列宽；长标题最多两行后截断并提供完整可访问名称。
+- `进入现场`、`查看报告`按任务状态互斥或并列出现，必须是可见按钮；空态、加载态与错误态占用同一账本区域。
 
-管理中心更密集但不更小。Pipeline 页面强调耗时、重试与降级；成本页面强调 Token、金额和账本。二者不混合，以减少“性能诊断等于成本统计”的误解。
+### 7.5 研究运行态 `/research/:taskId`
+
+- 使用 Route Surface；任务标题、状态和取消/查看报告动作组成顶部任务头。
+- 总体进度是一个横向 Inset Panel，可包含阶段、连接状态与完成比例，但连接状态和任务业务状态必须分别标注。
+- 七阶段 Pipeline 横向或紧凑纵向连续排布；阶段编号、名称、动作摘要、耗时和状态同线对齐，不把每个阶段做成悬浮卡。
+- 下方为执行主列 + Context Rail。主列活动流用时间线/Hairline 连续组织；右栏展示任务范围、知识来源与恢复信息。
+- 运行态正文保持 14px 以上；在 1280 × 720 首屏至少看见任务头、总进度、阶段概览和活动流开头。
+
+### 7.6 最终报告 `/reports/:reportId`
+
+- 使用 Reader Surface，不套白色圆角 Route Surface。顶部工具栏承载返回、导出和阅读级动作。
+- 三栏固定语法：160–170px 章节导航、弹性正文、300–320px Evidence Graph；章节栏和证据栏各以一条 Hairline 与正文分隔。
+- 正文标题 38–48px，正文 16px/1.85；章节、段落和 Claim 靠排版与细左线建立层级，不逐段卡片化。
+- 引用编号嵌在正文；选中引用只高亮对应正文和 Evidence 节点。置信说明、冲突来源等语义内容可使用 Inset Panel，但不能成为通用信息卡。
+- Trace 位于正文末尾的独立附录区域；Evidence 节点允许卡片，因为每个节点是可独立选择的来源对象。
+
+### 7.7 据见问答 `/chat`
+
+- 使用 `Full-bleed` 会话区域，在普通壳层剩余空间内最大化纵向高度，不包 Route Surface 外框。
+- 顶部只保留会话标题、单知识库范围与会话级动作；Chat v1 显示单选知识库，不出现多选 Checkbox 或已选数量。
+- 消息流为连续阅读区：用户消息可使用右对齐气泡；系统回答左对齐且以正文为主，不为每段回答套大卡。
+- Composer 固定在会话区域底部并保留清晰边界；生成、取消、重试不改变输入区宽度。
+- 来源详情使用临时右侧 Drawer，知识库选择使用 Popover/Drawer；不得常驻第二侧栏挤压消息正文。
+
+### 7.8 问答历史 `/chat/history`
+
+- 使用 Route Surface；标题与“开始问答”主动作同一标题行。
+- 筛选 Tab、搜索与时间筛选组成 Hairline 工具栏；会话使用 Ledger，不使用会话预览卡片。
+- 行内展示问题/会话标题、单个知识库名称、消息量、更新时间和进入动作；v1 不显示多知识库数量。
+- 空态、加载 Skeleton 和错误态保持列结构，避免状态切换时页面宽度跳动。
+
+### 7.9 知识库列表 `/knowledge-bases`
+
+- 使用 Route Surface；页面标题、范围说明和“创建知识库”主动作构成顶部区。
+- 搜索、`all|mine|public` 范围与必要状态筛选位于一条工具栏；筛选结果直接更新下方账本。
+- 知识库按 Ledger 行呈现，名称/说明为主列，Owner、可见性、文档数、索引状态、更新时间与动作列对齐；禁止一库一卡。
+- 页尾可显示范围/权限说明，但不得用不可验证的全局文档总数作为宣传指标。
+
+### 7.10 知识库详情 `/knowledge-bases/:kbId`
+
+- 使用 Route Surface；顶部显示知识库名称、Owner/可见性、返回入口与上传/治理动作。
+- “Knowledge Pulse”是一个等分 Metric Strip，用同一 Inset Panel 承载文档量、Ready/Processing/Failed 等真实摘要；不拆成多个 KPI 卡。
+- 文档筛选工具栏与下方 Ledger 连续：文件名为主列，类型、大小、状态、更新时间和动作保持稳定列宽。
+- 上传、文档详情和切片原文均使用 Drawer；后台处理中提示位于 Ledger 下方的说明区，不漂浮为告警卡。
+
+### 7.11 Admin 总览 `/admin`
+
+- 使用独立 Admin Surface；左侧 240–260px 管理导航，主区不出现普通工作台顶部栏或第二侧栏。
+- 顶部是页面标题、治理状态与必要刷新动作；核心数字放在一个等分 Metric Strip 中，禁止彩色 KPI 卡片墙。
+- 下半区可分为近期治理活动与容量/健康两列；诊断面板必须对应可操作的真实对象，数量保持有限。
+- 管理信息可以更密集，但正文、表头和操作字号不得小于普通账本对应规格。
+
+### 7.12 Admin 知识库 `/admin/knowledge-bases`
+
+- Admin Surface 内使用标题、治理范围说明、筛选工具栏和连续 Ledger。
+- 可在账本上方使用一个摘要条显示总量、公开/私有与异常数；摘要单元以 Hairline 等分。
+- 行内展示知识库、Owner、可见性、文档/索引状态、更新时间及治理动作；禁用/删除等破坏性动作进入具名确认 Dialog。
+
+### 7.13 Admin 文档 `/admin/documents`
+
+- Admin Surface 内使用大标题、文档 Metric Strip、筛选工具栏和 Ledger，四者纵向连续。
+- 文档行以文件名和所属知识库为主，Owner、摄取状态、大小、更新时间及 Trace 入口列对齐。
+- Trace 是明确的行级动作；状态详情或失败原因使用 Drawer，不扩展成行内多层卡片。
+
+### 7.14 Knowledge Trace `/admin/knowledge-traces`
+
+- 标题区明确保留期/治理用途；其下使用单个摘要条与紧凑筛选工具栏。
+- Trace Ledger 保持高密度列对齐：Trace ID、对象、阶段、耗时、重试/降级、结果和时间；Trace ID 使用等宽字体。
+- 选择一行打开右侧 Trace Drawer，Drawer 内按 Phase Accordion 展开 JSON；主列表不因 Drawer 打开而改变数据列含义。
+- 页面强调耗时、失败和恢复，不展示费用口径。
+
+### 7.15 Research Trace `/admin/research-traces`
+
+- 复用 §7.14 的 Admin Trace 骨架，但列事实改为任务、Phase、Step、耗时、重试/降级和结果。
+- 七阶段/业务 Phase 名称和状态必须与前端行为规范一致；不得将内部隐藏推理作为视觉内容。
+- 右侧 Trace Drawer 显示逐 Phase 输入输出、错误与安全 ID；禁止在页面底部追加混合总览 JSON。
+
+### 7.16 Admin 费用 `/admin/billing`（P1）
+
+- Admin Surface 顶部为四项以内的 Metric Strip；下方采用使用趋势主列 + 费用构成侧列，再接筛选工具栏和费用 Ledger。
+- 图表和费用构成可以使用 Inset Panel；柱线颜色只使用语义 Token，并提供文字等价数据。
+- 账本列对齐 Token、Provider/模型、金额、归属对象和时间；不得与 Trace 性能诊断混为同一张表。
+- 本页仅是视觉演进基线；完整成本账本未进入范围前，不展示伪造金额、结算或导出成功状态。
+
+### 7.17 Admin 用户 `/admin/users`
+
+- Admin Surface 内使用标题、创建/邀请动作、筛选工具栏和用户 Ledger。
+- 每行可含紧凑头像，但用户仍是账本行而非人物卡；姓名/账号为主列，角色、状态、最近活动和动作列对齐。
+- 禁用、启用和角色变更状态必须有文字，不只靠颜色；破坏性动作使用确认 Dialog。
+
+### 7.18 Admin 角色 `/admin/roles`（P1）
+
+- 本页允许三列角色实体卡，因为角色是需要并排比较的有限模型；每卡按角色名、用途、权限摘要和状态使用相同结构与高度。
+- 卡片外不再叠加 Route Surface；底部政策说明用连续 Inset Panel/Hairline。
+- v1 仅展示预设角色且只读；没有后端可配置语义时，不出现可用的保存、拖拽权限或“已更新”反馈。
+
+### 7.19 Admin 审计 `/admin/audit`
+
+- Admin Surface 内使用标题、导出入口、筛选工具栏和不可变 Ledger。
+- 行内固定展示事件、操作者、对象、安全审计 ID、时间和结果；事件与对象为主要阅读列，ID 使用等宽字体。
+- 详情使用 Drawer；审计行不得出现编辑、删除或伪造的回滚动作。导出无后端能力时保持禁用并解释原因。
+
+### 7.20 Admin 设置 `/admin/settings`（P1）
+
+- Admin Surface 内使用标题/最近保存信息、三列设置分组和页面底部动作区；每组是 Inset Panel，字段在组内连续排列。
+- 三列用于组织级、管道/保留期和安全类设置；窄屏按 §8 顺序下移，不横向滚动。
+- 保存动作必须与真实后端语义绑定；后端未提供读取与持久化时只展示视觉基线或禁用状态，不模拟保存成功。
+
+### 7.21 跨页面 Overlay 状态
+
+| Overlay | 触发页面 | 规格 |
+|---|---|---|
+| 登录 Drawer | 入口 | 约 460px；浅色；标题/表单固定层级；关闭恢复入口位置与触发焦点 |
+| 上传 Drawer | 知识库详情 | 420–520px；文件选择、范围说明、队列和提交状态纵向排列 |
+| 来源/切片 Drawer | Chat、知识库详情、报告 | 420–520px，可更宽；先显示来源身份，再显示实时鉴权后的原文或受限态 |
+| Trace Drawer | Admin Trace、文档 | 可宽于普通 Drawer；逐 Phase Accordion + 等宽 JSON，内部独立滚动 |
+| 知识库选择 Popover/Drawer | Chat、创建研究 | 桌面短列表用 Popover，长列表/窄屏用 Drawer；Chat 单选、Research 按策略多选 |
+| 主题选择卡片 | 全局（账号菜单「主题选择」） | 居中选择卡片约 410px：浅色/深色两个选项各带固定色板预览（`--es-swatch-light/dark`，与当前主题无关），当前主题打勾标注；Escape/取消关闭并返回账号触发器 |
+| 主题切换确认卡 | 全局（主题选择内） | 约 360px 确认卡片叠加在选择卡片之上（选择卡片保持可见、inert 不参与交互）；取消返回选择卡、确认后应用主题并弹出顶部 Toast（§6.13） |
+| 确认 Dialog | 全局 | 只用于具名风险动作；标题、影响说明、取消和确认顺序固定，不承载长表单 |
+
+Overlay 不是独立页面卡片。任何打开态都必须纳入对应页面的 light/dark 视觉验收；不得只验关闭态截图。
 
 ## 8. 响应式规则
 
@@ -439,17 +637,21 @@ Chat 可以保留未来多选所需的列表宽度和信息层级，但不得显
 
 - [ ] 无紫色、洋红或高饱和霓虹；
 - [ ] 默认浅色主题：登录抽屉与登录后工作区为浅色，入口叙事页保留品牌深色；
-- [ ] 账号菜单「主题选择」可切换浅色/深色，切换立即生效并持久化，刷新后恢复；
+- [ ] 账号菜单「主题选择」两步骤确认（选中 → 确认卡 → 顶部 Toast），确认后生效并持久化，刷新后恢复；
 - [ ] 深浅主题正文与辅助文字均满足 WCAG AA，无组件在任一主题下与所在表面同色；
 - [ ] 背景包含克制渐变/噪声/线条（深色）或干净浅灰分区（浅色），不是纯黑大平面；
 - [ ] 导航文字约 14px、图标约 18px，可直接识别；
 - [ ] 主操作是按钮，不是低对比小字；
 - [ ] 页面没有无意义卡片化和过量圆角；
+- [ ] 页面最外层 Frame 与 §5.6 一致，普通页能清楚看见 Canvas、Route Surface 和内嵌内容三者边界；
+- [ ] Surface 嵌套不超过 §5.5 上限；列表行没有被通用 Card 包装；
 - [ ] Focus、Hover、Disabled、Loading 状态齐全；
 - [ ] 1280px 宽无主要区域冲突。
 
 ### 12.2 业务页面
 
+- [ ] 工作台为白色 Route Surface + 主列/Context Rail；快速启动和活动任务是 Inset Panel，最近研究/知识是 Ledger；
+- [ ] 创建研究为 Inset Panel 表单 + 透明原则栏；研究任务、问答历史、知识库和 Admin 数据页均保持列对齐 Ledger；
 - [ ] 问答无装饰头像，消息角色和来源层级清楚；
 - [ ] Research 多知识库选择按 KB 名称检索和勾选；Chat v1.0 仅单选，多选入口不可执行并显示“规划中”；
 - [ ] 文档切片可从知识库和回答来源进入；
@@ -458,6 +660,7 @@ Chat 可以保留未来多选所需的列表宽度和信息层级，但不得显
 - [ ] 引用与 Evidence 节点双向选中和定位；
 - [ ] Trace 是末尾附录，不与报告结论混合；
 - [ ] 管理中心是独立一级壳层；
+- [ ] Admin 总览/详情不套普通 Route Surface，Metric Strip 不拆成彩色 KPI 卡片；角色页以外不使用实体卡片墙；
 - [ ] Phase JSON 在对应 Phase 内展开；
 - [ ] Pipeline Trace 不显示成本，成本页面不伪装成 Trace。
 

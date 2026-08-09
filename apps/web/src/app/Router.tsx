@@ -63,6 +63,7 @@ export const router = createBrowserRouter([
       { path: '/knowledge-bases/:kbId', element: <KnowledgeBaseDetailPage /> },
       { path: '/research/new', element: <PlaceholderPage title="深度研究" /> },
       { path: '/research', element: <PlaceholderPage title="研究任务" /> },
+      { path: '/research/:taskId', element: <PlaceholderPage title="研究任务" /> },
     ],
   },
   { path: '*', element: <LandingPage /> },
