@@ -23,6 +23,20 @@
 | 生产三节点 Compose | M5/M6 | 三台 2C2G 节点落位、私网、资源、背压、故障语义和节点联合 smoke |
 | 恢复环境 | 首次发布和存储变更 | 跨节点同批次 RPO/RTO、备份、恢复、前滚/回滚 |
 
+### 2.1 自动化门禁分层
+
+自动化按风险和运行环境分为三层，后一层增加验收深度，不取代前一层：
+
+| 层级 | 阶段与触发 | 必须覆盖 | 明确不覆盖 |
+|:---|:---|:---|:---|
+| 基础 CI | 当前开发阶段；受保护分支的 PR 和推送 | Python/Web 静态门禁、不依赖外部服务的快速单元测试、Contract、Architecture、开发 Compose 配置解析、External OpenAPI 检查 | 真实 MySQL/Redis/Celery/Chroma 全栈回归、真实外部 Provider、评估集、生产三节点、镜像发布和故障/恢复演练 |
+| 部署与集成验收 | M5；候选构建或明确的手工验收 | Docker 镜像构建与缓存、单机 Compose 全栈集成、迁移往返、Worker/SSE、跨服务 Provider/Consumer、镜像安全、三节点静态与 staging、备份/恢复/回滚/故障演练 | 不代表 v1.0 已通过发布决策 |
+| 候选版本发布门禁 | M6；冻结候选版本 | M0—M5 全部证据、AC-001—AC-010、端到端场景、安全/容量/恢复/回滚复核、不可变构建标识、候选版本报告和制品发布 | 不接收未完成的大型架构改造 |
+
+基础 CI 只读检查当前提交，不执行格式化、生成后回写、自动提交或推送。本地 commit 由 pre-commit 拦截；远端 CI 作为受保护分支的 required checks，通过才允许合并，不将“已创建 commit”表述为“CI 已通过”。所有依赖使用版本化锁文件冻结安装；缓存只影响速度，不得成为正确性前提。
+
+基础 CI 的后端快速单元测试必须使用稳定 marker 或显式清单选择，覆盖本次变更受影响的纯函数、Service、Schema 和状态解析；不得用模糊的路径排除或“总数少于某值”代替用例分类。该层的墙钟时间目标为 5–10 分钟；只有连续运行记录支持时才能宣称达标，超时时先通过并行与安全缓存优化，不得静默删除必过门禁。
+
 ## 3. 分层测试
 
 ### 3.1 架构与静态边界
@@ -37,7 +51,7 @@
 - 文档相对链接、OpenAPI、JSON Schema 和 `$ref` 可解析；
 - Python 代码通过 ruff 静态检查（规则集 `E4,E7,E9,F,I`，行宽 100，配置见根 `pyproject.toml`）；lint 只报告，不改文件。提交时由 pre-commit hook（`.pre-commit-config.yaml`，`repo: local` 调用 venv 内 ruff）对暂存文件自动执行 `ruff check` 与 `ruff format --check`，存量基线告警按「触碰即清理」增量消解；提交信息由 `commit-msg` hook（`scripts/check_commit_msg.sh`）强制 `add|fixed|update|refactor: 中文描述` 格式。
 - Python 类型检查采用 mypy 全量门禁。六批收口后的最终强制范围为：① Knowledge/Research 两服务完整 `app/`（包括 Schema、Core、API、Service、Pipeline/Task/Worker、基础设施与外部 Provider 客户端、ORM、Evaluation、Metrics、Utils 和入口）；② 两服务 `scripts/`（不含 `.ab/` 临时噪声实验目录）、`tests/` 与 `alembic/env.py`；③ 根 `tests/`；④ `packages/contracts/generated/python/` 与 `packages/contracts/tests/`。Alembic 历史 revision 属生成且已落库的迁移事实，继续由迁移往返验证，不纳入 mypy；缓存、venv 与其他生成目录继续排除。两服务及共享范围必须使用同一根配置分别检查，全部结果为零错误；日常检查与 pre-commit 使用 `make setup-python-dev` 建立的各服务 Python 3.12 `.venv`，检查过程不得临时安装依赖；候选版及 Python requirements/Dockerfile 变化必须再执行 `make type-check-docker`，使用 Dockerfile 缓存的 `typecheck` target 在 Linux Python 3.12 中复核，运行容器不得联网安装依赖。启用 Pydantic mypy plugin、`check_untyped_defs`、严格 Optional、冗余 cast 与无效 ignore 检查；不得用全局 `ignore_missing_imports`、全局 `ignore_errors` 或批量 `# type: ignore` 伪造通过。新增 Python 文件必须在所属环境的全量门禁中立即清零，不再保留后续批次豁免。
-- Mac 上仅编辑器解析、ruff、mypy、pre-commit 与不依赖外部服务的纯单元检查可使用服务 `.venv`；API+DB、迁移、Worker/Celery、Redis、跨服务、Provider、SSE、smoke 及完整回归必须使用根 Docker Compose 环境。不得为绕过容器依赖缺失而在一次性运行容器中 `pip install`，开发/测试依赖必须进入版本化 requirements 与可缓存构建 target。
+- Mac 上仅编辑器解析、ruff、mypy、pre-commit 与不依赖外部服务的纯单元检查可使用服务 `.venv`；API+DB、迁移、Worker/Celery、Redis、跨服务 Provider/Consumer、SSE、smoke 及完整回归必须使用根 Docker Compose 环境。不连接数据服务、不发起跨服务请求的隔离 Provider 契约测试可按 §4 使用对应服务的受管容器单独执行。不得为绕过容器依赖缺失而在一次性运行容器中 `pip install`，开发/测试依赖必须进入版本化 requirements 与可缓存构建 target。
 - Web 只保留 `pnpm-lock.yaml`，冻结安装、ESLint、Prettier 检查、TypeScript 类型检查、Vitest 与 Vite 构建均通过；前端相关暂存文件由 pre-commit 调用 `lint` 与 `format:check`，hook 只报告、不修改文件。具体工具边界与验收条件以 [FRONTEND.md §2.2](../../apps/web/docs/FRONTEND.md#22-工程工具链) 为准。
 
 ### 3.2 身份与权限
@@ -105,6 +119,12 @@
 
 Internal Contract 每个版本必须通过 Meta-Schema、唯一 `$id`、可解析 `$ref`、有效/无效 Fixture、生成物无差异、Knowledge Provider 和 Research Consumer 测试。External OpenAPI 必须通过语法、引用、示例和 Breaking Change 检查。
 
+基础 CI 对 Contract 变更执行 `packages/contracts/README.md` 定义的全部当前可执行门禁。生成物差异检查只对已登记且可重复执行的生成 target 生效；当前 Python/Pydantic 参考生成物虽已入库，但可重复生成命令尚未登记，TypeScript 生成链亦未落地，两者都不得被记为“重新生成后无差异”已通过。新增或补齐生成 target 必须在同一变更中纳入差异检查，从登记之时起成为 Contract 变更的必过项。
+
+Knowledge Provider 契约测试即使使用 FakeSession 或 Mock 隔离数据服务，仍按 Provider/API 测试管理，必须在受管的服务容器环境执行；只有 Schema、Fixture、纯生成物检查与不导入服务 `app` 的 Consumer 测试可在固定开发环境中执行。这一约束不要求基础 CI 启动 MySQL、Redis、Celery 或 Chroma，但容器内测试必须在依赖未连接时仍可确定性执行。
+
+External OpenAPI 基础 CI 必须校验：OpenAPI 版本与文档语法、所有本地及跨文件 `$ref`、Schema 与操作示例、FastAPI 路由的 method/path 双向一致性、Provider 契约测试覆盖登记，以及相对受保护基线的 Breaking Change。首个受保护 OpenAPI 基线只执行前五项；基线合并后，Breaking Change 检查立即成为必过项。仅检查 `openapi`/`info`/`paths`/`components` 键存在不算语法或 `$ref` 验证通过。
+
 契约 Schema 与 Fixture 以 `packages/contracts/` 为唯一权威源，双方测试不得复制 Schema 或自造 Fixture。已落地的 Internal Identity Status 契约测试分布：
 
 - Schema 自检：`packages/contracts/tests/`（Meta-Schema、`$id` 唯一、`$ref` 可解析、Fixture 校验）；
@@ -147,4 +167,4 @@ cd services/research && python -m pytest tests/contract
 - 实际结果必须记录候选版本、环境资源、数据集、命令、通过/失败/跳过、已知偏差、批准人和证据链接；
 - M6 发布验收必须建立带日期的独立候选版本记录。
 
-ADR 检查 1–8：否。本文只保留测试矩阵、验收场景和发布门禁；原执行命令与记录模板移入指南，不改变测试要求或发布门禁。
+ADR 检查 1–8：否。本文将既有测试与发布要求分层为基础 CI、M5 部署/集成验收与 M6 候选发布门禁，不改变服务边界、公共契约、数据、安全或生产运行机制。
