@@ -88,14 +88,23 @@ Token 约束：
 | 阴影 | `--es-shadow-popover` | `0 16px 40px rgb(0 0 0 / 14%)` |
 | 阴影 | `--es-shadow-dialog` | `0 24px 80px rgb(0 0 0 / 20%)` |
 | 阴影 | `--es-shadow-floating` | `0 12px 32px rgb(0 0 0 / 14%)` |
+| 入口叙事 | `--es-landing-gradient` | 入口页多层深色品牌渐变背景（不随主题切换） |
+| 入口叙事 | `--es-landing-grid` | Hero 网格线背景 |
+| 入口叙事 | `--es-landing-grid-mask` | Hero 网格径向遮罩 |
+| 入口叙事 | `--es-landing-trace-secondary` | Hero 次级轨道线 |
+| 入口叙事 | `--es-landing-contour` | Hero 轮廓线 |
+| 入口叙事 | `--es-landing-coordinate` | Hero 坐标标注 |
+| 入口叙事 | `--es-landing-proof` | Hero 底注与页脚文字 |
+| 入口叙事 | `--es-landing-cta-gradient` | 发光主按钮渐变 |
 
-生产首次通过视觉 GREEN 前，`Inter`、`Space Grotesk`、`JetBrains Mono` 和选定图标字体的 WOFF2 必须进入 `apps/web/src/assets/fonts/` 并通过 `@font-face` 本地加载；只在 Token 中写字体名称不算完成。第三方 CDN 不作为发布或视觉验收依赖。
+入口叙事页专属 Token 只在 `.landing` 作用域内取深色品牌值；业务组件不得在入口之外消费，其值统一登记在 `tokens.css` 的深色作用域块。生产首次通过视觉 GREEN 前，`Inter`、`Space Grotesk`、`JetBrains Mono` 和选定图标字体的 WOFF2 必须进入 `apps/web/src/assets/fonts/` 并通过 `@font-face` 本地加载；只在 Token 中写字体名称不算完成。第三方 CDN 不作为发布或视觉验收依赖。
 
 ### 4.1 主题与默认
 
 - 默认主题为浅色（`data-theme="light"`）：登录抽屉与登录后的工作区默认浅色。
 - 深色主题（`data-theme="dark"`）是用户可选外观：通过账号菜单「主题选择」切换，选择立即生效并持久化到 `localStorage`（键 `evidsight-theme`）。
 - 入口叙事页固定深色品牌氛围，不随主题切换。
+- 入口深色作用域：`tokens.css` 的深色块把 `.landing`（含 `.landing[data-theme='light']`）一并纳入选择器，因此入口子树无论工作区主题如何恒取深色 Token 值；登录抽屉与入口页是同层兄弟，不受该作用域影响，默认浅色。
 - 切换机制：`<html data-theme="light|dark">` + CSS Variables；未显式选择时可参考 `prefers-color-scheme` 降级，但用户显式选择始终优先。
 - 深浅两套 Token 值由 4.2 定义，任一主题下正文与辅助文字均须满足 WCAG AA。
 

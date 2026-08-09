@@ -12,11 +12,12 @@ import { KnowledgeBaseListPage } from '@/features/knowledge/KnowledgeBaseListPag
 import { LandingPage } from '@/features/landing/LandingPage'
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage'
 
-function LoginRoute() {
+/** 入口页常驻布局：抽屉作为浮层叠加，关闭后入口页滚动位置与焦点保留。 */
+function LandingLayout() {
   return (
     <>
       <LandingPage />
-      <LoginDrawer />
+      <Outlet />
     </>
   )
 }
@@ -41,8 +42,13 @@ function AuthenticatedShell() {
 }
 
 export const router = createBrowserRouter([
-  { path: '/', element: <LandingPage /> },
-  { path: '/login', element: <LoginRoute /> },
+  {
+    element: <LandingLayout />,
+    children: [
+      { index: true, element: null },
+      { path: '/login', element: <LoginDrawer /> },
+    ],
+  },
   {
     element: (
       <ProtectedRoute>
