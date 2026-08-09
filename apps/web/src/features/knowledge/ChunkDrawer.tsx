@@ -9,6 +9,8 @@ type Props = {
   documentId: string
   api?: KnowledgeApi
   onClose: () => void
+  /** 可选：自动展开的引用切片 segment_id（来源卡片联动）。为空或不在分块列表时仅展示列表。 */
+  initialSegmentId?: string | null
 }
 
 type LocationError = Error & { response?: { status?: number } }
@@ -19,10 +21,18 @@ type LocationError = Error & { response?: { status?: number } }
  * （GET /api/v1/documents/{document_id}/locations/{location_id}）。
  * 权限撤销（403/E5005）或来源不可用（E2015）时立即清除已显示正文并展示受限态。
  */
-export function ChunkDrawer({ documentId, api = knowledgeApi, onClose }: Props) {
+export function ChunkDrawer({
+  documentId,
+  api = knowledgeApi,
+  onClose,
+  initialSegmentId = null,
+}: Props) {
   const queryClient = useQueryClient()
   const closeRef = useRef<HTMLButtonElement>(null)
-  const [expanded, setExpanded] = useState<string | null>(null)
+  // 来源卡片联动：直接从 initialSegmentId 初始化展开态；目标不在分块列表时
+  // 无匹配 chunk，视觉上不展开，也不触发请求。
+  const [expanded, setExpanded] = useState<string | null>(initialSegmentId ?? null)
+  const initialConsumedRef = useRef(false)
 
   useEffect(() => {
     closeRef.current?.focus()
@@ -52,6 +62,24 @@ export function ChunkDrawer({ documentId, api = knowledgeApi, onClose }: Props) 
     setExpanded(segmentId)
     locationMutation.mutate(segmentId)
   }
+
+  // 来源卡片联动：分块列表就绪后，对自动展开的引用切片发起实时鉴权原文请求
+  // （initialConsumedRef 保证只执行一次；目标不在分块列表时保持列表态）
+  useEffect(() => {
+    const target = initialSegmentId
+    if (!target || initialConsumedRef.current) return
+    if (chunksQuery.isPending || chunksQuery.isError) return
+    const exists = chunksQuery.data?.items.some((chunk) => chunk.segment_id === target) ?? false
+    if (!exists) return
+    initialConsumedRef.current = true
+    locationMutation.mutate(target)
+  }, [
+    chunksQuery.isPending,
+    chunksQuery.isError,
+    chunksQuery.data,
+    initialSegmentId,
+    locationMutation,
+  ])
 
   const data = locationMutation.data
   const locationError = locationMutation.error as LocationError | null

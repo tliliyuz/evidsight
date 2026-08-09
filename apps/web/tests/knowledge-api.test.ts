@@ -17,10 +17,6 @@ function response(
   }
 }
 
-function envelope(data: unknown) {
-  return { code: '0', message: 'ok', data }
-}
-
 let calls: { url: string; params?: Record<string, unknown> }[] = []
 
 beforeEach(() => {
@@ -28,11 +24,11 @@ beforeEach(() => {
 })
 
 describe('Knowledge v1 API 客户端', () => {
-  it('列出知识库时传递 scope/q/分页查询参数并解包信封', async () => {
+  it('列出知识库时传递 scope/q/分页查询参数并读取直返分页对象', async () => {
     const list = { total: 1, page: 1, page_size: 20, items: [] }
     const adapter: AxiosAdapter = async (config) => {
       calls.push({ url: config.url ?? '', params: config.params })
-      return response(config, 200, envelope(list))
+      return response(config, 200, list)
     }
     const client = knowledgeApi.withAdapter(adapter)
 
@@ -47,7 +43,7 @@ describe('Knowledge v1 API 客户端', () => {
     const list = { total: 0, page: 1, page_size: 20, items: [] }
     const adapter: AxiosAdapter = async (config) => {
       calls.push({ url: config.url ?? '', params: config.params })
-      return response(config, 200, envelope(list))
+      return response(config, 200, list)
     }
     const data = await knowledgeApi.withAdapter(adapter).listKnowledgeBases({})
 
@@ -70,7 +66,7 @@ describe('Knowledge v1 API 客户端', () => {
     }
     const adapter: AxiosAdapter = async (config) => {
       calls.push({ url: config.url ?? '' })
-      return response(config, 201, envelope(kb))
+      return response(config, 201, kb)
     }
     const data = await knowledgeApi
       .withAdapter(adapter)
@@ -95,7 +91,7 @@ describe('Knowledge v1 API 客户端', () => {
     }
     const adapter: AxiosAdapter = async (config) => {
       calls.push({ url: config.url ?? '' })
-      return response(config, 200, envelope(kb))
+      return response(config, 200, kb)
     }
     const data = await knowledgeApi
       .withAdapter(adapter)
@@ -120,7 +116,7 @@ describe('Knowledge v1 API 客户端', () => {
     const list = { total: 0, page: 1, page_size: 20, items: [] }
     const adapter: AxiosAdapter = async (config) => {
       calls.push({ url: config.url ?? '', params: config.params })
-      return response(config, 200, envelope(list))
+      return response(config, 200, list)
     }
     await knowledgeApi.withAdapter(adapter).listDocuments('550e8400-e29b-41d4-a716-446655440100', {
       status: 'completed',
@@ -151,7 +147,7 @@ describe('Knowledge v1 API 客户端', () => {
     }
     const adapter: AxiosAdapter = async (config) => {
       calls.push({ url: config.url ?? '' })
-      return response(config, 202, envelope(uploaded))
+      return response(config, 202, uploaded)
     }
     const file = new File(['%PDF-1.7 fake'], '测试文档.pdf', { type: 'application/pdf' })
     const data = await knowledgeApi
@@ -182,7 +178,7 @@ describe('Knowledge v1 API 客户端', () => {
     }
     const adapter: AxiosAdapter = async (config) => {
       calls.push({ url: config.url ?? '' })
-      return response(config, 200, envelope(chunkList))
+      return response(config, 200, chunkList)
     }
     const data = await knowledgeApi
       .withAdapter(adapter)
@@ -202,7 +198,7 @@ describe('Knowledge v1 API 客户端', () => {
     }
     const adapter: AxiosAdapter = async (config) => {
       calls.push({ url: config.url ?? '' })
-      return response(config, 200, envelope(location))
+      return response(config, 200, location)
     }
     const data = await knowledgeApi
       .withAdapter(adapter)
@@ -224,7 +220,7 @@ describe('Knowledge v1 API 客户端', () => {
     }
     const adapter: AxiosAdapter = async (config) => {
       calls.push({ url: config.url ?? '' })
-      return response(config, 202, envelope(reprocess))
+      return response(config, 202, reprocess)
     }
     const data = await knowledgeApi
       .withAdapter(adapter)

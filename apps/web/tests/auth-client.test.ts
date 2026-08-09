@@ -35,7 +35,7 @@ describe('API 客户端认证边界', () => {
         config: typeof config
       }
       error.config = config
-      error.response = response(config, 401, { error: { error_code: 'E5003' } })
+      error.response = response(config, 401, { error: { error_code: 'AUTH_TOKEN_EXPIRED' } })
       throw error
     })
     const refresh = vi.fn().mockResolvedValue('access-new')

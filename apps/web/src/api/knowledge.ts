@@ -103,16 +103,14 @@ export type DocumentLocation = {
   source_updated_at: string | null
 }
 
-type Envelope<T> = { code: string; message: string; data: T }
-
 type ListParams = {
   page?: number
   page_size?: number
 }
 
-async function unwrap<T>(promise: Promise<{ data: Envelope<T> }>): Promise<T> {
+async function unwrap<T>(promise: Promise<{ data: T }>): Promise<T> {
   const { data } = await promise
-  return data.data
+  return data
 }
 
 export type KnowledgeApi = {
@@ -148,22 +146,22 @@ function createKnowledgeApi(client: AxiosInstance): KnowledgeApi {
   return {
     async listKnowledgeBases(params = {}) {
       return unwrap(
-        client.get<Envelope<KnowledgeBaseList>>('/api/v1/knowledge-bases', {
+        client.get<KnowledgeBaseList>('/api/v1/knowledge-bases', {
           params: { scope: 'all', page: 1, page_size: 20, ...params },
         }),
       )
     },
 
     async createKnowledgeBase(input) {
-      return unwrap(client.post<Envelope<KnowledgeBase>>('/api/v1/knowledge-bases', input))
+      return unwrap(client.post<KnowledgeBase>('/api/v1/knowledge-bases', input))
     },
 
     async getKnowledgeBase(kbId) {
-      return unwrap(client.get<Envelope<KnowledgeBase>>(`/api/v1/knowledge-bases/${kbId}`))
+      return unwrap(client.get<KnowledgeBase>(`/api/v1/knowledge-bases/${kbId}`))
     },
 
     async updateKnowledgeBase(kbId, patch) {
-      return unwrap(client.patch<Envelope<KnowledgeBase>>(`/api/v1/knowledge-bases/${kbId}`, patch))
+      return unwrap(client.patch<KnowledgeBase>(`/api/v1/knowledge-bases/${kbId}`, patch))
     },
 
     async deleteKnowledgeBase(kbId) {
@@ -172,7 +170,7 @@ function createKnowledgeApi(client: AxiosInstance): KnowledgeApi {
 
     async listDocuments(kbId, params = {}) {
       return unwrap(
-        client.get<Envelope<DocumentList>>(`/api/v1/knowledge-bases/${kbId}/documents`, {
+        client.get<DocumentList>(`/api/v1/knowledge-bases/${kbId}/documents`, {
           params,
         }),
       )
@@ -184,13 +182,11 @@ function createKnowledgeApi(client: AxiosInstance): KnowledgeApi {
       if (force) {
         form.append('force', 'true')
       }
-      return unwrap(
-        client.post<Envelope<DocumentUpload>>(`/api/v1/knowledge-bases/${kbId}/documents`, form),
-      )
+      return unwrap(client.post<DocumentUpload>(`/api/v1/knowledge-bases/${kbId}/documents`, form))
     },
 
     async getDocument(documentId) {
-      return unwrap(client.get<Envelope<Document>>(`/api/v1/documents/${documentId}`))
+      return unwrap(client.get<Document>(`/api/v1/documents/${documentId}`))
     },
 
     async deleteDocument(documentId) {
@@ -199,23 +195,19 @@ function createKnowledgeApi(client: AxiosInstance): KnowledgeApi {
 
     async getDocumentChunks(documentId, params = {}) {
       return unwrap(
-        client.get<Envelope<DocumentChunkList>>(`/api/v1/documents/${documentId}/chunks`, {
+        client.get<DocumentChunkList>(`/api/v1/documents/${documentId}/chunks`, {
           params,
         }),
       )
     },
 
     async reprocessDocument(documentId) {
-      return unwrap(
-        client.post<Envelope<DocumentReprocess>>(`/api/v1/documents/${documentId}/retry`),
-      )
+      return unwrap(client.post<DocumentReprocess>(`/api/v1/documents/${documentId}/retry`))
     },
 
     async getDocumentLocation(documentId, locationId) {
       return unwrap(
-        client.get<Envelope<DocumentLocation>>(
-          `/api/v1/documents/${documentId}/locations/${locationId}`,
-        ),
+        client.get<DocumentLocation>(`/api/v1/documents/${documentId}/locations/${locationId}`),
       )
     },
 

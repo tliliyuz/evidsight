@@ -304,6 +304,8 @@ HTTP 层必须携带 Research 服务身份、Platform User ID、目标 KB、`X-R
 
 事件顺序为 `meta` → 零到多个 delta → sources → done；失败路径不发送 done。终态后禁止业务事件。客户端断开或显式取消可终止生成；已持久化消息的具体时点由 Knowledge Pipeline 定义。
 
+`sources` 事件的 `chunks` 每项携带稳定身份 `document_uuid`（来源文档 `documents.uuid`）与 `segment_id`（`chunks.segment_uuid`，即 §6.2 location 端点 `location_id`），前端据此进入对应文档切片抽屉并按 §6.2 实时鉴权展开引用切片；内部整数 `doc_id` 不作为契约，仅迁移期兼容保留（对齐 §6.2 Chunk 列表迁移态与 §2 外部 DTO 规则）。字段 Schema 以 Knowledge `ChatSourceChunk` 为权威，Chat SSE 各事件 `data` 对象的 OpenAPI 覆盖沿用既有迁移态安排。
+
 ## 13. Research SSE
 
 Research SSE 是持久任务订阅，断开不得取消研究任务。重连携带 `Last-Event-ID` 或等价游标；服务先返回持久状态快照，再发送后续事件。事件可能重复，客户端按事件 ID 幂等消费。

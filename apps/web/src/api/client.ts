@@ -27,9 +27,8 @@ export function readCsrfToken(): string | null {
 }
 
 function errorCode(error: AxiosError): string | undefined {
-  const body = error.response?.data as
-    { error?: { error_code?: string }; code?: string } | undefined
-  return body?.error?.error_code ?? body?.code
+  const body = error.response?.data as { error?: { error_code?: string } } | undefined
+  return body?.error?.error_code
 }
 
 async function requestFreshAccessToken(): Promise<string> {
@@ -71,7 +70,7 @@ export function createApiClient(options: ClientOptions = {}): AxiosInstance {
     const config = error.config as RetriableConfig | undefined
     const shouldRefresh =
       error.response?.status === 401 &&
-      errorCode(error) === 'E5003' &&
+      errorCode(error) === 'AUTH_TOKEN_EXPIRED' &&
       config &&
       !config.__authRetried
 
