@@ -186,7 +186,7 @@ class TestV1RegisterAPI:
             )
 
         assert response.status_code == 409
-        assert response.json()["code"] == "E5001"
+        assert response.json()["error"]["error_code"] == "AUTH_USERNAME_CONFLICT"
 
     @pytest.mark.asyncio
     async def test_v1_register_username_too_short(self, async_client):
@@ -269,7 +269,7 @@ class TestV1LoginAPI:
             )
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5002"
+        assert response.json()["error"]["error_code"] == "AUTH_INVALID_CREDENTIALS"
         assert not response.headers.get_list("set-cookie")
 
     @pytest.mark.asyncio
@@ -282,7 +282,7 @@ class TestV1LoginAPI:
             )
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5010"
+        assert response.json()["error"]["error_code"] == "AUTH_USER_DISABLED"
         assert not response.headers.get_list("set-cookie")
 
     @pytest.mark.asyncio
@@ -375,8 +375,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client, csrf_header=False)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
-        assert response.json()["detail"] == "CSRF 校验失败"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
         mock_refresh.assert_not_awaited()
         assert not response.headers.get_list("set-cookie")
 
@@ -386,8 +385,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client, csrf_cookie=False)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
-        assert response.json()["detail"] == "CSRF 校验失败"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
         mock_refresh.assert_not_awaited()
         assert not response.headers.get_list("set-cookie")
 
@@ -404,8 +402,7 @@ class TestV1RefreshAPI:
             )
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
-        assert response.json()["detail"] == "CSRF 校验失败"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
         mock_refresh.assert_not_awaited()
         assert not response.headers.get_list("set-cookie")
 
@@ -420,8 +417,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client, origin="https://evil.example.com")
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
-        assert response.json()["detail"] == "Origin 校验失败"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
         mock_refresh.assert_not_awaited()
         assert not response.headers.get_list("set-cookie")
 
@@ -432,7 +428,7 @@ class TestV1RefreshAPI:
         response = await self._post_refresh(async_client, refresh_token=None)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5008"
+        assert response.json()["error"]["error_code"] == "AUTH_REFRESH_INVALID"
 
     # ---- 刷新失败：对应 401 + 清除 Cookie ----
 
@@ -443,7 +439,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5006"
+        assert response.json()["error"]["error_code"] == "AUTH_REFRESH_EXPIRED"
         cookies = _cookies_from_response(response)
         assert cookies[self.REFRESH_COOKIE]["max-age"] == "0"
         assert cookies[self.CSRF_COOKIE]["max-age"] == "0"
@@ -455,7 +451,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5010"
+        assert response.json()["error"]["error_code"] == "AUTH_USER_DISABLED"
         cookies = _cookies_from_response(response)
         assert cookies[self.REFRESH_COOKIE]["max-age"] == "0"
         assert cookies[self.CSRF_COOKIE]["max-age"] == "0"
@@ -467,7 +463,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5009"
+        assert response.json()["error"]["error_code"] == "AUTH_REFRESH_REPLAY"
         cookies = _cookies_from_response(response)
         assert cookies[self.REFRESH_COOKIE]["max-age"] == "0"
         assert cookies[self.CSRF_COOKIE]["max-age"] == "0"
@@ -555,8 +551,7 @@ class TestV1LogoutAPI:
             )
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
-        assert response.json()["detail"] == "CSRF 校验失败"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
         mock_logout.assert_not_awaited()
         assert not response.headers.get_list("set-cookie")
 
@@ -565,7 +560,7 @@ class TestV1LogoutAPI:
         """logout 不是公开路由：未携带 Access Token → 中间件 401 E5004。"""
         response = await self._post_logout(async_client)
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
 
 
 class TestCompatAPI:
@@ -650,7 +645,7 @@ class TestCompatAPI:
             )
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5008"
+        assert response.json()["error"]["error_code"] == "AUTH_REFRESH_INVALID"
         mock_refresh.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -704,7 +699,7 @@ class TestMeAPI:
         """未携带 Token 访问 /me 返回 401 E5004。"""
         response = await async_client.get("/api/v1/auth/me")
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
 
     @pytest.mark.asyncio
     async def test_me_disabled_user_returns_401(self, async_client, auth_headers):
@@ -723,7 +718,7 @@ class TestMeAPI:
             app.dependency_overrides.pop(get_current_user, None)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5010"
+        assert response.json()["error"]["error_code"] == "AUTH_USER_DISABLED"
 
 
 class TestAuthMiddleware:

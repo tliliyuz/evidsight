@@ -3,8 +3,9 @@ info:
   title: EvidSight 外部 API v1
   version: 1.0.0
   description: |
-    EvidSight Knowledge 服务供 Web 消费的外部 v1 契约。本文件是 Knowledge Base、
-    Document、Conversation 请求/响应字段与约束的唯一权威来源；API.md 定义行为、
+    EvidSight Knowledge 与 Research 服务供 Web 消费的外部 v1 契约。本文件是 Auth、
+    Knowledge Base、Document、Chat、Conversation、Research、Evidence 与 Report 请求、响应
+    和 SSE data 字段与约束的唯一权威来源；API.md 定义行为、
     权限、状态码与兼容语义，本文只定义 Schema。新增或修改字段必须先修订本文件，
     再经 FastAPI 路由清单 ↔ OpenAPI 路径清单 ↔ Provider 契约测试三方一致校验
     （API.md §3.1 / ROADMAP M2 退出门禁）。
@@ -29,7 +30,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/KnowledgeBaseEnvelope"
+                $ref: "#/components/schemas/KnowledgeBase"
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
@@ -53,7 +54,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/KnowledgeBaseListEnvelope"
+                $ref: "#/components/schemas/KnowledgeBaseList"
         "422":
           $ref: "#/components/responses/ValidationError"
   /api/v1/knowledge-bases/{kb_id}:
@@ -70,7 +71,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/KnowledgeBaseEnvelope"
+                $ref: "#/components/schemas/KnowledgeBase"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -92,7 +93,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/KnowledgeBaseEnvelope"
+                $ref: "#/components/schemas/KnowledgeBase"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -145,7 +146,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DocumentUploadEnvelope"
+                $ref: "#/components/schemas/DocumentUpload"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -174,7 +175,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DocumentListEnvelope"
+                $ref: "#/components/schemas/DocumentList"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -195,7 +196,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DocumentEnvelope"
+                $ref: "#/components/schemas/Document"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -229,7 +230,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DocumentChunkListEnvelope"
+                $ref: "#/components/schemas/DocumentChunkList"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -250,7 +251,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DocumentReprocessEnvelope"
+                $ref: "#/components/schemas/DocumentReprocess"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -275,7 +276,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DocumentLocationEnvelope"
+                $ref: "#/components/schemas/DocumentLocation"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -298,7 +299,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConversationEnvelope"
+                $ref: "#/components/schemas/Conversation"
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
@@ -317,7 +318,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConversationListEnvelope"
+                $ref: "#/components/schemas/ConversationList"
         "422":
           $ref: "#/components/responses/ValidationError"
   /api/v1/conversations/{conversation_id}:
@@ -334,7 +335,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConversationDetailEnvelope"
+                $ref: "#/components/schemas/ConversationDetail"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -356,7 +357,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConversationEnvelope"
+                $ref: "#/components/schemas/Conversation"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -375,6 +376,270 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/auth/register:
+    post:
+      tags: [Auth v1]
+      operationId: registerV1
+      summary: 注册用户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RegisterRequest"}
+      responses:
+        "201":
+          description: 用户已创建
+          content: {application/json: {schema: {$ref: "#/components/schemas/UserSummary"}}}
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/auth/login:
+    post:
+      tags: [Auth v1]
+      operationId: loginV1
+      summary: 登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+      responses:
+        "200":
+          description: 登录成功；Refresh Token 只通过 HttpOnly Cookie 返回
+          content: {application/json: {schema: {$ref: "#/components/schemas/LoginResponse"}}}
+        "401": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth v1]
+      operationId: refreshV1
+      summary: 轮换 Refresh Family
+      responses:
+        "200":
+          description: Access Token 已刷新
+          content: {application/json: {schema: {$ref: "#/components/schemas/RefreshResponse"}}}
+        "401": {$ref: "#/components/responses/Forbidden"}
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth v1]
+      operationId: logoutV1
+      summary: 退出并撤销 Refresh Family
+      responses:
+        "204": {description: 已退出，无正文}
+        "401": {$ref: "#/components/responses/Forbidden"}
+  /api/v1/auth/me:
+    get:
+      tags: [Auth v1]
+      operationId: getCurrentUserV1
+      summary: 当前用户摘要
+      responses:
+        "200":
+          description: 当前用户
+          content: {application/json: {schema: {$ref: "#/components/schemas/UserSummary"}}}
+        "401": {$ref: "#/components/responses/Forbidden"}
+  /api/v1/auth/password:
+    put:
+      tags: [Auth v1]
+      operationId: changePasswordV1
+      summary: 修改密码并撤销全部 Refresh Family
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ChangePasswordRequest"}
+      responses:
+        "204": {description: 密码已修改，无正文}
+        "401": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/chat/stream:
+    post:
+      tags: [Chat v1]
+      operationId: streamChatV1
+      summary: 发起单知识库问答
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ChatStreamRequest"}
+      responses:
+        "200":
+          description: canonical Chat SSE
+          content:
+            text/event-stream:
+              schema: {type: string}
+              x-sse-data-schemas:
+                meta: {$ref: "#/components/schemas/ChatMetaEventData"}
+                message.delta: {$ref: "#/components/schemas/ChatDeltaEventData"}
+                sources: {$ref: "#/components/schemas/ChatSourcesEventData"}
+                error: {$ref: "#/components/schemas/StreamErrorEventData"}
+                done: {$ref: "#/components/schemas/ChatDoneEventData"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/chat/generations/{generation_id}/cancel:
+    post:
+      tags: [Chat v1]
+      operationId: cancelChatGenerationV1
+      summary: 幂等取消生成
+      parameters:
+        - {name: generation_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "202":
+          description: 取消已接受
+          content: {application/json: {schema: {$ref: "#/components/schemas/ChatCancelResponse"}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/research/tasks:
+    post:
+      tags: [Research v1]
+      operationId: createResearchTaskV1
+      summary: 幂等创建研究任务
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 128}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ResearchTaskCreate"}
+      responses:
+        "202":
+          description: 任务已接受
+          content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTaskCreateResponse"}}}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+    get:
+      tags: [Research v1]
+      operationId: listResearchTasksV1
+      summary: 研究任务列表
+      parameters:
+        - {$ref: "#/components/parameters/PageParam"}
+        - {$ref: "#/components/parameters/PageSizeParam"}
+        - {name: status, in: query, schema: {type: string}}
+        - {name: keyword, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: 研究任务分页列表
+          content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTaskList"}}}
+  /api/v1/research/tasks/{task_id}:
+    parameters:
+      - {$ref: "#/components/parameters/TaskIdParam"}
+    get:
+      tags: [Research v1]
+      operationId: getResearchTaskV1
+      summary: 研究任务详情
+      responses:
+        "200":
+          description: 任务详情
+          content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTask"}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+    delete:
+      tags: [Research v1]
+      operationId: deleteResearchTaskV1
+      summary: 删除研究任务
+      responses:
+        "204": {description: 已删除，无正文}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/research/tasks/{task_id}/cancel:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    post:
+      tags: [Research v1]
+      operationId: cancelResearchTaskV1
+      summary: 请求取消研究任务
+      responses:
+        "202": {description: 取消已接受, content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTask"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/research/tasks/{task_id}/resume:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    post:
+      tags: [Research v1]
+      operationId: resumeResearchTaskV1
+      summary: 断点续跑研究任务
+      responses:
+        "202": {description: 恢复已接受, content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTask"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/research/tasks/{task_id}/state:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    get:
+      tags: [Research v1]
+      operationId: getResearchTaskStateV1
+      summary: 研究状态轮询快照
+      responses:
+        "200": {description: 状态快照, content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTaskState"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/research/tasks/{task_id}/events:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    get:
+      tags: [Research v1]
+      operationId: streamResearchTaskEventsV1
+      summary: 订阅研究任务事件
+      parameters:
+        - {name: Last-Event-ID, in: header, required: false, schema: {type: string}}
+      responses:
+        "200":
+          description: canonical Research SSE
+          content:
+            text/event-stream:
+              schema: {type: string}
+              x-sse-data-schema: {$ref: "#/components/schemas/ResearchEventData"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/research/tasks/{task_id}/report:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    get:
+      deprecated: true
+      tags: [Research v1]
+      operationId: getResearchTaskReportCompatibilityV1
+      summary: 迁移兼容任务报告读取
+      responses:
+        "200": {description: 兼容报告对象}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/research/tasks/{task_id}/evidence:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    get:
+      tags: [Evidence v1]
+      operationId: listResearchTaskEvidenceV1
+      summary: 任务 Evidence 列表
+      responses:
+        "200": {description: Evidence 列表, content: {application/json: {schema: {$ref: "#/components/schemas/EvidenceList"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/evidence/{evidence_id}:
+    parameters:
+      - {name: evidence_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Evidence v1]
+      operationId: getEvidenceV1
+      summary: Evidence 详情
+      responses:
+        "200": {description: Evidence 详情, content: {application/json: {schema: {$ref: "#/components/schemas/Evidence"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/evidence/{evidence_id}/relations:
+    parameters:
+      - {name: evidence_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Evidence v1]
+      operationId: listEvidenceRelationsV1
+      summary: Evidence 关系
+      responses:
+        "200": {description: 关系列表, content: {application/json: {schema: {$ref: "#/components/schemas/EvidenceRelationList"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/reports/{report_id}:
+    parameters:
+      - {$ref: "#/components/parameters/ReportIdParam"}
+    get:
+      tags: [Report v1]
+      operationId: getReportV1
+      summary: 正式报告详情
+      responses:
+        "200": {description: published Report, content: {application/json: {schema: {$ref: "#/components/schemas/Report"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/reports/{report_id}/sections/{section_id}:
+    parameters:
+      - {$ref: "#/components/parameters/ReportIdParam"}
+      - {name: section_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Report v1]
+      operationId: getReportSectionV1
+      summary: 正式报告章节
+      responses:
+        "200": {description: Report 章节, content: {application/json: {schema: {$ref: "#/components/schemas/ReportSection"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
 components:
   parameters:
     PageParam:
@@ -445,6 +710,20 @@ components:
       schema:
         type: string
         format: uuid
+    TaskIdParam:
+      name: task_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReportIdParam:
+      name: report_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     DocumentStatusParam:
       name: status
       in: query
@@ -508,34 +787,32 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorEnvelope"
   schemas:
-    ApiEnvelope:
-      type: object
-      description: v1 成功响应信封（code/message/data）
-      required: [code, message, data]
-      properties:
-        code:
-          type: string
-          const: "0"
-          description: 业务成功码
-        message:
-          type: string
-          description: 人类可读说明
-        data: {}
     ErrorEnvelope:
       type: object
-      description: 错误响应信封
-      required: [code, message]
+      description: API.md §4 标准错误信封
+      required: [error]
       properties:
-        code:
+        error:
+          $ref: "#/components/schemas/Error"
+      additionalProperties: false
+    Error:
+      type: object
+      required: [error_code, message, request_id, retryable, details]
+      properties:
+        error_code:
           type: string
-          description: 业务错误码，如 E1001/E5005/E9003
+          pattern: "^[A-Z][A-Z0-9_]+$"
         message:
           type: string
-          description: 错误说明
-        detail:
+        request_id:
           type: string
-          nullable: true
-          description: 安全、结构化、可操作的附加信息；不含正文、密码、Token、SQL、路径或堆栈
+        retryable:
+          type: boolean
+        details:
+          type: object
+          additionalProperties: true
+          description: 安全、结构化、可操作信息；不含正文、密码、Token、SQL、路径或堆栈
+      additionalProperties: false
     # ---- Knowledge Base ----
     KnowledgeBase:
       type: object
@@ -628,29 +905,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/KnowledgeBase"
-    KnowledgeBaseEnvelope:
-      type: object
-      description: 知识库资源信封
-      required: [code, message, data]
-      properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/KnowledgeBase"
-    KnowledgeBaseListEnvelope:
-      type: object
-      required: [code, message, data]
-      properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/KnowledgeBaseList"
     # ---- Document ----
     Document:
       type: object
@@ -806,72 +1060,6 @@ components:
           type: string
           format: date-time
           nullable: true
-    DocumentEnvelope:
-      type: object
-      required: [code, message, data]
-      properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/Document"
-    DocumentUploadEnvelope:
-      type: object
-      required: [code, message, data]
-      properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/DocumentUpload"
-    DocumentReprocessEnvelope:
-      type: object
-      required: [code, message, data]
-      properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/DocumentReprocess"
-    DocumentListEnvelope:
-      type: object
-      required: [code, message, data]
-      properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/DocumentList"
-    DocumentChunkListEnvelope:
-      type: object
-      required: [code, message, data]
-      properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/DocumentChunkList"
-    DocumentLocationEnvelope:
-      type: object
-      required: [code, message, data]
-      properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/DocumentLocation"
     # ---- Conversation ----
     ConversationCreateV1:
       type: object
@@ -1029,36 +1217,303 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Conversation"
-    ConversationEnvelope:
+    # ---- Auth ----
+    RegisterRequest:
       type: object
-      required: [code, message, data]
+      required: [username, password]
+      additionalProperties: false
       properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/Conversation"
-    ConversationDetailEnvelope:
+        username: {type: string, minLength: 2, maxLength: 64}
+        password: {type: string, minLength: 6, maxLength: 128, writeOnly: true}
+    LoginRequest:
       type: object
-      required: [code, message, data]
+      required: [username, password]
+      additionalProperties: false
       properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/ConversationDetail"
-    ConversationListEnvelope:
+        username: {type: string, minLength: 2, maxLength: 64}
+        password: {type: string, minLength: 6, maxLength: 128, writeOnly: true}
+    ChangePasswordRequest:
       type: object
-      required: [code, message, data]
+      required: [old_password, new_password]
+      additionalProperties: false
       properties:
-        code:
-          type: string
-          const: "0"
-        message:
-          type: string
-        data:
-          $ref: "#/components/schemas/ConversationList"
+        old_password: {type: string, minLength: 6, maxLength: 128, writeOnly: true}
+        new_password: {type: string, minLength: 6, maxLength: 128, writeOnly: true}
+    UserSummary:
+      type: object
+      required: [id, username, role, status]
+      additionalProperties: false
+      properties:
+        id: {type: string, format: uuid}
+        username: {type: string}
+        role: {type: string, enum: [user, admin]}
+        status: {type: string, enum: [active, disabled]}
+    LoginResponse:
+      type: object
+      required: [access_token, token_type, expires_in, user]
+      additionalProperties: false
+      properties:
+        access_token: {type: string, writeOnly: true}
+        token_type: {type: string, const: bearer}
+        expires_in: {type: integer, minimum: 1}
+        user: {$ref: "#/components/schemas/UserSummary"}
+    RefreshResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      additionalProperties: false
+      properties:
+        access_token: {type: string, writeOnly: true}
+        token_type: {type: string, const: bearer}
+        expires_in: {type: integer, minimum: 1}
+    # ---- Chat SSE ----
+    ChatStreamRequest:
+      type: object
+      required: [knowledge_base_id, question]
+      additionalProperties: false
+      properties:
+        conversation_id: {type: [string, "null"], format: uuid}
+        knowledge_base_id: {type: string, format: uuid}
+        question: {type: string, minLength: 1, maxLength: 2000}
+        deep_thinking: {type: boolean, default: false}
+    ChatMetaEventData:
+      type: object
+      required: [generation_id, conversation_id]
+      properties:
+        generation_id: {type: string, format: uuid}
+        conversation_id: {type: string, format: uuid}
+    ChatDeltaEventData:
+      type: object
+      required: [delta]
+      additionalProperties: false
+      properties:
+        delta: {type: string}
+    ChatSource:
+      type: object
+      required: [chunk_index, doc_name, score, document_uuid, segment_id]
+      properties:
+        chunk_index: {type: integer, minimum: 1}
+        doc_name: {type: string}
+        score: {type: number}
+        document_uuid: {type: string, format: uuid}
+        segment_id: {type: string, format: uuid}
+        page: {type: [integer, "null"], minimum: 1}
+        section_title: {type: [string, "null"]}
+        section_path: {type: [string, "null"]}
+        preview_text: {type: [string, "null"]}
+        preview_range: {$ref: "#/components/schemas/PreviewRange"}
+        highlight_start: {type: [integer, "null"], minimum: 0}
+        highlight_end: {type: [integer, "null"], minimum: 0}
+    PreviewRange:
+      type: [object, "null"]
+      required: [start, end]
+      properties:
+        start: {type: integer, minimum: 0}
+        end: {type: integer, minimum: 0}
+    ChatSourcesEventData:
+      type: object
+      required: [chunks]
+      properties:
+        chunks: {type: array, items: {$ref: "#/components/schemas/ChatSource"}}
+        confidence: {type: [string, "null"]}
+        confidence_note: {type: [string, "null"]}
+    StreamErrorEventData:
+      type: object
+      required: [error_code, message, retryable]
+      properties:
+        error_code: {type: string}
+        message: {type: string}
+        retryable: {type: boolean}
+    ChatDoneEventData:
+      type: object
+      required: [message_id, token_usage]
+      properties:
+        message_id: {type: integer}
+        title: {type: [string, "null"]}
+        token_usage:
+          type: object
+          required: [prompt, completion, total]
+          properties:
+            prompt: {type: integer, minimum: 0}
+            completion: {type: integer, minimum: 0}
+            total: {type: integer, minimum: 0}
+    ChatCancelResponse:
+      type: object
+      required: [generation_id, status, idempotent_replayed]
+      properties:
+        generation_id: {type: string, format: uuid}
+        status: {type: string, enum: [canceled]}
+        idempotent_replayed: {type: boolean}
+    # ---- Research ----
+    ResearchRequirements:
+      type: object
+      required: [task_type]
+      additionalProperties: false
+      properties:
+        task_type: {type: string, enum: [comparison, explainer, analysis]}
+        depth: {type: string, enum: [quick], default: quick}
+        max_sources: {type: integer, minimum: 1, maximum: 50, default: 10}
+        language: {type: string, minLength: 2, maxLength: 10, default: zh}
+    ResearchTaskCreate:
+      type: object
+      required: [topic, requirements]
+      additionalProperties: false
+      properties:
+        topic: {type: string, minLength: 1, maxLength: 500}
+        requirements: {$ref: "#/components/schemas/ResearchRequirements"}
+        source_strategy: {type: string, enum: [knowledge, web, hybrid], default: web}
+        knowledge_base_ids:
+          type: array
+          maxItems: 50
+          items: {type: string, format: uuid}
+          default: []
+    ResearchTaskCreateResponse:
+      type: object
+      required: [task_id, status, created_at, direct_answer, idempotent_replayed, report_id]
+      properties:
+        task_id: {type: string, format: uuid}
+        status: {type: string}
+        created_at: {type: string, format: date-time}
+        direct_answer: {type: boolean}
+        idempotent_replayed: {type: boolean}
+        report_id: {type: [string, "null"], format: uuid}
+    ResearchProgress:
+      type: object
+      required: [completed_steps, total_steps, progress]
+      properties:
+        completed_steps: {type: integer, minimum: 0}
+        total_steps: {type: integer, minimum: 0}
+        progress: {type: number, minimum: 0, maximum: 1}
+    ResearchTask:
+      type: object
+      required: [task_id, topic, status, requirements, progress, total_sources, total_evidence, created_at, report_id]
+      properties:
+        task_id: {type: string, format: uuid}
+        topic: {type: string}
+        status: {type: string}
+        current_phase: {type: [string, "null"]}
+        requirements: {$ref: "#/components/schemas/ResearchRequirements"}
+        progress: {$ref: "#/components/schemas/ResearchProgress"}
+        total_sources: {type: integer, minimum: 0}
+        total_evidence: {type: integer, minimum: 0}
+        error_code: {type: [string, "null"]}
+        error_message: {type: [string, "null"]}
+        recoverable: {type: [boolean, "null"]}
+        report_id: {type: [string, "null"], format: uuid}
+        created_at: {type: string, format: date-time}
+        started_at: {type: [string, "null"], format: date-time}
+        completed_at: {type: [string, "null"], format: date-time}
+    ResearchTaskListItem:
+      type: object
+      required: [task_id, topic, status, task_type, total_sources, total_evidence, created_at, report_id]
+      properties:
+        task_id: {type: string, format: uuid}
+        topic: {type: string}
+        status: {type: string}
+        task_type: {type: string}
+        total_sources: {type: integer, minimum: 0}
+        total_evidence: {type: integer, minimum: 0}
+        report_id: {type: [string, "null"], format: uuid}
+        created_at: {type: string, format: date-time}
+        completed_at: {type: [string, "null"], format: date-time}
+    ResearchTaskList:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/ResearchTaskListItem"}}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1}
+        total: {type: integer, minimum: 0}
+    ResearchTaskState:
+      type: object
+      required: [task_id, status, progress, steps, created_at, report_id]
+      properties:
+        task_id: {type: string, format: uuid}
+        topic: {type: string}
+        status: {type: string}
+        current_phase: {type: [string, "null"]}
+        progress: {$ref: "#/components/schemas/ResearchProgress"}
+        steps: {type: array, items: {type: object}}
+        report_id: {type: [string, "null"], format: uuid}
+        created_at: {type: string, format: date-time}
+        started_at: {type: [string, "null"], format: date-time}
+        completed_at: {type: [string, "null"], format: date-time}
+    ResearchEventData:
+      anyOf:
+        - {$ref: "#/components/schemas/ResearchTaskState"}
+        - {$ref: "#/components/schemas/StreamErrorEventData"}
+        - {type: object, additionalProperties: true}
+    # ---- Evidence / Report ----
+    Evidence:
+      type: object
+      required: [evidence_id, task_id, source_type, display_title, validity, used_in_sections]
+      properties:
+        evidence_id: {type: string, format: uuid}
+        task_id: {type: string, format: uuid}
+        source_type: {type: string, enum: [internal, web]}
+        display_title: {type: [string, "null"]}
+        location_summary: {type: [string, "null"]}
+        source_observed_at: {type: [string, "null"], format: date-time}
+        score_summary: {type: [object, "null"], additionalProperties: true}
+        validity: {type: string}
+        relevance_score: {type: [number, "null"]}
+        used_in_sections: {type: array, items: {type: string}}
+        knowledge_base_id: {type: [string, "null"], format: uuid}
+        document_id: {type: [string, "null"], format: uuid}
+        document_version_id: {type: [string, "null"], format: uuid}
+        segment_id: {type: [string, "null"], format: uuid}
+        document_display_name_snapshot: {type: [string, "null"]}
+        url: {type: [string, "null"], format: uri}
+        fetched_at: {type: [string, "null"], format: date-time}
+        content: {type: [string, "null"]}
+    EvidenceList:
+      type: object
+      required: [items, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Evidence"}}
+        total: {type: integer, minimum: 0}
+    EvidenceRelation:
+      type: object
+      required: [relation_id, relation_type, confidence, claim]
+      properties:
+        relation_id: {type: integer}
+        relation_type: {type: string, enum: [supports, contradicts, context]}
+        confidence: {type: number}
+        rationale_summary: {type: [string, "null"]}
+        claim: {type: object, additionalProperties: true}
+    EvidenceRelationList:
+      type: object
+      required: [items, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/EvidenceRelation"}}
+        total: {type: integer, minimum: 0}
+    ReportEvidenceReference:
+      type: object
+      required: [evidence_id, source_type]
+      properties:
+        evidence_id: {type: string, format: uuid}
+        source_type: {type: string, enum: [internal, web]}
+        url: {type: [string, "null"], format: uri}
+        fetched_at: {type: [string, "null"], format: date-time}
+    ReportSection:
+      type: object
+      required: [section_id, heading, content, sequence, evidence]
+      properties:
+        section_id: {type: string, format: uuid}
+        heading: {type: string}
+        content: {type: string}
+        sequence: {type: integer, minimum: 0}
+        evidence: {type: array, items: {$ref: "#/components/schemas/ReportEvidenceReference"}}
+    Report:
+      type: object
+      required: [report_id, task_id, revision, status, title, language, sections]
+      properties:
+        report_id: {type: string, format: uuid}
+        task_id: {type: string, format: uuid}
+        revision: {type: integer, minimum: 1}
+        status: {type: string, enum: [published]}
+        title: {type: string}
+        language: {type: string}
+        evidence_completeness: {type: [string, "null"]}
+        limitations_summary: {type: [string, "null"]}
+        published_at: {type: [string, "null"], format: date-time}
+        sections: {type: array, items: {$ref: "#/components/schemas/ReportSection"}}

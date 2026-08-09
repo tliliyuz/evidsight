@@ -107,6 +107,7 @@ def _do_rrf_fusion(
             section_title=result.section_title,
             section_path=result.section_path,
             embedding=result.embedding,
+            segment_uuid=result.segment_uuid,
         )
         results.append(fused_result)
 

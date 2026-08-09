@@ -37,7 +37,7 @@ async def create_conversation_v1(
     """创建会话并绑定单个知识库（knowledge_base_id）。"""
     legacy = ConversationCreate(kb_uuid=req.knowledge_base_id, title=req.title)
     data = await create_conversation(db, current_user["user_id"], legacy)
-    return {"code": "0", "message": "会话创建成功", "data": data.model_dump()}
+    return data
 
 
 @router.get("")
@@ -49,7 +49,7 @@ async def list_conversations_v1(
 ):
     """当前用户会话列表（按 last_message_at 倒序，分页）。"""
     data = await list_conversations(db, current_user["user_id"], page, page_size)
-    return {"code": "0", "message": "ok", "data": data.model_dump()}
+    return data
 
 
 @router.get("/{conversation_id}")
@@ -61,7 +61,7 @@ async def get_conversation_v1(
     """会话详情（含消息历史），仅 owner 可访问。"""
     conv_internal_id = await resolve_uuid_to_id(db, Conversation, conversation_id)
     data = await get_conversation_detail(db, conv_internal_id, current_user["user_id"])
-    return {"code": "0", "message": "ok", "data": data.model_dump()}
+    return data
 
 
 @router.patch("/{conversation_id}")
@@ -74,7 +74,7 @@ async def rename_conversation_v1(
     """重命名会话；仅 owner 可操作。"""
     conv_internal_id = await resolve_uuid_to_id(db, Conversation, conversation_id)
     data = await rename_conversation(db, conv_internal_id, current_user["user_id"], req)
-    return {"code": "0", "message": "ok", "data": data.model_dump()}
+    return data
 
 
 @router.delete("/{conversation_id}", status_code=204)

@@ -148,6 +148,7 @@ def extract_citation_indices(text: str) -> set[str]:
 def build_sources(
     chunks: list,
     doc_map: dict[int, str],
+    doc_uuid_map: dict[int, str] | None = None,
 ) -> list[ChatSourceChunk]:
     """构建 sources 事件的 chunks 列表。
 
@@ -157,7 +158,10 @@ def build_sources(
     - preview_text：Evidence 定位（matched_sentence ±100 字符窗口）
     - highlight_start / highlight_end：证据句在 preview_text 内的偏移，前端纯渲染
     - doc_name 从 doc_map 查询
+    - document_uuid / segment_id：稳定身份（doc_uuid_map + chunk.segment_uuid），
+      前端据此进入文档切片抽屉并展开引用切片；doc_uuid_map 缺省时 document_uuid 为 None
     """
+    uuid_map = doc_uuid_map or {}
     sources = []
     for i, chunk in enumerate(chunks):
         chunk_index = i + 1  # 与 LLM Prompt 中 [来源N] 编号一致
@@ -194,6 +198,8 @@ def build_sources(
                 doc_name=doc_map.get(chunk.doc_id, ""),
                 content=content,
                 score=round(chunk.score, 4),
+                document_uuid=uuid_map.get(chunk.doc_id),
+                segment_id=getattr(chunk, "segment_uuid", None) or None,
                 page=chunk.page,
                 section_title=getattr(chunk, "section_title", None) or None,
                 section_path=getattr(chunk, "section_path", None) or None,

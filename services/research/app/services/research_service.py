@@ -157,7 +157,7 @@ async def create_task_idempotent(
     if existing is not None:
         if existing.request_fingerprint != request_fingerprint:
             raise IdempotencyKeyConflictException("相同 Idempotency-Key 的请求载荷与首次创建不一致")
-        return _build_replay_response(existing)
+        return await _build_replay_response(db, existing)
 
     try:
         return await create_task(
@@ -176,7 +176,7 @@ async def create_task_idempotent(
         await db.rollback()
         existing = await _find_task_by_idempotency_key(db, user_id, idempotency_key)
         if existing is not None and existing.request_fingerprint == request_fingerprint:
-            return _build_replay_response(existing)
+            return await _build_replay_response(db, existing)
         raise IdempotencyKeyConflictException(
             "相同 Idempotency-Key 的并发请求载荷不一致，拒绝创建新任务"
         )
@@ -204,7 +204,15 @@ async def _find_task_by_idempotency_key(
     return result.scalar_one_or_none()
 
 
-def _build_replay_response(task: ResearchTask) -> ResearchCreateResponse:
+async def _published_report_id(db: AsyncSession, task_id: str) -> str | None:
+    """返回任务当前已发布报告 ID；未发布时为 null。"""
+    result = await db.execute(
+        select(Report.id).where(Report.task_id == task_id, Report.current_revision_id.is_not(None))
+    )
+    return result.scalar_one_or_none()
+
+
+async def _build_replay_response(db: AsyncSession, task: ResearchTask) -> ResearchCreateResponse:
     """幂等重放响应：返回该任务当前状态（API.md §8.1），不反映创建时刻。"""
     is_direct_answer = (task.requirements or {}).get("task_type") == "direct_answer"
     return ResearchCreateResponse(
@@ -213,6 +221,7 @@ def _build_replay_response(task: ResearchTask) -> ResearchCreateResponse:
         created_at=task.created_at,
         direct_answer=is_direct_answer,
         idempotent_replayed=True,
+        report_id=await _published_report_id(db, task.id),
     )
 
 
@@ -338,6 +347,7 @@ async def _create_direct_answer_task(
     report = Report(task_id=task.id)
     db.add(report)
     await db.flush()
+    published_report_id = report.id
     revision = ReportRevision(
         report_id=report.id,
         revision_number=1,
@@ -407,6 +417,7 @@ async def _create_direct_answer_task(
         created_at=task.created_at,
         direct_answer=True,
         report=report,
+        report_id=published_report_id,
     )
 
 
@@ -474,8 +485,18 @@ async def get_task_list(
     result = await db.execute(q)
     tasks = result.scalars().all()
 
+    task_ids = [task.id for task in tasks]
+    report_ids: dict[str, str] = {}
+    if task_ids:
+        report_result = await db.execute(
+            select(Report.task_id, Report.id).where(
+                Report.task_id.in_(task_ids), Report.current_revision_id.is_not(None)
+            )
+        )
+        report_ids = dict(report_result.all())
+
     # 构建列表项
-    items = [_build_list_item(t) for t in tasks]
+    items = [_build_list_item(t, report_ids.get(t.id)) for t in tasks]
 
     return ResearchTaskListResponse(
         total=total,
@@ -485,7 +506,7 @@ async def get_task_list(
     )
 
 
-def _build_list_item(task: ResearchTask) -> ResearchTaskListItem:
+def _build_list_item(task: ResearchTask, report_id: str | None = None) -> ResearchTaskListItem:
     """从 ORM 对象构建列表项响应。
 
     从 requirements JSON 中提取 task_type 字段。
@@ -500,6 +521,7 @@ def _build_list_item(task: ResearchTask) -> ResearchTaskListItem:
         task_type=task_type,
         total_sources=task.total_sources or 0,
         total_evidence=task.total_evidence or 0,
+        report_id=report_id,
         created_at=task.created_at,
         completed_at=task.completed_at,
     )
@@ -529,6 +551,7 @@ async def get_task_detail(
         error_code=task.error_code,
         error_message=task.error_message,
         recoverable=task.recoverable,
+        report_id=await _published_report_id(db, task.id),
         created_at=task.created_at,
         started_at=task.started_at,
         completed_at=task.completed_at,

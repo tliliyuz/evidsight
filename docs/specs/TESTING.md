@@ -128,7 +128,7 @@ Internal Contract 每个版本必须通过 Meta-Schema、唯一 `$id`、可解�
 
 Knowledge Provider 契约测试即使使用 FakeSession 或 Mock 隔离数据服务，仍按 Provider/API 测试管理，必须在受管的服务容器环境执行；只有 Schema、Fixture、纯生成物检查与不导入服务 `app` 的 Consumer 测试可在固定开发环境中执行。这一约束不要求基础 CI 启动 MySQL、Redis、Celery 或 Chroma，但容器内测试必须在依赖未连接时仍可确定性执行。
 
-External OpenAPI 基础 CI 必须校验：OpenAPI 版本与文档语法、所有本地及跨文件 `$ref`、Schema 与操作示例、FastAPI 路由的 method/path 双向一致性、Provider 契约测试覆盖登记，以及相对受保护基线的 Breaking Change。首个受保护 OpenAPI 基线只执行前五项；基线合并后，Breaking Change 检查立即成为必过项。仅检查 `openapi`/`info`/`paths`/`components` 键存在不算语法或 `$ref` 验证通过。
+External OpenAPI 基础 CI 必须校验：OpenAPI 版本与文档语法、所有本地及跨文件 `$ref`、Schema 与操作示例、FastAPI 路由的 method/path 双向一致性、Provider 契约测试覆盖登记，以及相对受保护基线的 Breaking Change。路由一致性必须分别提取 Knowledge 与 Research 两个 FastAPI App 的全部浏览器外部 `/api/v1/*` 操作并汇总双向比对；不得通过前缀白名单只检查当前切片、不得把内部 API、legacy 路由或仅有实现测试的端点记为 External OpenAPI 已覆盖。Chat/Research SSE 除路径外还必须逐事件校验事件名、顺序与每种 `data` Schema。首个受保护 OpenAPI 基线只执行前五项；基线合并后，Breaking Change 检查立即成为必过项。仅检查 `openapi`/`info`/`paths`/`components` 键存在不算语法或 `$ref` 验证通过。
 
 契约 Schema 与 Fixture 以 `packages/contracts/` 为唯一权威源，双方测试不得复制 Schema 或自造 Fixture。已落地的 Internal Identity Status 契约测试分布：
 

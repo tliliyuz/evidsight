@@ -52,7 +52,7 @@
 | M1 | 已完成 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
 | M2 | 已完成 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence，并完成供 Web 消费的 Knowledge v1 外部 API | M1 的身份与 Contract 基线 |
 | M3 | 已完成 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 已验证的 Internal Retrieval 与权限切片 |
-| M4 | 进行中 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
+| M4 | 进行中 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API、字段契约与事件 |
 | M5 | 未开始 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的三节点 2C2G 试点部署 | M1—M4 |
 | M6 | 未开始 | v1.0 发布门禁与后续演进 | 全部 P0、成功指标和端到端场景完成发布验收 | M0—M5 |
 
@@ -336,19 +336,23 @@ M3 已完成（2026-08-08）。八条 Research Pipeline 退出门禁逐项核对
 
 阶段状态更新（2026-08-09，M2 收口后）：解除条件已满足。M2 三条外部 API 退出门禁（Knowledge Base / Document / Conversation v1 Provider、统一可见列表、`docs/openapi/evidsight-v1.yaml` 三方一致）已全部通过并留下可复核证据（commit `dc92313`，容器内 52 项契约/行为测试全绿，路由清单 ↔ OpenAPI 路径清单 ↔ Provider 契约测试三方一致）。依据事实状态模型，M4 状态更新为「进行中」：切片 3A「稳定 Segment ID 契约」（commit `8607c4c`，2026-08-09）为知识中心前置阻断项已落地，切片 3B「知识中心」（知识库列表/详情、文档列表/上传/重试/删除、切片抽屉实时鉴权）开始按排期推进，完成后暂停汇报；切片 4-8 依次推进，不改变既有 M4 范围内工作与退出门禁。
 
+契约反向审计（2026-08-09）：上述解除结论只证明 M2 所属 Knowledge Base / Document / Conversation 三类 Provider 就绪，不能证明 M4 第 1 项进入条件已整体满足。`docs/openapi/evidsight-v1.yaml` 当前未覆盖 Auth、Chat 请求与 Chat SSE、Research Task、Research SSE、Evidence、Report；既有“三方一致”测试也只检查 Knowledge Service 的 `/api/v1/knowledge-bases`、`/api/v1/documents`、`/api/v1/conversations` 三个前缀。M4 因此重新标为「受阻」：切片 3B 已完成结果保留；切片 4 的独立前端部分与在途后端改动不得作为完成证据；切片 5 及后续 API Consumer 生产实现暂停。解除条件为 API.md 字段冲突完成负责人裁决、External OpenAPI 覆盖对应路径和 SSE `data` Schema、Knowledge/Research 双 Provider 路由清单与 OpenAPI/Provider 测试全量双向一致。ADR 检查 1–8：否（纠正门禁覆盖范围与事实状态；字段裁决、测试和实现另按 SDD 执行）。
+
+契约门禁解除（2026-08-09）：负责人已裁决 Chat v1 使用 `question`、Research v1 保持嵌套 `requirements` 且预算由服务端推导、全部 v1 立即使用 §4 响应、正式报告只由 `/api/v1/reports/{report_id}` 读取。裁决已进入 API.md 与 `docs/openapi/evidsight-v1.yaml`；External OpenAPI 现覆盖 29 条 Auth / Knowledge Base / Document / Conversation / Chat / Research / Evidence / Report 路径及两套 SSE `data` Schema，Knowledge/Research 两个 FastAPI App 的浏览器外部 v1 路由清单与 OpenAPI、Provider 测试覆盖表均双向一致。M4 恢复「进行中」：切片 4 在途工作保留并继续，但还需完成来源卡片到切片抽屉的实时鉴权联动及切片级视觉验收；不得因契约门禁解除而把切片 4 标为完成。切片 5 的字段权威只允许是 External OpenAPI，且按切片顺序在切片 4 收口后推进。ADR 检查 1–8：否（执行负责人对未发布 v1 draft 的契约裁决，不改变服务边界、权限模型或数据生命周期）。
+
 #### M4 Provider 就绪清单
 
 | 前端能力 | 目标 Provider | 2026-08-09 状态 | M4 判定 |
 |:---|:---|:---|:---|
-| Auth | `/api/v1/auth/*` | 已实现 | 可消费 |
-| Chat | `/api/v1/chat/*` + canonical SSE | 已实现 | 可消费 |
-| Research | `/api/v1/research/*` + canonical SSE | 已实现 | 可消费 |
-| Evidence / Report | API.md §9 v1 读取端点 | 已实现 | 可消费 |
+| Auth | `/api/v1/auth/*` | 已实现并进入 External OpenAPI | 可消费 |
+| Chat | `/api/v1/chat/*` + canonical SSE | 已实现；`question` 与 SSE `data` Schema 已进入 External OpenAPI | 可消费；切片 4 继续收口 |
+| Research | `/api/v1/research/*` + canonical SSE | 已实现；嵌套 `requirements`、任务 DTO 与 SSE `data` Schema 已进入 External OpenAPI | 可消费；按切片顺序推进 |
+| Evidence / Report | API.md §9 v1 读取端点 | 已实现；正式 Report 与 Evidence 字段 Schema 已进入 External OpenAPI | 可消费；task report 仅兼容入口 |
 | 内部原文位置 | `/api/v1/documents/{document_id}/locations/{location_id}` | 已实现 | 可消费 |
 | Knowledge Base CRUD / 统一列表 / 名称搜索 | `/api/v1/knowledge-bases/*` | 已实现 | 可消费（M4 切片 3B 消费中） |
 | Document 上传 / 列表 / 详情 / 重试 / 删除 / 分块 | API.md §6.2 v1 端点 | 已实现 | 可消费（M4 切片 3B 消费中） |
 | Conversation 列表 / 详情 / 更新 / 删除 | `/api/v1/conversations/*` | 已实现 | 可消费（M4 切片 3B 后切片消费） |
-| External OpenAPI | `docs/openapi/evidsight-v1.yaml` | 已建立 | 已成为上述 v1 Provider 字段契约的唯一权威源 |
+| External OpenAPI | `docs/openapi/evidsight-v1.yaml` | 覆盖全部 29 条浏览器外部 v1 路径及两套 SSE | 双 Provider 全 M4 契约门禁已通过 |
 
 #### M4 前端切片依赖、并行与视觉纠偏门禁
 

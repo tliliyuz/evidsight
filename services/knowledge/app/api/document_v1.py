@@ -43,7 +43,7 @@ async def upload_document_v1(
     data = await upload_document(
         db, kb_internal_id, current_user["user_id"], current_user["role"], file, force
     )
-    return {"code": "0", "message": "文档上传成功，已加入处理队列", "data": data.model_dump()}
+    return data
 
 
 @kb_doc_router.get("/{kb_id}/documents")
@@ -72,7 +72,7 @@ async def list_documents_v1(
         page=page,
         page_size=page_size,
     )
-    return {"code": "0", "message": "ok", "data": data.model_dump()}
+    return data
 
 
 async def _resolve_doc_kb_id(db: AsyncSession, document_id: str) -> tuple[Document, int]:
@@ -94,7 +94,7 @@ async def get_document_v1(
     """文档详情（KB READ 权限约束）。"""
     doc, kb_id = await _resolve_doc_kb_id(db, document_id)
     data = await get_document(db, kb_id, doc.id, current_user["user_id"], current_user["role"])
-    return {"code": "0", "message": "ok", "data": data.model_dump()}
+    return data
 
 
 @doc_v1_router.get("/{document_id}/chunks")
@@ -116,7 +116,7 @@ async def get_document_chunks_v1(
         page=page,
         page_size=page_size,
     )
-    return {"code": "0", "message": "ok", "data": data.model_dump()}
+    return data
 
 
 @doc_v1_router.post("/{document_id}/retry", status_code=202)
@@ -130,7 +130,7 @@ async def reprocess_document_v1(
     data = await reprocess_document(
         db, kb_id, doc.id, current_user["user_id"], current_user["role"]
     )
-    return {"code": "0", "message": "重新处理任务已提交", "data": data.model_dump()}
+    return data
 
 
 @doc_v1_router.delete("/{document_id}", status_code=204)

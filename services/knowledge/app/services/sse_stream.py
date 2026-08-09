@@ -64,6 +64,7 @@ async def _generate_sse_stream(
     prompt_result: PromptBuildResult,
     reranked_output: RetrievalOutput,
     doc_map: dict[int, str],
+    doc_uuid_map: dict[int, str] | None = None,
     recorder: TraceRecorder | None = None,
 ) -> AsyncIterator[str]:
     """SSE 事件流生成器 — LLM 流式调用 + 消息持久化。
@@ -196,7 +197,7 @@ async def _generate_sse_stream(
         _error_chunks = prompt_result.used_chunks or reranked_output.results
         if _error_chunks:
             # LLM 失败时无 assistant_content，preview 降级为 None
-            sources = build_sources(_error_chunks, doc_map)
+            sources = build_sources(_error_chunks, doc_map, doc_uuid_map)
             yield format_sse_event("sources", {"chunks": [s.model_dump() for s in sources]})
 
         error_code = "E4002"
@@ -265,6 +266,7 @@ async def _generate_sse_stream(
                 sources = build_sources(
                     [c for _, c in _cited_with_orig_index],
                     doc_map,
+                    doc_uuid_map,
                 )
                 for j, (orig_idx, _) in enumerate(_cited_with_orig_index):
                     sources[j].chunk_index = orig_idx
@@ -279,7 +281,7 @@ async def _generate_sse_stream(
                 "SOURCES_FALLBACK: LLM 未引用 [来源N]，回退发送全部 used_chunks (%d 个)",
                 len(_send_chunks),
             )
-            sources = build_sources(_send_chunks, doc_map)
+            sources = build_sources(_send_chunks, doc_map, doc_uuid_map)
             yield format_sse_event(
                 "sources",
                 build_sources_event_data(sources, _audit_result),

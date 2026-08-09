@@ -43,7 +43,7 @@ M1 的统一身份、服务认证和敏感数据外发决策由已接受的 [ADR
 
 ### 3.1 外部 DTO 最小基线
 
-`docs/openapi/evidsight-v1.yaml` 是字段、类型和约束的唯一权威源；本文只定义行为、权限、状态码与兼容语义，不再重复 Schema。下表仅保留 OpenAPI 尚未覆盖 DTO 的最小基线；已由 OpenAPI 覆盖的 Knowledge Base / Document / Conversation 字段契约一律以 `docs/openapi/evidsight-v1.yaml` 为准（实际字段名如 `uuid`/`kb_uuid`/`segment_id` 与 OpenAPI 定义一致，不以此表为准）。
+`docs/openapi/evidsight-v1.yaml` 是已纳入路径的字段、类型和约束唯一权威源；本文只定义行为、权限、状态码与兼容语义，不重复已固化 Schema。字段级 Consumer 与 Provider 实施必须等待对应 DTO 进入 External OpenAPI，并通过双服务路由清单 ↔ OpenAPI 路径清单 ↔ Provider 契约测试三方一致；不得以现有 Pydantic Model、手工 `dict`、前端类型或测试 Fixture 反向取得契约权威性。
 
 | DTO | 必需字段 | 关键约束 |
 |:---|:---|:---|
@@ -52,13 +52,13 @@ M1 的统一身份、服务认证和敏感数据外发决策由已接受的 [ADR
 | `KnowledgeBaseCreate` / `KnowledgeBaseResponse` / `KnowledgeBaseList` | 见 `docs/openapi/evidsight-v1.yaml` | `visibility=private|public`；`owner` 为 Platform User UUID |
 | `DocumentResponse` / `DocumentList` / `DocumentUpload` / `DocumentChunk` / `DocumentLocation` | 见 `docs/openapi/evidsight-v1.yaml` | `status=queued|processing|completed|partial|failed|deleting`；分块 `segment_id` 为稳定身份，`id` 仅迁移期兼容 |
 | `ConversationResponse` / `ConversationDetail` / `ConversationList` | 见 `docs/openapi/evidsight-v1.yaml` | 会话只属于一个用户和一个 KB；`knowledge_base_id` 用于创建请求 |
-| `ChatStreamRequest` | `conversation_id`、`knowledge_base_id`、`message` | v1.0 只有单数 KB；消息非空 |
-| `ResearchTaskCreate` | `topic`、`task_type`、`source_strategy`、`knowledge_base_ids`、预算摘要 | knowledge/hybrid 为 1—50 个 KB；web 必须为空 |
-| `ResearchTaskResponse` | `id`、`status`、`phase`、`progress`、`recoverable`、时间 | 状态和 Phase 引用 Research Pipeline |
+| `ChatStreamRequest` | `conversation_id`、`knowledge_base_id`、`question` | v1.0 只有单数 KB；问题非空；不接受 `message` |
+| `ResearchTaskCreate` | `topic`、`requirements`、`source_strategy`、`knowledge_base_ids` | `requirements` 保持嵌套结构；预算由服务端推导，客户端不得提交预算摘要；knowledge/hybrid 为 1—50 个 KB，web 必须为空 |
+| `ResearchTaskResponse` | `task_id`、`status`、`current_phase`、`progress`、`recoverable`、`report_id`、时间 | 状态和 Phase 引用 Research Pipeline；未发布报告时 `report_id=null`，发布后返回正式 Report ID |
 | `EvidenceResponse` | Contract `EvidenceReference` 的公开投影 | Internal 不含正文；展开时实时鉴权 |
 | `ReportResponse` | `id`、`task_id`、`revision`、`status`、章节、引用、完整度摘要 | published Revision 不可变 |
 
-正式 Schema 还必须定义分页对象、条件更新版本、上传 multipart、错误 `details` 白名单以及 Chat/Research SSE 每种 `data` 对象。
+正式 Schema 还必须定义分页对象、条件更新版本、上传 multipart、错误 `details` 白名单以及 Chat/Research SSE 每种 `data` 对象。负责人于 2026-08-09 裁决：Chat v1 统一使用 `question`；Research v1 保持嵌套 `requirements` 且预算由服务端推导；全部 v1 API 直接执行 §4 成功响应与标准 `error` 信封；正式报告只通过 `/api/v1/reports/{report_id}` 读取，Research Task 在报告发布后返回 `report_id`。上述 DTO 与 SSE `data` Schema 已进入 External OpenAPI，并通过 Knowledge/Research 双 Provider 路由及测试覆盖门禁；切片 5 后续实现只允许消费该契约。ADR 检查 1—8：否（在未发布的 `1.0.0-draft` 中统一已存在的字段与响应目标，不改变服务边界、权限模型或数据生命周期）。
 
 ## 4. 通用响应与错误
 
@@ -85,6 +85,8 @@ M1 的统一身份、服务认证和敏感数据外发决策由已接受的 [ADR
 ```
 
 错误命名空间为 `AUTH_*`、`KB_*`、`DOC_*`、`CHAT_*`、`RS_*`、`EVIDENCE_*`、`REPORT_*`、`INTERNAL_*`、`SYSTEM_*`。常用映射：校验 `400/422`，未认证 `401`，无权限 `403`，不可见/不存在 `404`，状态或幂等冲突 `409`，过大 `413`，限流/并发上限 `429`，内部错误 `500`，上游错误 `502/504`，依赖不可用 `503`。
+
+本节是全部 `/api/v1/*` 的立即生效契约，不设 `{"code","message","data"}` 迁移信封例外。legacy 路由可在退出门禁前保留原信封；v1 Provider、OpenAPI、契约测试和 Consumer 必须同步收敛到本节结构。
 
 `details` 只含安全、结构化、可操作信息。响应不得包含正文、密码、Token、服务凭证、SQL、内部路径或堆栈。
 
@@ -135,7 +137,7 @@ READ、owner 和 admin 治理分别判断，权限矩阵引用 PRD §8。
 | `DELETE /api/v1/documents/{document_id}` | owner/admin 治理 | 204 | 异步清理另有状态字段 |
 | `GET /api/v1/documents/{document_id}/locations/{location_id}` | 当前 READ | 200 | 实时鉴权后返回最小片段和定位 |
 
-`location_id` 即 Segment 稳定 UUID（`chunks.segment_uuid`）。每次展开原文都按当前用户状态、KB 状态和 READ 权限重新鉴权（IDENTITY_AND_ACCESS §9）；权限撤销、文档删除或来源失效返回明确受限/不可用状态（迁移期 `E2015`）。成功响应为信封 `{"code","message","data"}`，`data` 含 `document_id`/`segment_id`/`minimal_excerpt`/`location`（`page_number` 或 `section_path`）/`source_updated_at`；`minimal_excerpt` 为临时内容，客户端不得持久化。
+`location_id` 即 Segment 稳定 UUID（`chunks.segment_uuid`）。每次展开原文都按当前用户状态、KB 状态和 READ 权限重新鉴权（IDENTITY_AND_ACCESS §9）；权限撤销、文档删除或来源失效返回明确受限/不可用状态（迁移期 `E2015`）。成功响应直接包含 `document_id`/`segment_id`/`minimal_excerpt`/`location`（`page_number` 或 `section_path`）/`source_updated_at`；`minimal_excerpt` 为临时内容，客户端不得持久化。
 
 **Document 外部 API 迁移态（2026-08-09）**：本节 v1 端点已全部实现 —— 上传 `POST /api/v1/knowledge-bases/{kb_id}/documents`（202）、列表（200）、详情 `GET /api/v1/documents/{document_id}`（200）、分块列表（200，含稳定 `segment_id`）、重新处理 `POST /api/v1/documents/{document_id}/retry`（202，幂等）、删除 `DELETE /api/v1/documents/{document_id}`（204）与 location（实时鉴权），字段契约以 `docs/openapi/evidsight-v1.yaml` 为唯一权威。legacy `/api/knowledge-bases/{kb_id}/documents/*` 只作为兼容入口保留（单文件上传返回 `201`、重新处理路径名为 `reprocess`、删除返回 `202`），按 API.md §15 保留观测和退出门禁。状态与解除门禁见 [ROADMAP](../plans/ROADMAP.md) M2/M4；ADR 检查 1–8：否（让实现回到既有 API.md §6.2 目标态，不改变权限模型、服务边界或数据生命周期）。
 
@@ -162,7 +164,7 @@ v1.0 Chat 请求只接受一个 `knowledge_base_id`，Conversation 也只绑定�
 
 Chat generation 取消状态机：仅 `pending|running` 可迁移到 `canceled`；对已 `canceled` generation 重复取消返回 `202` 且 `idempotent_replayed=true`；对 `completed|failed` 取消返回 `409 CHAT_GENERATION_STATE_CONFLICT`。generation 不存在或不属于当前创建者统一返回安全 `404 CHAT_GENERATION_NOT_FOUND`，不得借此枚举其他用户的 generation。负责人于 2026-08-08 批准该规范补充；ADR 检查 1–8：否（补齐既有取消端点的局部失败与幂等语义，不改变权限模型、公共机制或数据生命周期）。
 
-外部 API 的字段级请求、响应和事件 `data` Schema 由后续建立的 `docs/openapi/evidsight-v1.yaml` 统一维护；本文只定义行为、权限、状态码和兼容语义。在该 OpenAPI 文件建立前，不得把实现中的临时 DTO 视为已发布契约。
+外部 API 的字段级请求、响应和事件 `data` Schema 统一由 `docs/openapi/evidsight-v1.yaml` 维护；本文只定义行为、权限、状态码和兼容语义。Auth、Chat、Research、Evidence、Report 与两套 SSE 在相应路径和 Schema 补齐前均不得把实现中的临时 DTO 视为已发布契约。
 
 ## 8. Research Task API
 
@@ -176,9 +178,9 @@ Chat generation 取消状态机：仅 `pending|running` 可迁移到 `canceled`�
 | `DELETE /api/v1/research/tasks/{task_id}` | owner/admin 治理 | 204 |
 | `GET /api/v1/research/tasks/{task_id}/events` | owner/admin 审计 | 200 SSE |
 | `GET /api/v1/research/tasks/{task_id}/state` | owner/admin 审计 | 200 |
-| `GET /api/v1/research/tasks/{task_id}/report` | owner/admin 审计 | 200 |
+| `GET /api/v1/research/tasks/{task_id}/report` | owner/admin 审计 | 200，迁移兼容 |
 
-`state` 与 `report` 为切片 8 收敛时并入 v1 的旧前缀语义等价路由（§8.2）；admin 审计/治理权限当前实现为 owner-only，admin 扩展待 Admin API 切片。
+`state` 为切片 8 收敛时并入 v1 的旧前缀语义等价路由（§8.2）；`report` 仅为迁移兼容入口，正式报告读取以 §9 `/api/v1/reports/{report_id}` 为唯一目标。兼容入口必须记录不含正文的废弃调用量，在 Consumer 全部改用 Task DTO 的 `report_id`、观测窗口归零且回归通过后删除。admin 审计/治理权限当前实现为 owner-only，admin 扩展待 Admin API 切片。
 
 ADR 检查 1–8：否。本节的裁决与验证记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05「落地 M3 切片 A」「更新 API.md §8」与 2026-08-06「落地 M3 切片 B」条目）；下方为当前契约事实。
 
@@ -201,29 +203,29 @@ Search 阶段按来源策略分流（RESEARCH_PIPELINE §3/§6.1）：`knowledge
 
 Task/Phase/Step 枚举由 Research Pipeline 权威定义；API 只暴露状态、进度、时间、可恢复性和安全错误。客户端必须容忍未知非终态枚举。
 
-### 8.2 信封迁移态
+### 8.2 v1 收敛契约
 
-当前态：`POST /api/v1/research/tasks` 返回 `{"code":"0","message":"...","data":{...}}`，请求体沿用 `topic + requirements + source_strategy + knowledge_base_ids`，错误信封为 `{"code","message","detail"}`。目标态：API.md §4 `{"error":{...}}` 错误结构与 §3.1 扁平 `ResearchTaskCreate`（含预算摘要）。迁移步骤、Consumer 清单、观测与退出门禁记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-05「更新 API.md §8」条目）。
+`POST /api/v1/research/tasks` 请求体固定为 `topic + requirements + source_strategy + knowledge_base_ids`；`requirements` 是嵌套对象，预算由服务端根据要求和系统上限推导，客户端预算摘要属于未知字段并被拒绝。全部 Research v1 成功响应直接返回资源或 §4 分页对象，错误统一返回 §4 `{"error":{...}}`。`{"code","message","data"}` 与 `{"code","message","detail"}` 只允许旧 `/api/research/*` 兼容入口继续使用，不得由新 Consumer 固化。负责人于 2026-08-09 裁决“实现服从规范”。
 
 **端点覆盖迁移态（2026-08-08 切片 8 收敛）**：`/api/v1/research` 已补齐 §8 全部研究命令与查询 —— `POST /tasks`（§8.1 幂等创建）、`GET /tasks`、`GET /tasks/{task_id}`、`POST /tasks/{task_id}/cancel`、`POST /tasks/{task_id}/resume`、`DELETE /tasks/{task_id}`（204）、`GET /tasks/{task_id}/events`（SSE），并收敛旧前缀 `state`/`report` 为 `GET /tasks/{task_id}/state` 与 `GET /tasks/{task_id}/report`（对齐 ROADMAP 2026-08-05「Research API 路径迁移到 /api/v1/research」裁决）。旧前缀 `/api/research` 收敛期间保持可用：改为薄适配器复用同一 application service（`app/api/research_common.py`），每个旧前缀路由入口记录废弃调用量指标 `researchmind_old_api_calls_total`（按路由标签）。**Consumer 清单与退出门禁**：仓库内前端（`apps/web`）当前不调用 Research CRUD 路由；脚本仅 `scripts/smoke_compose.sh` 使用 `/api/research/health`（健康探针，独立于 CRUD 路由）；旧前缀 CRUD 路由删除需满足 §15「废弃路由必须记录调用量；在观测窗口归零且 Consumer 回归通过后才能删除」，观测指标为旧前缀调用量，删除前由负责人确认窗口关闭。此处登记为迁移期事实，不新增契约语义。
 
 **Research SSE 迁移态（2026-08-08）**：v1 `GET /api/v1/research/tasks/{task_id}/events` 已通过独立投影输出 §13 canonical 事件；旧 `/api/research/{task_id}/stream` 继续输出 granular 事件 `task.status.snapshot`、`task.*`、`phase.*`、`step.*`、`checkpoint.saved` 与安全白名单内的 `agent.action|observation`，并保留废弃调用量指标。React Web 只允许消费 v1。退出门禁为旧路由调用量观测窗口归零、仓库内 Consumer 迁移且 canonical Provider/Consumer 回归通过；满足后经负责人确认删除旧 granular 适配。负责人于 2026-08-08 裁决“实现服从规范”；ADR 检查 1–8：否（只修正 v1 Provider 使其符合既有 §13，不改变目标公共契约、任务状态事实或权限）。裁决与实现记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-08「裁决 M4 SSE 与 Admin 评审阻断项」「统一 Research v1 SSE」）。
 
-### 8.3 迁移期错误码映射
+### 8.3 内部错误到 v1 公开错误码的映射
 
-Knowledge Internal 返回的新命名空间错误码在 Research 消费端映射为迁移期外部 E 码；信封统一到 §4 目标态前，本表是当前对外语义（对齐文档治理 §5.3）。退出条件：全平台信封统一落地 §4（§8.2）时随迁新码并删除本表与旧 E 码；观测：后端访问日志 `error_code` 分布与错误映射测试。
+Research 内部仍可能接收或产生历史 E 码，但 `/api/v1/*` 边界必须在返回前投影为 §4 命名空间错误码；E 码只属于内部兼容实现，不是 v1 公开契约。观测入口为后端访问日志的 `error_code` 分布与错误映射测试。
 
-| 内部返回（Contract / Knowledge） | 迁移期外部 E 码 | 语义 | retryable |
+| 内部返回（Contract / Knowledge） | 内部兼容 E 码 | v1 公开错误码 | retryable |
 |:---|:---|:---|:---:|
-| `AUTH_USER_DISABLED` | `E1010` | 用户禁用或不存在 | 否 |
-| `INTERNAL_IDENTITY_UNAVAILABLE` / 网络 / 超时 | `E9002` | 身份事实源不可用，失败关闭 | 是 |
-| `INTERNAL_CONTRACT_*` / `INTERNAL_SERVICE_UNAUTHENTICATED` / `EVIDENCE_SOURCE_UNAVAILABLE` | `E3117` | Internal Retrieval Contract 或响应校验失败 | 否 |
-| `INTERNAL_RETRIEVAL_UNAVAILABLE` / 限流 / 网络 / 超时 | `E3116` | 内部检索瞬时不可用 | 是 |
-| `KB_FORBIDDEN` | `E3115` | 任一目标 KB 无权，整次检索失败 | 否 |
-| DATABASE.md §5.1 不变量破坏（无知识库选择行） | `E3114` | Worker 来源策略 fail-closed | 否 |
-| Idempotency-Key 同 Key 不同指纹 | `E2009` | 幂等冲突 | 否 |
+| `AUTH_USER_DISABLED` | `E1010` | `AUTH_USER_DISABLED` | 否 |
+| `INTERNAL_IDENTITY_UNAVAILABLE` / 网络 / 超时 | `E9002` | `SYSTEM_UNAVAILABLE` | 是 |
+| `INTERNAL_CONTRACT_*` / `INTERNAL_SERVICE_UNAUTHENTICATED` / `EVIDENCE_SOURCE_UNAVAILABLE` | `E3117` | `RS_INTERNAL_RETRIEVAL_CONTRACT` | 否 |
+| `INTERNAL_RETRIEVAL_UNAVAILABLE` / 限流 / 网络 / 超时 | `E3116` | `RS_INTERNAL_RETRIEVAL_UNAVAILABLE` | 是 |
+| `KB_FORBIDDEN` | `E3115` | `RS_INTERNAL_KNOWLEDGE_FORBIDDEN` | 否 |
+| DATABASE.md §5.1 不变量破坏（无知识库选择行） | `E3114` | `RS_KNOWLEDGE_BASES_MISSING` | 否 |
+| Idempotency-Key 同 Key 不同指纹 | `E2009` | `RS_IDEMPOTENCY_CONFLICT` | 否 |
 
-Knowledge 对外 Auth 仍使用的既有 E 码（如 `E5009` Refresh Token 重放）与信封一并随 §4 目标态迁移；全平台收口后删除。
+Knowledge/Research legacy 路由可继续输出既有 E 码；同一异常进入 `/api/v1/*` 时必须先映射为本节命名空间错误码。
 
 ADR 检查（2026-08-06）：命中第 3、4 项。负责人豁免 ADR——执行 API.md §4 已批准目标态，不形成新方案选择；记录见 [CHANGELOG](../CHANGELOG.md)。
 
@@ -239,6 +241,8 @@ ADR 检查（2026-08-06）：命中第 3、4 项。负责人豁免 ADR——执�
 | `POST /api/v1/reports/{report_id}/exports` | task READ，P1 | 202 |
 
 Evidence 明确 `internal|web` 来源类型。内部原文链接指向 Knowledge 来源访问端点并实时鉴权；报告不得内嵌可绕过权限的历史正文。外部 Evidence 展示原始 URL 与获取时间。`supports|contradicts|context` 关系和字段 Schema 归 Contract/Research Pipeline。
+
+正式报告读取以 `GET /api/v1/reports/{report_id}` 为唯一目标接口。Research Task DTO 在报告尚未发布时返回 `report_id=null`，发布后返回正式 Report ID；Consumer 据此进入本节报告端点。`GET /api/v1/research/tasks/{task_id}/report` 只作为迁移兼容入口保留并记录废弃调用量，不得成为新 Consumer 的字段权威或导航目标。负责人于 2026-08-09 批准该收敛规则；ADR 检查 1—8：否（统一同一服务内已有报告读取入口，不改变报告生命周期、权限或服务边界）。
 
 ## 10. Admin API
 

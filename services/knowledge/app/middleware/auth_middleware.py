@@ -3,9 +3,12 @@
 使用纯 ASGI 中间件（非 BaseHTTPMiddleware），以便正确返回 JSON 错误响应。
 """
 
+from uuid import uuid4
+
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from app.core.api_response import error_envelope
 from app.core.security import decode_access_token
 
 # 不需要认证的公开路由（已完整覆盖 /docs 及其子路径）
@@ -32,6 +35,26 @@ def _is_public(path: str) -> bool:
     )
 
 
+def _invalid_token_response(request: Request, detail: str) -> JSONResponse:
+    if request.url.path.startswith("/api/v1/"):
+        request_id = request.headers.get("X-Request-ID") or uuid4().hex
+        return JSONResponse(
+            status_code=401,
+            content=error_envelope(
+                code="E5004",
+                message="Token 无效或格式错误",
+                request_id=request_id,
+                status_code=401,
+                retryable=False,
+            ),
+            headers={"X-Request-ID": request_id},
+        )
+    return JSONResponse(
+        status_code=401,
+        content={"code": "E5004", "message": "Token 无效或格式错误", "detail": detail},
+    )
+
+
 class AuthMiddleware:
     """纯 ASGI 中间件 — JWT 认证"""
 
@@ -53,13 +76,8 @@ class AuthMiddleware:
         # 提取 Authorization header
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
-            response = JSONResponse(
-                status_code=401,
-                content={
-                    "code": "E5004",
-                    "message": "Token 无效或格式错误",
-                    "detail": "缺少 Authorization header 或格式不是 Bearer",
-                },
+            response = _invalid_token_response(
+                request, "缺少 Authorization header 或格式不是 Bearer"
             )
             await response(scope, receive, send)
             return
@@ -68,14 +86,7 @@ class AuthMiddleware:
         payload = decode_access_token(token)
 
         if not payload:
-            response = JSONResponse(
-                status_code=401,
-                content={
-                    "code": "E5004",
-                    "message": "Token 无效或格式错误",
-                    "detail": "Token 解析失败或已过期",
-                },
-            )
+            response = _invalid_token_response(request, "Token 解析失败或已过期")
             await response(scope, receive, send)
             return
 
@@ -84,14 +95,7 @@ class AuthMiddleware:
             request.state.platform_user_id = payload["sub"]
             request.state.user_id = payload["sub"]
         except (KeyError, ValueError, TypeError):
-            response = JSONResponse(
-                status_code=401,
-                content={
-                    "code": "E5004",
-                    "message": "Token 无效或格式错误",
-                    "detail": "Token payload 缺少 sub 字段或格式异常",
-                },
-            )
+            response = _invalid_token_response(request, "Token payload 缺少 sub 字段或格式异常")
             await response(scope, receive, send)
             return
 

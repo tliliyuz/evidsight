@@ -168,6 +168,17 @@ async def logout_user_v1(
     return response
 
 
+@v1_router.put("/password", status_code=204)
+async def change_user_password_v1(
+    req: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """修改密码并撤销全部 Refresh Family；成功返回 204 无正文。"""
+    await change_password(db, user["user_id"], req.old_password, req.new_password)
+    return Response(status_code=204)
+
+
 @router.post("/register", status_code=201, response_model=dict)
 async def register_user(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     user = await register(db, req.username, req.password)

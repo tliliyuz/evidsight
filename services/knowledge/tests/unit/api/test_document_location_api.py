@@ -1,6 +1,6 @@
 """GET /api/v1/documents/{document_id}/locations/{location_id} API 测试
 
-对齐 API.md §6.2：实时鉴权后返回最小片段和定位（信封迁移态 {"code","message","data"}）。
+对齐 API.md §6.2：实时鉴权后直接返回最小片段和定位。
 """
 
 from datetime import datetime, timezone
@@ -50,9 +50,7 @@ class TestGetDocumentLocationV1:
 
         assert response.status_code == 200
         body = response.json()
-        assert body["code"] == "0"
-        assert body["message"] == "ok"
-        data = body["data"]
+        data = body
         assert data["document_id"] == DOC_UUID
         assert data["segment_id"] == LOCATION_UUID
         assert data["minimal_excerpt"] == "来源最小片段"
@@ -75,7 +73,7 @@ class TestGetDocumentLocationV1:
             )
 
         assert response.status_code == 404
-        assert response.json()["code"] == "E2001"
+        assert response.json()["error"]["error_code"] == "DOC_NOT_FOUND"
         mock_get.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -94,7 +92,7 @@ class TestGetDocumentLocationV1:
             )
 
         assert response.status_code == 403
-        assert response.json()["code"] == "E5005"
+        assert response.json()["error"]["error_code"] == "AUTH_FORBIDDEN"
 
     @pytest.mark.asyncio
     async def test_来源不可用E2015(self, async_client, auth_headers):
@@ -112,11 +110,11 @@ class TestGetDocumentLocationV1:
             )
 
         assert response.status_code == 404
-        assert response.json()["code"] == "E2015"
+        assert response.json()["error"]["error_code"] == "EVIDENCE_SOURCE_UNAVAILABLE"
 
     @pytest.mark.asyncio
     async def test_未登录E5004(self, async_client):
         """未携带 Bearer → 401 E5004"""
         response = await async_client.get(f"/api/v1/documents/{DOC_UUID}/locations/{LOCATION_UUID}")
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"

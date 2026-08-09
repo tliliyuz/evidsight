@@ -43,6 +43,9 @@ class RetrievalResult:
     matched_sentence: str | None = None
     matched_sentence_score: float | None = None
     embedding: list[float] | None = None
+    # 稳定 Segment ID 契约：随检索结果穿透到 sources 事件，前端据此展开原文切片。
+    # Vector 路径从 ChromaDB metadata 读取；BM25 路径随原文按 (doc_id, chunk_index) 取回。
+    segment_uuid: str | None = None
 
 
 @dataclass
@@ -167,6 +170,9 @@ class VectorRetriever:
             section_path = meta.get("section_path") or None
             page = int(meta.get("page", 0)) if meta.get("page") is not None else None
 
+            # 稳定 Segment ID：ChromaDB metadata 在入库时写入 segment_uuid
+            segment_uuid = meta.get("segment_uuid") or None
+
             # 提取 chunk embedding（ADR-024 粗排层复用）
             chunk_embedding = result_embeddings[i] if result_embeddings[i] is not None else None
 
@@ -180,6 +186,7 @@ class VectorRetriever:
                     section_title=section_title,
                     section_path=section_path,
                     embedding=chunk_embedding,
+                    segment_uuid=segment_uuid,
                 )
             )
 

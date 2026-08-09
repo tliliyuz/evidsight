@@ -86,9 +86,8 @@ class TestConversationCreateV1:
 
         assert response.status_code == 201, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("Conversation", body["data"])
-        assert body["data"]["title"] == "新对话"
+        assert_data_matches_schema("Conversation", body)
+        assert body["title"] == "新对话"
         # v1 请求 knowledge_base_id → service ConversationCreate.kb_uuid 映射
         # args: db, user_id, legacy
         call_args = mock.await_args
@@ -104,7 +103,7 @@ class TestConversationCreateV1:
             self.URL, json={"title": "无知识库"}, headers=auth_headers
         )
         assert response.status_code == 422
-        assert response.json()["code"] == "E9003"
+        assert response.json()["error"]["error_code"] == "SYSTEM_VALIDATION_FAILED"
 
     @pytest.mark.asyncio
     async def test_create_no_auth_401(self, async_client):
@@ -128,10 +127,9 @@ class TestConversationListV1:
 
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("ConversationList", body["data"])
-        assert body["data"]["total"] == 1
-        item = body["data"]["items"][0]
+        assert_data_matches_schema("ConversationList", body)
+        assert body["total"] == 1
+        item = body["items"][0]
         assert "owner_user_id" in item
         assert "kb_uuid" in item
 
@@ -158,9 +156,8 @@ class TestConversationGetV1:
 
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("ConversationDetail", body["data"])
-        assert body["data"]["messages"][0]["role"] == "user"
+        assert_data_matches_schema("ConversationDetail", body)
+        assert body["messages"][0]["role"] == "user"
 
     @pytest.mark.asyncio
     async def test_get_not_found_404(self, async_client, auth_headers):
@@ -173,7 +170,7 @@ class TestConversationGetV1:
             response = await async_client.get(self.URL, headers=auth_headers)
 
         assert response.status_code == 404
-        assert response.json()["code"] == "E3001"
+        assert response.json()["error"]["error_code"] == "CHAT_CONVERSATION_NOT_FOUND"
 
 
 class TestConversationRenameV1:
@@ -198,9 +195,8 @@ class TestConversationRenameV1:
 
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("Conversation", body["data"])
-        assert body["data"]["title"] == "新标题"
+        assert_data_matches_schema("Conversation", body)
+        assert body["title"] == "新标题"
         # args: db, conv_id, user_id, req
         call_args = mock.await_args
         assert call_args is not None
@@ -224,7 +220,7 @@ class TestConversationRenameV1:
             )
 
         assert response.status_code == 403
-        assert response.json()["code"] == "E3002"
+        assert response.json()["error"]["error_code"] == "CHAT_CONVERSATION_FORBIDDEN"
 
 
 class TestConversationDeleteV1:

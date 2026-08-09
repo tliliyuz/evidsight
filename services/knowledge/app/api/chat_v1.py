@@ -43,6 +43,36 @@ async def _canonical_stream(response: StreamingResponse) -> AsyncIterator[str]:
         event_name = {"message": "message.delta", "finish": "done"}.get(event_name, event_name)
         if event_name == "meta" and "task_id" in data:
             data["generation_id"] = data.pop("task_id")
+        elif event_name == "sources":
+            data = {
+                **{key: value for key, value in data.items() if key != "chunks"},
+                "chunks": [
+                    {
+                        key: chunk.get(key)
+                        for key in (
+                            "chunk_index",
+                            "document_uuid",
+                            "segment_id",
+                            "doc_name",
+                            "score",
+                            "page",
+                            "section_title",
+                            "section_path",
+                            "preview_text",
+                            "preview_range",
+                            "highlight_start",
+                            "highlight_end",
+                        )
+                    }
+                    for chunk in data.get("chunks", [])
+                ],
+            }
+        elif event_name == "error":
+            data = {
+                "error_code": data.get("error_code") or data.get("code") or "CHAT_STREAM_FAILED",
+                "message": data.get("message", "问答生成失败"),
+                "retryable": bool(data.get("retryable", False)),
+            }
         sequence += 1
         yield (
             f"id: {sequence}\n"

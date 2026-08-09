@@ -362,6 +362,7 @@ async def chat(
                     prompt_result=pipeline_result.prompt_result,
                     reranked_output=pipeline_result.reranked_output,
                     doc_map=pipeline_result.doc_map,
+                    doc_uuid_map=pipeline_result.doc_uuid_map,
                     recorder=recorder,
                 ),
                 generation.uuid,

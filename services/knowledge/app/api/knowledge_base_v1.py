@@ -1,7 +1,7 @@
 """知识库 v1 API — 创建/统一可见列表/详情/更新/删除（对齐 API.md §6.1）。
 
 本模块是薄适配器：复用既有 service（create_kb/get_kb/update_kb/delete_kb/
-list_visible_kbs）与 uuid 解析，仅调整路径、HTTP 语义与信封。删除返回 204
+list_visible_kbs）与 uuid 解析，仅调整路径与 HTTP 语义。删除返回 204
 无正文；更新用 PATCH 部分更新；统一可见列表以 scope/q 查询参数服务
 FRONTEND §5.3 的「全部 / 我创建的 / 组织公开」筛选与名称搜索。
 """
@@ -36,7 +36,7 @@ async def create_knowledge_base_v1(
 ):
     """创建知识库"""
     kb = await create_kb(db, current_user["user_id"], req)
-    return {"code": "0", "message": "知识库创建成功", "data": kb.model_dump()}
+    return kb
 
 
 @router.get("")
@@ -58,7 +58,7 @@ async def list_knowledge_bases_v1(
         page=page,
         page_size=page_size,
     )
-    return {"code": "0", "message": "ok", "data": data.model_dump()}
+    return data
 
 
 @router.get("/{kb_id}")
@@ -72,22 +72,18 @@ async def get_knowledge_base_v1(
     kb = await get_kb(db, kb_internal_id, current_user["user_id"], current_user["role"])
     # B 类：owner 输出 Platform User UUID，不暴露内部 users.id
     owner_uuid = await resolve_user_uuid(db, kb.user_id)
-    return {
-        "code": "0",
-        "message": "ok",
-        "data": KnowledgeBaseResponse(
-            uuid=kb.uuid,
-            name=kb.name,
-            description=kb.description,
-            owner=owner_uuid,
-            visibility=kb.visibility,
-            status=kb.status,
-            doc_count=kb.doc_count,
-            chunk_count=kb.chunk_count,
-            created_at=kb.created_at,
-            updated_at=kb.updated_at,
-        ).model_dump(),
-    }
+    return KnowledgeBaseResponse(
+        uuid=kb.uuid,
+        name=kb.name,
+        description=kb.description,
+        owner=owner_uuid,
+        visibility=kb.visibility,
+        status=kb.status,
+        doc_count=kb.doc_count,
+        chunk_count=kb.chunk_count,
+        created_at=kb.created_at,
+        updated_at=kb.updated_at,
+    )
 
 
 @router.patch("/{kb_id}")
@@ -101,7 +97,7 @@ async def update_knowledge_base_v1(
     owner 可修改自己的 KB，admin 可修正任意 KB。"""
     kb_internal_id = await resolve_uuid_to_id(db, KnowledgeBase, kb_id)
     kb = await update_kb(db, kb_internal_id, current_user["user_id"], current_user["role"], req)
-    return {"code": "0", "message": "知识库更新成功", "data": kb.model_dump()}
+    return kb
 
 
 @router.delete("/{kb_id}", status_code=204)

@@ -15,7 +15,7 @@
 2026-08-05「Research API 路径迁移到 /api/v1/research」裁决）；旧前缀
 /api/research 收敛期间保持可用（API.md §8.2）。
 
-信封沿用全平台既有 {"code","message","data"}（API.md §8.2 迁移态）。
+成功响应直接返回资源或分页对象；错误使用 API.md §4 标准 error 信封。
 """
 
 import logging
@@ -24,13 +24,13 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.research_common import (
-    _ok,
     build_task_events_response,
     build_task_snapshot,
     publish_cancel_requested,
 )
 from app.core.exceptions import ValidationFailedException
 from app.dependencies import get_current_user, get_db, require_task_accessible
+from app.metrics.emitters import emit_old_api_call
 from app.models.enums import TASK_STATUS_ENUM
 from app.models.research_task import ResearchTask
 from app.schemas.research import ResearchCreateRequest
@@ -87,12 +87,7 @@ async def create_research_task_v1(
     # 重放命中不重复分发；直接回答跳过 Pipeline
     if not result.direct_answer and not result.idempotent_replayed:
         _execute_research_task.delay(str(result.task_id))
-        message = "研究任务已创建"
-    elif result.direct_answer:
-        message = "直接回答已生成"
-    else:
-        message = "研究任务已存在（幂等重放）"
-    return {"code": "0", "message": message, "data": result.model_dump()}
+    return result.model_dump(exclude={"report"})
 
 
 @router.get("/tasks")
@@ -120,7 +115,7 @@ async def list_research_tasks_v1(
         status=status,
         keyword=keyword,
     )
-    return _ok(result.model_dump())
+    return result
 
 
 @router.get("/tasks/{task_id}")
@@ -134,7 +129,7 @@ async def get_research_task_detail_v1(
     含 status / current_phase / progress 进度快照。
     """
     result = await get_task_detail(db, task)
-    return _ok(result.model_dump())
+    return result
 
 
 @router.post("/tasks/{task_id}/cancel", status_code=202)
@@ -151,7 +146,7 @@ async def cancel_research_task_v1(
     """
     result = await cancel_task(db, task)
     await publish_cancel_requested(task)
-    return {"code": "0", "message": "任务已请求取消", "data": result.model_dump()}
+    return result
 
 
 @router.post("/tasks/{task_id}/resume", status_code=202)
@@ -168,11 +163,7 @@ async def resume_research_task_v1(
     await db.commit()
     _execute_research_task.delay(str(result.task_id))
     # 返回 status="running"（已分发，worker 将立即拾取并转为 running）
-    return {
-        "code": "0",
-        "message": "断点续跑已启动",
-        "data": {**result.model_dump(), "status": "running"},
-    }
+    return {**result.model_dump(), "status": "running"}
 
 
 @router.delete("/tasks/{task_id}", status_code=204)
@@ -214,7 +205,7 @@ async def get_research_task_state_v1(
     对齐 API.md §8（旧前缀 /state 语义等价）。
     """
     snapshot = await build_task_snapshot(task, db)
-    return _ok(snapshot)
+    return snapshot
 
 
 @router.get("/tasks/{task_id}/report")
@@ -227,5 +218,6 @@ async def get_research_task_report_v1(
     对齐 API.md §8（旧前缀 /report 语义等价，§8.2 收敛目标）。仅 completed /
     partially_completed 任务可获取。
     """
+    emit_old_api_call("v1_task_report_compat")
     result = await get_report(db, task)
-    return _ok(result.model_dump())
+    return result

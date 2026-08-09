@@ -102,10 +102,9 @@ class TestDocumentUploadV1:
 
         assert response.status_code == 202, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("DocumentUpload", body["data"])
-        assert body["data"]["uuid"] == VALID_DOC_UUID
-        assert body["data"]["status"] == "queued"
+        assert_data_matches_schema("DocumentUpload", body)
+        assert body["uuid"] == VALID_DOC_UUID
+        assert body["status"] == "queued"
         # force 表单字段传递给 service（args: db, kb_id, user_id, role, file, force）
         call_args = mock.await_args
         assert call_args is not None
@@ -148,7 +147,7 @@ class TestDocumentUploadV1:
             )
 
         assert response.status_code == 404
-        assert response.json()["code"] == "E1001"
+        assert response.json()["error"]["error_code"] == "KB_NOT_FOUND"
 
     @pytest.mark.asyncio
     async def test_upload_no_auth_401(self, async_client):
@@ -176,11 +175,10 @@ class TestDocumentListV1:
 
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("DocumentList", body["data"])
-        assert body["data"]["total"] == 1
-        assert "uuid" in body["data"]["items"][0]
-        assert "kb_uuid" in body["data"]["items"][0]
+        assert_data_matches_schema("DocumentList", body)
+        assert body["total"] == 1
+        assert "uuid" in body["items"][0]
+        assert "kb_uuid" in body["items"][0]
 
     @pytest.mark.asyncio
     async def test_list_status_filter_passed(self, async_client, auth_headers):
@@ -222,10 +220,9 @@ class TestDocumentGetV1:
 
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("Document", body["data"])
-        assert body["data"]["uuid"] == VALID_DOC_UUID
-        assert body["data"]["status"] == "completed"
+        assert_data_matches_schema("Document", body)
+        assert body["uuid"] == VALID_DOC_UUID
+        assert body["status"] == "completed"
         # 通过 document uuid 反解出 kb_id 后调用 service
         call_args = mock.await_args
         assert call_args is not None
@@ -239,7 +236,7 @@ class TestDocumentGetV1:
             response = await async_client.get(self.URL, headers=auth_headers)
 
         assert response.status_code == 404
-        assert response.json()["code"] == "E2001"
+        assert response.json()["error"]["error_code"] == "DOC_NOT_FOUND"
 
     @pytest.mark.asyncio
     async def test_get_permission_denied_403(self, async_client, auth_headers):
@@ -257,7 +254,7 @@ class TestDocumentGetV1:
             )
 
         assert response.status_code == 403
-        assert response.json()["code"] == "E5005"
+        assert response.json()["error"]["error_code"] == "AUTH_FORBIDDEN"
 
 
 class TestDocumentChunksV1:
@@ -280,9 +277,8 @@ class TestDocumentChunksV1:
 
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("DocumentChunkList", body["data"])
-        item = body["data"]["items"][0]
+        assert_data_matches_schema("DocumentChunkList", body)
+        item = body["items"][0]
         # 稳定 Segment ID 契约：segment_id 为 location_id，旧 id 仅迁移期兼容
         assert item["segment_id"] == SEGMENT_UUID
         assert item["id"] == 41
@@ -310,9 +306,8 @@ class TestDocumentRetryV1:
 
         assert response.status_code == 202, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("DocumentReprocess", body["data"])
-        assert body["data"]["doc_uuid"] == VALID_DOC_UUID
+        assert_data_matches_schema("DocumentReprocess", body)
+        assert body["doc_uuid"] == VALID_DOC_UUID
 
 
 class TestDocumentDeleteV1:
@@ -352,4 +347,4 @@ class TestDocumentDeleteV1:
             )
 
         assert response.status_code == 403
-        assert response.json()["code"] == "E5005"
+        assert response.json()["error"]["error_code"] == "AUTH_FORBIDDEN"

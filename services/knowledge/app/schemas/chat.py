@@ -40,6 +40,16 @@ class ChatSourceChunk(BaseModel):
     doc_name: str
     content: str = Field(description="分块文本（完整内容）")
     score: float
+    document_uuid: str | None = Field(
+        None,
+        description="来源文档的稳定 UUID（documents.uuid），用于前端打开文档切片抽屉；"
+        "不做内部整数 id 契约",
+    )
+    segment_id: str | None = Field(
+        None,
+        description="Segment 稳定 UUID（chunk.segment_uuid，即 v1 location API 的 location_id）；"
+        "前端据此前缀展开引用切片",
+    )
     page: int | None = None
     section_title: str | None = Field(
         None, description="当前所属章节标题（如 §6.1 SSE 事件完整格式）"

@@ -1,7 +1,7 @@
 """Knowledge Base v1 API 契约测试 — 对齐 API.md §6.1 与 docs/openapi/evidsight-v1.yaml。
 
-验证 v1 端点的 method/路径/权限/成功状态码（201/200/204）/信封与错误码，
-并断言响应 data 字段与 OpenAPI 组件 Schema 一致。统一可见列表的行为语义
+验证 v1 端点的 method/路径/权限/成功状态码（201/200/204）/资源直返与标准错误信封，
+并断言响应字段与 OpenAPI 组件 Schema 一致。统一可见列表的行为语义
 （scope 并集、分页去重、搜索）由 tests/unit/services/test_kb_list_visible.py
 在真实库上验证，本文件只验证 Provider 层契约。
 """
@@ -99,11 +99,11 @@ class TestKBCreateV1:
 
         assert response.status_code == 201, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert body["message"] == "知识库创建成功"
-        assert_data_matches_schema("KnowledgeBase", body["data"])
-        assert body["data"]["name"] == "公司知识库"
-        assert body["data"]["visibility"] == "private"
+        assert "code" not in body
+        assert "data" not in body
+        assert_data_matches_schema("KnowledgeBase", body)
+        assert body["name"] == "公司知识库"
+        assert body["visibility"] == "private"
 
     @pytest.mark.asyncio
     async def test_create_name_conflict_409(self, async_client, auth_headers):
@@ -117,7 +117,11 @@ class TestKBCreateV1:
             )
 
         assert response.status_code == 409
-        assert response.json()["code"] == "E1002"
+        body = response.json()
+        assert body["error"]["error_code"] == "KB_NAME_CONFLICT"
+        assert body["error"]["request_id"]
+        assert body["error"]["retryable"] is False
+        assert isinstance(body["error"]["details"], dict)
 
     @pytest.mark.asyncio
     async def test_create_no_auth_401(self, async_client):
@@ -139,8 +143,7 @@ class TestKBListV1:
 
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("KnowledgeBaseList", body["data"])
+        assert_data_matches_schema("KnowledgeBaseList", body)
         # scope 查询参数须传递到 service
         call_args = mock.await_args
         assert call_args is not None
@@ -166,7 +169,7 @@ class TestKBListV1:
     async def test_list_invalid_scope_422(self, async_client, auth_headers):
         response = await async_client.get(f"{self.URL}?scope=bogus", headers=auth_headers)
         assert response.status_code == 422
-        assert response.json()["code"] == "E9003"
+        assert response.json()["error"]["error_code"] == "SYSTEM_VALIDATION_FAILED"
 
     @pytest.mark.asyncio
     async def test_list_page_size_over_100_422(self, async_client, auth_headers):
@@ -203,11 +206,10 @@ class TestKBGetV1:
 
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("KnowledgeBase", body["data"])
-        assert body["data"]["uuid"] == VALID_KB_UUID
-        assert body["data"]["owner"] == _platform_uuid(1)
-        assert "id" not in body["data"]
+        assert_data_matches_schema("KnowledgeBase", body)
+        assert body["uuid"] == VALID_KB_UUID
+        assert body["owner"] == _platform_uuid(1)
+        assert "id" not in body
 
     @pytest.mark.asyncio
     async def test_get_not_found_404(self, async_client, auth_headers):
@@ -219,7 +221,7 @@ class TestKBGetV1:
             response = await async_client.get(self.URL, headers=auth_headers)
 
         assert response.status_code == 404
-        assert response.json()["code"] == "E1001"
+        assert response.json()["error"]["error_code"] == "KB_NOT_FOUND"
 
     @pytest.mark.asyncio
     async def test_get_permission_denied_403(self, async_client, auth_headers):
@@ -237,7 +239,7 @@ class TestKBGetV1:
             )
 
         assert response.status_code == 403
-        assert response.json()["code"] == "E5005"
+        assert response.json()["error"]["error_code"] == "AUTH_FORBIDDEN"
 
 
 class TestKBUpdateV1:
@@ -262,9 +264,8 @@ class TestKBUpdateV1:
 
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["code"] == "0"
-        assert_data_matches_schema("KnowledgeBase", body["data"])
-        assert body["data"]["name"] == "新名称"
+        assert_data_matches_schema("KnowledgeBase", body)
+        assert body["name"] == "新名称"
 
     @pytest.mark.asyncio
     async def test_update_permission_denied_403(self, async_client, auth_headers):
@@ -284,7 +285,7 @@ class TestKBUpdateV1:
             )
 
         assert response.status_code == 403
-        assert response.json()["code"] == "E5005"
+        assert response.json()["error"]["error_code"] == "AUTH_FORBIDDEN"
 
     @pytest.mark.asyncio
     async def test_update_not_found_404(self, async_client, auth_headers):
@@ -298,7 +299,7 @@ class TestKBUpdateV1:
             )
 
         assert response.status_code == 404
-        assert response.json()["code"] == "E1001"
+        assert response.json()["error"]["error_code"] == "KB_NOT_FOUND"
 
 
 class TestKBDeleteV1:
@@ -338,7 +339,7 @@ class TestKBDeleteV1:
             )
 
         assert response.status_code == 403
-        assert response.json()["code"] == "E5005"
+        assert response.json()["error"]["error_code"] == "AUTH_FORBIDDEN"
 
     @pytest.mark.asyncio
     async def test_delete_no_auth_401(self, async_client):

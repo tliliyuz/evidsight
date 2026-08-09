@@ -28,6 +28,7 @@ from app.pipeline.sse_bridge import (
     SSEBridge,
     sse_event_stream,
 )
+from app.services.research_service import _published_report_id
 
 logger = logging.getLogger(__name__)
 
@@ -141,10 +142,11 @@ async def build_task_snapshot(
             "progress": progress,
         },
         "steps": steps_summary,
-        "topics": task.topic,
+        "topic": task.topic,
         "created_at": task.created_at.isoformat() if task.created_at else None,
         "started_at": task.started_at.isoformat() if task.started_at else None,
         "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+        "report_id": await _published_report_id(db, task.id),
     }
 
     # 错误信息（如果存在）

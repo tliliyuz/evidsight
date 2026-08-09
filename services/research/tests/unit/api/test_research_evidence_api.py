@@ -151,7 +151,7 @@ class TestEvidenceListAPI:
         )
         assert resp.status_code == 200
         body = resp.json()
-        items = body["data"]["items"]
+        items = body["items"]
         assert len(items) == 2
         web = next(i for i in items if i["source_type"] == "web")
         internal = next(i for i in items if i["source_type"] == "internal")
@@ -201,7 +201,7 @@ class TestEvidenceDetailAPI:
         task, report, rev, ev1, section, claim = await _seed_task_with_data(db_session)
         resp = await async_client.get(f"/api/v1/evidence/{ev1.external_id}", headers=auth_headers)
         assert resp.status_code == 200
-        data = resp.json()["data"]
+        data = resp.json()
         assert data["evidence_id"] == ev1.external_id
         assert data["source_type"] == "web"
 
@@ -232,7 +232,7 @@ class TestEvidenceRelationsAPI:
             f"/api/v1/evidence/{ev1.external_id}/relations", headers=auth_headers
         )
         assert resp.status_code == 200
-        data = resp.json()["data"]
+        data = resp.json()
         assert len(data["items"]) == 1
         assert data["items"][0]["relation_type"] == "supports"
         assert float(data["items"][0]["confidence"]) == 0.9
@@ -256,7 +256,7 @@ class TestReportAPI:
         task, report, rev, ev1, section, claim = await _seed_task_with_data(db_session)
         resp = await async_client.get(f"/api/v1/reports/{report.id}", headers=auth_headers)
         assert resp.status_code == 200
-        data = resp.json()["data"]
+        data = resp.json()
         assert data["report_id"] == report.id
         assert data["task_id"] == task.id
         assert data["revision"] == 1
@@ -272,6 +272,6 @@ class TestReportAPI:
             headers=auth_headers,
         )
         assert resp.status_code == 200
-        data = resp.json()["data"]
+        data = resp.json()
         assert data["section_id"] == section.external_id
         assert data["heading"] == "1. 概述"
