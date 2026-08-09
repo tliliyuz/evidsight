@@ -28,7 +28,8 @@ ensure_service_venv() {
 
   uv pip install \
     --python "$python_path" \
-    -r "$repo_root/services/$service/requirements-dev.txt"
+    --require-hashes \
+    -r "$repo_root/services/$service/requirements-dev.lock"
 }
 
 cd "$repo_root"

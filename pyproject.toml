@@ -20,7 +20,10 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "openapi-spec-validator==0.7.*",
     "pre-commit>=4.6.1",
+    "pytest==8.4.*",
+    "pyyaml==6.*",
     "ruff>=0.16.1",
 ]
 

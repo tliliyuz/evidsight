@@ -27,7 +27,7 @@ docker compose config --quiet
 
 ### 1.1 基础 CI 执行编排
 
-基础 CI 的覆盖范围和不纳入项以 [TESTING.md §2.1](../specs/TESTING.md#21-自动化门禁分层) 为准。实现时拆分为可并行且结果独立的 required checks：
+基础 CI 的覆盖范围和不纳入项以 [TESTING.md §2.1](../specs/TESTING.md#21-自动化门禁分层) 为准。`.github/workflows/ci.yml` 已拆分为可并行且结果独立的 required checks：
 
 | Check | 执行内容 | 环境约束 |
 |:---|:---|:---|
@@ -41,6 +41,16 @@ docker compose config --quiet
 当前 `apps/web` 的 `build` 已内含 `tsc --noEmit`。在独立 `type-check` 脚本落地前，`web` check 通过 `build` 覆盖类型检查，不重复执行同一条 `tsc` 命令。
 
 每个 check 均使用 fail-fast 退出码报告结果，不执行 `--fix`、`--write`、生成物回写、Git 写操作或远端发布。同一 PR 的新提交可取消已过时运行；取消不记为通过。
+
+本地复现新增门禁使用以下只读入口：
+
+```bash
+make fast-unit
+make contracts-ci
+make openapi-ci
+```
+
+`contracts-ci` 和 `openapi-ci` 只构建 Knowledge Dockerfile 的 `ci-test` 测试 stage；该 stage 使用带哈希的 `requirements-dev.lock`，不启动数据服务，也不改变生产 `runtime` stage。受保护分支是否强制这六个 check，仍须在 GitHub 仓库规则中以同名 job 配置 required status checks。
 
 ## 2. M5 部署与集成验收
 

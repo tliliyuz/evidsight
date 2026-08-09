@@ -115,7 +115,7 @@ evidsight/
 uv sync --locked --no-install-project
 
 # 一次性建立/更新根工具环境与两个 Python 3.12 服务开发环境
-# 服务 .venv 固定安装 requirements.txt + requirements-dev.txt，后续静态检查不临时联网装包
+# 服务 .venv 按 requirements-dev.lock 的版本与哈希冻结安装，后续检查不临时解析依赖
 make setup-python-dev
 
 # 安装提交前静态门禁（ruff + mypy + Web + 提交信息格式），每个 worktree 初始化时各执行一次
@@ -137,6 +137,11 @@ make type-check
 # 候选版/依赖变更后的 Linux Python 3.12 复核
 # 首次或 requirements 变化时构建 typecheck target；后续复用 Docker 层，不在运行容器中 pip install
 make type-check-docker
+
+# 本地复现基础 CI 的快速单元、Contract 与 OpenAPI 门禁
+make fast-unit
+make contracts-ci
+make openapi-ci
 
 # 验证开发单机 Compose 配置
 docker compose config --quiet
@@ -256,7 +261,8 @@ docker compose config --quiet
 - 日志、Trace、SSE 和错误不得包含密码、Token、服务凭证、完整 Prompt、隐藏推理或内部正文；
 - Chat SSE 与 Research SSE 使用独立解析器和状态机；
 - Python 代码遵循 ruff 约定（规则集 `E4,E7,E9,F,I`，行宽 100），提交前执行 `ruff check` 与 `ruff format --check`；配置见根 `pyproject.toml` `[tool.ruff]`。ruff 为根开发依赖（`uv add --dev ruff`）：Astral 官方活跃维护，单文件 ~8MB 无传递依赖，覆盖静态检查与格式化，替代方案为 black+isort+flake8 三件套（需三份配置）；
-- Python 类型检查使用 mypy，当前强制范围与渐进规则以 [TESTING.md §3.1](../specs/TESTING.md#31-架构与静态边界) 为准。mypy 与 `types-python-jose` 类型桩固定在两个服务各自的 `requirements-dev.txt`，Knowledge 另含 `types-psutil`，随服务依赖解析 Pydantic/FastAPI/SQLAlchemy/JWT/psutil 类型；Research 开发依赖另包含既有异步 SQLite 测试 Fixture 所需的 `aiosqlite`。这些依赖只进入服务 `.venv` 和 Dockerfile 的 `typecheck` 构建 target，不进入默认生产 `runtime` 阶段，生产镜像与运行时体积增量为 0。`make setup-python-dev` 是服务 `.venv` 的唯一初始化入口，固定 Python 3.12 并安装 `requirements-dev.txt`；日常 `make type-check` 和 pre-commit 直接复用该环境，禁止在检查过程中临时安装依赖。`make type-check-docker` 只在首次或 requirements 变化时构建依赖层，运行时以只读工作区挂载复核 Linux Python 3.12，不执行 `pip install`。mypy/Typeshed 生态均活跃维护；Pydantic 启用官方 mypy plugin，SQLAlchemy 不启用已废弃的旧 plugin，ORM 后续扩大范围时使用 SQLAlchemy 2 `Mapped[...]`/`mapped_column()` 原生类型。替代方案为 Pyright（高性能，但官方 CLI 主要由 npm 分发，会把 Python 门禁耦合到现有 Web 包或引入第二个 Node 工程）或仅依赖 ruff/测试（无法检查跨函数类型契约）；
+- Python 类型检查使用 mypy，当前强制范围与渐进规则以 [TESTING.md §3.1](../specs/TESTING.md#31-架构与静态边界) 为准。mypy 与 `types-python-jose` 类型桩固定在两个服务各自的 `requirements-dev.txt`，Knowledge 另含 `types-psutil`，随服务依赖解析 Pydantic/FastAPI/SQLAlchemy/JWT/psutil 类型；Research 开发依赖另包含既有异步 SQLite 测试 Fixture 所需的 `aiosqlite`。两个服务以 `requirements-dev.lock` 固定完整版本和制品哈希；为兼容 Intel macOS 与 CI Linux，开发锁将既有传递依赖约束为 `onnxruntime 1.23.x`、`cryptography 46.x`。这些依赖只进入服务 `.venv`、Dockerfile 的 `typecheck` 和独立 `ci-test` 构建 target，不进入默认生产 `runtime` 阶段，生产镜像与运行时体积增量为 0。`make setup-python-dev` 是服务 `.venv` 的唯一初始化入口，固定 Python 3.12 并按哈希锁安装；日常 `make type-check` 和 pre-commit 直接复用该环境，禁止在检查过程中临时解析依赖。`make type-check-docker` 只在首次或 requirements 变化时构建依赖层，运行时以只读工作区挂载复核 Linux Python 3.12，不执行 `pip install`。mypy/Typeshed 生态均活跃维护；Pydantic 启用官方 mypy plugin，SQLAlchemy 不启用已废弃的旧 plugin，ORM 后续扩大范围时使用 SQLAlchemy 2 `Mapped[...]`/`mapped_column()` 原生类型。替代方案为 Pyright（高性能，但官方 CLI 主要由 npm 分发，会把 Python 门禁耦合到现有 Web 包或引入第二个 Node 工程）或仅依赖 ruff/测试（无法检查跨函数类型契约）；
+- OpenAPI 基础校验使用根开发依赖 `openapi-spec-validator 0.7.x`（成熟、活跃维护的纯 Python 校验器，连同传递依赖约数 MB），覆盖规范语法与 `$ref`；示例由 `jsonschema` 校验，路由一致性继续由 Provider 契约测试负责。替代方案是自行维护完整 OpenAPI 元模型与引用解析器，维护风险和漏检面更大；
 - Knowledge 的全量 Contract/测试门禁另固定 `types-PyYAML` 与 `types-jsonschema`；两者为纯类型桩开发依赖，不进入生产镜像。
 - mypy 六批收口已全部完成：① Schema/权限纯函数，② 安全与状态核心，③ 配置/依赖注入/API，④ Service 与跨服务客户端，⑤ Pipeline/任务/Worker，⑥ ORM/脚本/测试/Contract 生成链。最终强制范围见 [TESTING.md §3.1](../specs/TESTING.md#31-架构与静态边界)，新增 Python 文件必须保持零错误。
 - 提交前静态门禁由 pre-commit 承载（根开发依赖 `uv add --dev pre-commit`，配置 `.pre-commit-config.yaml`）：Python 执行 ruff 与全量 mypy 类型检查，Web 执行 ESLint/Prettier 检查，`commit-msg` hook 校验提交信息格式。pre-commit 是社区标准 Git Hook 框架（pre-commit org 活跃维护，MIT，约 2MB + cfgv/identify/virtualenv 等小依赖），替代方案为 lefthook（Go 单二进制，需独立配置）或手写 `.git/hooks` 脚本（无法自动管理多语言 hook 环境）。hook 只报告不修改文件；`pre-commit install` 只对当前 worktree 生效，新增 worktree 需按 §3 重新安装；

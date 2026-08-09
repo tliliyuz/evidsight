@@ -1,4 +1,4 @@
-.PHONY: setup-python-dev test test-knowledge test-research test-web type-check type-check-docker build-web config compose-config
+.PHONY: setup-python-dev test test-knowledge test-research test-web fast-unit contracts-ci openapi-ci type-check type-check-docker build-web config compose-config
 
 setup-python-dev:
 	bash scripts/setup_python_dev.sh
@@ -14,6 +14,15 @@ test-research:
 
 test-web:
 	pnpm --dir apps/web test
+
+fast-unit:
+	bash scripts/test_fast_unit.sh
+
+contracts-ci:
+	bash scripts/test_contracts_ci.sh
+
+openapi-ci:
+	bash scripts/check_openapi_ci.sh
 
 type-check:
 	bash scripts/check_python_types.sh
