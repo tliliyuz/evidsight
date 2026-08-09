@@ -11,6 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "check:design-tokens": "node scripts/check-design-tokens.mjs",
+    "check:visual-baselines": "node scripts/check-visual-baselines.mjs",
+    "check:design": "pnpm check:design-tokens && pnpm check:visual-baselines",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

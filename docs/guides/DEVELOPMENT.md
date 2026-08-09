@@ -50,12 +50,23 @@ evidsight/
 │   └── research/                  # Research Service 实现、测试、迁移与专项文档
 ├── apps/
 │   └── web/                       # M0 迁入的 Vue Web 基线与专项文档
-├── resource/prototype/            # 界面原型基线：dark/ 与 light/ 各 20 张，light 为默认主题
+├── resource/prototype/            # 界面原型基线：截图与已跟踪交互参考，light 为默认工作区主题
 ├── deploy/                        # 生产节点 Compose、Nginx、监控与数据初始化资产
 ├── scripts/                       # 全仓测试、配置与 smoke 入口
 ├── tests/architecture/            # 服务边界与 Compose 契约测试
 └── docker-compose.yml             # Mac 等开发机的单机全栈入口
 ```
+
+前端视觉开发只使用 `resource/prototype/reference/evidsight-web/` 的已跟踪交互参考和 `resource/prototype/{light,dark}/` 截图；不得引用 Git 忽略的 `.superpowers/`。参考目录不进入 Vite 构建或部署。
+
+前端切片在 RED/GREEN 节点使用：
+
+```bash
+pnpm --dir apps/web check:design-tokens
+pnpm --dir apps/web check:visual-baselines
+```
+
+页面行为测试与视觉截图测试仍按该切片验收条件执行；完整跨页面 E2E 留在 M4 切片 8，但页面视觉回归不得延后。
 
 ### 2.2 后续里程碑目标结构
 

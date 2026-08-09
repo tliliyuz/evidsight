@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "viewport": { "width": 1280, "height": 720 },
+  "lightEntry": "index-light.html",
+  "darkEntry": "index.html",
+  "pages": [
+    { "id": "01", "route": "/", "source": "#landing", "light": "../../light/01-landing.png", "dark": "../../dark/01-landing.png", "scope": "P0", "notes": "入口页固定深色，不随工作区主题切换" },
+    { "id": "02", "route": "/workbench", "source": "[data-route-view='workbench']", "light": "../../light/02-workbench.png", "dark": "../../dark/02-workbench.png", "scope": "P0" },
+    { "id": "03", "route": "/research/new", "source": "[data-route-view='research-create']", "light": "../../light/03-research-create.png", "dark": "../../dark/03-research-create.png", "scope": "P0" },
+    { "id": "04", "route": "/research", "source": "[data-route-view='research-tasks']", "light": "../../light/04-research-tasks.png", "dark": "../../dark/04-research-tasks.png", "scope": "P0" },
+    { "id": "05", "route": "/research/:taskId", "source": "[data-route-view='research']", "light": "../../light/05-research-runtime.png", "dark": "../../dark/05-research-runtime.png", "scope": "P0" },
+    { "id": "06", "route": "/reports/:reportId", "source": "[data-route-view='report']", "light": "../../light/06-research-report.png", "dark": "../../dark/06-research-report.png", "scope": "P0" },
+    { "id": "07", "route": "/chat", "source": "[data-route-view='chat']", "light": "../../light/07-chat.png", "dark": "../../dark/07-chat.png", "scope": "P0", "notes": "只复用布局；Chat v1.0 单 KB，原型多选示例无效" },
+    { "id": "08", "route": "/chat/history", "source": "[data-route-view='chat-history']", "light": "../../light/08-chat-history.png", "dark": "../../dark/08-chat-history.png", "scope": "P0", "notes": "Conversation v1.0 每条会话只绑定一个 KB" },
+    { "id": "09", "route": "/knowledge-bases", "source": "[data-route-view='knowledge']", "light": "../../light/09-knowledge.png", "dark": "../../dark/09-knowledge.png", "scope": "P0" },
+    { "id": "10", "route": "/knowledge-bases/:kbId", "source": "[data-route-view='knowledge-detail']", "light": "../../light/10-knowledge-detail.png", "dark": "../../dark/10-knowledge-detail.png", "scope": "P0" },
+    { "id": "11", "route": "/admin", "source": "[data-admin-panel='overview']", "light": "../../light/11-admin-overview.png", "dark": "../../dark/11-admin-overview.png", "scope": "P0" },
+    { "id": "12", "route": "/admin/knowledge-bases", "source": "[data-admin-panel='kb-admin']", "light": "../../light/12-admin-knowledge-bases.png", "dark": "../../dark/12-admin-knowledge-bases.png", "scope": "P0" },
+    { "id": "13", "route": "/admin/documents", "source": "[data-admin-panel='document-admin']", "light": "../../light/13-admin-documents.png", "dark": "../../dark/13-admin-documents.png", "scope": "P0" },
+    { "id": "14", "route": "/admin/knowledge-traces", "source": "[data-admin-panel='knowledge-traces']", "light": "../../light/14-admin-knowledge-trace.png", "dark": "../../dark/14-admin-knowledge-trace.png", "scope": "P0" },
+    { "id": "15", "route": "/admin/research-traces", "source": "[data-admin-panel='research-traces']", "light": "../../light/15-admin-research-trace.png", "dark": "../../dark/15-admin-research-trace.png", "scope": "P0" },
+    { "id": "16", "route": "/admin/billing", "source": "[data-admin-panel='billing']", "light": "../../light/16-admin-billing.png", "dark": "../../dark/16-admin-billing.png", "scope": "P1", "notes": "视觉演进基线，不得伪装为 v1.0 已上线能力" },
+    { "id": "17", "route": "/admin/users", "source": "[data-admin-panel='users']", "light": "../../light/17-admin-users.png", "dark": "../../dark/17-admin-users.png", "scope": "P0" },
+    { "id": "18", "route": "/admin/roles", "source": "[data-admin-panel='roles']", "light": "../../light/18-admin-roles.png", "dark": "../../dark/18-admin-roles.png", "scope": "P1", "notes": "视觉演进基线，不得提供可配置角色保存行为" },
+    { "id": "19", "route": "/admin/audit", "source": "[data-admin-panel='audit']", "light": "../../light/19-admin-audit.png", "dark": "../../dark/19-admin-audit.png", "scope": "P0" },
+    { "id": "20", "route": "/admin/settings", "source": "[data-admin-panel='settings']", "light": "../../light/20-admin-settings.png", "dark": "../../dark/20-admin-settings.png", "scope": "P1", "notes": "视觉演进基线，不得提供无后端语义的保存行为" }
+  ]
+}

@@ -25,6 +25,11 @@
   --es-font-sans: Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --es-font-display: 'Space Grotesk', 'PingFang SC', system-ui, sans-serif;
   --es-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --es-overlay: rgb(0 0 0 / 40%);
+  --es-shadow-drawer: -24px 0 80px rgb(0 0 0 / 16%);
+  --es-shadow-popover: 0 16px 40px rgb(0 0 0 / 14%);
+  --es-shadow-dialog: 0 24px 80px rgb(0 0 0 / 20%);
+  --es-shadow-floating: 0 12px 32px rgb(0 0 0 / 14%);
 }
 
 :root[data-theme='dark'] {

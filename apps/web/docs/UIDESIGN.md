@@ -59,6 +59,38 @@ EvidSight 的界面是一台“专业研究仪器”，不是传统后台模板�
 
 Token 是跨主题共享的语义变量。深浅主题只改变 Token 的值，不改变 Token 名称与业务组件的使用方式；业务组件禁止硬编码颜色，只能消费 `--es-*` Token。
 
+### 4.0 Token 注册与闭包门禁
+
+本节是生产 Web Design Token 的唯一注册表。只有本节登记的 `--es-*` 名称可以进入 `apps/web/src/`；不得自行发明 `--es-line`、`--es-radius-sm` 等别名，也不得把交互原型中的 `--midnight`、`--line` 等旧变量复制到生产代码。
+
+Token 约束：
+
+- `apps/web/src/styles/tokens.css` 是本节的实现投影，不是反向定义规范的来源；名称和值必须与本节一致；
+- `apps/web/src/` 引用但未在 `tokens.css` 声明的 `--es-*` 必须使静态门禁失败；
+- 除 `tokens.css`、已登记品牌 SVG 和第三方样式外，生产源码不得出现颜色字面量；遮罩与阴影也必须使用 Token；
+- 深浅主题复用同一组语义名称。仅颜色与表面效果允许按主题换值，尺寸和字体 Token 从根级继承；
+- Tailwind Theme 只能映射已登记 Token；不得在 Tailwind 配置中建立第二套颜色、圆角或字体事实；
+- spacing 允许直接使用 `4/8/12/16/24/32/48/64px`；其他间距必须先经本节评审，不为每个间距重复建立变量；
+- 组件内部只表达运行数据的局部 CSS 变量（例如进度百分比）可以不使用 `--es-*`，但不得承载颜色、字体、圆角、阴影或布局基线。
+
+除 §4.2 的主题色 Token 外，正式登记如下：
+
+| 类别 | Token | 固定值 / 语义 |
+|---|---|---|
+| 圆角 | `--es-radius-control` | `8px`，输入、按钮和紧凑控件 |
+| 圆角 | `--es-radius-panel` | `10px`，普通面板与 Popover |
+| 圆角 | `--es-radius-major` | `12px`，主要表面与大型 Overlay |
+| 字体 | `--es-font-sans` | `Inter` + 中文系统黑体 + `system-ui` |
+| 字体 | `--es-font-display` | `Space Grotesk` + 中文系统黑体 + `system-ui` |
+| 字体 | `--es-font-mono` | `JetBrains Mono` + `ui-monospace` |
+| 遮罩 | `--es-overlay` | `rgb(0 0 0 / 40%)`，Drawer 与 Dialog 共用 |
+| 阴影 | `--es-shadow-drawer` | `-24px 0 80px rgb(0 0 0 / 16%)` |
+| 阴影 | `--es-shadow-popover` | `0 16px 40px rgb(0 0 0 / 14%)` |
+| 阴影 | `--es-shadow-dialog` | `0 24px 80px rgb(0 0 0 / 20%)` |
+| 阴影 | `--es-shadow-floating` | `0 12px 32px rgb(0 0 0 / 14%)` |
+
+生产首次通过视觉 GREEN 前，`Inter`、`Space Grotesk`、`JetBrains Mono` 和选定图标字体的 WOFF2 必须进入 `apps/web/src/assets/fonts/` 并通过 `@font-face` 本地加载；只在 Token 中写字体名称不算完成。第三方 CDN 不作为发布或视觉验收依赖。
+
 ### 4.1 主题与默认
 
 - 默认主题为浅色（`data-theme="light"`）：登录抽屉与登录后的工作区默认浅色。
@@ -388,6 +420,9 @@ Chat 可以保留未来多选所需的列表宽度和信息层级，但不得显
 - 噪声和渐变不参与命中测试；
 - 长列表使用分页或虚拟化，但不得破坏键盘焦点与返回位置；
 - 打印/导出报告使用独立浅色打印样式，隐藏应用导航和交互控件。
+- 品牌 Mark 的唯一几何参考是 [`resource/prototype/reference/evidsight-web/index-light.html`](../../../resource/prototype/reference/evidsight-web/index-light.html) 中的 `#brand-mark`；生产实现应封装为共享 React 组件，不得用圆点、字符或通用图标替代；
+- 导航图标的参考资产是 [`fa-solid-900.woff2`](../../../resource/prototype/reference/evidsight-web/assets/fonts/fa-solid-900.woff2)，生产接入前必须按依赖治理说明用途、维护状态、体积与替代方案，并由统一 Icon 组件封装；
+- 交互原型中的旧 Token、Hash 路由、Mock 数据和原生脚本不得复制为生产事实。
 
 ## 12. 视觉验收清单
 
@@ -407,7 +442,7 @@ Chat 可以保留未来多选所需的列表宽度和信息层级，但不得显
 ### 12.2 业务页面
 
 - [ ] 问答无装饰头像，消息角色和来源层级清楚；
-- [ ] 多知识库选择按 KB 名称检索和勾选；
+- [ ] Research 多知识库选择按 KB 名称检索和勾选；Chat v1.0 仅单选，多选入口不可执行并显示“规划中”；
 - [ ] 文档切片可从知识库和回答来源进入；
 - [ ] 研究任务与知识库列表按钮规格一致；
 - [ ] 报告章节栏不过宽，Evidence Graph 常驻且可恢复；
@@ -419,9 +454,43 @@ Chat 可以保留未来多选所需的列表宽度和信息层级，但不得显
 
 ## 13. 原型基线
 
-原型截图是完整产品页面结构和视觉方向的基线，不是像素级实现替代品。实现可以因真实数据、响应式和无障碍要求调整，但主要信息层级、壳层、动作位置与视觉语义不得无说明偏离。v1.0 只要求实现 `FRONTEND.md` 标记的 P0 页面；P1 原型不得被误解为当前交付承诺。
+### 13.1 权威层级
+
+原型截图是完整产品页面结构和视觉方向的基线，不是业务规范替代品。实现可以因真实数据、响应式和无障碍要求调整，但主要信息层级、壳层、动作位置与视觉语义不得无说明偏离。v1.0 只要求实现 `FRONTEND.md` 标记的 P0 页面；P1 原型不得被误解为当前交付承诺。
+
+发生冲突时按以下顺序处理：
+
+1. 业务行为、权限、路由和数据：PRD、FRONTEND、API 与已接受 ADR；
+2. 视觉语义和 Design Token：本文；
+3. 页面结构、动作位置和品牌资产：跟踪版交互原型；
+4. 像素与主题参考：light/dark PNG。
+
+下级来源不得覆盖上级规范。发现冲突时按文档治理流程暂停并裁决，不得选择方便实现的一方。
+
+### 13.2 跟踪版交互原型
+
+正式交互原型位于 [`resource/prototype/reference/evidsight-web/`](../../../resource/prototype/reference/evidsight-web/)，页面映射与 P0/P1 范围以其 [`prototype-manifest.json`](../../../resource/prototype/reference/evidsight-web/prototype-manifest.json) 为准。
+
+- 该目录是设计参考资产，不进入 Vite 构建、部署、生产运行时或 API Consumer；
+- React 实现必须复用其主要区域、信息层级、动作位置、排版节奏与品牌资产；不得用通用 SaaS 模板自行重组；
+- 原型源码内的业务示例不构成行为授权。Chat 多 KB、P1 Admin、旧 Token 和外部字体等覆盖规则见该目录 README；
+- `.superpowers/` 仍是工具临时目录，不是开发输入；生产开发只能引用已跟踪目录；
+- 修改原型必须同步检查 manifest、两套 PNG、本文和 FRONTEND，不允许无记录替换视觉目标。
+
+### 13.3 截图与逐切片视觉门禁
 
 原型截图按主题分目录归档，同一页面编号在两套主题下对应：`resource/prototype/dark/`（`01`–`20`，深色主题基线）与 `resource/prototype/light/`（`01`–`20`，浅色默认主题基线）。页面结构、壳层、动作位置以浅色默认版为主基准，深色版提供同一结构下的可选外观；主题切换交互以最新交互原型为准。
+
+视觉验收固定使用 `1280 × 720` CSS px、device scale 1、固定 Chromium、已提交本地字体和确定性 Fixture。每个页面切片必须在生产实现前建立对应视觉 RED，并在完成声明前满足：
+
+- 同一视口、主题、路由、业务状态和数据下分别捕获目标与实现；
+- 入口、空态、加载、错误及该切片关键交互态至少各有一个明确验收目标；
+- 动画、时间和随机 ID 在截图中冻结；
+- 自动截图差异阈值由首次基线评审固定在测试配置中，后续不得为让失败通过而单独放宽；
+- 自动差异通过后仍检查字体、布局、裁切、按钮、边框、圆角和品牌资产；截图通过不能替代键盘、焦点和对比度测试；
+- 切片 8 负责跨页面完整 E2E，不接管各切片本应完成的视觉回归。
+
+未建立或未通过视觉 RED/GREEN 的页面只能声明“行为已实现，视觉待验收”，不得声明对应前端切片完成。
 
 ## 14. 相关文档
 

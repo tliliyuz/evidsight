@@ -38,6 +38,13 @@ repos:
         files: ^apps/web/
         pass_filenames: false
         stages: [pre-commit]
+      - id: web-design-gates
+        name: web design token and prototype baselines
+        entry: pnpm --dir apps/web run check:design
+        language: system
+        files: ^(apps/web/|resource/prototype/|docs/(specs/TESTING|guides/DEVELOPMENT|plans/ROADMAP)\.md$)
+        pass_filenames: false
+        stages: [pre-commit]
       - id: commit-msg-lint
         name: commit message format
         entry: bash scripts/check_commit_msg.sh

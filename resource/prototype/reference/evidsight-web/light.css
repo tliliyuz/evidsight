@@ -1,0 +1,1215 @@
+/* ============================================================
+   EvidSight 白底办公版 v1 · 2026-08-06
+   标准办公 SaaS 方向（ChatGPT / Kimi / DeepSeek / opencode 式）：
+   白底、深色文字、细边框、清晰分区。
+   只作用于工作区（.app-shell），入口页保留 dark 品牌叙事。
+   在 work.css 之后加载；仅 index-light.html 引入。
+   ============================================================ */
+
+/* 1) 基础 Token 翻转：白底深字 */
+:root {
+  --midnight: #f6f7f9;
+  --obsidian: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #eef1f4;
+  --porcelain: #161d24;
+  --muted: #5f6b77;
+  --moon: #3d6d94;
+  --cyan: #0b8f8b;
+  --danger: #d64554;
+  --success: #0a9d6b;
+  --warning: #b45309;
+  --line: rgba(16, 21, 28, .12);
+  --line-strong: rgba(16, 21, 28, .22);
+}
+
+/* 2) 工作区底色与表面 */
+.app-shell {
+  background: #f6f7f9;
+}
+.app-shell .app-sidebar {
+  background: #ffffff;
+  border-right: 1px solid var(--line);
+}
+.app-shell .app-header {
+  background: rgba(255, 255, 255, .92);
+  border-bottom: 1px solid var(--line);
+}
+
+/* 3) 文字阶梯：白底深字
+   标题 #111827 > 正文 #333d4a > 描述 #46525f > 元数据 #6b7682 > eyebrow #6b7682
+   全部相对 #ffffff ≥ 4.6:1。 */
+.app-shell {
+  color: #232c37;
+}
+.app-shell p:not(.eyebrow),
+.app-shell li,
+.app-shell dd,
+.app-shell blockquote {
+  color: #333d4a;
+}
+.app-shell small {
+  color: #6b7682;
+}
+.app-shell b,
+.app-shell strong {
+  color: #111827;
+}
+.app-shell h2,
+.app-shell h3 {
+  color: #111827;
+}
+.app-shell time {
+  color: #6b7682;
+}
+.app-shell .eyebrow {
+  color: #6b7682;
+  font-size: 11px;
+  letter-spacing: .08em;
+}
+
+/* 4) 页面标题 */
+.app-shell .page-heading h1,
+.app-shell .research-create-heading h1,
+.app-shell .tasks-heading h1,
+.app-shell .knowledge-heading h1,
+.app-shell .detail-hero h1,
+.app-shell .research-header h1,
+.app-shell .admin-heading h1 {
+  color: #111827;
+}
+.app-shell .page-heading h1 {
+  margin: 6px 0 4px;
+}
+
+/* 5) 页面导语/描述 */
+.app-shell .page-heading > div > p:last-child,
+.app-shell .research-create-heading > div > p:last-child,
+.app-shell .tasks-heading > div > p:last-child,
+.app-shell .knowledge-heading > div > p:last-child,
+.app-shell .admin-heading > div > p:last-child,
+.app-shell .admin-panel-heading p {
+  color: #46525f;
+}
+.app-shell .coordinates {
+  color: #6b7682;
+}
+
+/* 6) 侧边栏 */
+.app-shell .app-nav a {
+  color: #4a5663;
+}
+.app-shell .app-nav a:hover {
+  color: #111827;
+}
+.app-shell .app-nav a.active {
+  color: #111827;
+  background: #eef2f7;
+  border-left-color: #3d6d94;
+  text-shadow: none;
+}
+.app-shell .sidebar-bottom > a {
+  color: #4a5663;
+}
+.app-shell .account b {
+  color: #1f2937;
+}
+.app-shell .account small {
+  color: #6b7682;
+}
+
+/* 7) 顶部栏 */
+.app-shell .breadcrumb {
+  color: #6b7682;
+}
+.app-shell .breadcrumb b {
+  color: #1f2937;
+}
+.app-shell .running-chip {
+  color: #2c3644;
+}
+.app-shell .back-link {
+  color: #4a5663;
+}
+
+/* 8) 按钮：主按钮实底深色，次级按钮白底描边 */
+.app-shell .luminous-button {
+  background: #171d24;
+  border-color: #171d24;
+  color: #ffffff;
+  box-shadow: none;
+}
+.app-shell .luminous-button:hover {
+  background: #2b3644;
+  border-color: #2b3644;
+  box-shadow: 0 2px 10px rgba(23, 29, 36, .18);
+  transform: none;
+}
+.app-shell .luminous-button:before {
+  display: none;
+}
+.app-shell .ghost-button {
+  color: #3b4754;
+  border-color: #d5d9de;
+  background: #ffffff;
+}
+.app-shell .ghost-button:hover {
+  border-color: #b9c0c8;
+  background: #f4f6f8;
+}
+
+/* 9) 工作台卡片：白色面板 + 细边框 */
+.app-shell .workbench-launcher {
+  background: #ffffff;
+  border-color: #e4e7ea;
+}
+.app-shell .workbench-launcher > p:not(.eyebrow) {
+  color: #46525f;
+}
+.app-shell .workbench-launcher > div > button {
+  background: #fafbfc;
+  border-color: #e4e7ea;
+}
+.app-shell .workbench-launcher small {
+  color: #6b7682;
+}
+.app-shell .workbench-launcher b {
+  color: #111827;
+}
+.app-shell .active-mission {
+  background: #f4f6f8;
+  border-color: #e4e7ea;
+}
+.app-shell .active-mission > p:not(.eyebrow) {
+  color: #46525f;
+}
+.app-shell .active-mission button {
+  color: #1f2937;
+}
+.app-shell .recent-section > header a {
+  color: #4a5663;
+}
+
+/* 10) 列表账本：白底、细分隔线、Hover 淡灰 */
+.app-shell .archive-row,
+.app-shell .research-task-row,
+.app-shell .conversation-row,
+.app-shell .document-row,
+.app-shell .admin-kb-row,
+.app-shell .admin-document-row,
+.app-shell .pipeline-trace-row {
+  background: transparent;
+}
+.app-shell .archive-row > span > small,
+.app-shell .research-task-row > span > small,
+.app-shell .conversation-row > span > small,
+.app-shell .document-row small,
+.app-shell .admin-kb-row > span > small,
+.app-shell .admin-document-row > span > small,
+.app-shell .pipeline-trace-row > span > small {
+  color: #6b7682;
+}
+.app-shell .archive-row > span > b,
+.app-shell .research-task-row > span > b,
+.app-shell .conversation-row > span > b {
+  color: #1f2937;
+}
+.app-shell .archive-columns,
+.app-shell .research-task-columns,
+.app-shell .conversation-columns,
+.app-shell .admin-kb-columns,
+.app-shell .admin-document-columns,
+.app-shell .pipeline-trace-columns {
+  color: #6b7682;
+}
+.app-shell .archive-row:hover,
+.app-shell .research-task-row:hover,
+.app-shell .conversation-row:hover,
+.app-shell .document-row:hover {
+  background: #f2f4f7;
+}
+
+/* 11) 行内 CTA：白底描边按钮，深色文字 */
+.app-shell .row-cta {
+  border-color: #c7ccd3 !important;
+  background: #f3f5f7 !important;
+  color: #1f2937 !important;
+}
+.app-shell .row-cta:hover {
+  background: #e9edf1 !important;
+  border-color: #aeb6bf !important;
+}
+
+/* 12) 状态徽标：可读的深色语义色 */
+.app-shell .visibility,
+.app-shell .doc-state,
+.app-shell .task-state,
+.app-shell .admin-state,
+.app-shell .channel {
+  font-size: 11px;
+}
+.app-shell .task-state.running,
+.app-shell .doc-state.processing {
+  color: #0e7490;
+}
+.app-shell .task-state.completed,
+.app-shell .doc-state.completed,
+.app-shell .admin-state.active {
+  color: #0a9d6b;
+}
+.app-shell .task-state.failed,
+.app-shell .doc-state.failed {
+  color: #d64554;
+}
+.app-shell .doc-state.partial {
+  color: #b45309;
+}
+.app-shell .doc-state.queued {
+  color: #6b7682;
+}
+.app-shell .visibility.private {
+  color: #4168c9;
+}
+.app-shell .visibility.public {
+  color: #0b8f8b;
+}
+.app-shell .channel {
+  color: #4a5663;
+}
+
+/* 13) 管理中心：白底面板 */
+.app-shell .admin-metrics,
+.app-shell .admin-summary-strip,
+.app-shell .billing-metrics,
+.app-shell .billing-insights > section,
+.app-shell .billing-insights > aside,
+.app-shell .admin-role-grid article,
+.app-shell .admin-settings section {
+  background: #ffffff;
+}
+.app-shell .admin-metric > span {
+  color: #6b7682;
+}
+.app-shell .admin-metric > p {
+  color: #46525f;
+}
+.app-shell .admin-metric > i {
+  color: #6b7682;
+}
+.app-shell .admin-health {
+  background: #eafaf1;
+}
+.app-shell .admin-primary-sidebar {
+  background: #ffffff;
+}
+.app-shell .admin-tabs button {
+  color: #4a5663;
+}
+.app-shell .admin-tabs button.active {
+  color: #111827;
+  background: #eef2f7;
+}
+.app-shell .admin-tabs button:after {
+  background: #3d6d94;
+}
+
+/* 14) 运行态 */
+.app-shell .overall-progress {
+  background: #ffffff;
+}
+.app-shell .overall-progress > i {
+  background: #e7eaee;
+}
+.app-shell .overall-progress > i em {
+  background: linear-gradient(90deg, #7a9cb8, #3d6d94);
+  box-shadow: none;
+}
+.app-shell .overall-progress small {
+  color: #6b7682;
+}
+.app-shell .overall-progress > div {
+  color: #2c3644;
+}
+.app-shell .overall-progress > div b {
+  color: #111827;
+}
+.app-shell .pipeline li.done {
+  color: #6b7682;
+}
+.app-shell .pipeline li.active {
+  color: #111827;
+  background: rgba(61, 109, 148, .06);
+}
+.app-shell .pipeline li.active:after {
+  background: #3d6d94;
+  box-shadow: 0 0 10px rgba(61, 109, 148, .5);
+}
+.app-shell .activity-stream .event b {
+  color: #1f2937;
+}
+.app-shell .activity-stream .event p {
+  color: #46525f;
+}
+.app-shell .activity-stream .event time {
+  color: #6b7682;
+}
+.app-shell .task-context dt {
+  color: #6b7682;
+}
+.app-shell .task-context dd {
+  color: #2c3644;
+}
+.app-shell .thin-progress {
+  background: #e7eaee;
+}
+.app-shell .thin-progress i {
+  background: linear-gradient(90deg, #7a9cb8, #3d6d94);
+  box-shadow: none;
+}
+.app-shell .task-mini-progress {
+  background: #e7eaee;
+}
+.app-shell .task-mini-progress b {
+  background: linear-gradient(90deg, #7a9cb8, #3d6d94);
+}
+
+/* 15) 问答 */
+.app-shell .message-role {
+  color: #6b7682;
+}
+.app-shell .message-right > span {
+  color: #6b7682;
+}
+.app-shell .user-bubble {
+  background: #eef2f7;
+  border-color: #dde3e9;
+}
+.app-shell .user-bubble p {
+  color: #111827;
+}
+.app-shell .assistant-answer p,
+.app-shell .assistant-answer li {
+  color: #333d4a;
+}
+.app-shell .chat-composer textarea {
+  background: #ffffff;
+  color: #1f2937;
+}
+.app-shell .scope-summary {
+  color: #6b7682;
+}
+.app-shell .history-trigger,
+.app-shell .scope-trigger,
+.app-shell .adjacent-toggle,
+.app-shell .panel-button {
+  color: #4a5663;
+}
+.app-shell .scope-trigger b {
+  color: #111827;
+}
+.app-shell .kb-scope-popover {
+  background: #ffffff;
+}
+.app-shell .kb-picker-search {
+  background: #f4f6f8;
+}
+.app-shell .kb-picker-search input {
+  color: #1f2937;
+}
+.app-shell .kb-picker-tabs button.active {
+  background: #eef2f7;
+  color: #111827;
+}
+
+/* 16) 抽屉 / 覆盖层：白底浅阴影
+   登录/上传/切片/改密/退出/Trace 抽屉位于 .app-shell 之外，用非作用域选择器 */
+.login-drawer,
+.upload-drawer,
+.chunk-drawer,
+.password-drawer,
+.pipeline-trace-drawer {
+  background: #ffffff;
+  border-left: 1px solid var(--line-strong);
+  box-shadow: -24px 0 60px rgba(15, 23, 42, .12);
+}
+.login-drawer input[type="text"],
+.login-drawer input[type="password"],
+.login-drawer input:not([type]),
+.password-drawer input {
+  background: #f4f6f8;
+  color: #111827;
+  border-color: #d5d9de;
+}
+.login-drawer form > label,
+.login-drawer .login-copy > p:last-child,
+.password-drawer label {
+  color: #3b4754;
+}
+.password-strength span {
+  background: #e2e6ea;
+}
+.drop-zone {
+  background: #f8fafc;
+  border-color: #c9d2da;
+  color: #46525f;
+}
+.upload-intro,
+.upload-assurance p,
+.password-intro,
+.logout-dialog > p:not(.eyebrow),
+.trace-privacy {
+  color: #46525f;
+}
+.upload-queue small,
+.security-note,
+.chunk-context {
+  color: #6b7682;
+}
+.upload-queue em {
+  color: #4a5663;
+}
+.chunk-card {
+  background: #fafbfc;
+}
+.chunk-card p {
+  color: #333d4a;
+}
+.chunk-card > small {
+  color: #6b7682;
+}
+.chunk-drawer > header button,
+.password-drawer > header button,
+.drawer-close {
+  color: #6b7682;
+  border-color: var(--line);
+}
+.account-menu {
+  background: #ffffff;
+  border-color: var(--line-strong);
+  box-shadow: 0 18px 54px rgba(15, 23, 42, .14);
+}
+.logout-dialog {
+  background: #ffffff;
+  border-color: var(--line-strong);
+  box-shadow: 0 28px 90px rgba(15, 23, 42, .18);
+}
+.login-drawer .luminous-button,
+.upload-drawer .luminous-button,
+.password-drawer .luminous-button {
+  background: #171d24;
+  border-color: #171d24;
+  color: #ffffff;
+  box-shadow: none;
+}
+.login-drawer .luminous-button:before,
+.upload-drawer .luminous-button:before,
+.password-drawer .luminous-button:before {
+  display: none;
+}
+.pipeline-trace-drawer > header h2 {
+  color: #111827;
+}
+.pipeline-trace-drawer b {
+  color: #1f2937;
+}
+.pipeline-trace-drawer small,
+.pipeline-trace-drawer em {
+  color: #6b7682;
+}
+
+/* 17) 报告页：白底、深字、清晰分区 */
+.app-shell .report-toolbar {
+  background: #ffffff;
+}
+.app-shell .report-article strong {
+  color: #111827;
+}
+.app-shell .report-article blockquote {
+  color: #1f2937;
+}
+.app-shell .report-deck {
+  color: #46525f;
+}
+.app-shell .report-meta span {
+  color: #46525f;
+  border-color: var(--line-strong);
+}
+.app-shell .citation-button {
+  color: #0b8f8b;
+  border-color: rgba(11, 143, 139, .4);
+  background: rgba(11, 143, 139, .06);
+}
+.app-shell .section-nav a {
+  color: #6b7682;
+}
+.app-shell .section-nav a.active {
+  color: #111827;
+}
+.app-shell .method-grid small {
+  color: #6b7682;
+}
+.app-shell .method-grid b,
+.app-shell .recommendation-list b {
+  color: #111827;
+}
+.app-shell .method-grid span,
+.app-shell .recommendation-list p,
+.app-shell .conflict-card p {
+  color: #46525f;
+}
+.app-shell .conflict-card b {
+  color: #8a5a2b;
+}
+.app-shell .trace-appendix {
+  background: #fbfcfe;
+  border-color: var(--line-strong);
+}
+.app-shell .trace-boundary {
+  background: #f0f4f7;
+}
+.app-shell .trace-stage-detail p {
+  color: #46525f !important;
+}
+.app-shell .trace-stage-detail button {
+  color: #3d6d94;
+}
+
+/* 18) Evidence Graph：白底 */
+.app-shell .evidence-graph {
+  background: #fbfcfe;
+  border-left: 1px solid var(--line);
+}
+.app-shell .evidence-graph > header {
+  background: rgba(255, 255, 255, .96);
+}
+.app-shell .evidence-graph > header h2 {
+  color: #111827;
+}
+.app-shell .evidence-node {
+  background: #ffffff;
+}
+.app-shell .evidence-node b {
+  color: #1f2937;
+}
+.app-shell .evidence-node p {
+  color: #46525f;
+}
+.app-shell .evidence-node small {
+  color: #6b7682;
+}
+.app-shell .evidence-node.active {
+  border-color: #3d6d94;
+  box-shadow: inset 2px 0 #3d6d94;
+  background: #f0f5fa;
+}
+
+/* 19) 进度条 / 容量环 / 图表底色 */
+.app-shell .capacity-ring {
+  background: conic-gradient(#c7d3da calc(var(--usage) * 1%), #e8ebee 0);
+}
+.app-shell .capacity-ring:before {
+  background: #ffffff;
+}
+.app-shell .capacity-ring small {
+  color: #6b7682;
+}
+.app-shell .billing-bars {
+  background: repeating-linear-gradient(to bottom, transparent 0, transparent 38px, rgba(16, 21, 28, .06) 39px);
+}
+.app-shell .billing-bars i {
+  background: linear-gradient(to top, rgba(11, 143, 139, .35), rgba(11, 143, 139, .8));
+}
+.app-shell .billing-bars i.active {
+  background: linear-gradient(to top, #0b8f8b, #13b3ae);
+  box-shadow: none;
+}
+
+/* 20) 入口页保留 dark 品牌叙事：Token 翻转后回填深底浅字 */
+.landing {
+  color: #f3f6f8;
+}
+.landing .brand,
+.landing .section-statement h2,
+.landing .process-heading h2 {
+  color: #f3f6f8;
+}
+.landing .brand svg {
+  stroke: #f3f6f8;
+}
+.landing .brand .signal {
+  stroke: #70d3d0;
+  fill: #70d3d0;
+}
+.landing .eyebrow,
+.landing .orbit-label small {
+  color: #84909e;
+}
+.landing .public-nav a:hover {
+  color: #f3f6f8;
+}
+.landing .node {
+  fill: #070a10;
+  stroke: #b5ccd8;
+}
+.landing .node-c {
+  fill: #70d3d0;
+  stroke: #70d3d0;
+}
+.landing .phase-line span.active {
+  color: #f3f6f8;
+  text-shadow: 0 0 14px rgba(255, 255, 255, .55);
+}
+.landing .evidence-quote .citation {
+  color: #70d3d0;
+  border-color: rgba(223, 235, 241, .24);
+}
+.landing .source-orbit svg .pulse {
+  fill: #70d3d0;
+  stroke: #70d3d0;
+}
+
+/* ============================================================
+   白底一致性修复 v2 · 2026-08-06
+   系统性覆盖 dark 系残留：黑色卡片、隐形按钮、丢失卡片感的面板
+   ============================================================ */
+
+/* 页面底色再降半档，白色卡片才站得住 */
+.app-shell {
+  background: #f3f4f6;
+}
+
+/* 输入框 / 下拉 / 搜索 / 策略选择：浅灰底 + 深字 + 边框 */
+.app-shell .research-brief textarea,
+.app-shell .select-field,
+.app-shell .field-button,
+.app-shell .strategy,
+.app-shell .admin-settings input:not([type="checkbox"]),
+.app-shell .admin-settings .select-field,
+.app-shell .kb-picker-search {
+  background: #fafbfc;
+  color: #1f2937;
+  border-color: #d5d9de;
+}
+.app-shell .select-field i,
+.app-shell .research-brief label > span,
+.app-shell .kb-picker-search span {
+  color: #6b7682;
+}
+.app-shell .strategy button {
+  color: #4a5663;
+}
+.app-shell .strategy button.active {
+  background: #eef2f7;
+  color: #111827;
+  box-shadow: inset 0 0 0 1px #3d6d94;
+}
+.app-shell .archive-search input,
+.app-shell .document-controls input {
+  color: #1f2937;
+  border-color: #d5d9de;
+}
+
+/* 顶部 chips：运行提示 / ⌘K 命令 / 连接状态 */
+.app-shell .running-chip,
+.app-shell .command,
+.app-shell .connection {
+  background: #ffffff;
+  border: 1px solid #d5d9de;
+  color: #2c3644;
+}
+.app-shell .command kbd {
+  background: #eef1f4;
+  border-color: #cbd1d8;
+  color: #4a5663;
+}
+
+/* 按钮：次级浅灰底，主按钮深底，全部有明确颜色 */
+.app-shell .ghost-button {
+  background: #f3f5f7;
+  border-color: #cdd3da;
+  color: #1f2937;
+}
+.app-shell .ghost-button:hover {
+  background: #e9edf1;
+  border-color: #aeb6bf;
+}
+.app-shell .ghost-button.danger {
+  color: #c0392b;
+  border-color: #e5b4b0;
+}
+.app-shell .panel-button {
+  background: #eef2f7;
+  border-color: #d5d9de;
+  color: #1f2937;
+}
+.app-shell .document-row > button {
+  background: #f3f5f7;
+  border-color: #cdd3da;
+  color: #1f2937;
+}
+.app-shell .document-row .retry-button {
+  background: #fdf1f0;
+  border-color: #e5b4b0;
+  color: #c0392b;
+}
+.app-shell .new-conversation {
+  background: #f3f5f7;
+  border-color: #cdd3da;
+  color: #1f2937;
+}
+.app-shell .scope-trigger,
+.app-shell .history-trigger {
+  background: #f4f6f8;
+  border-color: #d5d9de;
+  color: #4a5663;
+}
+.app-shell .kb-picker-tabs button.active {
+  background: #eef2f7;
+  color: #111827;
+}
+.app-shell .scope-tabs button.active,
+.app-shell .document-controls > button.active {
+  color: #111827;
+  text-shadow: none;
+}
+
+/* 黑色卡片全部改白 */
+.app-shell .research-brief {
+  background: #ffffff;
+  border-color: #e4e7ea;
+}
+.app-shell .chat-composer {
+  background: #ffffff;
+}
+.app-shell .chat-composer textarea {
+  background: transparent;
+  color: #1f2937;
+}
+.app-shell .knowledge-pulse {
+  background: #ffffff;
+}
+.app-shell .admin-activity-panel,
+.app-shell .admin-capacity {
+  background: #ffffff;
+}
+.app-shell .method-grid > div {
+  background: #ffffff;
+}
+.app-shell .inline-progress {
+  background: #e7eaee;
+}
+.app-shell .inline-progress b {
+  background: linear-gradient(90deg, #7a9cb8, #3d6d94);
+}
+.app-shell .trace-stage.open {
+  background: #f7f9fb;
+}
+.app-shell .account[aria-expanded="true"] {
+  background: #f2f4f7;
+}
+.app-shell .account-menu button:hover {
+  background: #f2f4f7;
+}
+.app-shell .account-menu button.danger b {
+  color: #c0392b;
+}
+
+/* 报告：整块白底，表格与阶段文字转深色 */
+.app-shell .report-route,
+.app-shell .section-nav,
+.app-shell .report-article {
+  background: #ffffff;
+}
+.app-shell .comparison-table b {
+  color: #1f2937;
+}
+.app-shell .comparison-table span {
+  color: #333d4a;
+}
+.app-shell .trace-stage b {
+  color: #1f2937;
+}
+.app-shell .trace-audit > div {
+  background: #fbfcfe;
+}
+.app-shell .trace-limitations {
+  border-left-color: #b45309;
+}
+
+/* 管理品牌 / 返回按钮文字转深 */
+.app-shell .admin-primary-sidebar .admin-brand b {
+  color: #111827;
+}
+.app-shell .admin-primary-sidebar .admin-brand small {
+  color: #6b7682;
+}
+.app-shell .admin-return {
+  color: #4a5663;
+}
+.app-shell .admin-return:hover {
+  color: #111827;
+  background: #f2f4f7;
+  border-color: #b9c0c8;
+}
+.app-shell .admin-tabs button em {
+  color: #6b7682;
+}
+
+/* 管理活动 / 设置面板内部文字 */
+.app-shell .admin-activity-list article b {
+  color: #1f2937;
+}
+.app-shell .admin-activity-list article p {
+  color: #6b7682;
+}
+.app-shell .admin-activity-list time {
+  color: #6b7682;
+}
+.app-shell .admin-settings h3 {
+  color: #111827;
+}
+.app-shell .admin-settings header > span {
+  color: #6b7682;
+}
+.app-shell .settings-saved,
+.app-shell .trace-retention {
+  color: #6b7682;
+}
+
+/* 浅色文字残留统一转深 */
+.app-shell .section-nav .eyebrow,
+.app-shell .trace-nav-separator,
+.app-shell .trace-heading > span,
+.app-shell .trace-audit small,
+.app-shell .trace-step-list li > div > small {
+  color: #6b7682;
+}
+.app-shell .trace-boundary b {
+  color: #4a5663;
+}
+.app-shell .trace-boundary span {
+  color: #6b7682;
+}
+.app-shell .event.active > i {
+  color: #3d6d94;
+  text-shadow: none;
+}
+.app-shell .event.warning > i {
+  color: #b45309;
+}
+
+/* Pipeline Trace 抽屉内部（在 .app-shell 之外） */
+.phase-json-details {
+  background: #f6f8fa;
+  border-color: #dde3e9;
+}
+.phase-json-details summary {
+  color: #1f2937;
+}
+.phase-json-details summary:before {
+  color: #6b7682;
+}
+.phase-json-details pre {
+  color: #333d4a;
+  border-top-color: var(--line);
+}
+.trace-step-list li > div > b {
+  color: #1f2937;
+}
+.trace-drawer-summary small {
+  color: #6b7682;
+}
+
+/* 聊天来源面板 / 切片抽屉残余 */
+.app-shell .scope-option em,
+.app-shell .kb-scope-popover footer > span,
+.app-shell .adjacent-chunks small,
+.app-shell .permission-note {
+  color: #6b7682;
+}
+.app-shell .kb-scope-popover > p {
+  color: #46525f;
+}
+.app-shell .cited-chunk {
+  background: #f7f9fb;
+  border-color: #dde3e9;
+}
+.app-shell .cited-chunk > span {
+  color: #6b7682;
+}
+.app-shell .adjacent-chunks p {
+  color: #46525f;
+}
+
+/* 抽屉外残余：退出确认、登录、上传、切片、改密、Trace */
+.logout-dialog .ghost-button {
+  background: #f3f5f7;
+  border-color: #cdd3da;
+  color: #1f2937;
+}
+.logout-dialog .ghost-button:hover {
+  background: #e9edf1;
+}
+.logout-dialog .danger-button {
+  background: #fbecea;
+  border-color: #e5b4b0;
+  color: #c0392b;
+}
+.logout-dialog h2,
+.upload-drawer h2,
+.chunk-drawer h2,
+.password-drawer h2,
+.pipeline-trace-drawer h2 {
+  color: #111827;
+}
+.upload-drawer .upload-submit {
+  background: #171d24;
+  border-color: #171d24;
+  color: #ffffff;
+}
+.chunk-drawer .panel-button,
+.pipeline-trace-drawer .panel-button {
+  background: #eef2f7;
+  border-color: #d5d9de;
+  color: #1f2937;
+}
+
+/* ============================================================
+   白底对比度修复 v3 · 2026-08-06
+   选中态加深、按钮/标签/卡片与背景拉开、聊天输入区降亮
+   ============================================================ */
+
+/* 1) 侧边栏：选中态加深（品牌蓝），不是变淡 */
+.app-shell .nav-icon {
+  color: #5a6b7a;
+}
+.app-shell .app-nav a:hover,
+.app-shell .sidebar-bottom > a:hover {
+  background: #f2f5f8;
+  color: #111827;
+}
+.app-shell .app-nav a.active,
+.app-shell .sidebar-bottom > a.active {
+  background: #e7eef6;
+  color: #2b5c85;
+  border-left-color: #2b6da0;
+  text-shadow: none;
+}
+.app-shell .app-nav a.active .nav-icon,
+.app-shell .sidebar-bottom > a.active .nav-icon {
+  color: #2b6da0;
+}
+
+/* 2) 按钮：明确可见的描边 + 浅灰填充，与背景拉开 */
+.app-shell .ghost-button {
+  background: #f0f3f6;
+  border-color: #c0c8d0;
+  color: #24303c;
+}
+.app-shell .ghost-button:hover {
+  background: #e4e9ee;
+  border-color: #a9b4be;
+}
+.app-shell .row-cta {
+  background: #eef2f6 !important;
+  border-color: #b9c3cc !important;
+  color: #24303c !important;
+}
+.app-shell .row-cta:hover {
+  background: #e0e6ec !important;
+  border-color: #a2adb8 !important;
+}
+.app-shell .scope-trigger,
+.app-shell .history-trigger {
+  background: #f0f3f6;
+  border-color: #c0c8d0;
+  color: #24303c;
+}
+.app-shell .scope-trigger:hover,
+.app-shell .history-trigger:hover {
+  background: #e4e9ee;
+  border-color: #a9b4be;
+}
+.app-shell .panel-button {
+  background: #eef2f6;
+  border-color: #c0c8d0;
+  color: #24303c;
+}
+.app-shell .document-row > button {
+  background: #f0f3f6;
+  border-color: #c0c8d0;
+  color: #24303c;
+}
+.app-shell .document-row > button:hover {
+  background: #e4e9ee;
+}
+.app-shell .new-conversation {
+  background: #f0f3f6;
+  border-color: #c0c8d0;
+  color: #24303c;
+}
+.app-shell .new-conversation:hover {
+  background: #e4e9ee;
+}
+
+/* 3) 问答输入框：降亮为浅灰，不再刺眼 */
+.app-shell .chat-composer {
+  background: #f4f6f8;
+}
+.app-shell .chat-composer textarea {
+  background: transparent;
+  color: #1f2937;
+}
+
+/* 4) 来源标签（混合/内部/公开/研究/知识/嵌入）：彩色浅底徽标 */
+.app-shell .channel {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #24303c;
+}
+.app-shell .channel.hybrid {
+  background: #e6f7f6;
+  color: #06736f;
+}
+.app-shell .channel.internal {
+  background: #eaf0fc;
+  color: #4168c9;
+}
+.app-shell .channel.web {
+  background: #fdf3e7;
+  color: #b45309;
+}
+
+/* 5) 工作台右栏「进行中的研究」：白底卡片 + 可见边框 */
+.app-shell .active-mission {
+  background: #ffffff;
+  border-color: #e0e4e9;
+}
+
+/* 6) 标签页 active：品牌蓝文字 + 浅蓝底 */
+.app-shell .scope-tabs button.active,
+.app-shell .document-controls > button.active {
+  color: #2b6da0;
+  background: #e7eef6;
+}
+
+/* ============================================================
+   白底修复 v4 · 2026-08-06
+   头像有底色、admin-mode 侧边栏转白、品牌 SVG 转深色
+   ============================================================ */
+
+/* 头像：浅蓝底 + 品牌蓝首字母，不再融进背景 */
+.app-shell .avatar,
+.app-shell .admin-person > i {
+  background: #e2eaf3;
+  color: #2b5c85;
+  border-color: #c7d6e4;
+}
+
+/* admin-mode 侧边栏：覆盖更高优先级的深色规则，转白底 */
+.app-shell.admin-mode .admin-console-layout > .admin-primary-sidebar {
+  background: #ffffff;
+  border-right: 1px solid var(--line);
+}
+.app-shell .admin-primary-sidebar .admin-brand {
+  color: #111827;
+}
+.app-shell .admin-primary-sidebar .admin-brand svg {
+  stroke: #111827;
+}
+
+/* ============================================================
+   白底修复 v5 · 2026-08-06
+   内容容器化 + Trace 阶段信息白底配色
+   ============================================================ */
+
+/* 1) Trace 抽屉步骤：白底深字，字号在 work.css 已抬升 */
+.pipeline-trace-drawer .trace-step-list li b {
+  color: #1f2937;
+}
+.pipeline-trace-drawer .trace-step-list li small {
+  color: #46525f;
+}
+.pipeline-trace-drawer .trace-step-list li em {
+  color: #4a5663;
+}
+.pipeline-trace-drawer .trace-step-list li > span {
+  color: #6b7682;
+}
+
+/* 2) 内容容器化：普通页面内容放进白色卡片，不再直接贴在灰底上 */
+.app-shell .route-view:not(.chat-route):not(.report-route):not(.admin-route) {
+  background: #ffffff;
+  border: 1px solid #e4e7ea;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+}
+.app-shell.admin-mode .admin-route {
+  background: #ffffff;
+  border: 0;
+  border-radius: 0;
+}
+
+/* 3) 卡片内的次级面板改为浅灰，避免“卡片套卡片” */
+.app-shell .workbench-launcher,
+.app-shell .active-mission,
+.app-shell .knowledge-pulse,
+.app-shell .overall-progress,
+.app-shell .research-brief,
+.app-shell .admin-metrics,
+.app-shell .admin-summary-strip,
+.app-shell .admin-activity-panel,
+.app-shell .admin-capacity,
+.app-shell .billing-metrics,
+.app-shell .billing-insights > section,
+.app-shell .billing-insights > aside,
+.app-shell .admin-role-grid article,
+.app-shell .admin-settings section {
+  background: #f8fafb;
+}
+
+/* ============================================================
+   白底修复 v6 · 2026-08-06
+   聊天页与其他页面背景统一、输入框阴影消除
+   ============================================================ */
+
+/* 聊天页：与其他页面一致的白色表面，不再是灰底 */
+.app-shell .chat-route {
+  background: #ffffff;
+}
+
+/* 输入框：去掉深色设计遗留的大阴影，改用干净浅灰 + 细边框 */
+.app-shell .chat-composer {
+  box-shadow: none;
+  border-color: #d5d9de;
+  background: #f4f6f8;
+}
+.app-shell .chat-composer footer {
+  color: #6b7682;
+}
+
+/* ============================================================
+   主题选择：白底适配 v7
+   ============================================================ */
+
+/* 选项卡片：白底浅灰填充 */
+.theme-option {
+  background: #f8fafb;
+}
+.theme-option:hover {
+  background: #eef2f7;
+}
+
+/* 确认按钮：与主按钮一致的深色实底 */
+.theme-confirm .luminous-button {
+  background: #171d24;
+  border-color: #171d24;
+  color: #ffffff;
+  box-shadow: none;
+}
+.theme-confirm .luminous-button:before {
+  display: none;
+}

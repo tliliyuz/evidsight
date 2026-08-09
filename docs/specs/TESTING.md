@@ -53,6 +53,8 @@
 - Python 类型检查采用 mypy 全量门禁。六批收口后的最终强制范围为：① Knowledge/Research 两服务完整 `app/`（包括 Schema、Core、API、Service、Pipeline/Task/Worker、基础设施与外部 Provider 客户端、ORM、Evaluation、Metrics、Utils 和入口）；② 两服务 `scripts/`（不含 `.ab/` 临时噪声实验目录）、`tests/` 与 `alembic/env.py`；③ 根 `tests/`；④ `packages/contracts/generated/python/` 与 `packages/contracts/tests/`。Alembic 历史 revision 属生成且已落库的迁移事实，继续由迁移往返验证，不纳入 mypy；缓存、venv 与其他生成目录继续排除。两服务及共享范围必须使用同一根配置分别检查，全部结果为零错误；日常检查与 pre-commit 使用 `make setup-python-dev` 建立的各服务 Python 3.12 `.venv`，检查过程不得临时安装依赖；候选版及 Python requirements/Dockerfile 变化必须再执行 `make type-check-docker`，使用 Dockerfile 缓存的 `typecheck` target 在 Linux Python 3.12 中复核，运行容器不得联网安装依赖。启用 Pydantic mypy plugin、`check_untyped_defs`、严格 Optional、冗余 cast 与无效 ignore 检查；不得用全局 `ignore_missing_imports`、全局 `ignore_errors` 或批量 `# type: ignore` 伪造通过。新增 Python 文件必须在所属环境的全量门禁中立即清零，不再保留后续批次豁免。
 - Mac 上仅编辑器解析、ruff、mypy、pre-commit 与不依赖外部服务的纯单元检查可使用服务 `.venv`；API+DB、迁移、Worker/Celery、Redis、跨服务 Provider/Consumer、SSE、smoke 及完整回归必须使用根 Docker Compose 环境。不连接数据服务、不发起跨服务请求的隔离 Provider 契约测试可按 §4 使用对应服务的受管容器单独执行。不得为绕过容器依赖缺失而在一次性运行容器中 `pip install`，开发/测试依赖必须进入版本化 requirements 与可缓存构建 target。
 - Web 只保留 `pnpm-lock.yaml`，冻结安装、ESLint、Prettier 检查、TypeScript 类型检查、Vitest 与 Vite 构建均通过；前端相关暂存文件由 pre-commit 调用 `lint` 与 `format:check`，hook 只报告、不修改文件。具体工具边界与验收条件以 [FRONTEND.md §2.2](../../apps/web/docs/FRONTEND.md#22-工程工具链) 为准。
+- Web Design Token 静态门禁必须验证：所有 `--es-*` 引用在 `tokens.css` 中声明、业务源码不存在颜色字面量、生产代码不消费跟踪版原型旧 Token、Tailwind 映射不创建第二套视觉事实；任一项失败阻止切片完成。
+- 跟踪版交互原型 manifest 必须可解析，20 个页面 ID 唯一，交互源和 light/dark PNG 均存在，PNG 宽度为 1280px 且高度不低于 720px；参考目录不得包含 `package.json` 或进入生产构建，防止形成第二前端。
 
 ### 3.2 身份与权限
 
@@ -102,6 +104,9 @@
 - 引用与 Evidence 双向定位；
 - 权限撤销后清理内部正文；
 - 键盘、焦点、对比度和 reduced motion。
+- 每个页面切片在实现前建立同状态视觉 RED，并在完成前通过固定 Chromium、1280×720、device scale 1、本地字体和确定性 Fixture 的 Playwright 截图回归；页面视觉回归不得推迟到最终 E2E 切片。
+- 入口/登录、AppShell/工作台、知识中心、Chat、Research、Report/Evidence 和 Admin 分别拥有自己的视觉用例；切片 8 只补跨页面业务旅程。
+- 自动截图差异阈值必须在首次基线评审时统一固定，后续阈值变化属于验收标准变更，必须先完成文档裁决，不得为单次失败临时放宽。
 
 ### 3.6 部署拓扑与故障演练
 

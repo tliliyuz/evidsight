@@ -1,0 +1,476 @@
+/* ============================================================
+   EvidSight 干活向简化 v2 · 2026-08-06
+   深色保留，界面退后；可读性优先：文字整体提亮、字号抬升。
+   只作用于工作区（.app-shell），入口页与报告页保留品牌叙事。
+   覆盖顺序在 iteration.css 之后，最终生效。
+   ============================================================ */
+
+/* 1) 工作区底色：去掉右上发光装饰，接近工具面 */
+.app-shell {
+  background: #0a0e15;
+}
+.app-shell .app-sidebar {
+  background: rgba(8, 11, 17, .94);
+}
+.app-shell .app-header {
+  background: rgba(10, 14, 21, .9);
+}
+
+/* 2) 可读性基线：整条文字亮度阶梯上抬
+   标题 #f4f7f9 > 正文 #d3dde2 > 描述 #b6c2ca > 元数据 #9dabb6 > eyebrow #8d9ba6
+   所有层级相对 #0a0e15 均 ≥ WCAG AA（4.5:1）。 */
+.app-shell {
+  color: #e9eff2;
+}
+.app-shell p:not(.eyebrow),
+.app-shell li,
+.app-shell dd,
+.app-shell blockquote {
+  color: #d3dde2;
+}
+.app-shell small {
+  color: #9dabb6;
+}
+.app-shell b,
+.app-shell strong {
+  color: #f0f4f6;
+}
+.app-shell h2,
+.app-shell h3 {
+  color: #eef3f5;
+}
+.app-shell time {
+  color: #9dabb6;
+}
+.app-shell .eyebrow {
+  color: #8d9ba6;
+  font-size: 11px;
+  letter-spacing: .08em;
+}
+
+/* 3) 页面标题：工具尺度，但足够醒目 */
+.app-shell .page-heading h1,
+.app-shell .research-create-heading h1,
+.app-shell .tasks-heading h1,
+.app-shell .knowledge-heading h1,
+.app-shell .detail-hero h1,
+.app-shell .research-header h1,
+.app-shell .admin-heading h1 {
+  font-size: 30px !important;
+  line-height: 1.12;
+  letter-spacing: -.03em;
+  color: #f4f7f9;
+}
+.app-shell .page-heading h1 {
+  margin: 6px 0 4px;
+}
+.app-shell .workbench-launcher h2 {
+  font-size: 22px;
+}
+.app-shell .chat-header h1 {
+  font-size: 22px;
+}
+
+/* 4) 页面导语/描述：找得到、读得清 */
+.app-shell .page-heading > div > p:last-child,
+.app-shell .research-create-heading > div > p:last-child,
+.app-shell .tasks-heading > div > p:last-child,
+.app-shell .knowledge-heading > div > p:last-child,
+.app-shell .admin-heading > div > p:last-child,
+.app-shell .admin-panel-heading p {
+  color: #b6c2ca;
+  font-size: 14px;
+}
+.app-shell .coordinates {
+  color: #9dabb6;
+  font-size: 12px;
+}
+
+/* 5) 侧边栏：更大更亮的导航文字 */
+.app-shell .app-nav a {
+  color: #9aa8b3;
+  font-size: 14px;
+}
+.app-shell .app-nav a:hover {
+  color: #e6edf1;
+}
+.app-shell .app-nav a.active {
+  color: #f4f7f9;
+  background: rgba(181, 204, 216, .16);
+  border-left-color: #c8d7de;
+  text-shadow: none;
+}
+.app-shell .sidebar-bottom > a {
+  color: #9aa8b3;
+  font-size: 14px;
+}
+.app-shell .account b {
+  color: #e6edf1;
+  font-size: 13px;
+}
+.app-shell .account small {
+  color: #9dabb6;
+  font-size: 11px;
+}
+
+/* 6) 顶部栏 */
+.app-shell .breadcrumb {
+  color: #7d8b96;
+}
+.app-shell .breadcrumb b {
+  color: #dce4e8;
+  font-size: 13px;
+}
+.app-shell .running-chip {
+  color: #e6edf1;
+  font-size: 12px;
+}
+.app-shell .back-link {
+  color: #a9b6c0;
+  font-size: 12px;
+}
+
+/* 7) 主按钮：实底高对比；次级按钮提亮 */
+.app-shell .luminous-button {
+  background: #eef4f6;
+  border-color: #eef4f6;
+  color: #0b1119;
+  box-shadow: inset 0 -2px 0 rgba(11, 17, 24, .14);
+}
+.app-shell .luminous-button:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  box-shadow: inset 0 -2px 0 rgba(11, 17, 24, .14), 0 2px 14px rgba(238, 244, 246, .18);
+  transform: none;
+}
+.app-shell .luminous-button:before {
+  display: none;
+}
+.app-shell .ghost-button {
+  color: #dce4e8;
+  border-color: rgba(223, 235, 241, .34);
+  background: rgba(255, 255, 255, .04);
+  font-size: 13px;
+}
+
+/* 8) 工作台：卡片减重、文字提亮 */
+.app-shell .workbench-launcher {
+  background: #0e141d;
+  border-color: rgba(223, 235, 241, .16);
+}
+.app-shell .workbench-launcher > p:not(.eyebrow) {
+  color: #b6c2ca;
+  font-size: 13px;
+}
+.app-shell .workbench-launcher > div > button {
+  background: rgba(255, 255, 255, .02);
+  border-color: rgba(223, 235, 241, .14);
+}
+.app-shell .workbench-launcher small {
+  color: #9dabb6;
+  font-size: 11px;
+}
+.app-shell .workbench-launcher b {
+  font-size: 16px;
+}
+.app-shell .active-mission {
+  background: rgba(181, 204, 216, .045);
+  border-color: rgba(223, 235, 241, .16);
+}
+.app-shell .active-mission > p:not(.eyebrow) {
+  color: #b6c2ca;
+  font-size: 13px;
+}
+.app-shell .active-mission button {
+  color: #e6edf1;
+  font-weight: 600;
+  font-size: 13px;
+}
+.app-shell .recent-section > header a {
+  color: #a9b6c0;
+  font-size: 13px;
+}
+
+/* 9) 列表账本：字号抬升、文字提亮 */
+.app-shell .archive-row > span > small,
+.app-shell .research-task-row > span > small,
+.app-shell .conversation-row > span > small,
+.app-shell .document-row small,
+.app-shell .admin-kb-row > span > small,
+.app-shell .admin-document-row > span > small,
+.app-shell .pipeline-trace-row > span > small {
+  color: #9dabb6;
+  font-size: 12px;
+}
+.app-shell .archive-row > span > b,
+.app-shell .research-task-row > span > b,
+.app-shell .conversation-row > span > b {
+  color: #e6edf1;
+}
+.app-shell .archive-name b {
+  font-size: 16px !important;
+}
+.app-shell .research-task-name b {
+  font-size: 16px !important;
+}
+.app-shell .conversation-row > span:first-child > b {
+  font-size: 16px !important;
+}
+.app-shell .archive-columns,
+.app-shell .research-task-columns,
+.app-shell .conversation-columns,
+.app-shell .admin-kb-columns,
+.app-shell .admin-document-columns,
+.app-shell .pipeline-trace-columns {
+  color: #a3b1bc;
+  font-size: 12px;
+}
+.app-shell .archive-row:hover,
+.app-shell .research-task-row:hover,
+.app-shell .conversation-row:hover,
+.app-shell .document-row:hover {
+  background: rgba(181, 204, 216, .07);
+}
+
+/* 10) 行内 CTA：更实、更明确 */
+.app-shell .row-cta {
+  border-color: rgba(181, 204, 216, .4) !important;
+  background: rgba(181, 204, 216, .13) !important;
+  color: #f0f4f6 !important;
+  font-size: 12px !important;
+}
+.app-shell .row-cta:hover {
+  background: rgba(181, 204, 216, .22) !important;
+}
+
+/* 11) 状态徽标：字号 ≥ 11px，颜色更亮 */
+.app-shell .visibility,
+.app-shell .doc-state,
+.app-shell .task-state,
+.app-shell .admin-state,
+.app-shell .channel {
+  font-size: 11px;
+}
+.app-shell .task-state.running {
+  color: #e0e9ed;
+}
+.app-shell .task-state.completed {
+  color: #8fe0b8;
+}
+.app-shell .task-state.failed {
+  color: #f3a8b2;
+}
+.app-shell .doc-state.completed {
+  color: #8fe0b8;
+}
+.app-shell .doc-state.processing {
+  color: #dde7ec;
+  text-shadow: none;
+}
+.app-shell .doc-state.queued {
+  color: #a3b1bc;
+}
+.app-shell .doc-state.partial {
+  color: #e8c88a;
+}
+.app-shell .doc-state.failed {
+  color: #f3a8b2;
+}
+.app-shell .admin-state.active {
+  color: #8fe0b8;
+}
+.app-shell .visibility.private {
+  color: #a9c1ea;
+}
+.app-shell .visibility.public {
+  color: #96d8d2;
+}
+.app-shell .channel {
+  color: #c7d3d9;
+}
+
+/* 12) 管理中心：文字与指标更清晰 */
+.app-shell .admin-metric > span {
+  color: #9dabb6;
+}
+.app-shell .admin-metric > p {
+  color: #b6c2ca;
+}
+.app-shell .admin-metric > i {
+  color: #9dabb6;
+}
+.app-shell .admin-health {
+  background: rgba(93, 201, 157, .06);
+}
+.app-shell .admin-health b {
+  font-size: 13px;
+}
+.app-shell .admin-health small {
+  font-size: 10px;
+}
+.app-shell .admin-primary-sidebar {
+  background: rgba(8, 11, 17, .97);
+}
+.app-shell .admin-tabs button {
+  color: #9aa8b3;
+  font-size: 14px;
+}
+.app-shell .admin-tabs button.active {
+  color: #f4f7f9;
+  background: rgba(181, 204, 216, .14);
+}
+
+/* 13) 运行态：阶段与事件流提亮 */
+.app-shell .pipeline li.done {
+  color: #a3b1bc;
+}
+.app-shell .pipeline li.active {
+  color: #f4f7f9;
+}
+.app-shell .activity-stream .event b {
+  color: #e6edf1;
+  font-size: 15px;
+}
+.app-shell .activity-stream .event p {
+  color: #b6c2ca;
+  font-size: 13px;
+}
+.app-shell .activity-stream .event time {
+  font-size: 11px;
+}
+.app-shell .task-context dt {
+  color: #9dabb6;
+  font-size: 11px;
+}
+.app-shell .task-context dd {
+  color: #dce4e8;
+  font-size: 14px;
+}
+.app-shell .overall-progress small {
+  color: #9dabb6;
+  font-size: 11px;
+}
+.app-shell .overall-progress > div {
+  font-size: 13px;
+}
+.app-shell .overall-progress > div b {
+  font-size: 20px;
+}
+
+/* 14) 问答：正文与输入区提亮 */
+.app-shell .message-role {
+  color: #9dabb6;
+  font-size: 11px;
+}
+.app-shell .assistant-answer p,
+.app-shell .assistant-answer li {
+  color: #cdd8de;
+  font-size: 14px;
+  line-height: 1.9;
+}
+.app-shell .user-bubble p {
+  color: #f0f4f6;
+  font-size: 14px;
+}
+.app-shell .chat-composer textarea {
+  background: rgba(255, 255, 255, .03);
+  color: #e6edf1;
+  font-size: 14px;
+}
+.app-shell .scope-summary {
+  color: #9dabb6;
+  font-size: 12px;
+}
+.app-shell .history-trigger,
+.app-shell .scope-trigger,
+.app-shell .adjacent-toggle,
+.app-shell .panel-button {
+  color: #b6c2ca;
+}
+
+/* Trace 抽屉：阶段耗时是高频查看信息，字号与对比度提升（两版通用） */
+.pipeline-trace-drawer .trace-step-list li > span {
+  font-size: 12px;
+  color: #7d8b96;
+}
+.pipeline-trace-drawer .trace-step-list li b {
+  font-size: 15px;
+  color: #e2e8ec;
+}
+.pipeline-trace-drawer .trace-step-list li small {
+  font-size: 13px;
+  color: #8f9ba6;
+  margin-top: 5px;
+}
+.pipeline-trace-drawer .trace-step-list li em {
+  font-size: 11px;
+  color: #8f9ba6;
+}
+
+/* 主题选择：选项卡片（基础样式，随 Token 自动适配深浅色） */
+.theme-options {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0 28px;
+}
+.theme-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .02);
+  color: var(--porcelain);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: .15s;
+}
+.theme-option:hover {
+  border-color: var(--moon);
+  background: rgba(181, 204, 216, .06);
+}
+.theme-option.selected {
+  border-color: var(--moon);
+  box-shadow: inset 0 0 0 1px var(--moon);
+}
+.theme-swatch {
+  width: 46px;
+  height: 30px;
+  border-radius: 5px;
+  border: 1px solid var(--line-strong);
+  flex-shrink: 0;
+}
+.swatch-light {
+  background: linear-gradient(145deg, #ffffff, #e8ecf0);
+}
+.swatch-dark {
+  background: linear-gradient(145deg, #0a0e15, #202b38);
+}
+.theme-option-copy b {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+.theme-option-copy small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.theme-check {
+  font-style: normal;
+  font-size: 16px;
+  color: var(--moon);
+  visibility: hidden;
+}
+.theme-option.selected .theme-check {
+  visibility: visible;
+}
+.theme-actions {
+  display: flex;
+  justify-content: flex-end;
+}

@@ -350,6 +350,40 @@ M3 已完成（2026-08-08）。八条 Research Pipeline 退出门禁逐项核对
 | Conversation 列表 / 详情 / 更新 / 删除 | `/api/v1/conversations/*` | 已实现 | 可消费（M4 切片 3B 后切片消费） |
 | External OpenAPI | `docs/openapi/evidsight-v1.yaml` | 已建立 | 已成为上述 v1 Provider 字段契约的唯一权威源 |
 
+#### M4 前端切片依赖、并行与视觉纠偏门禁
+
+切片依赖固定为：
+
+```text
+切片 3 知识中心 ─┬→ 切片 4 Chat 来源与 KB 选择
+                 ├→ 切片 5 knowledge/hybrid KB 选择
+                 └→ 切片 6 Internal Evidence 原文展开
+
+切片 5 Research ───→ 切片 6 Report / Evidence
+切片 7 Admin ──────→ 基本独立
+切片 3–7 全部完成 ─→ 切片 8 E2E
+```
+
+并行开发最多三条线。切片 3B、切片 4 独立部分与切片 7A 后端可以并行；切片 3 的 KB 选择与 location 组件稳定后，才并行完成切片 4、切片 5 与切片 7B；切片 6 的静态三栏与双向定位纯函数可在切片 5 后半段开始，真实 API 联调等待切片 5 状态事实稳定；切片 8 只负责 3–7 集成后的跨页面 E2E，不接管页面切片自己的视觉回归。
+
+文件所有权固定为：
+
+- `src/api/knowledge*`、`features/knowledge/*`：切片 3；
+- `src/api/chat*`、`features/chat/*`：切片 4；
+- `src/api/research*`、`features/research/*`：切片 5；
+- `features/report/*`、`features/evidence/*`：切片 6；
+- `src/api/admin*`、`features/admin/*`：切片 7；
+- `Router.tsx`、`AppShell.tsx`、全局样式、Token、共享 Provider 与跟踪版原型映射：只由集成线修改。
+
+视觉反向审计于 2026-08-09 确认切片 0、身份/登录、应用壳层/工作台和切片 3B 的行为实现未按原型完成视觉验收。负责人已裁决“实现服从 UIDESIGN，并固化跟踪版原型与 Token/视觉门禁”。恢复切片 4 页面集成前执行：
+
+1. 纠偏 0：跟踪版原型、Token 注册表、资产登记、Token/原型基线静态门禁和 Playwright 视觉基础设施；
+2. 纠偏 1：入口页与登录抽屉视觉 RED/GREEN；
+3. 纠偏 2：AppShell 与工作台视觉 RED/GREEN；
+4. 复核 3B：知识库列表、详情、Drawer 和共享组件视觉 RED/GREEN。
+
+上述纠偏不改变已完成的业务行为和 API Consumer，也不改变 External OpenAPI 门禁状态；其阻塞与解除以本节 Provider 审计结论为准。每项纠偏独立执行 RED → GREEN；每波集成只执行一次 Web 全量测试、ESLint、Prettier check、TypeScript/Vite build、Architecture、API/OpenAPI 一致性，以及 Token/视觉门禁。ADR 检查 1–8：否（让实现服从既有 UIDESIGN 与 ADR-004，跟踪版原型是不可部署的设计参考资产，不改变服务边界、公共契约、数据、安全或生产前端技术机制）。（2026-08-09）
+
 ### 范围内工作
 
 - 建立统一登录、导航、知识中心、据见问答、据见研究、报告、Evidence 面板和管理入口；

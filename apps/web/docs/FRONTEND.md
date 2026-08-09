@@ -71,6 +71,17 @@ apps/web/src/
 
 功能模块不得直接读取其他模块的内部 Store。跨模块数据通过稳定的 API Query、路由参数或公开组件接口传递。
 
+### 2.4 视觉实现输入
+
+前端页面不得只根据自然语言规格重新设计。每个页面切片开始前必须同时读取：
+
+1. 本文对应页面行为与状态；
+2. [UIDESIGN.md](UIDESIGN.md) 的 Token、组件和视觉门禁；
+3. [`resource/prototype/reference/evidsight-web/prototype-manifest.json`](../../../resource/prototype/reference/evidsight-web/prototype-manifest.json) 指向的跟踪版交互原型；
+4. manifest 对应的 light/dark PNG。
+
+跟踪版原型只定义页面结构、动作位置、排版节奏和品牌资产，不定义 API、权限、路由或状态机。原型与本文、API 或 ADR 冲突时，暂停实现并按文档治理流程裁决。`.superpowers/` 是 Git 忽略的工具临时目录，不得作为生产开发输入或运行时依赖。
+
 ## 3. 信息架构与路由
 
 ### 3.1 公共入口
@@ -426,9 +437,21 @@ Research SSE 只是持久任务的观察通道：
 7. 管理员分别查看 Pipeline Trace、审计日志和安全运行摘要，确认 Trace 不含正文、Prompt、凭据、隐藏推理或 Token 成本，且 P1 完整成本账本未伪装为已上线能力；
 8. 修改密码、退出登录，确认受保护缓存与订阅被清理。
 
+### 13.4 Token 与视觉回归
+
+- `check:design-tokens` 必须验证 `--es-*` 引用闭包、禁止未登记别名、禁止业务源码颜色字面量，并确认 Tailwind 只映射已登记 Token；
+- `check:visual-baselines` 必须验证跟踪版原型 manifest、P0/P1 标记、交互源和 light/dark PNG 完整可解析；
+- 每个页面切片在生产实现前建立该页面的 Playwright 视觉 RED，使用 UIDESIGN §13.3 固定的视口、浏览器、字体和 Fixture；
+- 页面级视觉测试与该切片同行，不延后到切片 8。切片 8 只补跨页面业务 E2E；
+- 原型允许因真实数据、响应式和无障碍要求调整，但信息层级、主要区域、动作位置、品牌 Mark 或视觉语义变化必须先取得文档裁决；
+- 截图差异通过不能替代 DOM 语义、键盘、焦点、对比度、reduced-motion 和状态机测试。
+
 ## 14. 前端验收门禁
 
 - P0 原型页面均有对应实现入口；P1 原型可保留视觉基线，但不得伪装成已可用功能；
+- 页面实现使用 manifest 指向的已跟踪交互原型和 PNG 作为视觉输入，不依赖 `.superpowers/`；
+- 所有 `--es-*` 引用均闭合到 UIDESIGN 注册表，不存在未声明 Token、旧原型 Token 或业务源码颜色字面量；
+- 当前切片对应的 1280×720 浅色/深色视觉回归通过；未通过时只能声明“行为已实现，视觉待验收”；
 - 登录抽屉与登录后工作区默认浅色主题；入口叙事页保留品牌深色；
 - 账号菜单「主题选择」可切换浅色/深色主题，切换立即生效并持久化，刷新后恢复；
 - 深浅主题均通过 WCAG AA 对比度，且无按钮、标签或选中态在任一主题下与背景同色；
