@@ -52,7 +52,7 @@
 | M1 | 已完成 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
 | M2 | 已完成 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence，并完成供 Web 消费的 Knowledge v1 外部 API | M1 的身份与 Contract 基线 |
 | M3 | 已完成 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 已验证的 Internal Retrieval 与权限切片 |
-| M4 | 受阻 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
+| M4 | 进行中 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
 | M5 | 未开始 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的三节点 2C2G 试点部署 | M1—M4 |
 | M6 | 未开始 | v1.0 发布门禁与后续演进 | 全部 P0、成功指标和端到端场景完成发布验收 | M0—M5 |
 
@@ -334,6 +334,8 @@ M3 已完成（2026-08-08）。八条 Research Pipeline 退出门禁逐项核对
 
 阶段状态（2026-08-09）：M4 为「受阻」。React 工程基线、身份认证、应用壳层与工作台不依赖缺失的业务 Provider，已完成结果保留；知识库、文档、会话及其后续联调切片暂停进入生产实现。解除条件是 M2 新增的三条外部 API 退出门禁全部通过并留下可复核证据；解除前只允许完成规范、OpenAPI、验收场景和正确 RED，不得继续用 legacy 路由固化 React Consumer。
 
+阶段状态更新（2026-08-09，M2 收口后）：解除条件已满足。M2 三条外部 API 退出门禁（Knowledge Base / Document / Conversation v1 Provider、统一可见列表、`docs/openapi/evidsight-v1.yaml` 三方一致）已全部通过并留下可复核证据（commit `dc92313`，容器内 52 项契约/行为测试全绿，路由清单 ↔ OpenAPI 路径清单 ↔ Provider 契约测试三方一致）。依据事实状态模型，M4 状态更新为「进行中」：切片 3A「稳定 Segment ID 契约」（commit `8607c4c`，2026-08-09）为知识中心前置阻断项已落地，切片 3B「知识中心」（知识库列表/详情、文档列表/上传/重试/删除、切片抽屉实时鉴权）开始按排期推进，完成后暂停汇报；切片 4-8 依次推进，不改变既有 M4 范围内工作与退出门禁。
+
 #### M4 Provider 就绪清单
 
 | 前端能力 | 目标 Provider | 2026-08-09 状态 | M4 判定 |
@@ -343,9 +345,9 @@ M3 已完成（2026-08-08）。八条 Research Pipeline 退出门禁逐项核对
 | Research | `/api/v1/research/*` + canonical SSE | 已实现 | 可消费 |
 | Evidence / Report | API.md §9 v1 读取端点 | 已实现 | 可消费 |
 | 内部原文位置 | `/api/v1/documents/{document_id}/locations/{location_id}` | 已实现 | 可消费 |
-| Knowledge Base CRUD / 统一列表 / 名称搜索 | `/api/v1/knowledge-bases/*` | 已实现 | 可消费（M4 React 切片按排期暂缓） |
-| Document 上传 / 列表 / 详情 / 重试 / 删除 / 分块 | API.md §6.2 v1 端点 | 已实现 | 可消费（M4 React 切片按排期暂缓） |
-| Conversation 列表 / 详情 / 更新 / 删除 | `/api/v1/conversations/*` | 已实现 | 可消费（M4 React 切片按排期暂缓） |
+| Knowledge Base CRUD / 统一列表 / 名称搜索 | `/api/v1/knowledge-bases/*` | 已实现 | 可消费（M4 切片 3B 消费中） |
+| Document 上传 / 列表 / 详情 / 重试 / 删除 / 分块 | API.md §6.2 v1 端点 | 已实现 | 可消费（M4 切片 3B 消费中） |
+| Conversation 列表 / 详情 / 更新 / 删除 | `/api/v1/conversations/*` | 已实现 | 可消费（M4 切片 3B 后切片消费） |
 | External OpenAPI | `docs/openapi/evidsight-v1.yaml` | 已建立 | 已成为上述 v1 Provider 字段契约的唯一权威源 |
 
 ### 范围内工作
