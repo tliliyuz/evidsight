@@ -1,0 +1,63 @@
+.brand-mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+}
+
+.brand-mark__signal {
+  fill: var(--es-spectral-cyan);
+  stroke: var(--es-spectral-cyan);
+}
+
+.es-icon {
+  display: inline-block;
+  width: 1.25em;
+  font-family: 'EvidSight Icons';
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-rendering: auto;
+}
+
+.es-icon::before {
+  display: block;
+}
+
+.es-icon--home::before {
+  content: '\f015';
+}
+
+.es-icon--chat::before {
+  content: '\f27a';
+}
+
+.es-icon--history::before {
+  content: '\f1da';
+}
+
+.es-icon--knowledge::before {
+  content: '\f1c0';
+}
+
+.es-icon--research::before {
+  content: '\f610';
+}
+
+.es-icon--tasks::before {
+  content: '\f0ae';
+}
+
+.es-icon--settings::before {
+  content: '\f013';
+}
+
+.es-icon--close::before {
+  content: '\f00d';
+}
+
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+}

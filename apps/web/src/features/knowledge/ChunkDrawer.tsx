@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { knowledgeApi, type KnowledgeApi } from '@/api/knowledge'
 import { ErrorState } from '@/components/feedback/ErrorState'
 import { Skeleton } from '@/components/feedback/Skeleton'
+import { Icon } from '@/components/icons/Icon'
+import { useOverlayFocus } from '@/components/overlay/useOverlayFocus'
 
 type Props = {
   documentId: string
@@ -28,23 +30,13 @@ export function ChunkDrawer({
   initialSegmentId = null,
 }: Props) {
   const queryClient = useQueryClient()
-  const closeRef = useRef<HTMLButtonElement>(null)
+  const drawerRef = useRef<HTMLElement>(null)
   // 来源卡片联动：直接从 initialSegmentId 初始化展开态；目标不在分块列表时
   // 无匹配 chunk，视觉上不展开，也不触发请求。
   const [expanded, setExpanded] = useState<string | null>(initialSegmentId ?? null)
   const initialConsumedRef = useRef(false)
 
-  useEffect(() => {
-    closeRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  useOverlayFocus({ containerRef: drawerRef, onClose })
 
   const chunksQuery = useQuery({
     queryKey: ['document', documentId, 'chunks'],
@@ -88,17 +80,24 @@ export function ChunkDrawer({
 
   return (
     <div className="drawer-overlay" role="presentation">
-      <aside className="drawer drawer--wide" role="dialog" aria-modal="true" aria-label="文档切片">
+      <aside
+        ref={drawerRef}
+        className="drawer drawer--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label="文档切片"
+        tabIndex={-1}
+      >
         <header className="drawer__header">
           <h2>文档切片</h2>
           <button
-            ref={closeRef}
             type="button"
             className="drawer__close"
             aria-label="关闭"
+            data-overlay-initial-focus
             onClick={onClose}
           >
-            ×
+            <Icon name="close" />
           </button>
         </header>
         <div className="drawer__body">

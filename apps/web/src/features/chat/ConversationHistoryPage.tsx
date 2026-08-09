@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { conversationsApi, type Conversation } from '@/api/conversations'
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog'
 import { EmptyState } from '@/components/feedback/EmptyState'
 import { Skeleton } from '@/components/feedback/Skeleton'
+import { useOverlayFocus } from '@/components/overlay/useOverlayFocus'
 
 type SortOrder = 'desc' | 'asc'
 
@@ -29,17 +30,26 @@ function RenameDialog({
   onConfirm: (title: string) => void
 }) {
   const [title, setTitle] = useState(initialTitle)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useOverlayFocus({ containerRef: dialogRef, onClose: onCancel, canClose: !pending })
   return (
     <div className="dialog-overlay" role="presentation">
-      <div className="dialog" role="dialog" aria-modal="true" aria-label="重命名会话">
+      <div
+        ref={dialogRef}
+        className="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="重命名会话"
+        tabIndex={-1}
+      >
         <h2>重命名会话</h2>
         <label className="dialog__field">
           <span>会话名称</span>
           <input
             value={title}
+            data-overlay-initial-focus
             onChange={(event) => setTitle(event.target.value)}
             maxLength={256}
-            autoFocus
           />
         </label>
         <div className="dialog__actions">

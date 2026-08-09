@@ -1,4 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
+
+import { Button } from '@/components/actions/Button'
+import { useOverlayFocus } from '@/components/overlay/useOverlayFocus'
 
 type Props = {
   title: string
@@ -20,45 +23,33 @@ export function ConfirmDialog({
   onCancel,
   onConfirm,
 }: Props) {
-  const cancelRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    cancelRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !pending) {
-        onCancel()
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onCancel, pending])
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useOverlayFocus({ containerRef: dialogRef, onClose: onCancel, canClose: !pending })
 
   return (
     <div className="dialog-overlay" role="presentation">
-      <div className="dialog" role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        ref={dialogRef}
+        className="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+      >
         <h2>{title}</h2>
         <p>{description}</p>
         <div className="dialog__actions">
-          <button
-            ref={cancelRef}
-            type="button"
-            className="btn"
-            disabled={pending}
-            onClick={onCancel}
-          >
+          <Button type="button" data-overlay-initial-focus disabled={pending} onClick={onCancel}>
             取消
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className={tone === 'danger' ? 'btn btn--danger' : 'btn btn--primary'}
-            disabled={pending}
+            variant={tone === 'danger' ? 'danger' : 'primary'}
+            busy={pending}
             onClick={onConfirm}
           >
-            {pending ? '处理中…' : confirmLabel}
-          </button>
+            {confirmLabel}
+          </Button>
         </div>
       </div>
     </div>

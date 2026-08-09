@@ -1,7 +1,9 @@
 import { useMutation } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { knowledgeApi, type KnowledgeApi, type KnowledgeBase } from '@/api/knowledge'
+import { Icon } from '@/components/icons/Icon'
+import { useOverlayFocus } from '@/components/overlay/useOverlayFocus'
 
 type Props = {
   initial: KnowledgeBase | null
@@ -19,10 +21,7 @@ export function KnowledgeBaseFormDialog({ initial, api = knowledgeApi, onClose, 
   )
   const [error, setError] = useState<string | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    nameRef.current?.focus()
-  }, [])
+  const drawerRef = useRef<HTMLElement>(null)
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -34,21 +33,24 @@ export function KnowledgeBaseFormDialog({ initial, api = knowledgeApi, onClose, 
       setError(err.message)
     },
   })
+  useOverlayFocus({ containerRef: drawerRef, onClose, canClose: !mutation.isPending })
 
   const trimmedName = name.trim()
 
   return (
     <div className="drawer-overlay" role="presentation">
       <aside
+        ref={drawerRef}
         className="drawer"
         role="dialog"
         aria-modal="true"
         aria-label={initial ? '编辑知识库' : '新建知识库'}
+        tabIndex={-1}
       >
         <header className="drawer__header">
           <h2>{initial ? '编辑知识库' : '新建知识库'}</h2>
           <button type="button" className="drawer__close" aria-label="关闭" onClick={onClose}>
-            ×
+            <Icon name="close" />
           </button>
         </header>
         <form
@@ -67,6 +69,7 @@ export function KnowledgeBaseFormDialog({ initial, api = knowledgeApi, onClose, 
             知识库名称
             <input
               ref={nameRef}
+              data-overlay-initial-focus
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}

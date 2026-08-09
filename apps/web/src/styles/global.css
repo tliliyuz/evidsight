@@ -1,4 +1,6 @@
 @import './tokens.css';
+@import './fonts.css';
+@import './foundation.css';
 
 *,
 *::before,
@@ -73,6 +75,9 @@ select {
 }
 
 .landing__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--es-font-display);
   font-size: 24px;
   font-weight: 700;
@@ -139,6 +144,15 @@ select {
   margin-top: 32px;
 }
 
+.login-drawer__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--es-font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .login-drawer input:not([type='checkbox']) {
   width: 100%;
   padding: 11px 12px;
@@ -197,13 +211,6 @@ select {
   text-decoration: none;
 }
 
-.brand-mark {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--es-spectral-cyan);
-  border-radius: 50%;
-}
-
 .app-sidebar nav {
   display: grid;
   gap: 4px;
@@ -219,6 +226,12 @@ select {
   background: transparent;
   text-align: left;
   text-decoration: none;
+}
+
+.app-sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .app-sidebar nav a.active {

@@ -2,17 +2,19 @@ import { type PropsWithChildren, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 
 import type { UserSummary } from '@/api/auth'
+import { BrandMark } from '@/components/brand/BrandMark'
+import { Icon, type IconName } from '@/components/icons/Icon'
 import { authSession } from '@/features/auth/authSession'
 import { setTheme, type Theme } from '@/state/theme'
 
-const primaryNavigation = [
-  ['/workbench', '工作台'],
-  ['/chat', '据见问答'],
-  ['/chat/history', '问答历史'],
-  ['/knowledge-bases', '知识库'],
-  ['/research/new', '深度研究'],
-  ['/research', '研究任务'],
-] as const
+const primaryNavigation: ReadonlyArray<readonly [string, string, IconName]> = [
+  ['/workbench', '工作台', 'home'],
+  ['/chat', '据见问答', 'chat'],
+  ['/chat/history', '问答历史', 'history'],
+  ['/knowledge-bases', '知识库', 'knowledge'],
+  ['/research/new', '深度研究', 'research'],
+  ['/research', '研究任务', 'tasks'],
+]
 
 type Props = PropsWithChildren<{
   user: UserSummary
@@ -31,12 +33,13 @@ export function AppShell({ user, runningTaskCount = 0, children }: Props) {
     <div className="app-shell">
       <aside className="app-sidebar">
         <Link className="app-sidebar__brand" to="/workbench">
-          <span aria-hidden="true" className="brand-mark" />
+          <BrandMark className="brand-mark" decorative />
           EvidSight
         </Link>
         <nav aria-label="主导航">
-          {primaryNavigation.map(([to, label]) => (
+          {primaryNavigation.map(([to, label, icon]) => (
             <NavLink key={to} to={to} className={({ isActive }) => (isActive ? 'active' : '')}>
+              <Icon name={icon} />
               {label}
             </NavLink>
           ))}

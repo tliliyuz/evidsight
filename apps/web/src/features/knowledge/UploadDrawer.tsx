@@ -1,7 +1,9 @@
 import { useMutation } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { knowledgeApi, type KnowledgeApi } from '@/api/knowledge'
+import { Icon } from '@/components/icons/Icon'
+import { useOverlayFocus } from '@/components/overlay/useOverlayFocus'
 
 const ALLOWED_EXTENSIONS = ['pdf', 'docx', 'md', 'txt'] as const
 const ALLOWED_DISPLAY = 'PDF、DOCX、Markdown、TXT'
@@ -20,10 +22,7 @@ export function UploadDrawer({ kbId, api = knowledgeApi, onClose, onUploaded }: 
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+  const drawerRef = useRef<HTMLElement>(null)
 
   const mutation = useMutation({
     mutationFn: () => api.uploadDocument(kbId, file!, force),
@@ -32,6 +31,7 @@ export function UploadDrawer({ kbId, api = knowledgeApi, onClose, onUploaded }: 
       setSubmitError(err.message)
     },
   })
+  useOverlayFocus({ containerRef: drawerRef, onClose, canClose: !mutation.isPending })
 
   function handleFileChange(files: FileList | null) {
     setValidationError(null)
@@ -52,11 +52,18 @@ export function UploadDrawer({ kbId, api = knowledgeApi, onClose, onUploaded }: 
 
   return (
     <div className="drawer-overlay" role="presentation">
-      <aside className="drawer" role="dialog" aria-modal="true" aria-label="上传文档">
+      <aside
+        ref={drawerRef}
+        className="drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="上传文档"
+        tabIndex={-1}
+      >
         <header className="drawer__header">
           <h2>上传文档</h2>
           <button type="button" className="drawer__close" aria-label="关闭" onClick={onClose}>
-            ×
+            <Icon name="close" />
           </button>
         </header>
         <form
@@ -75,6 +82,7 @@ export function UploadDrawer({ kbId, api = knowledgeApi, onClose, onUploaded }: 
             选择文件
             <input
               ref={inputRef}
+              data-overlay-initial-focus
               type="file"
               accept=".pdf,.docx,.md,.txt"
               onChange={(event) => handleFileChange(event.target.files)}

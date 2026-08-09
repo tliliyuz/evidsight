@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom'
 
+import { BrandMark } from '@/components/brand/BrandMark'
+
 export function LandingPage() {
   return (
     <main className="landing">
       <header className="landing__header">
         <Link to="/" className="landing__brand">
+          <BrandMark className="brand-mark" decorative />
           EvidSight
         </Link>
         <nav aria-label="入口导航">
