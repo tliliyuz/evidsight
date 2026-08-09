@@ -50,7 +50,7 @@
 |:---|:---|:---|:---|:---|
 | M0 | 已完成 | 规范基线与 Monorepo 迁移 | 两个来源项目进入统一仓库并保持独立构建、测试和数据边界 | 已确认 PRD、总体架构、来源基线 |
 | M1 | 已完成 | 统一身份、权限和基础契约 | 建立跨服务可信身份、权限语义、服务认证与 Contract 基线 | M0 |
-| M2 | 进行中 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence，并完成供 Web 消费的 Knowledge v1 外部 API | M1 的身份与 Contract 基线 |
+| M2 | 已完成 | Knowledge Service 稳定化与 Internal Retrieval | 企业知识通过权限感知的内部检索契约向研究链路提供 Evidence，并完成供 Web 消费的 Knowledge v1 外部 API | M1 的身份与 Contract 基线 |
 | M3 | 已完成 | Research Service 接入内部知识 | 打通 `knowledge`、`web`、`hybrid` 三类研究来源和可恢复研究链路 | M2 已验证的 Internal Retrieval 与权限切片 |
 | M4 | 受阻 | 统一 Web、报告与证据联动 | 用户通过统一界面完成问答、研究、报告阅读和证据复核 | M2、M3 的稳定 API 与事件 |
 | M5 | 未开始 | 治理、可观察性和部署验收 | 形成可管理、可诊断、可备份、可恢复的三节点 2C2G 试点部署 | M1—M4 |
@@ -58,7 +58,7 @@
 
 M0 的结构迁移与单机运行基线已完成。原 `docs/migration/` 下的迁移过程记录已由负责人于 2026-08-02 主动删除，不再作为阶段状态门禁；当前仓库结构、保留的 Git 历史、`docs/specs/TESTING.md` 的验证要求和 `docs/guides/TEST_EXECUTION.md` 的执行入口是后续复核入口。统一身份、Internal Retrieval、Research 前端整合及生产数据迁移仍属于后续里程碑，不因 M0 完成而视为完成。
 
-状态校正（2026-08-09）：反向审计发现 M2 的「必须完成的规范」包含 Knowledge 外部 API，但原退出门禁只验证了入库、问答和 Internal Retrieval，导致阶段被提前标记为完成；M4 进入核验又只补查 Evidence/Report 与原文位置端点，未逐项核对前端所需 Provider。依据文档治理的事实状态模型，M2 重新进入「进行中」，M4 在 API 依赖页面解除前置阻塞前标为「受阻」。已完成的 React 工程基线、身份认证、应用壳层与工作台切片保留，不回退或重复实施。ADR 检查 1–8：否（纠正里程碑状态和既有规范的执行门禁，不改变服务边界、公共契约、权限、数据生命周期或技术机制）。
+状态校正（2026-08-09）：反向审计发现 M2 的「必须完成的规范」包含 Knowledge 外部 API，但原退出门禁只验证了入库、问答和 Internal Retrieval，导致阶段被提前标记为完成；M4 进入核验又只补查 Evidence/Report 与原文位置端点，未逐项核对前端所需 Provider。依据文档治理的事实状态模型，M2 重新进入「进行中」，M4 在 API 依赖页面解除前置阻塞前标为「受阻」。已完成的 React 工程基线、身份认证、应用壳层与工作台切片保留，不回退或重复实施。ADR 检查 1–8：否（纠正里程碑状态和既有规范的执行门禁，不改变服务边界、公共契约、权限、数据生命周期或技术机制）。当日随后补齐 M2 三条外部 API 退出门禁（Knowledge Base / Document / Conversation v1 Provider、统一可见列表与 `docs/openapi/evidsight-v1.yaml` 三方一致），依据事实状态模型 M2 重新标记为「已完成」；M4 的 React 知识库/文档/会话切片仍按排期暂缓，不随本项自动开始。
 
 总体主线为：`M0 → M1 → M2 → M3 → M4 → M5 → M6`。
 
@@ -191,9 +191,9 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 
 - [x] `ADR-007` 已接受为 `accepted`（命中检查项 4、5，2026-08-04）；检索权限语义由 `ADR-002`/`ADR-005` 交叉引用覆盖，不另建重复 ADR。
 - [x] Internal Retrieval/Evidence Contract、权限感知 Provider 端点、版本化写路径与 PRD AC-005/006/010 真机验收均已落地；契约/Provider/全量测试结果与异常演练记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-04、2026-08-05 条目）。
-- [ ] Knowledge v1 外部 API 尚未收口：Knowledge Base CRUD 仍只有 `/api/knowledge-bases/*`；文档上传、列表、详情、重试、删除和分块列表仍依赖 `/api/knowledge-bases/{kb_id}/documents/*`；Conversation CRUD 仍只有 `/api/conversations/*`。仅 Auth、Chat 与文档 location 已有对应 v1 Provider。
-- [ ] `GET /api/v1/knowledge-bases` 尚未提供 FRONTEND §5.3 要求的单一可见集合、「全部 / 我创建的 / 组织公开」范围筛选和名称搜索；当前 mine、public 是两个独立分页端点，`selectable` 只服务可问答 KB 选择，不等价于知识库管理列表。
-- [ ] `docs/openapi/evidsight-v1.yaml` 尚未建立，Knowledge v1 相关请求、响应、分页、查询和错误 Schema 还不能作为已发布前端契约。
+- [x] Knowledge v1 外部 API 已收口：Knowledge Base CRUD、Document（上传/列表/详情/重试/删除/分块/location）与 Conversation CRUD 均有对应 `/api/v1/*` Provider，method/路径/权限/状态码与 API.md §6—§7 目标态一致；legacy 路由保留为带观测的兼容适配器。
+- [x] `GET /api/v1/knowledge-bases` 以单一分页端点提供当前可见集合，支持 FRONTEND §5.3 的「全部 / 我创建的 / 组织公开」范围筛选（scope=all|mine|public）与名称搜索（q），普通用户 all 为 mine ∪ public 且分页去重、admin all 治理可见；行为由真实库 Provider 测试覆盖。
+- [x] `docs/openapi/evidsight-v1.yaml` 已建立，覆盖 Knowledge Base / Document / Conversation v1 路径、请求、响应、分页、查询和错误 Schema，作为已发布前端契约。
 
 
 ### 范围内工作
@@ -231,9 +231,9 @@ M1 已完成（2026-08-04）。IA-006—IA-009 与 Retrieval/Evidence Contract �
 - [x] 内部 Evidence 可定位到用户当前有权访问的文档位置；
 - [x] Research Service 无需了解 Knowledge 数据库、Chroma Collection、缓存或文件路径；
 - [x] PRD AC-005、AC-006 和 AC-010 对应验证入口已建立；
-- [ ] API.md §6—§7 中供 Web 消费的 Knowledge Base、Document 与 Conversation v1 端点全部注册，method、路径、权限、成功状态和错误语义与规范一致；legacy 路由只能作为带调用量观测的兼容适配器，不能替代本门禁；
-- [ ] Knowledge Base v1 列表以一个分页端点提供当前可见集合、三类范围筛选和名称搜索，并有普通用户权限、分页去重和搜索 Provider 测试；
-- [ ] `docs/openapi/evidsight-v1.yaml` 至少覆盖上述 Knowledge v1 路径，且 FastAPI 路由清单、OpenAPI 路径清单与 Provider 契约测试三方一致。
+- [x] API.md §6—§7 中供 Web 消费的 Knowledge Base、Document 与 Conversation v1 端点全部注册，method、路径、权限、成功状态和错误语义与规范一致；legacy 路由只能作为带调用量观测的兼容适配器，不能替代本门禁；
+- [x] Knowledge Base v1 列表以一个分页端点提供当前可见集合、三类范围筛选和名称搜索，并有普通用户权限、分页去重和搜索 Provider 测试；
+- [x] `docs/openapi/evidsight-v1.yaml` 至少覆盖上述 Knowledge v1 路径，且 FastAPI 路由清单、OpenAPI 路径清单与 Provider 契约测试三方一致。
 
 ### 本阶段不做
 
@@ -343,10 +343,10 @@ M3 已完成（2026-08-08）。八条 Research Pipeline 退出门禁逐项核对
 | Research | `/api/v1/research/*` + canonical SSE | 已实现 | 可消费 |
 | Evidence / Report | API.md §9 v1 读取端点 | 已实现 | 可消费 |
 | 内部原文位置 | `/api/v1/documents/{document_id}/locations/{location_id}` | 已实现 | 可消费 |
-| Knowledge Base CRUD / 统一列表 / 名称搜索 | `/api/v1/knowledge-bases/*` | 未实现 | 阻塞知识中心与 KB 选择器 |
-| Document 上传 / 列表 / 详情 / 重试 / 删除 / 分块 | API.md §6.2 v1 端点 | 除 location 外未实现 | 阻塞知识库详情与来源抽屉 |
-| Conversation 列表 / 详情 / 更新 / 删除 | `/api/v1/conversations/*` | 未实现 | 阻塞问答历史 |
-| External OpenAPI | `docs/openapi/evidsight-v1.yaml` | 未建立 | 阻塞上述缺失能力形成稳定 Consumer 契约 |
+| Knowledge Base CRUD / 统一列表 / 名称搜索 | `/api/v1/knowledge-bases/*` | 已实现 | 可消费（M4 React 切片按排期暂缓） |
+| Document 上传 / 列表 / 详情 / 重试 / 删除 / 分块 | API.md §6.2 v1 端点 | 已实现 | 可消费（M4 React 切片按排期暂缓） |
+| Conversation 列表 / 详情 / 更新 / 删除 | `/api/v1/conversations/*` | 已实现 | 可消费（M4 React 切片按排期暂缓） |
+| External OpenAPI | `docs/openapi/evidsight-v1.yaml` | 已建立 | 已成为上述 v1 Provider 字段契约的唯一权威源 |
 
 ### 范围内工作
 
@@ -428,6 +428,7 @@ M3 已完成（2026-08-08）。八条 Research Pipeline 退出门禁逐项核对
 - 结构化日志、核心指标和 Trace 关联；
 - 默认轻量、可选增强的监控配置；
 - 健康检查、备份、恢复、发布和回滚脚本；
+- 将基础 CI 升级为部署与集成验收流水线，覆盖镜像构建、单机全栈、迁移往返、跨服务、staging 与运维演练；
 - 三节点 2C2G 容量、背压、节点异常和跨节点恢复验收记录；
 - Mac 单机全栈开发与生产三节点使用同一镜像/配置 Schema 的验证记录。
 
@@ -480,6 +481,7 @@ M3 已完成（2026-08-08）。八条 Research Pipeline 退出门禁逐项核对
 ### 主要交付物
 
 - v1.0 候选版本与不可变构建标识；
+- 基于冻结候选版本生成的门禁报告、可追溯制品与发布/回滚决策记录；
 - AC-001—AC-010 实际验证记录；
 - 十个端到端场景的实际结果；
 - 安全、权限、容量、备份恢复和回滚验收记录；
@@ -511,6 +513,7 @@ M3 已完成（2026-08-08）。八条 Research Pipeline 退出门禁逐项核对
 - M3 的外部研究 Pipeline 稳定化可提前开展；`knowledge` 与 `hybrid` 接入必须等待 M2 Provider 通过契约测试。
 - M4 的信息架构、静态页面和 Design Token 可提前设计，真实联调必须基于 M2、M3 的稳定 API、SSE 和 Evidence Contract。
 - 日志、指标、成本和恢复测试应随 M1—M4 持续接入；M5 负责形成完整发布门禁，不代表此前可以忽略可观察性。
+- 基础 CI 是现有工程门禁的自动化，可在 M2 收口期建立，不改变 M2 产品职责；M5 将其升级为部署与集成验收流水线，M6 才对冻结候选版本执行最终发布门禁和制品发布。
 - M6 只做候选版本验收、修复和发布决策，不承接未完成的大型架构改造。
 
 任何并行工作都不得绕过“规范 → 验收条件与测试 → 实现 → 验证”的进入门禁。

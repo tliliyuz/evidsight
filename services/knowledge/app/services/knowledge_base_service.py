@@ -4,7 +4,7 @@ import logging
 import time
 import uuid as uuid_lib
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,7 @@ from app.core.exceptions import (
     KnowledgeBaseNotFoundException,
 )
 from app.core.permissions import require_kb_readable, require_kb_writable
+from app.core.utils import escape_like
 from app.core.uuid_helpers import resolve_user_uuid
 from app.ingest.delete_tasks import delete_kb as delete_kb_task
 from app.models.chunk import Chunk
@@ -292,6 +293,91 @@ async def list_public_kbs(
     ]
 
     return PublicKnowledgeBaseListResponse(total=total, page=page, page_size=page_size, items=items)
+
+
+async def list_visible_kbs(
+    db: AsyncSession,
+    user_id: int,
+    role: str,
+    *,
+    scope: str = "all",
+    q: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> KnowledgeBaseListResponse:
+    """获取当前用户可见的知识库统一列表（API.md §6.1 / FRONTEND §5.3）。
+
+    scope 语义：
+    - mine：当前用户全部 KB（含 deleting）
+    - public：visibility=public 且 status=active（跨用户，含自己的公开 KB）
+    - all（默认）：普通用户为 mine ∪ public（SQL OR 按主键天然去重）；
+      admin 返回全部 KB（治理可见，对齐 PRD §8.2）
+    q 对 name 做 LIKE %q% 模糊搜索（转义 %/_）；排序 updated_at DESC NULLS LAST；
+    服务端分页，计数与响应复用实时 chunk/doc 计数避免僵尸缓存列。
+    """
+    conditions: list = []
+    if scope == "mine":
+        conditions.append(KnowledgeBase.user_id == user_id)
+    elif scope == "public":
+        conditions.append(KnowledgeBase.visibility == "public")
+        conditions.append(KnowledgeBase.status == "active")
+    elif scope == "all":
+        if role != "admin":
+            conditions.append(
+                or_(
+                    KnowledgeBase.user_id == user_id,
+                    and_(
+                        KnowledgeBase.visibility == "public",
+                        KnowledgeBase.status == "active",
+                    ),
+                )
+            )
+    if q:
+        conditions.append(KnowledgeBase.name.like(f"%{escape_like(q)}%", escape="\\"))
+
+    count_q = select(func.count()).select_from(KnowledgeBase).where(*conditions)
+    total = (await db.execute(count_q)).scalar() or 0
+
+    q_sel = (
+        select(KnowledgeBase)
+        .where(*conditions)
+        # MySQL 8.0 不支持 `NULLS LAST` 字面量语法；用 `IS NULL` 先行排序实现
+        # 「updated_at DESC NULLS LAST」（NULL 排最后）。
+        .order_by(KnowledgeBase.updated_at.is_(None), KnowledgeBase.updated_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = (await db.execute(q_sel)).scalars().all()
+
+    kb_ids = [r.id for r in rows]
+    real_chunk_counts = await _get_real_chunk_counts(db, kb_ids)
+    real_doc_counts = await _get_real_doc_counts(db, kb_ids)
+
+    # B 类：owner 输出 Platform User UUID。列表可能跨用户（public/all），
+    # 按去重后的 user_id 逐个解析一次。
+    owner_uuid_map: dict[int, str] = {}
+    for uid in {r.user_id for r in rows}:
+        owner_uuid_map[uid] = await resolve_user_uuid(db, uid)
+
+    items = []
+    for r in rows:
+        resp = KnowledgeBaseResponse(
+            uuid=r.uuid,
+            name=r.name,
+            description=r.description,
+            owner=owner_uuid_map[r.user_id],
+            visibility=r.visibility,
+            status=r.status,
+            doc_count=r.doc_count,
+            chunk_count=r.chunk_count,
+            created_at=r.created_at,
+            updated_at=r.updated_at,
+        )
+        resp.chunk_count = real_chunk_counts.get(r.id, 0)
+        resp.doc_count = real_doc_counts.get(r.id, 0)
+        items.append(resp)
+
+    return KnowledgeBaseListResponse(total=total, page=page, page_size=page_size, items=items)
 
 
 async def update_kb(

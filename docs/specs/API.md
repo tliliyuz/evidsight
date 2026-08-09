@@ -43,17 +43,16 @@ M1 的统一身份、服务认证和敏感数据外发决策由已接受的 [ADR
 
 ### 3.1 外部 DTO 最小基线
 
-在 OpenAPI 落地前，下列字段是实现与测试不得偏离的最小基线；OpenAPI 建立后成为字段、类型和约束的唯一权威源，本文改为引用。
+`docs/openapi/evidsight-v1.yaml` 是字段、类型和约束的唯一权威源；本文只定义行为、权限、状态码与兼容语义，不再重复 Schema。下表仅保留 OpenAPI 尚未覆盖 DTO 的最小基线；已由 OpenAPI 覆盖的 Knowledge Base / Document / Conversation 字段契约一律以 `docs/openapi/evidsight-v1.yaml` 为准（实际字段名如 `uuid`/`kb_uuid`/`segment_id` 与 OpenAPI 定义一致，不以此表为准）。
 
 | DTO | 必需字段 | 关键约束 |
 |:---|:---|:---|
 | `LoginRequest` | `username`、`password` | 非空；错误不区分账号不存在和密码错误 |
 | `UserSummary` | `id`、`username`、`role`、`status` | `id` 为 Platform User UUID，不是 Knowledge 内部 `users.id`；`role=user|admin`，`status=active|disabled` |
-| `KnowledgeBaseCreate` | `name`、`visibility` | `visibility=private|public` |
-| `KnowledgeBaseResponse` | `id`、`name`、`visibility`、`owner`、`index_status`、时间 | 不返回内部主键、Collection 或路径 |
-| `DocumentResponse` | `id`、`knowledge_base_id`、`display_name`、`status`、时间 | `queued|processing|completed|partial|failed|deleting` |
+| `KnowledgeBaseCreate` / `KnowledgeBaseResponse` / `KnowledgeBaseList` | 见 `docs/openapi/evidsight-v1.yaml` | `visibility=private|public`；`owner` 为 Platform User UUID |
+| `DocumentResponse` / `DocumentList` / `DocumentUpload` / `DocumentChunk` / `DocumentLocation` | 见 `docs/openapi/evidsight-v1.yaml` | `status=queued|processing|completed|partial|failed|deleting`；分块 `segment_id` 为稳定身份，`id` 仅迁移期兼容 |
+| `ConversationResponse` / `ConversationDetail` / `ConversationList` | 见 `docs/openapi/evidsight-v1.yaml` | 会话只属于一个用户和一个 KB；`knowledge_base_id` 用于创建请求 |
 | `ChatStreamRequest` | `conversation_id`、`knowledge_base_id`、`message` | v1.0 只有单数 KB；消息非空 |
-| `ConversationResponse` | `id`、`knowledge_base_id`、`title`、时间 | 会话只属于一个用户和一个 KB |
 | `ResearchTaskCreate` | `topic`、`task_type`、`source_strategy`、`knowledge_base_ids`、预算摘要 | knowledge/hybrid 为 1—50 个 KB；web 必须为空 |
 | `ResearchTaskResponse` | `id`、`status`、`phase`、`progress`、`recoverable`、时间 | 状态和 Phase 引用 Research Pipeline |
 | `EvidenceResponse` | Contract `EvidenceReference` 的公开投影 | Internal 不含正文；展开时实时鉴权 |
@@ -120,9 +119,9 @@ M1 的统一身份、服务认证和敏感数据外发决策由已接受的 [ADR
 
 READ、owner 和 admin 治理分别判断，权限矩阵引用 PRD §8。
 
-`GET /api/v1/knowledge-bases` 必须以一个分页集合返回当前用户可见的知识库，并提供 FRONTEND §5.3 定义的「全部、我创建的、组织公开」范围筛选与名称搜索；同一知识库在可见范围并集中只能出现一次。具体查询字段与分页响应 Schema 由 `docs/openapi/evidsight-v1.yaml` 定义，未建立该字段契约前不得让 React Consumer 绑定 legacy DTO。
+`GET /api/v1/knowledge-bases` 必须以一个分页集合返回当前用户可见的知识库，并提供 FRONTEND §5.3 定义的「全部、我创建的、组织公开」范围筛选与名称搜索；同一知识库在可见范围并集中只能出现一次。查询字段与分页响应 Schema 由 `docs/openapi/evidsight-v1.yaml` 定义，React Consumer 只消费该 OpenAPI 契约，不得绑定 legacy DTO。
 
-**Knowledge Base 外部 API 迁移态（2026-08-09）**：当前 Provider 只有 `/api/knowledge-bases/*`，更新使用 `PUT`，删除返回 `202`；列表由 mine 的 `GET /api/knowledge-bases` 与 public 的 `GET /api/knowledge-bases/public` 两个独立分页端点组成，均不支持名称搜索。`GET /api/knowledge-bases/selectable` 仅返回 active 且可用于问答的分组结果，不是知识库管理统一列表。已批准目标态仍是本节 `/api/v1/knowledge-bases/*` 的 CRUD 与单一可见列表；M2 退出前须先补齐 External OpenAPI、Provider 路由与契约测试，再让 React Web 消费 v1。legacy 路由只作为兼容入口保留并按 API.md §15 观测调用量，仓库内 Consumer 迁移且观测窗口归零后由负责人确认删除。状态与解除门禁见 [ROADMAP](../plans/ROADMAP.md) M2/M4；ADR 检查 1–8：否（记录实现偏离与既有目标态，不改变公共契约）。
+**Knowledge Base 外部 API 迁移态（2026-08-09）**：`/api/v1/knowledge-bases/*` 的 CRUD（POST 201 / GET 统一可见列表 / GET 详情 / PATCH 部分更新 / DELETE 204）与单一可见列表（`scope=all|mine|public` + `q` 名称搜索、分页去重、admin 治理可见）已实现，字段契约以 `docs/openapi/evidsight-v1.yaml` 为唯一权威。legacy `/api/knowledge-bases/*` 只作为兼容入口保留（更新使用 `PUT`、删除返回 `202`，mine 与 public 为两个独立分页端点且不支持名称搜索），按 API.md §15 观测调用量，仓库内 Consumer 迁移且观测窗口归零后由负责人确认删除。状态与解除门禁见 [ROADMAP](../plans/ROADMAP.md) M2/M4；ADR 检查 1–8：否（让实现回到既有 API.md §6.1 目标态，不改变权限模型、服务边界或数据生命周期）。
 
 ### 6.2 Document 与来源
 
@@ -138,7 +137,7 @@ READ、owner 和 admin 治理分别判断，权限矩阵引用 PRD §8。
 
 `location_id` 即 Segment 稳定 UUID（`chunks.segment_uuid`）。每次展开原文都按当前用户状态、KB 状态和 READ 权限重新鉴权（IDENTITY_AND_ACCESS §9）；权限撤销、文档删除或来源失效返回明确受限/不可用状态（迁移期 `E2015`）。成功响应为信封 `{"code","message","data"}`，`data` 含 `document_id`/`segment_id`/`minimal_excerpt`/`location`（`page_number` 或 `section_path`）/`source_updated_at`；`minimal_excerpt` 为临时内容，客户端不得持久化。
 
-**Document 外部 API 迁移态（2026-08-09）**：除 `GET /api/v1/documents/{document_id}/locations/{location_id}` 外，上传、列表、详情、重新处理、删除和分块列表仍只有 `/api/knowledge-bases/{kb_id}/documents/*` legacy 路由；其中单文件上传返回 `201`，重新处理路径名为 `reprocess`，删除返回 `202`，均不能替代本节目标态的 `202 retry / 204 delete` 语义。M2 退出前须补齐本节 v1 Provider、External OpenAPI 与契约测试；legacy 入口按 API.md §15 保留观测和退出门禁。状态与解除门禁见 [ROADMAP](../plans/ROADMAP.md) M2/M4；ADR 检查 1–8：否（记录实现偏离与既有目标态，不改变公共契约）。
+**Document 外部 API 迁移态（2026-08-09）**：本节 v1 端点已全部实现 —— 上传 `POST /api/v1/knowledge-bases/{kb_id}/documents`（202）、列表（200）、详情 `GET /api/v1/documents/{document_id}`（200）、分块列表（200，含稳定 `segment_id`）、重新处理 `POST /api/v1/documents/{document_id}/retry`（202，幂等）、删除 `DELETE /api/v1/documents/{document_id}`（204）与 location（实时鉴权），字段契约以 `docs/openapi/evidsight-v1.yaml` 为唯一权威。legacy `/api/knowledge-bases/{kb_id}/documents/*` 只作为兼容入口保留（单文件上传返回 `201`、重新处理路径名为 `reprocess`、删除返回 `202`），按 API.md §15 保留观测和退出门禁。状态与解除门禁见 [ROADMAP](../plans/ROADMAP.md) M2/M4；ADR 检查 1–8：否（让实现回到既有 API.md §6.2 目标态，不改变权限模型、服务边界或数据生命周期）。
 
 **Chunk 列表迁移态（2026-08-09）**：分块列表 `GET /api/knowledge-bases/{kb_uuid}/documents/{doc_uuid}/chunks` 响应 items 新增 `segment_id`（映射 `chunks.segment_uuid`，即本节 location 端点的 `location_id`），同时保留旧 `id`（内部整数 PK）字段兼容。`segment_id` 是稳定 Segment ID 契约，前端必须使用它调用本节 location 端点；内部整数 `id` 不作为契约，仅迁移期兼容保留，在观测归零且 Consumer 全部切换后经负责人确认删除（DATABASE.md §5.5「Internal Retrieval 绝不返回 `id`」约束不涉及该管理视图的迁移期字段，location 检索路径始终只返回 `segment_id`）。Consumer 为 React 知识中心切片抽屉（FRONTEND §5.4）；观测方式为后端访问日志按响应字段消费分布，退出门禁为旧 `id` 字段消费归零且前端全量使用 `segment_id`。负责人于 2026-08-09 裁决「增补保留 id」；ADR 检查 1–8：否（向后兼容字段扩展并保留旧字段，暴露 DATABASE.md §5.5 既有稳定 Segment ID，不改变权限模型、服务边界或数据生命周期；裁决记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-09））。
 
@@ -157,7 +156,7 @@ READ、owner 和 admin 治理分别判断，权限矩阵引用 PRD §8。
 
 v1.0 Chat 请求只接受一个 `knowledge_base_id`，Conversation 也只绑定一个 KB。每次问答实时校验该 KB；多轮上下文不得扩展到其他或已撤权 KB。多 KB Chat 属于 v1.x 规划能力，不得由客户端并发请求模拟。取消命令幂等，SSE 断开也可终止当前生成。检索或生成失败不得发送成功终态或伪造答案。
 
-**Conversation 外部 API 迁移态（2026-08-09）**：当前 Conversation CRUD 仍只有 `/api/conversations/*`，更新使用 `PUT`，尚无 `/api/v1/conversations/*` Provider。M2 退出前须补齐本节 v1 路由、External OpenAPI 与 Provider 契约测试；React 问答历史不得以 legacy DTO 固化新 Consumer。legacy 入口按 API.md §15 观测并在 Consumer 迁移、窗口归零后由负责人确认删除。ADR 检查 1–8：否（记录实现偏离与既有目标态，不改变公共契约）。
+**Conversation 外部 API 迁移态（2026-08-09）**：`/api/v1/conversations/*` 已实现 —— 创建 POST（201，请求使用 `knowledge_base_id`，对齐 Chat v1 与 §3.1）、列表 GET（200）、详情 GET（200）、重命名 PATCH（200）、删除 DELETE（204）。字段契约以 `docs/openapi/evidsight-v1.yaml` 为唯一权威。legacy `/api/conversations/*` 只作为兼容入口保留（更新使用 `PUT`），按 API.md §15 观测并在 Consumer 迁移、窗口归零后由负责人确认删除。React 问答历史不得以 legacy DTO 固化新 Consumer。ADR 检查 1–8：否（让实现回到既有 API.md §7 目标态，不改变权限模型、服务边界或数据生命周期）。
 
 **Chat 迁移态（2026-08-08）**：`POST /api/v1/chat/stream`、generation 生命周期与幂等 `cancel` 已实现，并按 §12 输出 canonical 事件；React Web 只允许消费 v1。旧入口 `POST /api/chat` 仍使用 `kb_id` 请求字段并输出 `meta`、可选 `thinking`、`message`、`sources`、`finish|error`，Knowledge 回归/评估与性能脚本仍可能是其 Consumer；旧入口保持薄兼容并记录按路由标签区分的废弃调用量。退出门禁为旧入口观测窗口归零、仓库内 Consumer 全部迁移且 v1 Consumer 回归通过；满足后经负责人确认删除旧入口、旧事件适配和对应测试。负责人于 2026-08-08 裁决“实现服从规范”；ADR 检查 1–8：否（让实现回到既有 API、DATABASE 与 FRONTEND 目标态，不改变公共契约、权限或数据生命周期）。裁决与实现记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-08「裁决 M4 SSE 与 Admin 评审阻断项」「补齐 Chat v1 canonical SSE」）。
 

@@ -1,0 +1,1064 @@
+openapi: 3.1.0
+info:
+  title: EvidSight 外部 API v1
+  version: 1.0.0
+  description: |
+    EvidSight Knowledge 服务供 Web 消费的外部 v1 契约。本文件是 Knowledge Base、
+    Document、Conversation 请求/响应字段与约束的唯一权威来源；API.md 定义行为、
+    权限、状态码与兼容语义，本文只定义 Schema。新增或修改字段必须先修订本文件，
+    再经 FastAPI 路由清单 ↔ OpenAPI 路径清单 ↔ Provider 契约测试三方一致校验
+    （API.md §3.1 / ROADMAP M2 退出门禁）。
+servers:
+  - url: ""
+paths:
+  /api/v1/knowledge-bases:
+    post:
+      summary: 创建知识库
+      description: 创建知识库并返回完整对象。同名冲突返回 409 E1002。
+      tags: [Knowledge Base v1]
+      operationId: createKnowledgeBaseV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeBaseCreate"
+      responses:
+        "201":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBaseEnvelope"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      summary: 知识库可见集合列表
+      description: |
+        以单一分页端点返回当前用户可见的知识库集合，支持「全部 / 我创建的 / 组织公开」
+        范围筛选与名称搜索；同一知识库在可见范围并集中只出现一次。普通用户
+        scope=all 为 mine ∪ public，admin 的 all 返回全部知识库（治理可见）。
+      tags: [Knowledge Base v1]
+      operationId: listKnowledgeBasesV1
+      parameters:
+        - $ref: "#/components/parameters/ScopeParam"
+        - $ref: "#/components/parameters/QParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 可见知识库分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBaseListEnvelope"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/knowledge-bases/{kb_id}:
+    parameters:
+      - $ref: "#/components/parameters/KbIdParam"
+    get:
+      summary: 知识库详情
+      description: public KB 所有登录用户可读；private KB 仅 owner 或 admin 可读。
+      tags: [Knowledge Base v1]
+      operationId: getKnowledgeBaseV1
+      responses:
+        "200":
+          description: 知识库详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBaseEnvelope"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      summary: 更新知识库元数据
+      description: 部分更新（name/description/visibility 均可选）。owner 可修改自己的 KB，admin 可修正任意 KB。
+      tags: [Knowledge Base v1]
+      operationId: updateKnowledgeBaseV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeBaseUpdate"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBaseEnvelope"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      summary: 删除知识库
+      description: 标记 status=deleting 并分发异步清理任务；返回 204 无正文。
+      tags: [Knowledge Base v1]
+      operationId: deleteKnowledgeBaseV1
+      responses:
+        "204":
+          description: 删除任务已提交，无正文
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/knowledge-bases/{kb_id}/documents:
+    parameters:
+      - $ref: "#/components/parameters/KbIdParam"
+    post:
+      summary: 上传文档
+      description: |
+        单文件上传（multipart/form-data）。提交事务后分发入库任务，返回 202；
+        同名冲突需 force=true 覆盖，终态文档 force 覆盖时旧文档标记 deleting 异步清理。
+      tags: [Document v1]
+      operationId: uploadDocumentV1
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 上传文件（pdf/docx/md/txt）
+                force:
+                  type: boolean
+                  default: false
+                  description: 同名终态文档是否强制覆盖
+      responses:
+        "202":
+          description: 上传已接受，进入处理队列
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentUploadEnvelope"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      summary: 知识库文档列表
+      description: 按状态/文件名筛选 + 排序 + 分页；public KB 允许任意登录用户只读查看。
+      tags: [Document v1]
+      operationId: listDocumentsV1
+      parameters:
+        - $ref: "#/components/parameters/DocumentStatusParam"
+        - $ref: "#/components/parameters/FilenameParam"
+        - $ref: "#/components/parameters/SortByParam"
+        - $ref: "#/components/parameters/OrderParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 文档分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentListEnvelope"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/documents/{document_id}:
+    parameters:
+      - $ref: "#/components/parameters/DocumentIdParam"
+    get:
+      summary: 文档详情
+      description: 返回文档状态与安全元数据；KB READ 权限约束。
+      tags: [Document v1]
+      operationId: getDocumentV1
+      responses:
+        "200":
+          description: 文档详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentEnvelope"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: 删除文档
+      description: 标记 deleting 并分发异步清理任务；返回 204 无正文。
+      tags: [Document v1]
+      operationId: deleteDocumentV1
+      responses:
+        "204":
+          description: 删除任务已提交，无正文
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/documents/{document_id}/chunks:
+    parameters:
+      - $ref: "#/components/parameters/DocumentIdParam"
+    get:
+      summary: 文档分块列表
+      description: 分页返回安全预览与稳定 segment_id；生产环境截断 content 至预览。items 中的 id 为内部整数 PK，仅迁移期兼容保留，不作为契约。
+      tags: [Document v1]
+      operationId: getDocumentChunksV1
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 分块分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentChunkListEnvelope"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/documents/{document_id}/retry:
+    parameters:
+      - $ref: "#/components/parameters/DocumentIdParam"
+    post:
+      summary: 重新处理文档
+      description: 仅允许可重试状态（completed/partial/failed），幂等；返回 202。
+      tags: [Document v1]
+      operationId: reprocessDocumentV1
+      responses:
+        "202":
+          description: 重新处理任务已提交
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentReprocessEnvelope"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/documents/{document_id}/locations/{location_id}:
+    parameters:
+      - $ref: "#/components/parameters/DocumentIdParam"
+      - $ref: "#/components/parameters/LocationIdParam"
+    get:
+      summary: 文档来源位置
+      description: |
+        实时鉴权后返回文档来源位置的最小片段和定位；每次展开原文都按当前用户状态、
+        KB 状态与 READ 权限重新鉴权。location_id 即 Segment 稳定 UUID
+        （chunks.segment_uuid）。权限撤销、文档删除或来源失效返回受限/不可用状态。
+      tags: [Document v1]
+      operationId: getDocumentLocationV1
+      responses:
+        "200":
+          description: 来源位置与最小片段
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentLocationEnvelope"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/conversations:
+    post:
+      summary: 创建会话
+      description: 创建会话并绑定单个知识库（knowledge_base_id）。与 Chat v1 请求字段一致。
+      tags: [Conversation v1]
+      operationId: createConversationV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationCreateV1"
+      responses:
+        "201":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationEnvelope"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      summary: 当前用户会话列表
+      description: 按 last_message_at 倒序分页返回当前用户会话。
+      tags: [Conversation v1]
+      operationId: listConversationsV1
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 会话分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationListEnvelope"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/conversations/{conversation_id}:
+    parameters:
+      - $ref: "#/components/parameters/ConversationIdParam"
+    get:
+      summary: 会话详情
+      description: 返回会话元数据与完整消息历史；仅 owner 可访问。
+      tags: [Conversation v1]
+      operationId: getConversationV1
+      responses:
+        "200":
+          description: 会话详情（含消息）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationDetailEnvelope"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      summary: 重命名会话
+      description: 更新会话标题；仅 owner 可操作。
+      tags: [Conversation v1]
+      operationId: renameConversationV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationUpdate"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationEnvelope"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      summary: 删除会话
+      description: 硬删除会话及其全部消息；返回 204 无正文。
+      tags: [Conversation v1]
+      operationId: deleteConversationV1
+      responses:
+        "204":
+          description: 会话已删除，无正文
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      required: false
+      description: 页码，从 1 开始
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSizeParam:
+      name: page_size
+      in: query
+      required: false
+      description: 每页条数
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    ScopeParam:
+      name: scope
+      in: query
+      required: false
+      description: 可见范围筛选：all=可见并集（默认），mine=我创建的，public=组织公开
+      schema:
+        type: string
+        enum: [all, mine, public]
+        default: all
+    QParam:
+      name: q
+      in: query
+      required: false
+      description: 按名称模糊搜索
+      schema:
+        type: string
+        maxLength: 128
+    KbIdParam:
+      name: kb_id
+      in: path
+      required: true
+      description: 知识库稳定 UUID
+      schema:
+        type: string
+        format: uuid
+    DocumentIdParam:
+      name: document_id
+      in: path
+      required: true
+      description: 文档稳定 UUID
+      schema:
+        type: string
+        format: uuid
+    LocationIdParam:
+      name: location_id
+      in: path
+      required: true
+      description: Segment 稳定 UUID（chunks.segment_uuid）
+      schema:
+        type: string
+        format: uuid
+    ConversationIdParam:
+      name: conversation_id
+      in: path
+      required: true
+      description: 会话稳定 UUID
+      schema:
+        type: string
+        format: uuid
+    DocumentStatusParam:
+      name: status
+      in: query
+      required: false
+      description: 按文档状态过滤；接受旧状态名（uploaded/parsing/...）映射到 6 值枚举
+      schema:
+        type: string
+    FilenameParam:
+      name: filename
+      in: query
+      required: false
+      description: 按文件名模糊搜索
+      schema:
+        type: string
+    SortByParam:
+      name: sort_by
+      in: query
+      required: false
+      description: 排序字段（created_at/updated_at/filename/file_size/status）
+      schema:
+        type: string
+        default: created_at
+    OrderParam:
+      name: order
+      in: query
+      required: false
+      description: 排序方向
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+  responses:
+    Forbidden:
+      description: 无权限执行此操作（E5005）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: 资源不存在或不可见
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: 状态或名称冲突
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    UnsupportedMediaType:
+      description: 文件格式不支持（E2002）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ValidationError:
+      description: 请求参数校验失败（E9003）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    ApiEnvelope:
+      type: object
+      description: v1 成功响应信封（code/message/data）
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+          description: 业务成功码
+        message:
+          type: string
+          description: 人类可读说明
+        data: {}
+    ErrorEnvelope:
+      type: object
+      description: 错误响应信封
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 业务错误码，如 E1001/E5005/E9003
+        message:
+          type: string
+          description: 错误说明
+        detail:
+          type: string
+          nullable: true
+          description: 安全、结构化、可操作的附加信息；不含正文、密码、Token、SQL、路径或堆栈
+    # ---- Knowledge Base ----
+    KnowledgeBase:
+      type: object
+      required: [uuid, name, owner, visibility, status, doc_count, chunk_count, created_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: 知识库稳定 UUID
+        name:
+          type: string
+          minLength: 2
+          maxLength: 128
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        owner:
+          type: string
+          format: uuid
+          description: owner 用户 Platform User UUID（非内部 users.id）
+        visibility:
+          type: string
+          enum: [private, public]
+        status:
+          type: string
+          enum: [active, deleting]
+        doc_count:
+          type: integer
+          minimum: 0
+        chunk_count:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+    KnowledgeBaseCreate:
+      type: object
+      description: 创建知识库请求
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 128
+          description: 名称不能为纯数字或纯空格
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        visibility:
+          type: string
+          enum: [private, public]
+          default: private
+    KnowledgeBaseUpdate:
+      type: object
+      description: 更新知识库请求（部分更新，至少一个字段）
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 128
+          nullable: true
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        visibility:
+          type: string
+          enum: [private, public]
+          nullable: true
+    KnowledgeBaseList:
+      type: object
+      required: [total, page, page_size, items]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/KnowledgeBase"
+    KnowledgeBaseEnvelope:
+      type: object
+      description: 知识库资源信封
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/KnowledgeBase"
+    KnowledgeBaseListEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/KnowledgeBaseList"
+    # ---- Document ----
+    Document:
+      type: object
+      required:
+        [uuid, kb_uuid, filename, file_type, status, chunk_count, created_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        kb_uuid:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        file_type:
+          type: string
+          enum: [pdf, docx, md, txt]
+        file_size:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [queued, processing, completed, partial, failed, deleting]
+        chunk_count:
+          type: integer
+          minimum: 0
+        error_msg:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+    DocumentUpload:
+      type: object
+      required: [uuid, kb_uuid, filename, file_type, status]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        kb_uuid:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        file_type:
+          type: string
+          enum: [pdf, docx, md, txt]
+        file_size:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [queued, processing, completed, partial, failed, deleting]
+    DocumentReprocess:
+      type: object
+      required: [doc_uuid, status]
+      properties:
+        doc_uuid:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, processing, completed, partial, failed, deleting]
+    DocumentList:
+      type: object
+      required: [total, page, page_size, items]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Document"
+    DocumentChunk:
+      type: object
+      description: 文档分块（segment_id 为稳定身份；id 为内部整数 PK，仅迁移期兼容，不作为契约）
+      required: [id, segment_id, chunk_index, preview, token_count]
+      properties:
+        id:
+          type: integer
+          description: 内部整数 PK，仅迁移期兼容保留
+        segment_id:
+          type: string
+          format: uuid
+          description: Segment 稳定 UUID（即 location API 的 location_id）
+        chunk_index:
+          type: integer
+          minimum: 0
+        preview:
+          type: string
+          description: 分块内容安全预览（默认截断至 200 字符）
+        token_count:
+          type: integer
+          minimum: 0
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+    DocumentChunkList:
+      type: object
+      required: [total, page, page_size, items]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentChunk"
+    DocumentLocation:
+      type: object
+      description: 文档来源位置响应 — 最小片段与安全定位
+      required: [document_id, segment_id, minimal_excerpt, location]
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        segment_id:
+          type: string
+          format: uuid
+          description: Segment 稳定 UUID（即 location_id）
+        minimal_excerpt:
+          type: string
+          description: 最小必要片段（临时内容，不持久化）
+        location:
+          type: object
+          description: 安全定位（page_number 或 section_path）
+          properties:
+            page_number:
+              type: integer
+            section_path:
+              type: array
+              items:
+                type: string
+        source_updated_at:
+          type: string
+          format: date-time
+          nullable: true
+    DocumentEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/Document"
+    DocumentUploadEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/DocumentUpload"
+    DocumentReprocessEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/DocumentReprocess"
+    DocumentListEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/DocumentList"
+    DocumentChunkListEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/DocumentChunkList"
+    DocumentLocationEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/DocumentLocation"
+    # ---- Conversation ----
+    ConversationCreateV1:
+      type: object
+      description: 创建会话请求（v1，knowledge_base_id 对齐 Chat v1）
+      required: [knowledge_base_id]
+      properties:
+        knowledge_base_id:
+          type: string
+          format: uuid
+          description: 关联知识库稳定 UUID
+        title:
+          type: string
+          maxLength: 256
+          nullable: true
+          description: 会话标题，不传则默认「新对话」
+    ConversationUpdate:
+      type: object
+      description: 重命名会话请求
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+    Message:
+      type: object
+      description: 会话消息
+      required: [id, role, content, created_at]
+      properties:
+        id:
+          type: integer
+          description: 消息内部整数 ID
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+        thinking_content:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    Conversation:
+      type: object
+      required: [uuid, owner_user_id, title, message_count, created_at, updated_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        owner_user_id:
+          type: string
+          format: uuid
+          description: owner 用户 Platform User UUID（非内部 users.id）
+        kb_uuid:
+          type: string
+          format: uuid
+          nullable: true
+          description: 关联知识库 UUID（KB 删除后为 null）
+        kb_status:
+          type: string
+          enum: [active, deleted, unavailable]
+          nullable: true
+        kb_name:
+          type: string
+          nullable: true
+          description: 关联知识库名称（含已删除/不可访问的）
+        original_kb_uuid:
+          type: string
+          format: uuid
+          nullable: true
+          description: KB 删除前的原始 UUID
+        original_kb_name:
+          type: string
+          nullable: true
+          description: KB 删除前的原始名称
+        title:
+          type: string
+        message_count:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+    ConversationDetail:
+      type: object
+      description: 会话详情（含消息历史）
+      required:
+        [uuid, owner_user_id, title, message_count, created_at, updated_at, messages]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        owner_user_id:
+          type: string
+          format: uuid
+        kb_uuid:
+          type: string
+          format: uuid
+          nullable: true
+        kb_status:
+          type: string
+          enum: [active, deleted, unavailable]
+          nullable: true
+        kb_name:
+          type: string
+          nullable: true
+        original_kb_uuid:
+          type: string
+          format: uuid
+          nullable: true
+        original_kb_name:
+          type: string
+          nullable: true
+        title:
+          type: string
+        message_count:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+    ConversationList:
+      type: object
+      required: [total, page, page_size, items]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Conversation"
+    ConversationEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/Conversation"
+    ConversationDetailEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/ConversationDetail"
+    ConversationListEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          const: "0"
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/ConversationList"

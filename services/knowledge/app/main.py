@@ -15,10 +15,14 @@ from app.api.auth import v1_router
 from app.api.chat import router as chat_router
 from app.api.chat_v1 import router as chat_v1_router
 from app.api.conversation import router as conversation_router
+from app.api.conversation_v1 import router as conversation_v1_router
 from app.api.document import router as doc_router
 from app.api.document import v1_router as doc_v1_router
+from app.api.document_v1 import doc_v1_router as document_v1_router
+from app.api.document_v1 import kb_doc_router as doc_v1_kb_router
 from app.api.internal import router as internal_router
 from app.api.knowledge_base import router as kb_router
+from app.api.knowledge_base_v1 import router as kb_v1_router
 from app.config import settings
 from app.core.chroma_client import init_chroma
 from app.core.csrf import clear_auth_cookies
@@ -128,6 +132,10 @@ app.include_router(conversation_router)
 app.include_router(kb_router)
 app.include_router(doc_router)
 app.include_router(doc_v1_router)
+app.include_router(kb_v1_router)
+app.include_router(doc_v1_kb_router)
+app.include_router(document_v1_router)
+app.include_router(conversation_v1_router)
 app.include_router(admin_router)
 app.include_router(internal_router)
 

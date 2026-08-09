@@ -20,6 +20,17 @@ class ConversationUpdate(BaseModel):
     title: str = Field(..., min_length=1, max_length=256, description="新标题")
 
 
+class ConversationV1Create(BaseModel):
+    """POST /api/v1/conversations 请求体（v1 契约使用 knowledge_base_id，对齐 Chat v1）
+
+    legacy 的 ConversationCreate.kb_uuid 不沿用到 v1 契约；由 v1 路由映射到
+    service 的 kb_uuid（API.md §7 / docs/openapi/evidsight-v1.yaml）。
+    """
+
+    knowledge_base_id: str = Field(..., description="关联知识库 UUID")
+    title: str | None = Field(None, max_length=256, description="会话标题，不传则默认'新对话'")
+
+
 # ── 响应模型 ──
 
 
