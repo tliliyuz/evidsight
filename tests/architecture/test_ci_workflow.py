@@ -4,6 +4,7 @@
 checks、受保护分支触发、过时运行取消，以及不启动全栈数据服务。
 """
 
+import json
 from pathlib import Path
 
 import yaml
@@ -104,3 +105,22 @@ def test_python_ci_uses_frozen_hashed_service_dependencies():
     assert "--require-hashes" in setup_script
     assert "FROM python:3.12-slim AS ci-test" in dockerfile
     assert "pip install --no-cache-dir --require-hashes -r requirements-dev.lock" in dockerfile
+
+
+def test_web_ci_node_version_satisfies_pnpm_runtime_requirement():
+    package = json.loads((ROOT / "apps" / "web" / "package.json").read_text(encoding="utf-8"))
+    package_manager = package["packageManager"]
+    assert package_manager.startswith("pnpm@")
+    pnpm_major = int(package_manager.removeprefix("pnpm@").split(".", maxsplit=1)[0])
+
+    setup_node_steps = [
+        step
+        for step in _load_workflow()["jobs"]["web"]["steps"]
+        if step.get("uses", "").startswith("actions/setup-node@")
+    ]
+    assert len(setup_node_steps) == 1
+    node_version = setup_node_steps[0]["with"]["node-version"]
+    node_parts = tuple(int(part) for part in node_version.split("."))
+
+    if pnpm_major >= 11:
+        assert node_parts >= (22, 13), "pnpm 11 要求 Node.js 22.13 或更高版本"

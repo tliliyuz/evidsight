@@ -14,7 +14,7 @@
 |:---|:---|:---|
 | Python | 3.12+ | Knowledge/Research 服务、契约生成和测试 |
 | uv | 与根 `uv.lock` 兼容 | 根工具与 Python 环境管理 |
-| Node.js | 20+ | Web 构建与测试（Vite；M4 前 Vue，M4 后 React）|
+| Node.js | 22.13+ | Web 构建与测试；满足 `pnpm 11` 的运行时要求 |
 | pnpm | `apps/web/package.json#packageManager` | Web 依赖、脚本与冻结锁文件管理 |
 | Docker Engine | 24+ | 服务镜像与本地部署 |
 | Docker Compose | v2 | 开发单机全栈与生产三节点编排 |
