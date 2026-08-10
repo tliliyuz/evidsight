@@ -37,6 +37,7 @@ from app.services.chat_helpers import (
     extract_citation_indices,
     generate_title,
     generate_title_llm,
+    project_wire_source,
 )
 
 logger = logging.getLogger(__name__)
@@ -255,6 +256,7 @@ async def _generate_sse_stream(
             "SOURCES_SUPPRESSED: LLM 判定未找到（not_found=True），抑制 sources 发送",
         )
 
+    persisted_sources: list[dict] | None = None
     if reranked_output.results and not _not_found:
         _send_chunks = prompt_result.used_chunks or reranked_output.results
         _cited_indices = extract_citation_indices(_answer_stripped)
@@ -270,6 +272,7 @@ async def _generate_sse_stream(
                 )
                 for j, (orig_idx, _) in enumerate(_cited_with_orig_index):
                     sources[j].chunk_index = orig_idx
+                persisted_sources = [project_wire_source(s.model_dump()) for s in sources]
                 yield format_sse_event(
                     "sources",
                     build_sources_event_data(sources, _audit_result),
@@ -282,6 +285,7 @@ async def _generate_sse_stream(
                 len(_send_chunks),
             )
             sources = build_sources(_send_chunks, doc_map, doc_uuid_map)
+            persisted_sources = [project_wire_source(s.model_dump()) for s in sources]
             yield format_sse_event(
                 "sources",
                 build_sources_event_data(sources, _audit_result),
@@ -304,6 +308,7 @@ async def _generate_sse_stream(
         recorder,
         token_count=token_usage.get("total", 0),
         generation_uuid=task_id,
+        persisted_sources=persisted_sources,
     )
     if msg_id is None:
         if await is_generation_canceled(task_id):
@@ -373,6 +378,7 @@ async def _persist_message(
     *,
     token_count: int = 0,
     generation_uuid: str | None = None,
+    persisted_sources: list[dict] | None = None,
 ) -> tuple[int | None, str | None]:
     """消息公共持久化：创建 Message → 更新 Conversation → 写入 Trace。
 
@@ -387,6 +393,8 @@ async def _persist_message(
         log_label: 日志标识（"STREAM" / "REJECT" / "META"）
         recorder: Trace 收集器
         token_count: Token 用量（流式回答有估算值，固定模板为 0）
+        persisted_sources: canonical wire 来源投影（API.md §12），非空时写入
+            Message.metadata.sources；缺省/空为 None，历史与 REJECT/META 兼容
 
     Returns:
         (message_id, title)：成功时 message_id > 0；异常时返回 (None, None)
@@ -418,6 +426,7 @@ async def _persist_message(
                 thinking_content=None,
                 token_count=token_count,
                 generation_id=generation.id if generation else None,
+                **({"metadata_": {"sources": persisted_sources}} if persisted_sources else {}),
             )
             s.add(assistant_msg)
             conv_in.message_count += 1

@@ -1535,6 +1535,141 @@ class TestChatCitationFiltering:
         assert len(chunks) == 2, f"LLM 失败回退应发送全部 2 个 chunk，实际: {len(chunks)}"
 
 
+class TestPersistSources:
+    """API.md §12 来源持久化 — _persist_message 接收 persisted_sources 写入 metadata。"""
+
+    @pytest.mark.asyncio
+    async def test_persist_message_接收persisted_sources写入metadata(self):
+        """persisted_sources 非空时以 metadata.sources 写入 assistant 消息。"""
+        from app.services import sse_stream
+
+        mock_conv_in = MagicMock(id=1, message_count=1, title="新对话")
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_conv_in)
+        mock_session.flush = AsyncMock()
+        mock_session.refresh = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_ctx = MagicMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=None)
+
+        captured: dict = {}
+
+        def _fake_message(**kwargs):
+            captured.update(kwargs)
+            return MagicMock(id=100)
+
+        wire = [
+            {
+                "chunk_index": 1,
+                "document_uuid": None,
+                "segment_id": None,
+                "doc_name": "测试文档.pdf",
+                "score": 0.95,
+                "page": 1,
+                "section_title": None,
+                "section_path": None,
+                "preview_text": None,
+                "preview_range": None,
+                "highlight_start": None,
+                "highlight_end": None,
+            }
+        ]
+        with (
+            patch.object(sse_stream, "async_session", return_value=mock_ctx),
+            patch.object(sse_stream, "Message", side_effect=_fake_message),
+        ):
+            msg_id, title = await sse_stream._persist_message(
+                MagicMock(id=1),
+                False,
+                "测试问题",
+                "回答",
+                "TEST",
+                persisted_sources=wire,
+            )
+
+        assert msg_id == 100
+        assert captured["metadata_"] == {"sources": wire}
+        assert title is None  # is_first_turn=False 不生成标题
+
+    @pytest.mark.asyncio
+    async def test_persist_message_无来源时metadata缺省(self):
+        """persisted_sources 缺省/为空时不写 metadata（历史与 REJECT/META 兼容）。"""
+        from app.services import sse_stream
+
+        mock_conv_in = MagicMock(id=1, message_count=1, title="新对话")
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_conv_in)
+        mock_session.flush = AsyncMock()
+        mock_session.refresh = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_ctx = MagicMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=None)
+
+        captured: dict = {}
+        captured["metadata_"] = "unset"
+
+        def _fake_message(**kwargs):
+            captured.update(kwargs)
+            return MagicMock(id=101)
+
+        with (
+            patch.object(sse_stream, "async_session", return_value=mock_ctx),
+            patch.object(sse_stream, "Message", side_effect=_fake_message),
+        ):
+            await sse_stream._persist_message(MagicMock(id=1), False, "测试问题", "回答", "TEST")
+
+        assert captured["metadata_"] == "unset"  # 未传 persisted_sources 不写 metadata
+
+    @pytest.mark.asyncio
+    async def test_流结束把投影sources传给persist_message(self):
+        """_generate_sse_stream 成功路径把 canonical wire 投影传给 _persist_message。"""
+        from app.services import sse_stream
+        from app.services.chat_service import chat
+
+        db = AsyncMock()
+        conv = MagicMock()
+        conv.id = 50
+        conv.user_id = 1
+        conv.message_count = 0
+        conv.title = "新对话"
+
+        retrieval_output = _make_retrieval_output()
+        llm_chunks = _make_llm_chunks(["这是[来源1]", "LLM", "的回答"])
+
+        with (
+            _mock_chat_pipeline(db, conv, retrieval_output=retrieval_output, llm_chunks=llm_chunks),
+            patch.object(sse_stream, "_persist_message", new_callable=AsyncMock) as mock_persist,
+        ):
+            mock_persist.return_value = (11, "新对话")
+            response = await chat(
+                db=db,
+                user_id=1,
+                role="user",
+                conversation_id=None,
+                kb_id=_TEST_KB_UUID,
+                question="测试问题",
+                deep_thinking=False,
+            )
+            events = await _consume_sse(response)
+
+        sources = next(e for e in events if e["event"] == "sources")
+        assert len(sources["data"]["chunks"]) == 1
+
+        call = mock_persist.await_args
+        assert call is not None
+        wire = call.kwargs["persisted_sources"]
+        assert wire is not None and len(wire) == 1
+        assert "doc_id" not in wire[0]
+        assert "content" not in wire[0]
+        assert wire[0]["chunk_index"] == 1
+        assert wire[0]["doc_name"] == "测试文档.pdf"
+        assert wire[0]["score"] == 0.95
+
+
 # ==================== 辅助 async generator ====================
 
 

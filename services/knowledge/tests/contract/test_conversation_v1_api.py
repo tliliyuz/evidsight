@@ -53,10 +53,20 @@ def _make_detail_response():
         messages=[
             {
                 "id": 1,
-                "role": "user",
+                "role": "assistant",
                 "content": "你好",
                 "thinking_content": None,
                 "created_at": NOW,
+                "sources": [
+                    {
+                        "chunk_index": 1,
+                        "document_uuid": VALID_KB_UUID,
+                        "segment_id": "550e8400-e29b-41d4-a716-446655440001",
+                        "doc_name": "测试文档.pdf",
+                        "score": 0.95,
+                        "page": 1,
+                    }
+                ],
             }
         ],
     )
@@ -215,7 +225,55 @@ class TestConversationGetV1:
         assert response.status_code == 200, response.text
         body = response.json()
         assert_data_matches_schema("ConversationDetail", body)
-        assert body["messages"][0]["role"] == "user"
+        assert body["messages"][0]["role"] == "assistant"
+        # API.md §12：消息详情回读 sources（metadata 持久化 → Message.sources）
+        msg = body["messages"][0]
+        assert msg["sources"] == [
+            {
+                "chunk_index": 1,
+                "document_uuid": VALID_KB_UUID,
+                "segment_id": "550e8400-e29b-41d4-a716-446655440001",
+                "doc_name": "测试文档.pdf",
+                "score": 0.95,
+                "page": 1,
+            }
+        ]
+        assert_data_matches_schema("Message", msg)
+
+    @pytest.mark.asyncio
+    async def test_get_detail_message_sources_absent_returns_empty(
+        self, async_client, auth_headers
+    ):
+        """无来源消息（metadata 无 sources）回读为 []（API.md §12）。"""
+        detail = ConversationDetailResponse(
+            **_make_conv_response().model_dump(),
+            messages=[
+                {
+                    "id": 2,
+                    "role": "user",
+                    "content": "你好",
+                    "thinking_content": None,
+                    "created_at": NOW,
+                }
+            ],
+        )
+        with (
+            patch(
+                "app.api.conversation_v1.resolve_uuid_to_id", new_callable=AsyncMock
+            ) as mock_resolve,
+            patch(
+                "app.api.conversation_v1.get_conversation_detail", new_callable=AsyncMock
+            ) as mock,
+        ):
+            mock_resolve.return_value = 1
+            mock.return_value = detail
+
+            response = await async_client.get(self.URL, headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["messages"][0]["sources"] == []
+        assert_data_matches_schema("Message", body["messages"][0])
 
     @pytest.mark.asyncio
     async def test_get_not_found_404(self, async_client, auth_headers):

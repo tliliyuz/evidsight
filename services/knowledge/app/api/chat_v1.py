@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
 from app.services.chat_generation_service import cancel_generation
+from app.services.chat_helpers import project_wire_source
 from app.services.chat_service import chat
 
 router = APIRouter(prefix="/api/v1/chat", tags=["问答 v1"])
@@ -44,28 +45,10 @@ async def _canonical_stream(response: StreamingResponse) -> AsyncIterator[str]:
         if event_name == "meta" and "task_id" in data:
             data["generation_id"] = data.pop("task_id")
         elif event_name == "sources":
+            # canonical wire 投影与持久化共用 project_wire_source（API.md §12 单一事实）
             data = {
                 **{key: value for key, value in data.items() if key != "chunks"},
-                "chunks": [
-                    {
-                        key: chunk.get(key)
-                        for key in (
-                            "chunk_index",
-                            "document_uuid",
-                            "segment_id",
-                            "doc_name",
-                            "score",
-                            "page",
-                            "section_title",
-                            "section_path",
-                            "preview_text",
-                            "preview_range",
-                            "highlight_start",
-                            "highlight_end",
-                        )
-                    }
-                    for chunk in data.get("chunks", [])
-                ],
+                "chunks": [project_wire_source(chunk) for chunk in data.get("chunks", [])],
             }
         elif event_name == "error":
             data = {

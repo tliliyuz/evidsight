@@ -10,12 +10,30 @@ import type { AxiosInstance } from 'axios'
 
 import { apiClient } from '@/api/client'
 
+/** 来源引用 canonical wire 投影（API.md §12；对齐 OpenAPI ChatSource） */
+export type ChatSource = {
+  chunk_index: number
+  doc_name: string
+  score: number
+  document_uuid?: string | null
+  segment_id?: string | null
+  page?: number | null
+  section_title?: string | null
+  section_path?: string | null
+  preview_text?: string | null
+  preview_range?: { start: number; end: number } | null
+  highlight_start?: number | null
+  highlight_end?: number | null
+}
+
 export type ChatMessage = {
   id: number
   role: 'user' | 'assistant' | 'system'
   content: string
   thinking_content?: string | null
   created_at: string
+  /** SSE sources 持久化到消息后的回读（无来源为 []） */
+  sources?: ChatSource[]
 }
 
 export type Conversation = {

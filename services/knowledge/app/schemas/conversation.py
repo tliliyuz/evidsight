@@ -1,8 +1,9 @@
 """会话请求/响应模型 — 对齐 API.md §5"""
 
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # ── 请求模型 ──
 
@@ -42,8 +43,28 @@ class MessageResponse(BaseModel):
     content: str
     thinking_content: str | None = None
     created_at: datetime
+    sources: list[dict] = Field(
+        default_factory=list,
+        description="来源引用 canonical wire 投影（SSE sources 持久化，API.md §12），无来源为 []",
+    )
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _hydrate_sources(cls, value: Any) -> Any:
+        """ORM Message 从 metadata 列水合 sources；dict 输入保持原样（缺省 []）。"""
+        if isinstance(value, dict):
+            return value
+        meta = getattr(value, "metadata_", None) or {}
+        if isinstance(meta, dict):
+            sources = meta.get("sources") or []
+        else:
+            sources = []
+        attrs = getattr(value, "__dict__", None)
+        if isinstance(attrs, dict):
+            attrs["sources"] = sources
+        return value
 
 
 class ConversationResponse(BaseModel):

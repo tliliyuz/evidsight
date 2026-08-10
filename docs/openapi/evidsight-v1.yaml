@@ -1143,6 +1143,11 @@ components:
         created_at:
           type: string
           format: date-time
+        sources:
+          type: array
+          description: 来源引用 canonical wire 投影（SSE sources 持久化，API.md §12）；无来源为 []
+          items:
+            $ref: "#/components/schemas/ChatSource"
     Conversation:
       type: object
       required: [uuid, owner_user_id, title, message_count, created_at, updated_at]
@@ -1334,8 +1339,8 @@ components:
         chunk_index: {type: integer, minimum: 1}
         doc_name: {type: string}
         score: {type: number}
-        document_uuid: {type: string, format: uuid}
-        segment_id: {type: string, format: uuid}
+        document_uuid: {type: string, format: uuid, nullable: true}
+        segment_id: {type: string, format: uuid, nullable: true}
         page: {type: [integer, "null"], minimum: 1}
         section_title: {type: [string, "null"]}
         section_path: {type: [string, "null"]}
