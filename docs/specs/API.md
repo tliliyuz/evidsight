@@ -125,6 +125,8 @@ READ、owner 和 admin 治理分别判断，权限矩阵引用 PRD §8。
 
 **Knowledge Base 外部 API 迁移态（2026-08-09）**：`/api/v1/knowledge-bases/*` 的 CRUD（POST 201 / GET 统一可见列表 / GET 详情 / PATCH 部分更新 / DELETE 204）与单一可见列表（`scope=all|mine|public` + `q` 名称搜索、分页去重、admin 治理可见）已实现，字段契约以 `docs/openapi/evidsight-v1.yaml` 为唯一权威。legacy `/api/knowledge-bases/*` 只作为兼容入口保留（更新使用 `PUT`、删除返回 `202`，mine 与 public 为两个独立分页端点且不支持名称搜索），按 API.md §15 观测调用量，仓库内 Consumer 迁移且观测窗口归零后由负责人确认删除。状态与解除门禁见 [ROADMAP](../plans/ROADMAP.md) M2/M4；ADR 检查 1–8：否（让实现回到既有 API.md §6.1 目标态，不改变权限模型、服务边界或数据生命周期）。
 
+**Knowledge Base 响应增补（2026-08-10，纠偏 3B 后端部分）**：`KnowledgeBaseResponse` 增补两个可空可选字段（向后兼容，不入 `required`）——`index_status`（`ready|updating|recovering`，映射 `knowledge_bases.index_status` 索引发布锁列，ADR-007 权威聚合索引状态，前端据此渲染列表「索引状态」列）与 `owner_username`（owner 用户名，供详情 Hero「创建者」展示）。字段定义以 `docs/openapi/evidsight-v1.yaml` 为唯一权威；本条目只记录行为语义与兼容性，不重复 Schema。ADR 检查 1–8：否（两个可空可选字段投影，对齐纠偏 2 `source_strategy`/`progress` 先例，不改变权限模型、服务边界或数据生命周期）。（2026-08-10）
+
 ### 6.2 Document 与来源
 
 | 方法与路径 | 权限 | 成功 | 说明 |

@@ -384,7 +384,7 @@ M3 已完成（2026-08-08）。八条 Research Pipeline 退出门禁逐项核对
 1. 纠偏 0：跟踪版原型、Token 注册表、资产登记、Token/原型基线静态门禁和 Playwright 视觉基础设施；（已完成，2026-08-09）
 2. 纠偏 1：入口页与登录抽屉视觉 RED/GREEN；（已完成，2026-08-09，验证证据见 [CHANGELOG](../CHANGELOG.md)）
 3. 纠偏 2：AppShell 与工作台视觉 RED/GREEN；行为与结构已修复（2026-08-09，六项导航/当前项三态/Breadcrumb/真实运行任务 Chip/账号区/Launcher/主次列/真实数据，验证证据见 [CHANGELOG](../CHANGELOG.md)），明暗主题、空态/有数据/运行态截图视觉 RED/GREEN 已完成（2026-08-10，工作台 Route Surface 容器化与 6 张三态截图基线、命令入口与运行任务 Chip 交互，Playwright 全量 15 项全绿，验证证据见 [CHANGELOG](../CHANGELOG.md)）；
-4. 复核 3B：知识库列表、详情、Drawer 和共享组件视觉 RED/GREEN。
+4. 复核 3B：知识库列表、详情、Drawer 和共享组件视觉 RED/GREEN。后端数据源部分已完成（2026-08-10）：`KnowledgeBaseResponse` 增补 `index_status`/`owner_username` 两个可空可选字段投影（权威索引状态 + owner 用户名，同步 External OpenAPI 与契约测试），契约事实记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-10 纠偏 3B 后端条目）与 API.md §6.1；前端列表 Ledger/详情/Drawer 视觉 RED/GREEN 继续推进。
 
 上述纠偏不改变已完成的业务行为和 API Consumer，也不改变 External OpenAPI 门禁状态；其阻塞与解除以本节 Provider 审计结论为准。每项纠偏独立执行 RED → GREEN；每波集成只执行一次 Web 全量测试、ESLint、Prettier check、TypeScript/Vite build、Architecture、API/OpenAPI 一致性，以及 Token/视觉门禁。纠偏 2 因「RECENT RESEARCH 展示来源类型/进度」且前端禁止虚构数据，对 `ResearchTaskListItem` 增补 `source_strategy`/`progress` 两个向后兼容可选字段投影（同步 External OpenAPI 与测试，全部门禁保持通过）；该数据补充为契约事实记录，见 [CHANGELOG](../CHANGELOG.md)（2026-08-09 纠偏 2 条目），不改变公共契约语义或已发布字段。ADR 检查 1–8：否（让实现服从既有 UIDESIGN 与 ADR-004，跟踪版原型是不可部署的设计参考资产；可选字段投影不改变服务边界、公共契约语义、数据、安全或生产前端技术机制）。（2026-08-09）
 

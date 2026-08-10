@@ -9,7 +9,7 @@ FRONTEND §5.3 的「全部 / 我创建的 / 组织公开」筛选与名称搜�
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.uuid_helpers import resolve_user_uuid, resolve_uuid_to_id
+from app.core.uuid_helpers import resolve_user_display, resolve_uuid_to_id
 from app.dependencies import get_current_user, get_db
 from app.models.knowledge_base import KnowledgeBase
 from app.schemas.knowledge_base import (
@@ -70,8 +70,8 @@ async def get_knowledge_base_v1(
     """知识库详情。public 所有登录用户可读，private 仅 owner 或 admin 可读。"""
     kb_internal_id = await resolve_uuid_to_id(db, KnowledgeBase, kb_id)
     kb = await get_kb(db, kb_internal_id, current_user["user_id"], current_user["role"])
-    # B 类：owner 输出 Platform User UUID，不暴露内部 users.id
-    owner_uuid = await resolve_user_uuid(db, kb.user_id)
+    # B 类：owner 输出 Platform User UUID + 用户名，不暴露内部 users.id
+    owner_uuid, owner_username = await resolve_user_display(db, kb.user_id)
     return KnowledgeBaseResponse(
         uuid=kb.uuid,
         name=kb.name,
@@ -83,6 +83,8 @@ async def get_knowledge_base_v1(
         chunk_count=kb.chunk_count,
         created_at=kb.created_at,
         updated_at=kb.updated_at,
+        index_status=kb.index_status,
+        owner_username=owner_username,
     )
 
 

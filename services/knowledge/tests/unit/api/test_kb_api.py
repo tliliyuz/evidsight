@@ -59,6 +59,7 @@ def _make_kb_orm(
     visibility="private",
     doc_count=0,
     chunk_count=0,
+    index_status="ready",
 ):
     """构造真实 KnowledgeBase ORM 实例（详情路由读 kb.user_id，需 ORM 对象而非 DTO）"""
     return KnowledgeBase(
@@ -71,6 +72,7 @@ def _make_kb_orm(
         status=status,
         doc_count=doc_count,
         chunk_count=chunk_count,
+        index_status=index_status,
         created_at=NOW,
         updated_at=NOW,
     )
@@ -296,11 +298,13 @@ class TestGetKB:
                 "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
             ) as mock_resolve,
             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock,
-            patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner,
+            patch(
+                "app.api.knowledge_base.resolve_user_display", new_callable=AsyncMock
+            ) as mock_owner,
         ):
             mock_resolve.return_value = 1
             mock.return_value = _make_kb_orm(name="公司知识库", description="详细描述")
-            mock_owner.return_value = _platform_uuid(1)
+            mock_owner.return_value = (_platform_uuid(1), "林默")
 
             response = await async_client.get(
                 f"/api/knowledge-bases/{VALID_KB_UUID}",
@@ -579,13 +583,15 @@ class TestVisibilityPermissionMatrix:
                 "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
             ) as mock_resolve,
             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock,
-            patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner,
+            patch(
+                "app.api.knowledge_base.resolve_user_display", new_callable=AsyncMock
+            ) as mock_owner,
         ):
             mock_resolve.return_value = 2
             mock.return_value = _make_kb_orm(
                 kb_uuid=VALID_KB_UUID_2, user_id=99, visibility="public"
             )
-            mock_owner.return_value = _platform_uuid(99)
+            mock_owner.return_value = (_platform_uuid(99), "林默")
 
             response = await async_client.get(
                 f"/api/knowledge-bases/{VALID_KB_UUID_2}",
@@ -649,13 +655,15 @@ class TestVisibilityPermissionMatrix:
                 "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
             ) as mock_resolve,
             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock,
-            patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner,
+            patch(
+                "app.api.knowledge_base.resolve_user_display", new_callable=AsyncMock
+            ) as mock_owner,
         ):
             mock_resolve.return_value = 2
             mock.return_value = _make_kb_orm(
                 kb_uuid=VALID_KB_UUID_2, user_id=99, visibility="private"
             )
-            mock_owner.return_value = _platform_uuid(99)
+            mock_owner.return_value = (_platform_uuid(99), "林默")
 
             response = await async_client.get(
                 f"/api/knowledge-bases/{VALID_KB_UUID_2}",

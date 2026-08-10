@@ -14,10 +14,12 @@ from app.core.exceptions import (
     ConversationNotFoundException,
     DocumentNotFoundException,
     KnowledgeBaseNotFoundException,
+    UserNotFoundException,
 )
 from app.core.uuid_helpers import (
     _get_not_found_exception,
     get_by_uuid,
+    resolve_user_display,
     resolve_uuid_to_id,
     validate_uuid_format,
 )
@@ -199,6 +201,37 @@ class TestResolveUuidToId:
 
         result = await resolve_uuid_to_id(mock_db, Conversation, VALID_UUID)
         assert result == 77
+
+
+# ==================== resolve_user_display 测试 ====================
+
+
+class TestResolveUserDisplay:
+    """resolve_user_display — 一次查询返回 (platform_user_id, username)（纠偏3B）"""
+
+    @pytest.mark.asyncio
+    async def test_normal_returns_uuid_and_username(self):
+        """有效用户 → 返回 (Platform User UUID, username) 元组"""
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.first.return_value = ("550e8400-e29b-41d4-a716-446655440001", "林默")
+        mock_db.execute.return_value = mock_result
+
+        result = await resolve_user_display(mock_db, 1)
+
+        assert result == ("550e8400-e29b-41d4-a716-446655440001", "林默")
+        mock_db.execute.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_user_missing_raises_exception(self):
+        """用户不存在 → UserNotFoundException，不泄露内部 users.id"""
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.first.return_value = None
+        mock_db.execute.return_value = mock_result
+
+        with pytest.raises(UserNotFoundException):
+            await resolve_user_display(mock_db, 999)
 
 
 # ==================== get_by_uuid 测试 ====================

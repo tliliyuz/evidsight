@@ -37,6 +37,8 @@ def _make_kb_response(
     visibility="private",
     doc_count=0,
     chunk_count=0,
+    index_status="ready",
+    owner_username="林默",
 ):
     return KnowledgeBaseResponse(
         uuid=kb_uuid,
@@ -49,6 +51,8 @@ def _make_kb_response(
         chunk_count=chunk_count,
         created_at=NOW,
         updated_at=NOW,
+        index_status=index_status,
+        owner_username=owner_username,
     )
 
 
@@ -70,6 +74,7 @@ def _make_kb_orm(
         status=status,
         doc_count=0,
         chunk_count=0,
+        index_status="ready",
         created_at=NOW,
         updated_at=NOW,
     )
@@ -195,12 +200,12 @@ class TestKBGetV1:
             ) as mock_resolve,
             patch("app.api.knowledge_base_v1.get_kb", new_callable=AsyncMock) as mock,
             patch(
-                "app.api.knowledge_base_v1.resolve_user_uuid", new_callable=AsyncMock
+                "app.api.knowledge_base_v1.resolve_user_display", new_callable=AsyncMock
             ) as mock_owner,
         ):
             mock_resolve.return_value = 1
             mock.return_value = _make_kb_orm()
-            mock_owner.return_value = _platform_uuid(1)
+            mock_owner.return_value = (_platform_uuid(1), "林默")
 
             response = await async_client.get(self.URL, headers=auth_headers)
 
@@ -209,6 +214,9 @@ class TestKBGetV1:
         assert_data_matches_schema("KnowledgeBase", body)
         assert body["uuid"] == VALID_KB_UUID
         assert body["owner"] == _platform_uuid(1)
+        # 纠偏3B：详情响应携带权威索引状态与 owner 用户名（可选字段）
+        assert body["index_status"] == "ready"
+        assert body["owner_username"] == "林默"
         assert "id" not in body
 
     @pytest.mark.asyncio

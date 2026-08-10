@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.uuid_helpers import resolve_user_uuid, resolve_uuid_to_id
+from app.core.uuid_helpers import resolve_user_display, resolve_uuid_to_id
 from app.dependencies import get_current_user, get_db
 from app.models.knowledge_base import KnowledgeBase
 from app.schemas.knowledge_base import (
@@ -83,8 +83,8 @@ async def get_knowledge_base(
     """获取知识库详情。public KB 所有登录用户可查看，private KB 仅 owner 或 admin 可查看。"""
     kb_id = await resolve_uuid_to_id(db, KnowledgeBase, kb_uuid)
     kb = await get_kb(db, kb_id, current_user["user_id"], current_user["role"])
-    # B 类：owner 输出 Platform User UUID，不暴露内部 users.id
-    owner_uuid = await resolve_user_uuid(db, kb.user_id)
+    # B 类：owner 输出 Platform User UUID + 用户名，不暴露内部 users.id
+    owner_uuid, owner_username = await resolve_user_display(db, kb.user_id)
     return {
         "code": "0",
         "message": "ok",
@@ -99,6 +99,8 @@ async def get_knowledge_base(
             chunk_count=kb.chunk_count,
             created_at=kb.created_at,
             updated_at=kb.updated_at,
+            index_status=kb.index_status,
+            owner_username=owner_username,
         ).model_dump(),
     }
 

@@ -15,7 +15,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import require_kb_readable, require_kb_writable
 from app.core.utils import escape_like
-from app.core.uuid_helpers import resolve_user_uuid
+from app.core.uuid_helpers import resolve_user_display
 from app.ingest.delete_tasks import delete_kb as delete_kb_task
 from app.models.chunk import Chunk
 from app.models.document import Document
@@ -128,7 +128,7 @@ async def create_kb(
         raise KnowledgeBaseNameExistsException(data.name)
     await db.refresh(kb)
     # B 类：响应 owner 字段输出 Platform User UUID，不暴露内部 users.id
-    owner_uuid = await resolve_user_uuid(db, user_id)
+    owner_uuid, owner_username = await resolve_user_display(db, user_id)
     return KnowledgeBaseResponse(
         uuid=kb.uuid,
         name=kb.name,
@@ -140,6 +140,8 @@ async def create_kb(
         chunk_count=kb.chunk_count,
         created_at=kb.created_at,
         updated_at=kb.updated_at,
+        index_status=kb.index_status,
+        owner_username=owner_username,
     )
 
 
@@ -221,8 +223,8 @@ async def list_kbs(
     real_chunk_counts = await _get_real_chunk_counts(db, kb_ids)
     real_doc_counts = await _get_real_doc_counts(db, kb_ids)
 
-    # B 类：owner 输出 Platform User UUID（列表内所有 KB 属于同一 user，解析一次）
-    owner_uuid = await resolve_user_uuid(db, user_id)
+    # B 类：owner 输出 Platform User UUID + 用户名（列表内所有 KB 属于同一 user，解析一次）
+    owner_uuid, owner_username = await resolve_user_display(db, user_id)
 
     items = []
     for r in rows:
@@ -237,6 +239,8 @@ async def list_kbs(
             chunk_count=r.chunk_count,
             created_at=r.created_at,
             updated_at=r.updated_at,
+            index_status=r.index_status,
+            owner_username=owner_username,
         )
         resp.chunk_count = real_chunk_counts.get(r.id, 0)
         resp.doc_count = real_doc_counts.get(r.id, 0)
@@ -353,25 +357,28 @@ async def list_visible_kbs(
     real_chunk_counts = await _get_real_chunk_counts(db, kb_ids)
     real_doc_counts = await _get_real_doc_counts(db, kb_ids)
 
-    # B 类：owner 输出 Platform User UUID。列表可能跨用户（public/all），
+    # B 类：owner 输出 Platform User UUID + 用户名。列表可能跨用户（public/all），
     # 按去重后的 user_id 逐个解析一次。
-    owner_uuid_map: dict[int, str] = {}
+    owner_display_map: dict[int, tuple[str, str]] = {}
     for uid in {r.user_id for r in rows}:
-        owner_uuid_map[uid] = await resolve_user_uuid(db, uid)
+        owner_display_map[uid] = await resolve_user_display(db, uid)
 
     items = []
     for r in rows:
+        owner_uuid, owner_username = owner_display_map[r.user_id]
         resp = KnowledgeBaseResponse(
             uuid=r.uuid,
             name=r.name,
             description=r.description,
-            owner=owner_uuid_map[r.user_id],
+            owner=owner_uuid,
             visibility=r.visibility,
             status=r.status,
             doc_count=r.doc_count,
             chunk_count=r.chunk_count,
             created_at=r.created_at,
             updated_at=r.updated_at,
+            index_status=r.index_status,
+            owner_username=owner_username,
         )
         resp.chunk_count = real_chunk_counts.get(r.id, 0)
         resp.doc_count = real_doc_counts.get(r.id, 0)
@@ -403,8 +410,8 @@ async def update_kb(
         raise KnowledgeBaseNameExistsException(data.name or kb.name)
 
     await db.refresh(kb)
-    # B 类：owner 输出 Platform User UUID（admin 修改他人 KB 时以 kb.user_id 为准）
-    owner_uuid = await resolve_user_uuid(db, kb.user_id)
+    # B 类：owner 输出 Platform User UUID + 用户名（admin 修改他人 KB 时以 kb.user_id 为准）
+    owner_uuid, owner_username = await resolve_user_display(db, kb.user_id)
     resp = KnowledgeBaseResponse(
         uuid=kb.uuid,
         name=kb.name,
@@ -416,6 +423,8 @@ async def update_kb(
         chunk_count=kb.chunk_count,
         created_at=kb.created_at,
         updated_at=kb.updated_at,
+        index_status=kb.index_status,
+        owner_username=owner_username,
     )
     # db.refresh() 会用 DB 缓存列的僵尸值覆盖 get_kb() 已填充的实时计数，需重新修正
     real_chunk_counts = await _get_real_chunk_counts(db, [kb_id])

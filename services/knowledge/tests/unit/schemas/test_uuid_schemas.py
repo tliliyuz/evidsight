@@ -72,6 +72,43 @@ class TestKnowledgeBaseResponseSchema:
         assert "id" not in data
         assert "user_id" not in data
 
+    def test_含索引状态与owner用户名(self):
+        """纠偏3B：KnowledgeBaseResponse 增补 index_status/owner_username 可选字段，
+        提供时随响应序列化（权威索引状态 + owner 用户名，供列表/详情展示）。"""
+        resp = KnowledgeBaseResponse(
+            uuid=VALID_UUID,
+            name="测试KB",
+            description=None,
+            owner="550e8400-e29b-41d4-a716-446655440001",
+            visibility="private",
+            status="active",
+            doc_count=0,
+            chunk_count=0,
+            created_at=NOW,
+            index_status="updating",
+            owner_username="林默",
+        )
+        data = resp.model_dump()
+        assert data["index_status"] == "updating"
+        assert data["owner_username"] == "林默"
+
+    def test_索引状态与owner用户名缺省为None(self):
+        """纠偏3B：两个新字段可空且缺省 None，旧数据/旧 Consumer 向后兼容。"""
+        resp = KnowledgeBaseResponse(
+            uuid=VALID_UUID,
+            name="测试KB",
+            description=None,
+            owner="550e8400-e29b-41d4-a716-446655440001",
+            visibility="private",
+            status="active",
+            doc_count=0,
+            chunk_count=0,
+            created_at=NOW,
+        )
+        data = resp.model_dump()
+        assert data["index_status"] is None
+        assert data["owner_username"] is None
+
 
 # ==================== DocumentResponse ====================
 

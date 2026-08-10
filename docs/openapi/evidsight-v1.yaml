@@ -846,6 +846,15 @@ components:
         chunk_count:
           type: integer
           minimum: 0
+        index_status:
+          type: string
+          nullable: true
+          enum: [ready, updating, recovering]
+          description: 权威聚合索引状态（ADR-007 索引发布锁）：ready 可检索 / updating 索引更新中 / recovering 恢复中
+        owner_username:
+          type: string
+          nullable: true
+          description: owner 用户名（知识库列表/详情 Hero 展示），可空向后兼容
         created_at:
           type: string
           format: date-time
