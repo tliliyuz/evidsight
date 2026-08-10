@@ -11,6 +11,8 @@ export default defineConfig({
     colorScheme: 'light',
     deviceScaleFactor: 1,
     locale: 'zh-CN',
+    // 工作台截图固定时区：问候与「今天 HH:MM」依赖本地时钟，跨机器必须一致
+    timezoneId: 'Asia/Shanghai',
     reducedMotion: 'reduce',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',

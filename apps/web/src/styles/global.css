@@ -344,6 +344,7 @@ select {
   background: var(--es-surface);
   font-size: 13px;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .running-chip:hover {
@@ -358,8 +359,52 @@ select {
   background: var(--es-spectral-cyan);
 }
 
+/* 无运行任务的占位态：中性色点与文字，不伪装运行状态（FRONTEND §4.3） */
+.running-chip--idle {
+  color: var(--es-ink-muted);
+}
+
+.running-chip--idle .running-chip__dot {
+  background: var(--es-border-strong);
+}
+
+/* 顶栏右侧动作组：运行任务 Chip + 命令入口 */
+.context-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.command-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 220px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-control);
+  color: var(--es-ink-muted);
+  background: var(--es-surface);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.command-entry:hover {
+  border-color: var(--es-border-strong);
+  background: var(--es-surface-muted);
+}
+
+.command-entry kbd {
+  margin-left: auto;
+  color: var(--es-ink-disabled);
+  font-family: var(--es-font-mono);
+  font-size: 11px;
+}
+
 .app-shell__content {
-  padding: 36px;
+  /* Route Surface 四周保留浅灰 Canvas（UIDESIGN §5.5），贴边对齐原型容器 */
+  padding: 16px;
 }
 
 /* ---- 页面标题（FRONTEND 各页共用） ---- */
@@ -400,11 +445,22 @@ select {
   font-size: 12px;
 }
 
+/* ---- Route Surface 路由大容器（UIDESIGN §5.5/§5.6）：所有业务页面共用的白色基底容器 ----
+   max-width 1260px（对齐原型 route-view）+ 侧边 padding 40px → 内容宽 1180px（对齐
+   UIDESIGN §5.2「工作台最大约 1180px」）；页面通过 root 元素加 `route-surface` 类接入。 */
+.route-surface {
+  width: 100%;
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 32px 40px;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-major);
+  background: var(--es-surface);
+}
+
 /* ---- 工作台（FRONTEND §5.2 / UIDESIGN §7.1）：主列 + 右侧上下文列 ---- */
 .workbench {
   width: 100%;
-  max-width: 1180px;
-  margin: 0 auto;
 }
 
 .workbench__heading {
@@ -423,11 +479,12 @@ select {
   gap: 32px;
 }
 
+/* 启动器：Inset Panel（UIDESIGN §5.5），内部允许白色 Action Card */
 .workbench-launcher {
-  padding: 28px 28px 8px;
+  padding: 24px;
   border: 1px solid var(--es-border-default);
-  border-radius: var(--es-radius-major);
-  background: var(--es-surface);
+  border-radius: var(--es-radius-panel);
+  background: var(--es-surface-muted);
 }
 
 .workbench-launcher h2 {
@@ -455,9 +512,12 @@ select {
   margin-top: 20px;
 }
 
+/* Action Card（UIDESIGN §7.2）：标题/说明文案居左，动作文案位于卡片右下、与标题文案同一水平线 */
 .workbench-launcher__actions a {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
   padding: 18px;
   border: 1px solid var(--es-border-default);
   border-radius: var(--es-radius-panel);
@@ -471,21 +531,28 @@ select {
   background: var(--es-surface-muted);
 }
 
-.workbench-launcher__actions small {
+.launcher-card__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.launcher-card__copy small {
   color: var(--es-ink-muted);
   font-size: 12px;
 }
 
-.workbench-launcher__actions b {
+.launcher-card__copy b {
   color: var(--es-ink-primary);
   font-size: 16px;
   font-weight: 600;
 }
 
-.workbench-launcher__actions span {
-  margin-top: 6px;
+.launcher-card__action {
+  flex: none;
   color: var(--es-moonstone);
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .recent-section__header {
@@ -641,11 +708,12 @@ select {
   border-left: 1px solid var(--es-border-subtle);
 }
 
+/* 活动任务：Inset Panel（UIDESIGN §5.5） */
 .active-mission {
   padding: 20px;
   border: 1px solid var(--es-border-default);
   border-radius: var(--es-radius-panel);
-  background: var(--es-surface);
+  background: var(--es-surface-muted);
 }
 
 .active-mission .eyebrow {
@@ -748,6 +816,19 @@ select {
   padding: 28px 0;
 }
 
+/* beside 变体（UIDESIGN §7.2）：说明文案与动作按钮同一行、动作右对齐，
+   用于「查看全部」下方右侧的动作布局 */
+.empty-state--beside .empty-state__action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.empty-state--beside .empty-state__action-row .btn {
+  flex: none;
+}
+
 .skeleton {
   display: grid;
   gap: 10px;
@@ -770,6 +851,7 @@ select {
   color: var(--es-ink-primary);
   background: var(--es-surface);
   cursor: pointer;
+  text-decoration: none;
 }
 
 .btn:disabled {
@@ -1137,6 +1219,103 @@ select {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+}
+
+/* ---- 命令面板（FRONTEND §3.4 / UIDESIGN §7.22）：命令入口按钮原位展开为输入框 ---- */
+.command-palette {
+  position: relative;
+  display: block;
+  flex: none;
+}
+
+.command-palette__input {
+  display: block;
+  width: 220px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--es-focus);
+  border-radius: var(--es-radius-control);
+  color: var(--es-ink-primary);
+  background: var(--es-surface);
+  font-size: 13px;
+  outline: none;
+}
+
+.command-palette__input::placeholder {
+  color: var(--es-ink-muted);
+}
+
+.command-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  z-index: 30;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-major);
+  background: var(--es-surface);
+  box-shadow: var(--es-shadow-popover);
+  list-style: none;
+}
+
+.command-list__item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 16px 9px 20px;
+  cursor: pointer;
+}
+
+.command-list__item::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: transparent;
+  content: '';
+}
+
+.command-list__item.is-active {
+  background: var(--es-surface-muted);
+}
+
+.command-list__item.is-active::before {
+  background: var(--es-moonstone);
+}
+
+.command-list__label {
+  color: var(--es-ink-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.command-list__hint {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--es-ink-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 空态与命令列表同款卡片：绝对定位浮层，仅作提示不可跳转 */
+.command-palette__empty {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  padding: 18px 20px;
+  margin: 0;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-major);
+  background: var(--es-surface);
+  box-shadow: var(--es-shadow-popover);
+  color: var(--es-ink-muted);
+  font-size: 13px;
 }
 
 /* ---- 主题选择卡片（对齐 FRONTEND §3.3 与原型 theme-dialog） ---- */

@@ -1,12 +1,24 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AppShell } from '@/app/AppShell'
 import type { UserSummary } from '@/api/auth'
 import type { ResearchApi } from '@/api/research'
+
+const navigateMock = vi.fn()
+
+// 仅 mock useNavigate，Link/NavLink/MemoryRouter/useLocation 保持真实
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>()
+  return { ...actual, useNavigate: () => navigateMock }
+})
+
+beforeEach(() => {
+  navigateMock.mockReset()
+})
 
 const user = {
   id: '550e8400-e29b-41d4-a716-446655440001',
@@ -64,20 +76,29 @@ describe('统一应用壳层', () => {
     expect(within(breadcrumb).getByText('问答历史')).toBeInTheDocument()
   })
 
-  it('运行任务 Chip 只显示真实数量，点击进入研究任务列表', async () => {
+  it('运行任务 Chip 常显真实数量，点击弹确认框，确认后跳转研究任务', async () => {
+    const user = userEvent.setup()
     renderShell(makeResearchApi(3))
 
-    const chip = await screen.findByRole('link', { name: /3 项研究进行中/ })
-    expect(chip).toHaveAttribute('href', '/research?status=running')
+    const chip = await screen.findByRole('button', { name: /3 项研究进行中/ })
+    await user.click(chip)
+    expect(screen.getByRole('dialog', { name: '跳转研究任务' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /前往研究任务/ }))
+    expect(navigateMock).toHaveBeenCalledWith('/research')
+    expect(screen.queryByRole('dialog', { name: '跳转研究任务' })).not.toBeInTheDocument()
   })
 
-  it('无运行任务（0）时不渲染运行状态 Chip，不伪造运行状态', async () => {
+  it('无运行任务时 Chip 常显「暂无任务进行」，点击仍可确认跳转', async () => {
+    const user = userEvent.setup()
     renderShell(makeResearchApi(0))
 
-    await waitFor(() => {
-      expect(screen.queryByRole('link', { name: /研究进行中/ })).not.toBeInTheDocument()
-    })
-    expect(screen.queryByText('当前无运行任务')).not.toBeInTheDocument()
+    const chip = await screen.findByRole('button', { name: /暂无任务进行/ })
+    expect(chip).toBeInTheDocument()
+
+    await user.click(chip)
+    await user.click(screen.getByRole('button', { name: /前往研究任务/ }))
+    expect(navigateMock).toHaveBeenCalledWith('/research')
   })
 
   it('账号区展示头像与角色层级，Trigger 携带 aria-expanded/aria-controls', () => {

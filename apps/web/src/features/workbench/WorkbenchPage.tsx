@@ -112,7 +112,7 @@ export function WorkbenchPage({ api = defaultApi }: { api?: WorkbenchApi }) {
   const runningTask = runningQuery.data?.items[0] ?? null
 
   return (
-    <main className="workbench">
+    <main className="workbench route-surface">
       <header className="page-heading workbench__heading">
         <div>
           <p className="eyebrow">
@@ -136,14 +136,18 @@ export function WorkbenchPage({ api = defaultApi }: { api?: WorkbenchApi }) {
             <p>快速询问已有知识，或启动一项可恢复、可追踪的深度研究。</p>
             <div className="workbench-launcher__actions">
               <Link to="/chat">
-                <small>快速提问</small>
-                <b>向企业知识提问</b>
-                <span>进入问答 →</span>
+                <span className="launcher-card__copy">
+                  <small>快速提问</small>
+                  <b>向企业知识提问</b>
+                </span>
+                <span className="launcher-card__action">进入问答 →</span>
               </Link>
               <Link to="/research/new">
-                <small>深度研究</small>
-                <b>发起新的研究任务</b>
-                <span>定义范围 →</span>
+                <span className="launcher-card__copy">
+                  <small>深度研究</small>
+                  <b>发起新的研究任务</b>
+                </span>
+                <span className="launcher-card__action">定义范围 →</span>
               </Link>
             </div>
           </section>
@@ -161,7 +165,12 @@ export function WorkbenchPage({ api = defaultApi }: { api?: WorkbenchApi }) {
               <EmptyState
                 title="还没有研究任务"
                 description="明确研究范围，系统会持续保存任务事实。"
-                action={<Link to="/research/new">开始研究</Link>}
+                actionAlign="beside"
+                action={
+                  <Link to="/research/new" className="btn btn--primary">
+                    开始研究
+                  </Link>
+                }
               />
             ) : (
               <ol className="task-list">
@@ -202,25 +211,36 @@ export function WorkbenchPage({ api = defaultApi }: { api?: WorkbenchApi }) {
         </div>
 
         <aside className="workbench__context">
-          {runningTask ? (
-            <section className="active-mission" aria-label="进行中的研究">
-              <p className="eyebrow">
-                进行中的研究 <span className="live-dot" aria-hidden="true" />
-              </p>
-              <h3>{runningTask.topic}</h3>
-              <p>
-                {STATUS_LABELS[runningTask.status]} · {Math.round(runningTask.progress * 100)}%
-              </p>
-              <div className="thin-progress">
-                <i
-                  style={
-                    { '--progress': `${Math.round(runningTask.progress * 100)}%` } as CSSProperties
-                  }
-                />
-              </div>
-              <Link to={`/research/${runningTask.task_id}`}>进入研究现场 →</Link>
-            </section>
-          ) : null}
+          {/* 进行中的研究卡片始终渲染：RECENT KNOWLEDGE 固定在卡片下方，无运行任务时显示占位 */}
+          <section className="active-mission" aria-label="进行中的研究">
+            {runningTask ? (
+              <>
+                <p className="eyebrow">
+                  进行中的研究 <span className="live-dot" aria-hidden="true" />
+                </p>
+                <h3>{runningTask.topic}</h3>
+                <p>
+                  {STATUS_LABELS[runningTask.status]} · {Math.round(runningTask.progress * 100)}%
+                </p>
+                <div className="thin-progress">
+                  <i
+                    style={
+                      {
+                        '--progress': `${Math.round(runningTask.progress * 100)}%`,
+                      } as CSSProperties
+                    }
+                  />
+                </div>
+                <Link to={`/research/${runningTask.task_id}`}>进入研究现场 →</Link>
+              </>
+            ) : (
+              <>
+                <p className="eyebrow">进行中的研究</p>
+                <p>暂无进行中的研究。从一个问题开始，或继续最近的研究。</p>
+                <Link to="/research/new">开始研究 →</Link>
+              </>
+            )}
+          </section>
 
           <section className="knowledge-quick" aria-label="最近知识库">
             <header className="recent-section__header">
@@ -235,7 +255,11 @@ export function WorkbenchPage({ api = defaultApi }: { api?: WorkbenchApi }) {
               <EmptyState
                 title="还没有知识库"
                 description="先导入可治理的材料，再开始问答或研究。"
-                action={<Link to="/knowledge-bases?create=1">创建知识库</Link>}
+                action={
+                  <Link to="/knowledge-bases?create=1" className="btn btn--primary">
+                    创建知识库
+                  </Link>
+                }
               />
             ) : (
               <ul className="knowledge-quick__list">

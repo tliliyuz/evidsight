@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { type KeyboardEvent, type PropsWithChildren, useEffect, useRef, useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 
 import type { UserSummary } from '@/api/auth'
 import { researchApi, type ResearchApi } from '@/api/research'
 import { BrandMark } from '@/components/brand/BrandMark'
+import { CommandPalette } from '@/components/command/CommandPalette'
+import { ConfirmDialog } from '@/components/feedback/ConfirmDialog'
 import { ThemeDialog } from '@/components/feedback/ThemeDialog'
 import { Icon, type IconName } from '@/components/icons/Icon'
 import { authSession } from '@/features/auth/authSession'
@@ -59,8 +61,11 @@ type Props = PropsWithChildren<{
  */
 export function AppShell({ user, researchApi: api = researchApi, children }: Props) {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const [accountOpen, setAccountOpen] = useState(false)
   const [themeOpen, setThemeOpen] = useState(false)
+  const [commandOpen, setCommandOpen] = useState(false)
+  const [chipConfirmOpen, setChipConfirmOpen] = useState(false)
   const [theme, setThemeState] = useState<Theme>(() =>
     document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
   )
@@ -165,6 +170,18 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
     }
   }, [])
 
+  // ⌘K 全局打开命令面板（FRONTEND §3.4）
+  useEffect(() => {
+    function handleCommandShortcut(event: globalThis.KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandOpen(true)
+      }
+    }
+    document.addEventListener('keydown', handleCommandShortcut)
+    return () => document.removeEventListener('keydown', handleCommandShortcut)
+  }, [])
+
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
@@ -262,12 +279,26 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
             <i aria-hidden="true">/</i>
             <b>{routeTitle(pathname)}</b>
           </div>
-          {runningTaskCount > 0 ? (
-            <Link className="running-chip" to="/research?status=running">
+          <div className="context-bar__actions">
+            {/* 运行任务 Chip 常驻（FRONTEND §4.3）：有运行任务显示数量，无任务显示占位；点击确认后跳转 */}
+            <button
+              type="button"
+              className={`running-chip${runningTaskCount === 0 ? ' running-chip--idle' : ''}`}
+              onClick={() => setChipConfirmOpen(true)}
+            >
               <span className="running-chip__dot" aria-hidden="true" />
-              {runningTaskCount} 项研究进行中
-            </Link>
-          ) : null}
+              {runningTaskCount > 0 ? `${runningTaskCount} 项研究进行中` : '暂无任务进行'}
+            </button>
+            {/* 命令入口（FRONTEND §3.4）：点击或 ⌘K 原位展开为搜索输入框，输入时弹出过滤列表 */}
+            {commandOpen ? (
+              <CommandPalette onClose={() => setCommandOpen(false)} />
+            ) : (
+              <button type="button" className="command-entry" onClick={() => setCommandOpen(true)}>
+                <span>搜索或执行指令</span>
+                <kbd aria-hidden="true">⌘K</kbd>
+              </button>
+            )}
+          </div>
         </header>
         <div className="app-shell__content">{children}</div>
       </section>
@@ -278,6 +309,18 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
           onClose={() => {
             setThemeOpen(false)
             restoreAccountFocus()
+          }}
+        />
+      ) : null}
+      {chipConfirmOpen ? (
+        <ConfirmDialog
+          title="跳转研究任务"
+          description="是否跳转到研究任务列表？"
+          confirmLabel="前往研究任务"
+          onCancel={() => setChipConfirmOpen(false)}
+          onConfirm={() => {
+            setChipConfirmOpen(false)
+            navigate('/research')
           }}
         />
       ) : null}

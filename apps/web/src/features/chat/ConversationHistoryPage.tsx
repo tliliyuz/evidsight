@@ -162,7 +162,11 @@ export function ConversationHistoryPage() {
         <EmptyState
           title="还没有问答历史"
           description="在一个知识库范围内提问后，会话会出现在这里。"
-          action={<Link to="/chat">开始问答</Link>}
+          action={
+            <Link to="/chat" className="btn btn--primary">
+              开始问答
+            </Link>
+          }
         />
       ) : (
         <ul className="chat-history__list">
