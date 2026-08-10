@@ -253,6 +253,8 @@ Chat v1.0 不建立 Conversation—KB 多对多。多 KB Research 通过 Interna
 
 目标 Schema 不保留 `thinking_content`。模型隐藏推理不得进入消息、Trace 或审计记录。
 
+**当前实现附注（2026-08-10）**：实际 schema 另含 `metadata` JSON 列（迁移 `9a1b2c3d4e5f`）。`metadata` 用于承载来源引用投影：键 `sources`，值为 §12 sources 事件 canonical wire 字段（对齐 OpenAPI `ChatSource`）；无来源消息为 NULL。当前实现亦含 `thinking_content` TEXT 列（存量），与「目标 Schema 不保留」的收敛目标冲突，属待收敛项。来源规范化（按 message 独立行、可查询、引用级治理）归 §6.4 `message_sources`，本次不建表。
+
 ### 6.3 `chat_generations`
 
 | 字段 | 类型 | 约束与语义 |
@@ -292,6 +294,8 @@ Chat v1.0 不建立 Conversation—KB 多对多。多 KB Research 通过 Interna
 | `created_at` | DATETIME | UTC |
 
 该表不对 KB、Document 或 Chunk 建强外键，避免来源删除时抹除历史引用；也不得保存 Chunk 正文。用户展开来源时必须以稳定 UUID 向 Knowledge 实时查询和鉴权。
+
+**实现状态（2026-08-10）**：`message_sources` 为规范化远期目标，当前未建表。来源引用以 `messages.metadata.sources` JSON 投影承载；当需要按 `document_uuid` 聚合、跨消息引用计数或引用级治理时，再落此表并补齐迁移与详情组装。
 
 ## 7. Trace 与审计
 

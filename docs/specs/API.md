@@ -166,6 +166,8 @@ v1.0 Chat 请求只接受一个 `knowledge_base_id`，Conversation 也只绑定�
 
 Chat generation 取消状态机：仅 `pending|running` 可迁移到 `canceled`；对已 `canceled` generation 重复取消返回 `202` 且 `idempotent_replayed=true`；对 `completed|failed` 取消返回 `409 CHAT_GENERATION_STATE_CONFLICT`。generation 不存在或不属于当前创建者统一返回安全 `404 CHAT_GENERATION_NOT_FOUND`，不得借此枚举其他用户的 generation。负责人于 2026-08-08 批准该规范补充；ADR 检查 1–8：否（补齐既有取消端点的局部失败与幂等语义，不改变权限模型、公共机制或数据生命周期）。
 
+**会话列表查询语义（2026-08-10）**：`GET /api/v1/conversations` 支持 `q`（会话标题模糊搜索，最大 128 字符，可选）、`sort_by`（允许列表，当前仅 `last_message_at`，默认该值）、`order=asc|desc`（默认 `desc`）。搜索与排序在服务端执行；`last_message_at` 为 NULL（新创建尚无消息的会话）恒排末尾，与 `order` 方向无关；非允许的 `sort_by`/`order` 值返回 422 ValidationError。前端不得以一次性拉取全量在浏览器内替代服务端搜索排序（超过 `page_size` 上限时结果不完整）。ADR 检查 1–8：否（新增列表查询参数的既存资源行为，不改变权限模型、服务边界或数据生命周期）。
+
 外部 API 的字段级请求、响应和事件 `data` Schema 统一由 `docs/openapi/evidsight-v1.yaml` 维护；本文只定义行为、权限、状态码和兼容语义。Auth、Chat、Research、Evidence、Report 与两套 SSE 在相应路径和 Schema 补齐前均不得把实现中的临时 DTO 视为已发布契约。
 
 ## 8. Research Task API
@@ -212,6 +214,8 @@ Task/Phase/Step 枚举由 Research Pipeline 权威定义；API 只暴露状态�
 **端点覆盖迁移态（2026-08-08 切片 8 收敛）**：`/api/v1/research` 已补齐 §8 全部研究命令与查询 —— `POST /tasks`（§8.1 幂等创建）、`GET /tasks`、`GET /tasks/{task_id}`、`POST /tasks/{task_id}/cancel`、`POST /tasks/{task_id}/resume`、`DELETE /tasks/{task_id}`（204）、`GET /tasks/{task_id}/events`（SSE），并收敛旧前缀 `state`/`report` 为 `GET /tasks/{task_id}/state` 与 `GET /tasks/{task_id}/report`（对齐 ROADMAP 2026-08-05「Research API 路径迁移到 /api/v1/research」裁决）。旧前缀 `/api/research` 收敛期间保持可用：改为薄适配器复用同一 application service（`app/api/research_common.py`），每个旧前缀路由入口记录废弃调用量指标 `researchmind_old_api_calls_total`（按路由标签）。**Consumer 清单与退出门禁**：仓库内前端（`apps/web`）当前不调用 Research CRUD 路由；脚本仅 `scripts/smoke_compose.sh` 使用 `/api/research/health`（健康探针，独立于 CRUD 路由）；旧前缀 CRUD 路由删除需满足 §15「废弃路由必须记录调用量；在观测窗口归零且 Consumer 回归通过后才能删除」，观测指标为旧前缀调用量，删除前由负责人确认窗口关闭。此处登记为迁移期事实，不新增契约语义。
 
 **Research SSE 迁移态（2026-08-08）**：v1 `GET /api/v1/research/tasks/{task_id}/events` 已通过独立投影输出 §13 canonical 事件；旧 `/api/research/{task_id}/stream` 继续输出 granular 事件 `task.status.snapshot`、`task.*`、`phase.*`、`step.*`、`checkpoint.saved` 与安全白名单内的 `agent.action|observation`，并保留废弃调用量指标。React Web 只允许消费 v1。退出门禁为旧路由调用量观测窗口归零、仓库内 Consumer 迁移且 canonical Provider/Consumer 回归通过；满足后经负责人确认删除旧 granular 适配。负责人于 2026-08-08 裁决“实现服从规范”；ADR 检查 1–8：否（只修正 v1 Provider 使其符合既有 §13，不改变目标公共契约、任务状态事实或权限）。裁决与实现记录见 [CHANGELOG](../CHANGELOG.md)（2026-08-08「裁决 M4 SSE 与 Admin 评审阻断项」「统一 Research v1 SSE」）。
+
+**响应 DTO 定型（2026-08-10）**：`POST /api/v1/research/tasks/{task_id}/cancel` 的 202 响应固定为 `ResearchCancelResponse`（`task_id`/`status`/`cancel_requested`）；`POST /api/v1/research/tasks/{task_id}/resume` 的 202 响应固定为 `ResearchRetryResponse`（`task_id`/`status`/`resume_from{phase,last_completed_step_id,next_step_type}`）；两者不再返回完整 `ResearchTask`。`GET /api/v1/research/tasks/{task_id}/report`（迁移兼容）响应 DTO `ResearchTaskReportResponse`（`task_id`/`status`/`report{title,generated_at,sections,sources}`/`evidence_graph`/`trace`）已进入 External OpenAPI，仅作兼容，不得成为新 Consumer 的字段权威；正式报告读取仍以 §9 `/api/v1/reports/{report_id}` 为唯一目标。字段 Schema 以 External OpenAPI 为唯一权威源。ADR 检查 1–8：否（把 OpenAPI 声明对齐既有后端 DTO，不改变权限模型、服务边界或数据生命周期）。
 
 ### 8.3 内部错误到 v1 公开错误码的映射
 
@@ -308,6 +312,8 @@ HTTP 层必须携带 Research 服务身份、Platform User ID、目标 KB、`X-R
 
 `sources` 事件的 `chunks` 每项携带稳定身份 `document_uuid`（来源文档 `documents.uuid`）与 `segment_id`（`chunks.segment_uuid`，即 §6.2 location 端点 `location_id`），前端据此进入对应文档切片抽屉并按 §6.2 实时鉴权展开引用切片；内部整数 `doc_id` 不作为契约，仅迁移期兼容保留（对齐 §6.2 Chunk 列表迁移态与 §2 外部 DTO 规则）。字段 Schema 以 Knowledge `ChatSourceChunk` 为权威，Chat SSE 各事件 `data` 对象的 OpenAPI 覆盖沿用既有迁移态安排。
 
+**来源持久化（2026-08-10）**：流结束时，`sources` 事件送达的引用来源以 canonical wire 投影（剔除 `doc_id`/`content`）持久化到该条 assistant 消息。`GET /api/v1/conversations/{conversation_id}` 详情返回 `Message.sources` 数组（对齐本节 `sources` 事件 wire 字段，即 OpenAPI `ChatSource`）；user/system 消息与历史无来源消息返回 `[]`。存储形态 == SSE wire == OpenAPI `ChatSource`，单一事实；客户端不得把 `sources` 事件本身当作持久事实源。ADR 检查 1–8：否（持久化既有 SSE 已声明的事实并开放详情读回，不改变来源语义、权限模型或数据生命周期）。
+
 ## 13. Research SSE
 
 Research SSE 是持久任务订阅，断开不得取消研究任务。重连携带 `Last-Event-ID` 或等价游标；服务先返回持久状态快照，再发送后续事件。事件可能重复，客户端按事件 ID 幂等消费。
@@ -315,13 +321,14 @@ Research SSE 是持久任务订阅，断开不得取消研究任务。重连携�
 | 事件 | 语义 |
 |:---|:---|
 | `snapshot` | Task/Phase/Step 持久状态快照 |
-| `task.updated` | 任务状态或进度变化 |
-| `phase.updated` | 阶段变化 |
-| `step.updated` | 步骤变化 |
-| `evidence.added` | 新 Evidence 可查询 |
-| `report.updated` | 报告版本或章节可查询 |
+| `task.updated` | 任务状态或进度变化（`task.*` 合并） |
+| `phase.updated` | 阶段变化（`phase.*` 合并） |
+| `step.updated` | 步骤变化（`step.*`/`checkpoint.*`/`agent.*` 合并） |
+| `task.canceled` | 取消已请求 |
 | `error` | 订阅错误或可公开任务错误 |
 | `stream.end` | 本次订阅结束，不代表任务成功 |
+
+canonical 事件由 v1 Provider 合并投影产生：`task.status.snapshot → snapshot`、`task.* → task.updated`、`phase.* → phase.updated`、`step.*|checkpoint.*|agent.* → step.updated`、`task.canceled → task.canceled`、`error → error`；终态流先 `snapshot` 后 `stream.end{reason}`。Evidence/Report 的查询性变化不单独发事件，以 `task.updated`/`step.updated` 承载或由轮询 `state` 反映。每个事件的 `data` Schema 以 External OpenAPI `x-sse-data-schemas` 为唯一权威源。ADR 检查 1–8：否（把既有 v1 Provider 已实现的 canonical 投影固化为规格，移除未发射的 `evidence.added`/`report.updated` 陈旧条目，不改变权限模型、服务边界或数据生命周期）。
 
 任务终态由 Research 状态解析器和 MySQL 事实决定，不由连接状态决定。取消与恢复只通过 Research Task 命令接口完成。
 
