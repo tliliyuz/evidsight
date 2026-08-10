@@ -86,3 +86,32 @@ class TestResearchExternalOpenAPIRoutes:
         root = Path.cwd()
         for relative_path in set(COVERAGE.values()):
             assert (root / relative_path).is_file(), f"契约测试文件不存在: {relative_path}"
+
+    def test_2xx_json_responses_declare_content_schema(self):
+        """对齐 TESTING.md §4：2xx/202 的 application/json 响应必须声明 content schema。
+
+        204 无正文合法；text/event-stream 不在此检查范围。防止新增 Research 操作
+        只声明描述不声明 Schema（如 /report 的兼容响应）。
+        """
+        spec = yaml.safe_load(_find_openapi().read_text(encoding="utf-8"))
+        violations: list[str] = []
+        for path, item in spec["paths"].items():
+            if not path.startswith(PREFIXES):
+                continue
+            for method, op in item.items():
+                if method not in HTTP_METHODS:
+                    continue
+                for status, resp in (op.get("responses") or {}).items():
+                    if not (status.startswith("2") and status != "204"):
+                        continue
+                    content = resp.get("content") or {}
+                    if "text/event-stream" in content:
+                        continue
+                    schema = (content.get("application/json") or {}).get("schema")
+                    if schema is None:
+                        violations.append(
+                            f"{method.upper()} {path} {status}: application/json 响应缺少 content schema"
+                        )
+        assert not violations, "Research 2xx/202 JSON 响应必须声明 content schema:\n" + "\n".join(
+            sorted(violations)
+        )
