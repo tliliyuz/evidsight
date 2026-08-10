@@ -306,12 +306,17 @@ paths:
           $ref: "#/components/responses/ValidationError"
     get:
       summary: 当前用户会话列表
-      description: 按 last_message_at 倒序分页返回当前用户会话。
+      description: >-
+        分页返回当前用户会话。支持 q 标题模糊搜索、sort_by 排序字段（允许列表，当前仅
+        last_message_at）、order 排序方向（默认 desc）；last_message_at 为 NULL 的会话恒排末尾。
       tags: [Conversation v1]
       operationId: listConversationsV1
       parameters:
         - $ref: "#/components/parameters/PageParam"
         - $ref: "#/components/parameters/PageSizeParam"
+        - $ref: "#/components/parameters/ConversationQParam"
+        - $ref: "#/components/parameters/ConversationSortByParam"
+        - $ref: "#/components/parameters/OrderParam"
       responses:
         "200":
           description: 会话分页列表
@@ -687,6 +692,23 @@ components:
       schema:
         type: string
         maxLength: 128
+    ConversationQParam:
+      name: q
+      in: query
+      required: false
+      description: 会话标题模糊搜索
+      schema:
+        type: string
+        maxLength: 128
+    ConversationSortByParam:
+      name: sort_by
+      in: query
+      required: false
+      description: 排序字段（允许列表，当前仅 last_message_at）
+      schema:
+        type: string
+        enum: [last_message_at]
+        default: last_message_at
     KbIdParam:
       name: kb_id
       in: path

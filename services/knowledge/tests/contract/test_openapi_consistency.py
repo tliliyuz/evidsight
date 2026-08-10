@@ -12,14 +12,14 @@ from pathlib import Path
 
 from app.main import app
 
-from tests.contract.openapi_utils import find_openapi_path, load_openapi
+from tests.contract.openapi_utils import load_openapi
 
 # Knowledge App 的全部浏览器外部 v1 API；Research/Evidence/Report 由 Research App
 # 的对应一致性门禁负责，Internal 与 legacy 不在本文件范围。
 PREFIXES = ("/api/v1",)
 RESEARCH_PREFIXES = ("/api/v1/research", "/api/v1/evidence", "/api/v1/reports")
 
-# 每条 OpenAPI 操作 → 覆盖它的契约测试文件（仓库根相对路径）。
+# 每条 OpenAPI 操作 → 覆盖它的契约测试文件（Knowledge 服务根相对路径）。
 # 新增/调整 v1 端点时必须同步更新本表，否则三方一致校验失败。
 COVERAGE: dict[tuple[str, str], str] = {
     ("post", "/api/v1/knowledge-bases"): "tests/contract/test_knowledge_v1_api.py",
@@ -93,7 +93,12 @@ def _fastapi_operations() -> set[tuple[str, str]]:
 
 
 def _repo_root() -> Path:
-    return find_openapi_path().parents[2]
+    """Knowledge 服务根目录（COVERAGE 中的契约测试文件路径以此为基准）。
+
+    不能以 OpenAPI 文件位置推导：docs/openapi/evidsight-v1.yaml 在 monorepo 根，
+    其 parents 不含服务目录。测试文件位于 <服务根>/tests/contract/，向上两级即服务根。
+    """
+    return Path(__file__).resolve().parents[2]
 
 
 class TestOpenAPIConsistency:

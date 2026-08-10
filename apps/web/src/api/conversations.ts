@@ -44,8 +44,18 @@ export type ConversationList = {
   items: Conversation[]
 }
 
+export type ConversationListParams = {
+  page?: number
+  page_size?: number
+  /** 会话标题模糊搜索（API.md §7 查询语义） */
+  q?: string
+  /** 排序字段允许列表，当前仅 last_message_at */
+  sort_by?: 'last_message_at'
+  order?: 'asc' | 'desc'
+}
+
 export type ConversationsApi = {
-  list(params?: { page?: number; page_size?: number }): Promise<ConversationList>
+  list(params?: ConversationListParams): Promise<ConversationList>
   detail(conversationId: string): Promise<ConversationDetail>
   create(input: { knowledge_base_id: string; title?: string | null }): Promise<Conversation>
   rename(conversationId: string, title: string): Promise<Conversation>
@@ -54,7 +64,7 @@ export type ConversationsApi = {
 
 export function createConversationsApi(client: AxiosInstance): ConversationsApi {
   return {
-    async list(params: { page?: number; page_size?: number } = {}): Promise<ConversationList> {
+    async list(params: ConversationListParams = {}): Promise<ConversationList> {
       const { data } = await client.get<ConversationList>('/api/v1/conversations', {
         params,
       })

@@ -133,6 +133,64 @@ class TestConversationListV1:
         assert "owner_user_id" in item
         assert "kb_uuid" in item
 
+    @pytest.mark.asyncio
+    async def test_list_forward_q_sort_by_order(self, async_client, auth_headers):
+        """q/sort_by/order 查询参数透传到 service（对齐 API.md §7 查询语义）。"""
+        with patch("app.api.conversation_v1.list_conversations", new_callable=AsyncMock) as mock:
+            mock.return_value = _make_list_data()
+
+            response = await async_client.get(
+                self.URL,
+                params={"q": "调研", "sort_by": "last_message_at", "order": "asc"},
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 200, response.text
+        call = mock.await_args
+        assert call is not None
+        assert call.kwargs["q"] == "调研"
+        assert call.kwargs["sort_by"] == "last_message_at"
+        assert call.kwargs["order"] == "asc"
+
+    @pytest.mark.asyncio
+    async def test_list_invalid_sort_by_422(self, async_client, auth_headers):
+        """非允许 sort_by 值 → 422 ValidationError（对齐 API.md §7 允许列表）。"""
+        with patch("app.api.conversation_v1.list_conversations", new_callable=AsyncMock) as mock:
+            mock.return_value = _make_list_data()
+
+            response = await async_client.get(
+                self.URL, params={"sort_by": "created_at"}, headers=auth_headers
+            )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["error"]["error_code"] == "SYSTEM_VALIDATION_FAILED"
+
+    @pytest.mark.asyncio
+    async def test_list_invalid_order_422(self, async_client, auth_headers):
+        """order 非 asc|desc → 422 ValidationError。"""
+        with patch("app.api.conversation_v1.list_conversations", new_callable=AsyncMock) as mock:
+            mock.return_value = _make_list_data()
+
+            response = await async_client.get(
+                self.URL, params={"order": "sideways"}, headers=auth_headers
+            )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["error"]["error_code"] == "SYSTEM_VALIDATION_FAILED"
+
+    @pytest.mark.asyncio
+    async def test_list_q_too_long_422(self, async_client, auth_headers):
+        """q 超过 128 字符 → 422 ValidationError。"""
+        with patch("app.api.conversation_v1.list_conversations", new_callable=AsyncMock) as mock:
+            mock.return_value = _make_list_data()
+
+            response = await async_client.get(
+                self.URL, params={"q": "x" * 129}, headers=auth_headers
+            )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["error"]["error_code"] == "SYSTEM_VALIDATION_FAILED"
+
 
 class TestConversationGetV1:
     """GET /api/v1/conversations/{conversation_id} — 会话详情"""

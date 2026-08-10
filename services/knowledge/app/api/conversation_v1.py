@@ -6,6 +6,8 @@ get_conversation_detail/rename_conversation/delete_conversation）。v1 创建
 service 的 ConversationCreate.kb_uuid。更新用 PATCH，删除返回 204 无正文。
 """
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,11 +46,24 @@ async def create_conversation_v1(
 async def list_conversations_v1(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页条数"),
+    q: str | None = Query(None, max_length=128, description="会话标题模糊搜索"),
+    sort_by: Literal["last_message_at"] = Query(
+        "last_message_at", description="排序字段（允许列表，当前仅 last_message_at）"
+    ),
+    order: Literal["asc", "desc"] = Query("desc", description="排序方向"),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """当前用户会话列表（按 last_message_at 倒序，分页）。"""
-    data = await list_conversations(db, current_user["user_id"], page, page_size)
+    """当前用户会话列表（支持 q/sort_by/order 查询语义，对齐 API.md §7）。"""
+    data = await list_conversations(
+        db,
+        current_user["user_id"],
+        page,
+        page_size,
+        q=q,
+        sort_by=sort_by,
+        order=order,
+    )
     return data
 
 
