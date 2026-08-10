@@ -34,6 +34,7 @@ docker run --rm \
     tests/contract/test_knowledge_v1_api.py \
     tests/contract/test_document_v1_api.py \
     tests/contract/test_conversation_v1_api.py \
+    tests/contract/test_chat_v1_sse_schema.py \
     tests/unit/api/test_auth_api.py \
     tests/unit/api/test_chat_v1.py \
     tests/unit/api/test_document_location_api.py
@@ -56,6 +57,9 @@ docker run --rm \
   "$research_image_tag" \
   -m pytest -c pytest.ini \
     tests/contract/test_external_openapi_routes.py \
+    tests/contract/test_research_v1_field_contract.py \
+    tests/contract/test_research_evidence_field_contract.py \
+    tests/contract/test_research_sse_events.py \
     tests/unit/api/test_research_v1_create.py \
     tests/unit/api/test_research_v1.py \
     tests/unit/api/test_research_evidence_api.py

@@ -2,7 +2,10 @@
 
 对齐 TESTING.md §4 与 ROADMAP M4 Provider 就绪门禁。覆盖 Research FastAPI App
 供浏览器消费的全部 Research / Evidence / Report v1 路径；不得以当前切片前缀缩小范围。
-字段 Schema 与 Provider 响应契约测试在对应 OpenAPI 路径建立后由同目录专项测试覆盖。
+字段级响应契约测试（真实路由响应逐字段对齐 OpenAPI Schema）登记在
+test_research_v1_field_contract.py / test_research_evidence_field_contract.py，
+SSE 逐事件 data Schema 校验在 test_research_sse_events.py；DELETE（204 无正文）
+与事件名投影等行为契约保留在既有 unit 测试。
 """
 
 from pathlib import Path
@@ -18,29 +21,55 @@ PREFIXES = (
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "options", "head", "trace"}
 
 COVERAGE: dict[tuple[str, str], str] = {
-    ("post", "/api/v1/research/tasks"): "tests/unit/api/test_research_v1_create.py",
-    ("get", "/api/v1/research/tasks"): "tests/unit/api/test_research_v1.py",
-    ("get", "/api/v1/research/tasks/{task_id}"): "tests/unit/api/test_research_v1.py",
+    ("post", "/api/v1/research/tasks"): "tests/contract/test_research_v1_field_contract.py",
+    ("get", "/api/v1/research/tasks"): "tests/contract/test_research_v1_field_contract.py",
+    (
+        "get",
+        "/api/v1/research/tasks/{task_id}",
+    ): "tests/contract/test_research_v1_field_contract.py",
+    # DELETE 返回 204 无正文，行为契约保留在 unit 测试
     ("delete", "/api/v1/research/tasks/{task_id}"): "tests/unit/api/test_research_v1.py",
-    ("post", "/api/v1/research/tasks/{task_id}/cancel"): "tests/unit/api/test_research_v1.py",
-    ("post", "/api/v1/research/tasks/{task_id}/resume"): "tests/unit/api/test_research_v1.py",
-    ("get", "/api/v1/research/tasks/{task_id}/state"): "tests/unit/api/test_research_v1.py",
-    ("get", "/api/v1/research/tasks/{task_id}/events"): "tests/unit/api/test_research_v1.py",
-    ("get", "/api/v1/research/tasks/{task_id}/report"): "tests/unit/api/test_research_v1.py",
+    (
+        "post",
+        "/api/v1/research/tasks/{task_id}/cancel",
+    ): "tests/contract/test_research_v1_field_contract.py",
+    (
+        "post",
+        "/api/v1/research/tasks/{task_id}/resume",
+    ): "tests/contract/test_research_v1_field_contract.py",
+    (
+        "get",
+        "/api/v1/research/tasks/{task_id}/state",
+    ): "tests/contract/test_research_v1_field_contract.py",
+    # SSE 事件名/顺序/data Schema 逐事件校验
+    (
+        "get",
+        "/api/v1/research/tasks/{task_id}/events",
+    ): "tests/contract/test_research_sse_events.py",
+    (
+        "get",
+        "/api/v1/research/tasks/{task_id}/report",
+    ): "tests/contract/test_research_v1_field_contract.py",
     (
         "get",
         "/api/v1/research/tasks/{task_id}/evidence",
-    ): "tests/unit/api/test_research_evidence_api.py",
-    ("get", "/api/v1/evidence/{evidence_id}"): "tests/unit/api/test_research_evidence_api.py",
+    ): "tests/contract/test_research_evidence_field_contract.py",
+    (
+        "get",
+        "/api/v1/evidence/{evidence_id}",
+    ): "tests/contract/test_research_evidence_field_contract.py",
     (
         "get",
         "/api/v1/evidence/{evidence_id}/relations",
-    ): "tests/unit/api/test_research_evidence_api.py",
-    ("get", "/api/v1/reports/{report_id}"): "tests/unit/api/test_research_evidence_api.py",
+    ): "tests/contract/test_research_evidence_field_contract.py",
+    (
+        "get",
+        "/api/v1/reports/{report_id}",
+    ): "tests/contract/test_research_evidence_field_contract.py",
     (
         "get",
         "/api/v1/reports/{report_id}/sections/{section_id}",
-    ): "tests/unit/api/test_research_evidence_api.py",
+    ): "tests/contract/test_research_evidence_field_contract.py",
 }
 
 

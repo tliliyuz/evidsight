@@ -6,6 +6,8 @@ cryptography==46.*
 # 静态类型检查：仅开发/CI 使用，不进入生产镜像。
 mypy==2.3.*
 types-python-jose==3.5.*
+# openapi_utils 契约测试直接 import jsonschema（对齐 Knowledge requirements-dev 先例）。
+types-jsonschema==4.*
 
 # 既有异步 SQLite 测试 Fixture 所需驱动，仅测试使用。
 aiosqlite==0.22.*

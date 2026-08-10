@@ -1,11 +1,11 @@
-"""OpenAPI 契约测试共享工具 — 加载 docs/openapi/evidsight-v1.yaml 并校验响应 DTO 与 SSE 事件。
+"""Research OpenAPI 契约测试共享工具 — 加载 docs/openapi/evidsight-v1.yaml 并校验响应 DTO 与 SSE 事件。
 
 对齐 TESTING.md §4：External OpenAPI 除路径双向一致外，还必须逐事件校验
-Chat/Research SSE 的事件名、顺序与每种 data Schema。本模块在
-`load_openapi`/`assert_data_matches_schema` 基础上补充：
+Chat/Research SSE 的事件名、顺序与每种 data Schema。本模块复刻 Knowledge
+`tests/contract/openapi_utils.py` 的 `load_openapi`/`assert_data_matches_schema`，
+并补充：
 - `materialize_schema_ref`：把 `$ref` 深展开为无引用的实际 schema dict；
-- `assert_data_matches_schema_deep`：全量 jsonschema 校验（含值级/嵌套）；
-- `load_sse_event_schemas`：读取 OpenAPI 指定路径/方法的 `x-sse-data-schemas`；
+- `load_sse_event_schemas`：读取 OpenAPI 指定路径/方法的 `x-sse-data-schemas` 映射；
 - `assert_sse_events`：解析 SSE 文本并对每帧 data 用 jsonschema 逐事件校验。
 
 路径从测试文件向上定位 docs/openapi/evidsight-v1.yaml（兼容宿主机与容器内 /app 布局）。
@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 
 def find_openapi_path() -> Path:
@@ -86,8 +86,8 @@ def assert_data_matches_schema(schema_name: str, data: dict) -> None:
 
     必需字段必须全部存在，且不允许出现 Schema 未定义的字段。用于验证
     FastAPI 实现输出的 DTO 与 docs/openapi/evidsight-v1.yaml 定义的契约一致。
-    嵌套对象（sources / requirements 等）由测试内显式调用本函数或
-    `assert_data_matches_schema_deep` 做深层断言。
+    嵌套对象（steps / report.sections / requirements 等）由测试内显式
+    调用本函数或 `assert_sse_events` 做深层断言。
     """
     spec = load_openapi()
     try:
@@ -108,7 +108,7 @@ def assert_data_matches_schema_deep(schema_name: str, data: dict) -> None:
 
     在 `assert_data_matches_schema` 的键级检查之上，进一步校验字段值类型、
     嵌套对象、枚举与 `additionalProperties` 约束。字段级契约测试据此
-    捕获值级漂移。
+    捕获值级漂移（如 `Report.evidence_completeness` 类型声明与实现不一致）。
     """
     spec = load_openapi()
     try:

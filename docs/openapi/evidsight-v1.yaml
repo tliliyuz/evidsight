@@ -1661,7 +1661,7 @@ components:
       type: object
       required: [relation_id, relation_type, confidence, claim]
       properties:
-        relation_id: {type: integer}
+        relation_id: {type: string, format: uuid}
         relation_type: {type: string, enum: [supports, contradicts, context]}
         confidence: {type: number}
         rationale_summary: {type: [string, "null"]}
@@ -1699,7 +1699,7 @@ components:
         status: {type: string, enum: [published]}
         title: {type: string}
         language: {type: string}
-        evidence_completeness: {type: [string, "null"]}
+        evidence_completeness: {type: [object, "null"], additionalProperties: true}
         limitations_summary: {type: [string, "null"]}
         published_at: {type: [string, "null"], format: date-time}
         sections: {type: array, items: {$ref: "#/components/schemas/ReportSection"}}
