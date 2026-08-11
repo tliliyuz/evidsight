@@ -4,20 +4,24 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeBaseListPage } from '@/features/knowledge/KnowledgeBaseListPage'
+import { formatTimestamp } from '@/features/knowledge/format'
 import type { KnowledgeApi, KnowledgeBase } from '@/api/knowledge'
 
 const KB_UUID = '550e8400-e29b-41d4-a716-446655440100'
+const OWNER_ID = '550e8400-e29b-41d4-a716-446655440001'
 
 function kb(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
     uuid: KB_UUID,
     name: '合规资料',
     description: '内部合规制度',
-    owner: '550e8400-e29b-41d4-a716-446655440001',
+    owner: OWNER_ID,
     visibility: 'private',
     status: 'active',
     doc_count: 2,
     chunk_count: 18,
+    index_status: 'ready',
+    owner_username: 'linmo',
     created_at: '2026-08-01T00:00:00Z',
     updated_at: '2026-08-08T00:00:00Z',
     ...overrides,
@@ -48,13 +52,13 @@ function makeApi(overrides: Partial<KnowledgeApi> = {}): KnowledgeApi {
   }
 }
 
-function renderPage(api: KnowledgeApi) {
+function renderPage(api: KnowledgeApi, initialEntry = '/knowledge-bases') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/knowledge-bases']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/knowledge-bases" element={<KnowledgeBaseListPage api={api} />} />
           <Route path="/knowledge-bases/:kbId" element={<div>知识库详情</div>} />
@@ -67,7 +71,7 @@ function renderPage(api: KnowledgeApi) {
 describe('知识库列表页', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('渲染知识库行并同时用文字与视觉标记可见性', async () => {
+  it('渲染知识库 Ledger 行并同时用文字与视觉标记可见性', async () => {
     renderPage(makeApi())
 
     expect(await screen.findByText('合规资料')).toBeInTheDocument()
@@ -80,6 +84,14 @@ describe('知识库列表页', () => {
       'href',
       `/knowledge-bases/${KB_UUID}`,
     )
+  })
+
+  it('最近更新列用绝对时间戳（不用相对时间）', async () => {
+    renderPage(makeApi()) // fixture: updated_at=2026-08-08T00:00:00Z
+    await screen.findByText('合规资料')
+
+    expect(screen.getByText(formatTimestamp(kb().updated_at))).toBeInTheDocument()
+    expect(screen.queryByText(/刚刚|分钟前/)).not.toBeInTheDocument()
   })
 
   it('展示 public 可见性为文字「公开」', async () => {
@@ -95,6 +107,39 @@ describe('知识库列表页', () => {
     )
 
     expect(await screen.findByText('公开')).toBeInTheDocument()
+  })
+
+  it('Ledger 表头含索引状态列，且索引状态来自权威字段', async () => {
+    renderPage(
+      makeApi({
+        listKnowledgeBases: vi.fn().mockResolvedValue({
+          total: 1,
+          page: 1,
+          page_size: 20,
+          items: [kb({ index_status: 'updating' })],
+        }),
+      }),
+    )
+
+    expect(await screen.findByText('合规资料')).toBeInTheDocument()
+    expect(screen.getByText('索引状态')).toBeInTheDocument()
+    expect(screen.getByText('索引更新中')).toBeInTheDocument()
+  })
+
+  it('索引状态缺失时展示占位而非猜测文案', async () => {
+    renderPage(
+      makeApi({
+        listKnowledgeBases: vi.fn().mockResolvedValue({
+          total: 1,
+          page: 1,
+          page_size: 20,
+          items: [kb({ index_status: null })],
+        }),
+      }),
+    )
+
+    expect(await screen.findByText('合规资料')).toBeInTheDocument()
+    expect(screen.queryByText('可检索')).not.toBeInTheDocument()
   })
 
   it('切换范围筛选后以新 scope 重新请求', async () => {
@@ -144,18 +189,36 @@ describe('知识库列表页', () => {
     )
   })
 
-  it('删除知识库：具名二次确认后才调用删除', async () => {
+  it('切换范围时清除名称搜索（搜索关键字可能只匹配某一范围）', async () => {
     const api = makeApi()
-    renderPage(api)
+    renderPage(api, '/knowledge-bases?scope=mine&q=合规')
 
     await screen.findByText('合规资料')
-    fireEvent.click(screen.getByRole('button', { name: '删除知识库' }))
-    // 具名确认对话框：显示目标名称与原因输入
-    expect(await screen.findByText(/确定删除知识库/)).toBeInTheDocument()
-    expect(screen.getByText('合规资料')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '确认删除' }))
+    fireEvent.click(screen.getByRole('button', { name: '全部' }))
 
-    await waitFor(() => expect(api.deleteKnowledgeBase).toHaveBeenCalledWith(KB_UUID))
+    await waitFor(() =>
+      expect(api.listKnowledgeBases).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: 'all', q: '' }),
+      ),
+    )
+  })
+
+  it('搜索无匹配时展示搜索空态，不重复显示新建按钮', async () => {
+    renderPage(
+      makeApi({
+        listKnowledgeBases: vi.fn().mockResolvedValue({
+          total: 0,
+          page: 1,
+          page_size: 20,
+          items: [],
+        }),
+      }),
+      '/knowledge-bases?q=不存在的名称',
+    )
+
+    expect(await screen.findByText('没有匹配的知识库')).toBeInTheDocument()
+    // 搜索空态只保留页面头部主按钮，空态内不重复显示「新建知识库」
+    expect(screen.getAllByRole('button', { name: '新建知识库' })).toHaveLength(1)
   })
 
   it('无知识库时展示空态与创建入口', async () => {
@@ -173,5 +236,23 @@ describe('知识库列表页', () => {
     expect(await screen.findByText('还没有知识库')).toBeInTheDocument()
     // 页面头部与空态各提供一个创建入口
     expect(screen.getAllByRole('button', { name: '新建知识库' }).length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('列表行操作列只保留「进入知识库」主操作（编辑/删除知识库在详情页）', async () => {
+    renderPage(makeApi())
+    await screen.findByText('合规资料')
+
+    expect(screen.getByRole('link', { name: '进入知识库' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除知识库' })).not.toBeInTheDocument()
+  })
+
+  it('底部说明哪些文档会参与检索', async () => {
+    renderPage(makeApi())
+    await screen.findByText('合规资料')
+
+    expect(
+      screen.getByText(/只有已完成或部分完成且具有有效来源的文档会参与检索/),
+    ).toBeInTheDocument()
   })
 })

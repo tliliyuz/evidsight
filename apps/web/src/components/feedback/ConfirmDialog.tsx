@@ -9,6 +9,8 @@ type Props = {
   confirmLabel: string
   tone?: 'default' | 'danger'
   pending?: boolean
+  /** 阻塞态按钮文案（如「删除中…」），缺省「处理中…」 */
+  busyLabel?: string
   onCancel: () => void
   onConfirm: () => void
 }
@@ -20,6 +22,7 @@ export function ConfirmDialog({
   confirmLabel,
   tone = 'default',
   pending = false,
+  busyLabel = '处理中…',
   onCancel,
   onConfirm,
 }: Props) {
@@ -46,6 +49,7 @@ export function ConfirmDialog({
             type="button"
             variant={tone === 'danger' ? 'danger' : 'primary'}
             busy={pending}
+            busyLabel={busyLabel}
             onClick={onConfirm}
           >
             {confirmLabel}

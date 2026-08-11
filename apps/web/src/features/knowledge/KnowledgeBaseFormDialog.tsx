@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
+import { apiErrorMessage } from '@/api/errors'
 import { knowledgeApi, type KnowledgeApi, type KnowledgeBase } from '@/api/knowledge'
 import { Icon } from '@/components/icons/Icon'
 import { useOverlayFocus } from '@/components/overlay/useOverlayFocus'
@@ -30,7 +31,13 @@ export function KnowledgeBaseFormDialog({ initial, api = knowledgeApi, onClose, 
         : api.createKnowledgeBase({ name, description, visibility }),
     onSuccess: onSaved,
     onError: (err: Error) => {
-      setError(err.message)
+      // 用 API 错误信封的 message（如「知识库名称已存在」），避免展示 axios 原始 409 文案
+      setError(
+        apiErrorMessage(
+          err,
+          initial ? '更新知识库失败，请稍后重试。' : '创建知识库失败，请稍后重试。',
+        ),
+      )
     },
   })
   useOverlayFocus({ containerRef: drawerRef, onClose, canClose: !mutation.isPending })
@@ -65,28 +72,34 @@ export function KnowledgeBaseFormDialog({ initial, api = knowledgeApi, onClose, 
             mutation.mutate()
           }}
         >
-          <label>
-            知识库名称
+          <div className="drawer-field">
+            <label htmlFor="kb-name">知识库名称</label>
             <input
+              id="kb-name"
               ref={nameRef}
               data-overlay-initial-focus
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
+              placeholder="请输入知识库名称（2-128 字）"
               required
               minLength={2}
               maxLength={128}
             />
-          </label>
-          <label>
-            描述（可选）
+            <span className="field-counter">{name.length}/128</span>
+          </div>
+          <div className="drawer-field">
+            <label htmlFor="kb-desc">描述（可选）</label>
             <textarea
+              id="kb-desc"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
+              placeholder="请输入描述（最多 2000 字）"
               maxLength={2000}
               rows={4}
             />
-          </label>
+            <span className="field-counter">{description.length}/2000</span>
+          </div>
           <fieldset>
             <legend>可见性</legend>
             <label className="radio-row">

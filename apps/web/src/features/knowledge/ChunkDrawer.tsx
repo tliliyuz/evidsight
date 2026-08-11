@@ -15,13 +15,16 @@ type Props = {
   initialSegmentId?: string | null
 }
 
-type LocationError = Error & { response?: { status?: number } }
+type LocationError = Error & {
+  response?: { status?: number; data?: { error?: { error_code?: string } } }
+}
 
 /**
  * 文档切片抽屉（对齐 FRONTEND §5.4 / UIDESIGN §6.6）。
  * 分块列表以稳定 segment_id 定位；展开原文时按当前用户与 KB 权限实时鉴权
  * （GET /api/v1/documents/{document_id}/locations/{location_id}）。
- * 权限撤销（403/E5005）或来源不可用（E2015）时立即清除已显示正文并展示受限态。
+ * 权限撤销（403/AUTH_FORBIDDEN）、来源不可用（404/E2015）时立即清除已显示正文并展示受限态，
+ * 保留预览与元数据；「相邻切片」只基于当前已加载分块列表（chunk_index ± 1），不新增推测端点。
  */
 export function ChunkDrawer({
   documentId,
@@ -31,8 +34,6 @@ export function ChunkDrawer({
 }: Props) {
   const queryClient = useQueryClient()
   const drawerRef = useRef<HTMLElement>(null)
-  // 来源卡片联动：直接从 initialSegmentId 初始化展开态；目标不在分块列表时
-  // 无匹配 chunk，视觉上不展开，也不触发请求。
   const [expanded, setExpanded] = useState<string | null>(initialSegmentId ?? null)
   const initialConsumedRef = useRef(false)
 
@@ -75,8 +76,13 @@ export function ChunkDrawer({
 
   const data = locationMutation.data
   const locationError = locationMutation.error as LocationError | null
-  const restricted =
-    locationError?.response?.status === 403 || locationError?.response?.status === 404
+  const restricted = isRestrictedError(locationError)
+
+  const chunks = chunksQuery.data?.items ?? []
+  const expandedIndex = chunks.findIndex((chunk) => chunk.segment_id === expanded)
+  const prevChunk = expandedIndex > 0 ? chunks[expandedIndex - 1] : null
+  const nextChunk =
+    expandedIndex >= 0 && expandedIndex < chunks.length - 1 ? chunks[expandedIndex + 1] : null
 
   return (
     <div className="drawer-overlay" role="presentation">
@@ -107,65 +113,98 @@ export function ChunkDrawer({
             <ErrorState onRetry={() => void chunksQuery.refetch()} />
           ) : (
             <ol className="chunk-list">
-              {chunksQuery.data.items.map((chunk) => (
-                <li key={chunk.segment_id} className="chunk-item">
-                  <button
-                    type="button"
-                    className="chunk-item__expand"
-                    aria-expanded={expanded === chunk.segment_id}
-                    aria-label={
-                      expanded === chunk.segment_id
-                        ? '收起'
-                        : `展开第${toChineseNumber(chunk.chunk_index + 1)}段`
-                    }
-                    onClick={() => openSegment(chunk.segment_id)}
-                  >
-                    <span className="chunk-item__preview">
-                      {expanded === chunk.segment_id
-                        ? '收起'
-                        : `展开第${toChineseNumber(chunk.chunk_index + 1)}段`}
-                    </span>
-                    <span className="chunk-item__meta">
-                      位置 {formatLocation(chunk.metadata)} · <span>{chunk.token_count}</span> Token
-                    </span>
-                  </button>
-                  <div className="chunk-item__preview-text">{chunk.preview}</div>
+              {chunks.map((chunk) => {
+                const isOpen = expanded === chunk.segment_id
+                return (
+                  <li key={chunk.segment_id} className="chunk-item">
+                    <button
+                      type="button"
+                      className="chunk-item__expand"
+                      aria-expanded={isOpen}
+                      aria-label={
+                        isOpen ? '收起' : `展开第${toChineseNumber(chunk.chunk_index + 1)}段`
+                      }
+                      onClick={() => openSegment(chunk.segment_id)}
+                    >
+                      <span className="chunk-item__preview">
+                        {isOpen ? '收起' : `展开第${toChineseNumber(chunk.chunk_index + 1)}段`}
+                      </span>
+                      <span className="chunk-item__meta">
+                        位置 {formatLocation(chunk.metadata)} · <span>{chunk.token_count}</span>{' '}
+                        Token
+                      </span>
+                    </button>
+                    <div className="chunk-item__preview-text">{chunk.preview}</div>
 
-                  {expanded === chunk.segment_id ? (
-                    locationMutation.isPending ? (
+                    {isOpen ? (
                       <div className="chunk-item__body">
-                        <Skeleton />
+                        {locationMutation.isPending ? (
+                          <Skeleton />
+                        ) : restricted ? (
+                          <div className="chunk-item__body--restricted" role="alert">
+                            <p>原文已不可访问</p>
+                            <small>
+                              你的访问权限已被撤销，或该来源已失效。预览与元数据仍保留。
+                            </small>
+                          </div>
+                        ) : locationMutation.isError ? (
+                          <div role="alert">
+                            <p>原文加载失败</p>
+                            <small>请稍后重试。</small>
+                          </div>
+                        ) : data ? (
+                          <>
+                            <blockquote>{data.minimal_excerpt}</blockquote>
+                            <small>
+                              位置：
+                              {data.location.page_number
+                                ? `第 ${data.location.page_number} 页`
+                                : (data.location.section_path?.join(' / ') ?? '未知')}
+                            </small>
+                          </>
+                        ) : null}
+                        <nav className="chunk-item__adjacent" aria-label="相邻切片">
+                          {prevChunk ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost"
+                              onClick={() => openSegment(prevChunk.segment_id)}
+                            >
+                              ← 上一段
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+                          {nextChunk ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost"
+                              onClick={() => openSegment(nextChunk.segment_id)}
+                            >
+                              下一段 →
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+                        </nav>
                       </div>
-                    ) : restricted ? (
-                      <div className="chunk-item__body chunk-item__body--restricted" role="alert">
-                        <p>原文已不可访问</p>
-                        <small>你的访问权限已被撤销，或该来源已失效。预览与元数据仍保留。</small>
-                      </div>
-                    ) : locationMutation.isError ? (
-                      <div className="chunk-item__body" role="alert">
-                        <p>原文加载失败</p>
-                        <small>请稍后重试。</small>
-                      </div>
-                    ) : data ? (
-                      <div className="chunk-item__body">
-                        <blockquote>{data.minimal_excerpt}</blockquote>
-                        <small>
-                          位置：
-                          {data.location.page_number
-                            ? `第 ${data.location.page_number} 页`
-                            : (data.location.section_path?.join(' / ') ?? '未知')}
-                        </small>
-                      </div>
-                    ) : null
-                  ) : null}
-                </li>
-              ))}
+                    ) : null}
+                  </li>
+                )
+              })}
             </ol>
           )}
         </div>
       </aside>
     </div>
   )
+}
+
+/** 受限态判定：403（权限撤销）或 404/E2015（来源不可用）都立即清正文并展示受限态。 */
+function isRestrictedError(error: LocationError | null): boolean {
+  if (!error?.response) return false
+  if (error.response.status === 403 || error.response.status === 404) return true
+  return error.response.data?.error?.error_code === 'E2015'
 }
 
 function formatLocation(metadata: Record<string, unknown> | null | undefined): string {

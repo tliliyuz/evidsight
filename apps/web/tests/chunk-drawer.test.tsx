@@ -135,4 +135,36 @@ describe('文档切片抽屉', () => {
 
     expect(await screen.findByText('原文已不可访问')).toBeInTheDocument()
   })
+
+  it('E2015 错误码显式识别（非 404 状态）同样受限', async () => {
+    const api = makeApi()
+    const { getDocumentLocation } = api
+    ;(getDocumentLocation as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      const err = new Error('来源不可用') as Error & {
+        response: { status: number; data: { error: { error_code: string } } }
+      }
+      err.response = { status: 200, data: { error: { error_code: 'E2015' } } }
+      return Promise.reject(err)
+    })
+    renderDrawer(api)
+
+    fireEvent.click(await screen.findByRole('button', { name: '展开第一段' }))
+
+    expect(await screen.findByText('原文已不可访问')).toBeInTheDocument()
+  })
+
+  it('相邻切片基于当前分块列表切换展开', async () => {
+    const api = makeApi()
+    renderDrawer(api)
+
+    fireEvent.click(await screen.findByRole('button', { name: '展开第一段' }))
+    await screen.findByText('第 3 页实际正文片段')
+
+    // 第一段有「下一段」，点击后按第二段的 segment_id 重新鉴权请求
+    fireEvent.click(screen.getByRole('button', { name: /下一段/ }))
+
+    await waitFor(() =>
+      expect(api.getDocumentLocation).toHaveBeenCalledWith(DOC_UUID, SEGMENT_UUID_2),
+    )
+  })
 })

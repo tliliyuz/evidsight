@@ -403,8 +403,9 @@ select {
 }
 
 .app-shell__content {
-  /* Route Surface 四周保留浅灰 Canvas（UIDESIGN §5.5），贴边对齐原型容器 */
-  padding: 16px;
+  /* Route Surface 四周保留浅灰 Canvas（UIDESIGN §5.5），贴边对齐原型容器；
+     四周 padding 与卡片高度均为负责人手调参数（复核八）：10px 10px 0 + .route-surface 的 calc(100vh - 46px) */
+  padding: 10px 10px 0;
 }
 
 /* ---- 页面标题（FRONTEND 各页共用） ---- */
@@ -448,14 +449,60 @@ select {
 /* ---- Route Surface 路由大容器（UIDESIGN §5.5/§5.6）：所有业务页面共用的白色基底容器 ----
    max-width 1260px（对齐原型 route-view）+ 侧边 padding 40px → 内容宽 1180px（对齐
    UIDESIGN §5.2「工作台最大约 1180px」）；页面通过 root 元素加 `route-surface` 类接入。 */
+/* 白色大容器统一固定视口内高度（工作区/知识库/后续页面一致）：
+   flex 纵向，分页/页脚固定在底部，中间列表区内部滚动，行数变化不把容器往下挤 */
 .route-surface {
   width: 100%;
   max-width: 1260px;
   margin: 0 auto;
-  padding: 32px 40px;
+  padding: 24px 40px 20px;
   border: 1px solid var(--es-border-default);
   border-radius: var(--es-radius-major);
   background: var(--es-surface);
+  display: flex;
+  flex-direction: column;
+  /* 外层固定卡片高度（负责人手调参数，复核八）：`calc(100vh - 46px)`，
+     配合 .app-shell__content 的 `10px 10px 0` padding；
+     各 route-surface 页共用同一高度，为详情页文档列表留出可滚动区域 */
+  height: calc(100vh - 46px);
+  overflow: hidden;
+}
+
+/* 知识中心 Ledger：表头固定、主体内部滚动，分页/说明固定在底部 */
+.kb-page .ledger {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.kb-page .ledger .ledger__body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.kb-page .pagination {
+  flex: none;
+}
+
+/* 详情页：Hero 与文档区纵向流动，文档区占剩余高度，Ledger 内部滚动 */
+.kb-page .documents-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 工作台与 route-surface 容器对齐：标题固定，主内容区内部滚动 */
+.workbench__heading {
+  flex: none;
+}
+
+.workbench-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* ---- 工作台（FRONTEND §5.2 / UIDESIGN §7.1）：主列 + 右侧上下文列 ---- */
@@ -812,12 +859,20 @@ select {
   font-size: 12px;
 }
 
-.empty-state {
+/* 空态/错误态统一（UIDESIGN §6 反馈）：默认（below）标题/说明/动作按钮整体居中，
+   与「还没有知识库」一致；错误态（暂时无法加载）同构，避免右侧大段空白 */
+.empty-state,
+.error-state {
   padding: 28px 0;
+  text-align: center;
 }
 
 /* beside 变体（UIDESIGN §7.2）：说明文案与动作按钮同一行、动作右对齐，
-   用于「查看全部」下方右侧的动作布局 */
+   用于「查看全部」下方右侧的动作布局，不走居中 */
+.empty-state--beside {
+  text-align: left;
+}
+
 .empty-state--beside .empty-state__action-row {
   display: flex;
   align-items: center;
@@ -859,10 +914,21 @@ select {
   opacity: 0.6;
 }
 
+/* 主按钮对齐浅色原型（近黑底白字 + 文案后 ↗ 箭头）：
+   `--es-ink-primary` 浅色主题为近黑、深色主题为近白，`--es-canvas` 相反 → 两主题各自对比正确 */
 .btn--primary {
-  border-color: var(--es-moonstone);
+  border-color: var(--es-ink-primary);
   color: var(--es-canvas);
-  background: var(--es-moonstone);
+  background: var(--es-ink-primary);
+}
+
+.btn--primary::after {
+  content: '↗';
+  font-style: normal;
+}
+
+.btn--primary:hover:not(:disabled) {
+  filter: brightness(1.12);
 }
 
 .btn--danger {
@@ -873,6 +939,12 @@ select {
 
 .btn--danger-ghost {
   color: var(--es-danger);
+}
+
+.btn--ghost {
+  border-color: transparent;
+  color: var(--es-moonstone);
+  background: transparent;
 }
 
 /* ---- Status Badge（对齐 UIDESIGN §6.4：小型矩形，含状态词） ---- */
@@ -926,12 +998,22 @@ select {
 }
 
 /* ---- 列表页筛选工具栏 ---- */
+/* 筛选工具栏：与下方 Ledger 连续，上下使用 Hairline 分隔（UIDESIGN §6.3「工具栏上下使用 Hairline」） */
 .list-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin: 24px 0 16px;
+  margin: 20px 0 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--es-border-default);
+  border-bottom: 1px solid var(--es-border-default);
+}
+
+/* 详情页「文档与索引状态」区内工具栏垂直压缩：为文档 Ledger 滚动区让空间（复核八） */
+.documents-section .list-toolbar {
+  margin: 0;
+  padding: 8px 0;
 }
 
 .segmented {
@@ -970,117 +1052,351 @@ select {
   background: var(--es-surface);
 }
 
-/* ---- 知识库列表 ---- */
-.kb-list,
-.doc-list {
+/* ---- 通用 eyebrow（小节眉标） ---- */
+.eyebrow {
+  margin: 0;
+  color: var(--es-ink-muted);
+  font-family: var(--es-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+/* ---- 返回入口（知识库详情） ---- */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--es-ink-secondary);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--es-ink-primary);
+}
+
+/* ---- Ledger 账本（UIDESIGN §6.3）：列头与数据行 Hairline 分行，行无圆角/边框/阴影 ---- */
+.ledger {
+  margin-top: 8px;
+}
+
+.ledger__head {
   display: grid;
-  gap: 12px;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--es-border-default);
+  color: var(--es-ink-muted);
+  font-family: var(--es-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.ledger__body {
+  display: grid;
+  /* 行保持内容高度：grid 默认 align-content:normal 会拉伸 auto 行填满容器，
+     当 Ledger 在 1fr 行内被拉高时（.kb-page .ledger），单行/少行会被撑满整个列表 */
+  align-content: start;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.kb-row,
-.doc-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 18px 20px;
-  border: 1px solid var(--es-border-default);
-  border-radius: var(--es-radius-panel);
-  background: var(--es-surface);
-}
-
-.kb-row__title {
-  display: flex;
+.ledger__row {
+  display: grid;
+  gap: 16px;
   align-items: center;
-  gap: 10px;
+  min-height: 64px;
+  padding: 12px;
+  border-bottom: 1px solid var(--es-border-subtle);
 }
 
-.kb-row__title h2 {
-  margin: 0;
-  font-size: 16px;
+.ledger__row:hover {
+  background: var(--es-surface-muted);
 }
 
-.kb-row__desc {
-  margin: 6px 0 10px;
-  color: var(--es-ink-secondary);
+.ledger__cell--kb,
+.ledger__cell--doc {
+  min-width: 0;
 }
 
-.kb-row__meta,
-.doc-row__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  margin: 0;
+.ledger__title {
+  display: block;
+  overflow: hidden;
+  color: var(--es-ink-primary);
+  font-size: 15px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.kb-row__meta div,
-.doc-row__meta div {
-  display: flex;
-  gap: 6px;
-}
-
-.kb-row__meta dt,
-.doc-row__meta dt {
+.ledger__desc {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
   color: var(--es-ink-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.kb-row__meta dd,
-.doc-row__meta dd {
-  margin: 0;
+.ledger__cell--docs b {
+  display: block;
+  font-size: 15px;
 }
 
-.kb-row__actions,
-.doc-row__actions {
+.ledger__cell--docs small,
+.ledger__cell--updated small {
+  display: block;
+  margin-top: 2px;
+  color: var(--es-ink-muted);
+  font-size: 12px;
+}
+
+.ledger__cell--updated {
+  font-size: 13px;
+}
+
+.ledger__cell--actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
 }
 
+/* 知识库 Ledger 列：知识库/描述 | 可见性 | 文档 | 索引状态 | 最近更新 | 操作 */
+.kb-ledger .ledger__head,
+.kb-ledger .ledger__row {
+  grid-template-columns: minmax(220px, 2fr) 96px 72px 116px 128px minmax(240px, 1.4fr);
+}
+
+/* 文档 Ledger 列：文档 | 状态 | 有效片段 | 更新时间 | 操作 */
+.doc-ledger .ledger__head,
+.doc-ledger .ledger__row {
+  grid-template-columns: minmax(220px, 2fr) 168px 88px 120px minmax(220px, 1.2fr);
+}
+
+/* 操作列表头右对齐：与右侧 flex-end 的按钮列对齐（知识库：进入/编辑/删除；文档：查看切片/删除/重试） */
+.kb-ledger .ledger__head span:last-child,
+.doc-ledger .ledger__head span:last-child {
+  justify-self: end;
+}
+
+.ledger__cell--state {
+  min-width: 0;
+}
+
+.doc-state-reason {
+  display: block;
+  overflow: hidden;
+  margin-top: 6px;
+  color: var(--es-ink-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 索引状态缺省（旧数据/字段缺失）：不猜测 */
+.index-state--missing {
+  color: var(--es-ink-disabled);
+}
+
 /* ---- 详情页文档 ---- */
+/* ---- 详情页摘要卡片（Metric Strip，UIDESIGN §4）----
+   一个 Inset Panel 内以 Hairline 等分；数字/标签/说明共一条基线，
+   只展示 KB 响应权威字段（doc_count/chunk_count/created_at），不伪造聚合指标。 */
+.metric-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 8px;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-panel);
+  background: var(--es-surface-muted);
+  overflow: hidden;
+}
+
+.metric-strip__item {
+  min-width: 0;
+  padding: 14px 20px 16px;
+  border-left: 1px solid var(--es-border-default);
+}
+
+.metric-strip__item:first-child {
+  border-left: 0;
+}
+
+.metric-strip__label,
+.metric-strip__value,
+.metric-strip__hint {
+  display: block;
+}
+
+/* 三格数值共用同一字体/字号/行高：创建时间等文本值不再单独降为 mono（对齐原型
+   knowledge-pulse 全部 `b` 同用 Space Grotesk），三排文字跨卡片基线对齐 */
+.metric-strip__label {
+  color: var(--es-ink-muted);
+  font-size: 12px;
+}
+
+.metric-strip__value {
+  margin: 6px 0 4px;
+  color: var(--es-ink-primary);
+  font-family: var(--es-font-display);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.metric-strip__hint {
+  color: var(--es-ink-muted);
+  font-size: 12px;
+}
+
 .documents-section__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 24px 0 12px;
+  margin: 16px 0 8px;
 }
 
-.doc-row__main h3 {
-  margin: 0 0 8px;
-  font-size: 15px;
+.documents-section__header h2 {
+  margin: 0;
+  font-size: 18px;
 }
 
-.doc-row__right {
+/* ---- 知识库详情 Hero ----
+   左列：eyebrow + 名称 + 描述；右列：动作按钮 + 状态行（可见性/owner/更新时间）。
+   名称单行截断、描述限宽三行截断：名称 128 / 描述 2000 上限恶意填满也不撑高 Hero、
+   不把「文档与索引状态」区往下挤。 */
+.detail-hero {
   display: grid;
-  justify-items: end;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 32px;
+  row-gap: 0; /* 行间距交给各元素 margin 控制，右列动作/状态行才能与名称/描述对齐 */
+  margin: 0 0 8px;
+}
+
+/* 左（eyebrow/名称/描述）右（动作/状态行）两栏共享同一套网格行：
+   动作行与名称（h1）同行、状态行与描述第一行同行——不靠手调偏移，天然对齐 */
+.detail-hero__main,
+.detail-hero__side {
+  display: contents;
+}
+
+.detail-hero .eyebrow {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0 0 4px;
+}
+
+.detail-hero h1 {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0 0 6px;
+  font-family: var(--es-font-display);
+  font-size: 32px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-hero__desc {
+  grid-column: 1;
+  grid-row: 3;
+  max-width: 520px; /* 描述限宽：文字一多也不会延伸到右侧动作区 */
+  margin: 0 0 8px;
+  color: var(--es-ink-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.detail-hero__actions {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 10px;
 }
 
-.doc-row__error {
-  margin: 8px 0 0;
-  color: var(--es-danger);
+.detail-hero__meta {
+  grid-column: 2;
+  grid-row: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 0;
+}
+
+.detail-hero__meta > span:not(.status-badge) {
+  color: var(--es-ink-muted);
   font-size: 13px;
 }
 
-.page-heading__meta {
-  display: flex;
-  gap: 8px;
+/* ---- 状态筛选（六值严格映射，复用后端单值 status） ---- */
+.status-filter select {
+  padding: 8px 10px;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-control);
+  color: inherit;
+  background: var(--es-surface);
+}
+
+/* ---- Ledger 底部说明 ---- */
+.ledger-footnote {
+  margin: 8px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--es-border-subtle);
+  color: var(--es-ink-muted);
+  font-size: 12px;
+}
+
+.ledger-footnote span {
+  margin-right: 6px;
+  color: var(--es-ink-secondary);
+  font-weight: 600;
 }
 
 /* ---- 分页 ---- */
 .pagination {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-top: 20px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pagination .btn {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.pagination .btn[aria-current='page'] {
+  border-color: var(--es-ink-primary);
+  color: var(--es-canvas);
+  background: var(--es-ink-primary);
 }
 
 .pagination span {
   color: var(--es-ink-muted);
   font-size: 13px;
+}
+
+.pagination__ellipsis {
+  color: var(--es-ink-muted);
 }
 
 /* ---- Drawer（对齐 UIDESIGN §6.6） ---- */
@@ -1127,6 +1443,11 @@ select {
   cursor: pointer;
 }
 
+.drawer__close:disabled {
+  color: var(--es-ink-disabled);
+  cursor: default;
+}
+
 .drawer__body {
   flex: 1;
   overflow-y: auto;
@@ -1140,7 +1461,16 @@ select {
   font-size: 14px;
 }
 
+/* 创建/编辑知识库表单字段：标签 + 输入 + 字数计数作为独立网格项（不污染 label 可访问名） */
+.drawer-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
 .drawer__body input[type='text'],
+.drawer__body input[type='password'],
 .drawer__body input[type='file'],
 .drawer__body textarea {
   padding: 10px 12px;
@@ -1161,22 +1491,80 @@ select {
   font-size: 14px;
 }
 
-.radio-row,
-.check-row {
-  display: flex;
+/* 可见性单选行：radio 与标题文字同处第一行，`align-items: center` 保证选中圈与文字垂直居中对齐；
+   说明小字在第二行、缩进到标题下方。 */
+.radio-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 2px;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-control);
+}
+
+.radio-row input {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.radio-row span {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .radio-row small {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0;
   color: var(--es-ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* 覆盖同名文档勾选行：对齐可见性 radio-row 的两行网格（勾选圈与标题文字垂直居中对齐） */
+.check-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-control);
+}
+
+.check-row input {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.check-row span {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 输入框字数计数提示（创建/编辑知识库表单） */
+.field-counter {
+  display: block;
+  margin-top: 4px;
+  color: var(--es-ink-muted);
+  font-family: var(--es-font-mono);
+  font-size: 12px;
+  text-align: right;
 }
 
 .drawer__footer {
   display: flex;
   gap: 10px;
-  justify-content: flex-end;
+  justify-content: center; /* 底部主操作固定居中（对齐原型抽屉） */
   padding-top: 16px;
   border-top: 1px solid var(--es-border-subtle);
 }
@@ -1186,9 +1574,155 @@ select {
   font-size: 13px;
 }
 
-.file-picked {
-  color: var(--es-ink-secondary);
+/* 仅屏幕阅读器可见（供无障碍标签与图标按钮） */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- 上传 Drop Zone（对齐原型 upload-drawer .drop-zone，单文件） ---- */
+.drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 200px;
+  padding: 24px 16px;
+  border: 1px dashed var(--es-border-strong);
+  border-radius: var(--es-radius-control);
+  background: var(--es-surface-muted);
+  color: var(--es-ink-primary);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.drop-zone:hover,
+.drop-zone--drag {
+  border-color: var(--es-knowledge);
+  background: var(--es-moonstone-soft);
+}
+
+.drop-zone b {
+  font-family: var(--es-font-display);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.drop-zone span {
+  margin: 12px 0 6px;
+  font-family: var(--es-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--es-ink-muted);
+}
+
+.drop-zone small {
+  color: var(--es-ink-muted);
+  font-size: 12px;
+}
+
+/* ---- 上传队列（对齐原型 upload-queue，多文件逐行状态） ---- */
+.upload-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.upload-queue__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-control);
+  background: var(--es-surface-muted);
+}
+
+.upload-queue__name {
+  min-width: 0;
+}
+
+.upload-queue__name b,
+.upload-queue__name small {
+  display: block;
+}
+
+.upload-queue__name b {
+  overflow: hidden;
   font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-queue__name small {
+  margin-top: 2px;
+  color: var(--es-ink-muted);
+  font-size: 12px;
+}
+
+.upload-queue__name .upload-queue__error {
+  color: var(--es-danger);
+}
+
+.upload-queue__status {
+  flex: none;
+  font-family: var(--es-font-mono);
+  font-size: 11px;
+  font-style: normal;
+  color: var(--es-ink-muted);
+}
+
+.upload-queue__status--uploading {
+  color: var(--es-spectral-cyan);
+}
+
+.upload-queue__status--done {
+  color: var(--es-success);
+}
+
+.upload-queue__status--error {
+  color: var(--es-danger);
+}
+
+.upload-queue__status--cancelled {
+  color: var(--es-ink-disabled);
+}
+
+.upload-queue__remove {
+  flex: none;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--es-ink-muted);
+  cursor: pointer;
+}
+
+.upload-queue__remove:hover:not(:disabled) {
+  color: var(--es-danger);
+}
+
+.upload-queue__remove:disabled {
+  color: var(--es-ink-disabled);
+  cursor: default;
 }
 
 /* ---- 确认对话框 ---- */
@@ -1465,6 +1999,12 @@ select {
 
 .toast__icon {
   color: var(--es-success);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.toast__icon {
+  color: var(--es-success);
   font-size: 14px;
   font-weight: 700;
 }
@@ -1541,6 +2081,22 @@ select {
   margin: 0 0 4px;
   color: var(--es-warning);
   font-weight: 600;
+}
+
+/* 相邻切片：基于当前已加载分块列表（chunk_index ± 1），不新增推测端点 */
+.chunk-item__adjacent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--es-border-subtle);
+}
+
+.chunk-item__adjacent .btn--ghost {
+  padding: 6px 10px;
+  font-size: 13px;
 }
 
 @media (max-width: 760px) {

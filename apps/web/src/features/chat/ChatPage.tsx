@@ -51,9 +51,19 @@ type DisplayMessage = {
 export function ChatPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const conversationId = searchParams.get('conversation')
+  // 从知识库详情「用它提问」进入时预选知识库（FRONTEND §5.5）
+  const kbParam = searchParams.get('kb')
   const queryClient = useQueryClient()
   const { snapshot, send, cancel, isActive } = useChatGeneration()
-  const [selectedKbId, setSelectedKbId] = useState<string | null>(null)
+  const [selectedKbId, setSelectedKbId] = useState<string | null>(kbParam ?? null)
+  // 同一路由内 ?kb= 变化（如从另一知识库再次「用它提问」）时在渲染期同步预选，
+  // 使用 React 官方「props 变化时调整 state」模式（避免 set-state-in-effect）；
+  // ?kb= 清空（发送后写入 ?conversation=）时不覆盖用户已选知识库。
+  const [prevKbParam, setPrevKbParam] = useState<string | null>(kbParam ?? null)
+  if (kbParam !== null && kbParam !== prevKbParam) {
+    setPrevKbParam(kbParam)
+    setSelectedKbId(kbParam)
+  }
   const [question, setQuestion] = useState('')
   const [activeQuestion, setActiveQuestion] = useState<string | null>(null)
   const [pendingKbSwitch, setPendingKbSwitch] = useState<KnowledgeBase | null>(null)

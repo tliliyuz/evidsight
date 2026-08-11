@@ -102,6 +102,21 @@ describe('据见问答页', () => {
     expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
   })
 
+  it('从知识库「用它提问」进入（?kb=）时自动勾选对应知识库', async () => {
+    mockedKnowledge.listKnowledgeBases.mockResolvedValue({
+      total: 1,
+      page: 1,
+      page_size: 20,
+      items: [KB],
+    })
+    renderChatPage(['/chat?kb=kb-1'])
+
+    // 选择器自动选中 kb-1，无需手动点击选择
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /产品手册/ })).toBeInTheDocument()
+    })
+  })
+
   it('选择知识库后发送，流式展示生成中状态与增量文本', async () => {
     mockedKnowledge.listKnowledgeBases.mockResolvedValue({
       total: 1,

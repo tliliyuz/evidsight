@@ -15,6 +15,10 @@ export type KnowledgeBase = {
   status: 'active' | 'deleting'
   doc_count: number
   chunk_count: number
+  /** 权威聚合索引状态（ADR-007 索引发布锁）：ready/updating/recovering，缺失时旧数据为 null */
+  index_status?: 'ready' | 'updating' | 'recovering' | null
+  /** owner 用户名（详情 Hero「创建者」展示），向后兼容可空 */
+  owner_username?: string | null
   created_at: string
   updated_at: string | null
 }
@@ -133,7 +137,12 @@ export type KnowledgeApi = {
       order?: 'asc' | 'desc'
     } & ListParams,
   ): Promise<DocumentList>
-  uploadDocument(kbId: string, file: File, force?: boolean): Promise<DocumentUpload>
+  uploadDocument(
+    kbId: string,
+    file: File,
+    force?: boolean,
+    signal?: AbortSignal,
+  ): Promise<DocumentUpload>
   getDocument(documentId: string): Promise<Document>
   deleteDocument(documentId: string): Promise<void>
   getDocumentChunks(documentId: string, params?: ListParams): Promise<DocumentChunkList>
@@ -176,13 +185,15 @@ function createKnowledgeApi(client: AxiosInstance): KnowledgeApi {
       )
     },
 
-    async uploadDocument(kbId, file, force = false) {
+    async uploadDocument(kbId, file, force = false, signal?: AbortSignal) {
       const form = new FormData()
       form.append('file', file)
       if (force) {
         form.append('force', 'true')
       }
-      return unwrap(client.post<DocumentUpload>(`/api/v1/knowledge-bases/${kbId}/documents`, form))
+      return unwrap(
+        client.post<DocumentUpload>(`/api/v1/knowledge-bases/${kbId}/documents`, form, { signal }),
+      )
     },
 
     async getDocument(documentId) {
