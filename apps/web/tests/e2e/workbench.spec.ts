@@ -170,8 +170,10 @@ test.describe('工作台视觉验收', () => {
     await setupWorkbench(page, 'light', { tasks: [], knowledge: [] })
     await openWorkbench(page)
 
-    await expect(page.getByRole('link', { name: '开始研究', exact: true })).toBeVisible()
-    await expect(page.getByRole('link', { name: '创建知识库', exact: true })).toBeVisible()
+    // 最近研究/最近知识库空态主按钮为 `.btn--primary`（文案后带 ↗ 箭头，见 global.css），
+    // 该伪元素内容计入可访问名称，故断言需含箭头
+    await expect(page.getByRole('link', { name: '开始研究 ↗', exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: '创建知识库 ↗', exact: true })).toBeVisible()
     // 进行中的研究卡片始终渲染，无运行任务时显示占位
     await expect(page.getByRole('link', { name: '开始研究 →' })).toBeVisible()
     // 顶部运行任务 Chip 常显占位
@@ -183,8 +185,10 @@ test.describe('工作台视觉验收', () => {
     await setupWorkbench(page, 'dark', { tasks: [], knowledge: [] })
     await openWorkbench(page)
 
-    await expect(page.getByRole('link', { name: '开始研究', exact: true })).toBeVisible()
-    await expect(page.getByRole('link', { name: '创建知识库', exact: true })).toBeVisible()
+    // 最近研究/最近知识库空态主按钮为 `.btn--primary`（文案后带 ↗ 箭头，见 global.css），
+    // 该伪元素内容计入可访问名称，故断言需含箭头
+    await expect(page.getByRole('link', { name: '开始研究 ↗', exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: '创建知识库 ↗', exact: true })).toBeVisible()
     // 进行中的研究卡片始终渲染，无运行任务时显示占位
     await expect(page.getByRole('link', { name: '开始研究 →' })).toBeVisible()
     // 顶部运行任务 Chip 常显占位

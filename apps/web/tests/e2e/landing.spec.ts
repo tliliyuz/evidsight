@@ -38,11 +38,9 @@ test.describe('入口页与登录抽屉视觉验收', () => {
     await page.getByRole('button', { name: '登录', exact: true }).click()
 
     await expect(page.getByRole('alert')).toBeVisible()
-    // 输入框内填充文本的字体渲染在跨会话间存在亚像素抖动，
-    // 掩蔽两个文本输入，其余布局与错误态照常纳入视觉门禁。
-    await expect(page).toHaveScreenshot('login-drawer-error.png', {
-      mask: [page.getByLabel('账号'), page.getByLabel('密码')],
-    })
+    // 输入内容固定且字体已经本地化，账号、密码框与错误态必须完整进入视觉基线；
+    // 禁止用 Playwright 默认洋红遮罩污染截图并绕过输入框视觉验收。
+    await expect(page).toHaveScreenshot('login-drawer-error.png')
   })
 
   test('提交中截图', async ({ page }) => {
@@ -68,10 +66,7 @@ test.describe('入口页与登录抽屉视觉验收', () => {
     await page.getByRole('button', { name: '登录', exact: true }).click()
 
     await expect(page.getByRole('button', { name: '正在登录…' })).toBeVisible()
-    // 与登录失败截图一致：掩蔽文本输入，聚焦提交忙碌态与布局。
-    await expect(page).toHaveScreenshot('login-drawer-submitting.png', {
-      mask: [page.getByLabel('账号'), page.getByLabel('密码')],
-    })
+    await expect(page).toHaveScreenshot('login-drawer-submitting.png')
   })
 
   test('键盘焦点顺序、Escape 和关闭后焦点恢复', async ({ page }) => {
