@@ -45,6 +45,18 @@ async function requestFreshAccessToken(): Promise<string> {
 
 type RetriableConfig = InternalAxiosRequestConfig & { __authRetried?: boolean }
 
+// 生产认证失败处理器（FRONTEND §11：401/刷新失败 → 清理敏感状态并返回登录）。
+// 由应用根组件通过 registerAuthFailureHandler 接线到 authSession（避免 client↔authSession 循环依赖）。
+let authFailureHandler: (() => void) | undefined
+
+/** 注册认证失败处理器，返回注销函数。传 null 可清除。 */
+export function registerAuthFailureHandler(handler: (() => void) | null): () => void {
+  authFailureHandler = handler ?? undefined
+  return () => {
+    if (authFailureHandler === handler) authFailureHandler = undefined
+  }
+}
+
 type ClientOptions = {
   adapter?: AxiosAdapter
   refreshAccessToken?: () => Promise<string>
@@ -68,34 +80,38 @@ export function createApiClient(options: ClientOptions = {}): AxiosInstance {
   client.interceptors.response.use(undefined, async (rawError: unknown) => {
     const error = rawError as AxiosError
     const config = error.config as RetriableConfig | undefined
-    const shouldRefresh =
-      error.response?.status === 401 &&
-      errorCode(error) === 'AUTH_TOKEN_EXPIRED' &&
-      config &&
-      !config.__authRetried
+    const is401 = error.response?.status === 401
+    const isExpired = errorCode(error) === 'AUTH_TOKEN_EXPIRED'
 
-    if (!shouldRefresh) {
-      throw error
+    // Access Token 过期（E5003）：并发共享单次刷新并携带新 token 重放。
+    if (is401 && isExpired && config && !config.__authRetried) {
+      config.__authRetried = true
+      refreshInFlight ??= (options.refreshAccessToken ?? requestFreshAccessToken)()
+        .then((token) => {
+          setAccessToken(token)
+          return token
+        })
+        .catch((refreshError) => {
+          setAccessToken(null)
+          ;(options.onAuthenticationFailed ?? authFailureHandler)?.()
+          throw refreshError
+        })
+        .finally(() => {
+          refreshInFlight = null
+        })
+
+      const token = await refreshInFlight
+      config.headers.Authorization = `Bearer ${token}`
+      return client.request(config)
     }
 
-    config.__authRetried = true
-    refreshInFlight ??= (options.refreshAccessToken ?? requestFreshAccessToken)()
-      .then((token) => {
-        setAccessToken(token)
-        return token
-      })
-      .catch((refreshError) => {
-        setAccessToken(null)
-        options.onAuthenticationFailed?.()
-        throw refreshError
-      })
-      .finally(() => {
-        refreshInFlight = null
-      })
-
-    const token = await refreshInFlight
-    config.headers.Authorization = `Bearer ${token}`
-    return client.request(config)
+    // 其余 401（token 无效 E5004/用户禁用 E5010 等）或刷新失败不可恢复：
+    // 清理 Access Token 并触发认证失败处理器返回登录（FRONTEND §11），避免会话卡死在「已登录但无 token」。
+    if (is401) {
+      setAccessToken(null)
+      ;(options.onAuthenticationFailed ?? authFailureHandler)?.()
+    }
+    throw error
   })
 
   return client

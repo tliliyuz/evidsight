@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 
 import { authApi } from '@/api/auth'
 import { BrandMark } from '@/components/brand/BrandMark'
+import { useAppToast } from '@/components/feedback/toastContext'
 import { Icon } from '@/components/icons/Icon'
 import { useOverlayFocus } from '@/components/overlay/useOverlayFocus'
 import { authSession } from '@/features/auth/authSession'
@@ -26,6 +27,7 @@ export function LoginDrawer() {
   const [remember, setRemember] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { show } = useAppToast()
   const drawerRef = useRef<HTMLElement>(null)
   const close = () => navigate('/')
   useOverlayFocus({ containerRef: drawerRef, onClose: close, canClose: !submitting })
@@ -45,6 +47,8 @@ export function LoginDrawer() {
         }
       }
       await authSession.login(username, password)
+      // 登录/注册成功均弹全局成功反馈（ToastProvider 挂在路由之上，跨页面导航存活）
+      show(mode === 'register' ? `注册成功，欢迎加入，${username}` : `欢迎回来，${username}`)
       const state = location.state as LocationState
       navigate(state?.returnTo ?? '/workbench', { replace: true })
     } catch {

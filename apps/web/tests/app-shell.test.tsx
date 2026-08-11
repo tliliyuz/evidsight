@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from '@/app/AppShell'
 import type { UserSummary } from '@/api/auth'
 import type { ResearchApi } from '@/api/research'
+import { ToastProvider } from '@/components/feedback/ToastProvider'
+import { authSession } from '@/features/auth/authSession'
 
 const navigateMock = vi.fn()
 
@@ -41,13 +43,15 @@ function makeResearchApi(runningTotal: number): ResearchApi {
 function renderShell(api: ResearchApi, path = '/workbench', overrides: Partial<UserSummary> = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[path]}>
-        <AppShell user={{ ...user, ...overrides }} researchApi={api}>
-          <div>内容</div>
-        </AppShell>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <ToastProvider>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[path]}>
+          <AppShell user={{ ...user, ...overrides }} researchApi={api}>
+            <div>内容</div>
+          </AppShell>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ToastProvider>,
   )
 }
 
@@ -99,6 +103,32 @@ describe('统一应用壳层', () => {
     await user.click(chip)
     await user.click(screen.getByRole('button', { name: /前往研究任务/ }))
     expect(navigateMock).toHaveBeenCalledWith('/research')
+  })
+
+  it('退出登录先弹具名确认框，确认后清除会话并弹「已退出登录」成功反馈', async () => {
+    const user = userEvent.setup()
+    const logoutSpy = vi.spyOn(authSession, 'logout').mockResolvedValue()
+    renderShell(makeResearchApi(0))
+
+    await user.click(screen.getByRole('button', { name: /alice/ }))
+    await user.click(screen.getByRole('menuitem', { name: /退出登录/ }))
+    const confirmDialog = screen.getByRole('dialog', { name: '退出登录' })
+    expect(confirmDialog).toBeInTheDocument()
+
+    await user.click(within(confirmDialog).getByRole('button', { name: '退出登录' }))
+    expect(logoutSpy).toHaveBeenCalledOnce()
+    // 成功反馈经全局 ToastProvider（跨 AppShell 卸载存活），非 AppShell 局部状态
+    expect(await screen.findByRole('status')).toHaveTextContent('已退出登录')
+  })
+
+  it('账号菜单「修改密码」打开右侧抽屉（FRONTEND §3.2）', async () => {
+    const user = userEvent.setup()
+    renderShell(makeResearchApi(0))
+
+    await user.click(screen.getByRole('button', { name: /alice/ }))
+    await user.click(screen.getByRole('menuitem', { name: /修改密码/ }))
+    expect(screen.getByRole('dialog', { name: '修改密码' })).toBeInTheDocument()
+    expect(screen.getByLabelText('当前密码')).toBeInTheDocument()
   })
 
   it('账号区展示头像与角色层级，Trigger 携带 aria-expanded/aria-controls', () => {

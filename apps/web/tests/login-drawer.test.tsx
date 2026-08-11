@@ -6,18 +6,21 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { authApi } from '@/api/auth'
+import { ToastProvider } from '@/components/feedback/ToastProvider'
 import { LoginDrawer } from '@/features/auth/LoginDrawer'
 import { authSession } from '@/features/auth/authSession'
 
 function renderDrawer(initialPath = '/login') {
   return render(
-    <MemoryRouter initialEntries={[{ pathname: initialPath, state: { returnTo: '/research' } }]}>
-      <Routes>
-        <Route path="/login" element={<LoginDrawer />} />
-        <Route path="/research" element={<div>研究任务</div>} />
-        <Route path="/" element={<div>入口页</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <ToastProvider>
+      <MemoryRouter initialEntries={[{ pathname: initialPath, state: { returnTo: '/research' } }]}>
+        <Routes>
+          <Route path="/login" element={<LoginDrawer />} />
+          <Route path="/research" element={<div>研究任务</div>} />
+          <Route path="/" element={<div>入口页</div>} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
   )
 }
 
@@ -35,6 +38,37 @@ describe('登录抽屉', () => {
     expect(screen.getByRole('button', { name: '正在登录…' })).toBeDisabled()
     await waitFor(() => expect(screen.getByText('研究任务')).toBeInTheDocument())
     expect(login).toHaveBeenCalledOnce()
+  })
+
+  it('登录成功后顶部弹出成功反馈 Toast（欢迎回来）', async () => {
+    vi.spyOn(authSession, 'login').mockResolvedValue()
+    renderDrawer()
+
+    fireEvent.change(screen.getByLabelText('账号'), { target: { value: 'alice' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'password' } })
+    fireEvent.click(screen.getByRole('button', { name: '登录' }))
+
+    // ToastProvider 挂在路由之上，导航到目标页后成功反馈仍存活
+    await waitFor(() => expect(screen.getByText('研究任务')).toBeInTheDocument())
+    expect(screen.getByRole('status')).toHaveTextContent('欢迎回来，alice')
+  })
+
+  it('注册成功后弹独立成功反馈 Toast（欢迎加入）', async () => {
+    vi.spyOn(authApi, 'register').mockResolvedValue({
+      id: '550e8400-e29b-41d4-a716-446655440099',
+      username: 'bob',
+      role: 'user',
+      status: 'active',
+    })
+    vi.spyOn(authSession, 'login').mockResolvedValue()
+    renderDrawer()
+
+    fireEvent.click(screen.getByRole('button', { name: '还没有账号？创建账号' }))
+    fireEvent.change(screen.getByLabelText('账号'), { target: { value: 'bob' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'password' } })
+    fireEvent.click(screen.getByRole('button', { name: '注册并登录' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('注册成功，欢迎加入，bob')
   })
 
   it('包含统一暗色 Overlay，Drawer 宽度处于 420–520px', () => {

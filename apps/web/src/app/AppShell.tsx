@@ -8,8 +8,10 @@ import { BrandMark } from '@/components/brand/BrandMark'
 import { CommandPalette } from '@/components/command/CommandPalette'
 import { ConfirmDialog } from '@/components/feedback/ConfirmDialog'
 import { ThemeDialog } from '@/components/feedback/ThemeDialog'
+import { useAppToast } from '@/components/feedback/toastContext'
 import { Icon, type IconName } from '@/components/icons/Icon'
 import { authSession } from '@/features/auth/authSession'
+import { PasswordChangeDrawer } from '@/features/auth/PasswordChangeDrawer'
 import { setTheme, type Theme } from '@/state/theme'
 
 const primaryNavigation: ReadonlyArray<readonly [string, string, IconName]> = [
@@ -66,11 +68,12 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
   const [themeOpen, setThemeOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
   const [chipConfirmOpen, setChipConfirmOpen] = useState(false)
+  const [passwordOpen, setPasswordOpen] = useState(false)
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [theme, setThemeState] = useState<Theme>(() =>
     document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
   )
-  const [toast, setToast] = useState<string | null>(null)
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { show } = useAppToast()
   const accountRef = useRef<HTMLDivElement>(null)
   const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const accountMenuRef = useRef<HTMLDivElement>(null)
@@ -88,10 +91,11 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
     setTimeout(() => accountTriggerRef.current?.focus(), 0)
   }
 
-  function showToast(message: string) {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    setToast(message)
-    toastTimerRef.current = setTimeout(() => setToast(null), 2600)
+  /** 退出登录：具名确认后清除会话，经全局 ToastProvider 弹「已退出登录」——全局反馈在
+      AppShell 卸载（ProtectedRoute 重定向到 /login）后仍存活，局部 toast 会在卸载时丢失。 */
+  async function performLogout() {
+    await authSession.logout()
+    show('已退出登录')
   }
 
   function chooseTheme(next: Theme) {
@@ -100,7 +104,7 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
     setThemeOpen(false)
     setAccountOpen(false)
     restoreAccountFocus()
-    showToast(`已切换为${themeLabel(next)}主题`)
+    show(`已切换为${themeLabel(next)}主题`)
   }
 
   function closeAccount() {
@@ -162,13 +166,6 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
       document.removeEventListener('touchstart', handlePointerDown)
     }
   }, [accountOpen])
-
-  // 卸载时清理 toast 定时器
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    }
-  }, [])
 
   // ⌘K 全局打开命令面板（FRONTEND §3.4）
   useEffect(() => {
@@ -239,7 +236,14 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
                   <b>{user.username}</b>
                   <small>{roleLabel(user.role)}</small>
                 </div>
-                <button type="button" role="menuitem">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountOpen(false)
+                    setPasswordOpen(true)
+                  }}
+                >
                   <span className="account-menu__item-copy">
                     <b>修改密码</b>
                     <small>更新当前账户凭据</small>
@@ -260,7 +264,14 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
                   </span>
                   <i aria-hidden="true">→</i>
                 </button>
-                <button type="button" role="menuitem" onClick={() => void authSession.logout()}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountOpen(false)
+                    setLogoutConfirmOpen(true)
+                  }}
+                >
                   <span className="account-menu__item-copy">
                     <b>退出登录</b>
                     <small>返回据见入口</small>
@@ -324,13 +335,18 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
           }}
         />
       ) : null}
-      {toast ? (
-        <div className="toast" role="status">
-          <span className="toast__icon" aria-hidden="true">
-            ✓
-          </span>
-          {toast}
-        </div>
+      {passwordOpen ? <PasswordChangeDrawer onClose={() => setPasswordOpen(false)} /> : null}
+      {logoutConfirmOpen ? (
+        <ConfirmDialog
+          title="退出登录"
+          description="退出后需要重新登录才能继续访问。"
+          confirmLabel="退出登录"
+          onCancel={() => setLogoutConfirmOpen(false)}
+          onConfirm={() => {
+            setLogoutConfirmOpen(false)
+            void performLogout()
+          }}
+        />
       ) : null}
     </div>
   )

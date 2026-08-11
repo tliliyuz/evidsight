@@ -31,6 +31,12 @@ class AuthSession {
     return () => this.sensitiveCleanups.delete(cleanup)
   }
 
+  /** 会话中途认证失败（Access Token 刷新失败/被后端判为无效，FRONTEND §11）：
+   * 清理会话与敏感状态，交由 ProtectedRoute 重定向到登录页，避免卡死在「已登录但无 token」状态。 */
+  handleAuthenticationFailed(): void {
+    this.clearSession()
+  }
+
   private clearSession(): void {
     setAccessToken(null)
     this.sensitiveCleanups.forEach((cleanup) => cleanup())
