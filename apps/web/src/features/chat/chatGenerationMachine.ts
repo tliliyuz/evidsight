@@ -48,9 +48,10 @@ export type ChatGenerationSnapshot = {
   doneMessageId: number | null
   doneTitle: string | null
   /**
-   * 已完成消息的来源：sources 事件不随消息持久化（Message 仅存 content），
-   * done 时把当轮 sources 按 message_id 绑定到此表，历史回读后来源卡片仍可见
-   * （FRONTEND §5.5）。
+   * 已完成消息的来源（内存层）：sources 已随消息持久化到 Message.sources（API.md §12，
+   * 2026-08-10），此处仅为「done 后、服务端回读前」的瞬时兜底，并承载不随来源持久化的
+   * transient confidence/confidence_note；历史回读时持久化来源优先（FRONTEND §5.5）。
+   * done 时把当轮 sources 按 message_id 绑定到此表，新一轮 send 保留。
    */
   completedSources: Record<number, CompletedMessageSources>
 }

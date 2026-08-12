@@ -122,7 +122,106 @@ ADR 检查 1–8：否。本文只重新归档已经发生的前端实施与复�
 
 知识中心删除、主题切换、登录、退出和改密统一使用根级 Toast；错误仍使用字段错误或 Error Surface。Toast 的当前视觉与可访问性事实见 UIDESIGN §6.13，具体行为见 FRONTEND 对应章节。
 
-## 5. 文档收敛结果
+## 5. 切片 4 Chat/问答历史视觉复核轨迹（2026-08-12）
+
+本轮范围为切片 4「据见问答/问答历史」的视觉复核。负责人真机对照跟踪版原型 `data-route-view="chat"`/`chat-history`（`resource/prototype/reference/evidsight-web/index.html`）提出六项差异，逐项修正：
+
+1. **页头补「重命名」**：`chat-header-actions` 加 ghost 按钮；无会话（新对话）时禁用；点击打开重命名对话框（`RenameDialog` 从问答历史抽为共享组件 `components/feedback/RenameDialog.tsx`），成功失效 conversation 查询并关闭，失败 toast 且保持打开。
+2. **KB 触发器改原型 scope-trigger**：「已选知识库 + 数量徽章」（v1 单选为 0/1，`kb-picker__count`）。所选名称移入页头下方 `scope-summary`（「本对话已选择「X」；每轮提问会重新确认访问权限。」），`?kb=` 进入经 `knowledgeApi.getKnowledgeBase` 解析名称、会话回读用 `kb_name`、会话内新选优先 `selectedKbName`。FRONTEND §5.5「被搜索过滤仍显示真实名称」相应改为由 scope-summary 承载。
+3. **引用编号改内联小方块锚点**：由正文下方独立 `ol` 胶囊列表改为 `chat-citation` 24×24 方块锚点（仅编号 01/02/03）内联附于回答正文之后。SSE content 无 claim→source 映射，编号按来源数组顺序整体附于回答尾部、不做逐句归因；文档名由来源卡片（`SourceCards`）承载；保留「按检索相关度排序」说明。
+4. **回答底部信息栏**：`answer-foot` 改「使用 N 个知识库 · M 个来源」+ 右侧「复制回答」（`navigator.clipboard.writeText`，点击短暂显示「已复制」；剪贴板不可用时静默失败）。
+5. **发送按钮**：深色实底 + 右侧 ↗ 箭头（显式 `chat__composer-send-arrow` span，`::after` 抑制避免 `.btn--primary::after` 重复箭头）。
+6. **时间戳**：确认 `formatChatTimestamp` 仅输出本地 `HH:mm`，与原型「EVIDSIGHT · 14:28 / 我 · 14:28」口径一致，无改动。
+
+验证（自动化 GREEN，非负责人验收）：`pnpm build` 通过；vitest 全量 **211 项**全绿（新增页头重命名、回答底部复制、引用方块锚点等用例；知识库选择器徽章相关断言同步更新）；`chat.spec.ts` 9 项按新布局重建基线通过（含新增 `chat-header-scope-light` 截图）。Playwright 全量 45 项未复跑——负责人要求先人工复核、按「改完即 build」迭代推进，验收稳定后再一次性升格。
+
+### 5.1 第二轮（2026-08-12）侧边栏 / 白容器 / 历史列表
+
+负责人第一轮验收后提出四项全局与历史页问题，逐项修正：
+
+1. **侧边栏选中态沾连**：`/chat`、`/research` 两个 NavLink 加 `end` 精确匹配，避免「据见问答」在 `/chat/history` 下也高亮、「研究任务」在 `/research/new` 下也高亮；「知识库」不加 `end`（详情页 `:kbId` 仍属同一导航项）。
+2. **Chat 页白容器**：`.chat` 对齐其它 route-surface 页面（浅灰 Canvas 内单个白色大容器 `max-width:1260px` + 边框圆角，消息流内部滚动、Composer 固定在底部）。注：与 UIDESIGN §7.7「Full-bleed 会话区域」存在取舍，以负责人本轮指示为准，记录于此待后续收敛权威文档。
+3. **问答历史列表**：复用知识库列表模式——`.list-toolbar`（上下 Hairline）：左侧 segmented 时间分类「全部/今天/本周」+ 右侧搜索输入与更新时间排序；Ledger 改固定视口高度内滚动（列头固定、行区内滚、分页固定在底部）。「今天/本周」目前按 `last_message_at` 对服务端返回的当前页做前端筛选；后端列表接口暂无时间范围参数，分类计数与分页仍按「全部」口径，需要精确分类统计时须后端支持（记录待裁决）。
+4. **行操作收敛**：行内只留主操作「打开对话」；「重命名/删除」收敛到 `⋮` 溢出菜单（新增共享组件 `components/overlay/RowMenu.tsx`，点击外部/Escape 关闭），对齐知识库列表「操作列只留主操作、次级操作不挤列」的处理。
+
+验证（自动化 GREEN，非负责人验收）：`pnpm build` 通过；vitest 全量 **212 项**（新增时间分类筛选、行菜单动作用例，行操作断言改为先开菜单）；ESLint/Prettier/Design Token 通过。Playwright 未复跑（负责人要求先人工复核、按「改完即 build」迭代）。
+
+### 5.2 第三轮（2026-08-12）新对话页：Composer / 页头 / 空态 / KB 选择器
+
+负责人提出新对话页四项视觉问题，逐项修正：
+
+1. **Composer 去框 + 深度思考开关**：去掉输入区的边框矩形盒（`chat__composer` 去 border/background，textarea 仅保留底部分隔线），聚焦时 `outline:none` 只保留文本光标；删除「回车发送 · Shift+回车 换行」提示，改为底栏左侧「深度思考」开关按钮（`chat__composer-deep`，前端 `aria-pressed` 状态；后端思考模式落地前为纯前端开关，记录待接入）。
+2. **页头结构**：「← 问答历史」由无边界文字链接改为有边界按钮（`history-trigger`）；删除「据见问答」eyebrow；会话标题与返回按钮同一行基线对齐；`scope-summary` 移入左列（`chat-header__main`）位于标题正下方，不再横跨到右侧动作区。
+3. **空会话留白**：空态由单行提示改为「提示 + 一键问答提示词」三枚胶囊（`QUESTION_PROMPTS`，点击预填输入框），消除输入区与提示之间的大片留白。
+4. **KB 选择器**：修复弹层把容器往右挤的 bug（面板改 `right:0` 右对齐 + `width:min(360px,…)` 窄化）；新增「全部/我的知识库/公共知识库」作用域选中栏（复用 `segmented`，`pickerScope` 并入 queryKey）；`page_size` 由 20 收敛到 5（每类最多平铺 5 条、服务端按更新时间倒序）。
+
+验证（自动化 GREEN，非负责人验收）：`pnpm build` 通过；vitest 全量 **212 项**；ESLint/Prettier 通过。Playwright 未复跑（待负责人验收后统一重建基线）。
+
+负责人复核修正三点（同日）：① 前一轮误删了 Composer 外框——「蓝色输入框」指聚焦时出现的蓝色焦点环而非外层大框，已恢复 `.chat__composer` 外框（border/radius/背景），并让 textarea 聚焦仅保留文本光标（`:focus`/`:focus-visible` 均 `outline:none`）；② 空会话态加问候语「你好，我是 EvidSight，有什么我能帮你的吗？」，提示词由一行三个改为 3-2-1 倒三角（`QUESTION_PROMPT_ROWS`，每行独立 `chat__prompt-row` 居中）；③ scope-summary 归位——由 `chat-header__main` 直下改为包进 `chat-title-col`（与标题同一列，左缘对齐标题而非落到返回按钮下方）。
+
+### 5.3 第四轮（2026-08-12）空态提示 / 输入框高度 / KB 选中态 / 去掉平铺来源
+
+负责人复核四点，逐项修正：
+
+1. **空态提示归位**：「请先选择知识库，再开始问答。」由空态区居中改为放在页头「已选知识库」触发器旁边（`chat-header__kb-hint`，仅未选知识库时显示）；空态区只留问候语 + 倒三角提示词。
+2. **输入框高度**：`.chat__composer textarea` 增加 `min-height:44px`，不低于下方发送按钮高度（此前单行 rows=1 比按钮矮）。
+3. **KB 选中态被裁剪**：`.kb-picker__option[aria-selected='true']` 由 `outline` 改为 `box-shadow: inset 0 0 0 2px var(--es-focus)` + `--es-moonstone-soft` 底色——outline 在滚动容器内被裁剪导致蓝色边框显示不全，inset 边框不被裁剪。
+4. **去掉平铺来源卡片**：`ChatAnswer` 移除 `SourceCards`（回答页不再平铺来源），来源只通过点击正文引用序号锚点打开右侧来源详情抽屉主动查看；删除 `SourceCards.tsx`（仅 ChatAnswer 使用，已无引用）。对应单测/e2e 断言同步改为「引用锚点 → 抽屉」路径。
+
+验证（自动化 GREEN，非负责人验收）：`pnpm build` 通过；vitest 全量 **215 项**；ESLint/Prettier 通过。Playwright 未复跑（待负责人验收后统一重建基线）。
+
+### 5.4 第五轮（2026-08-12）问候语强调 / 孤儿会话 / 重命名弹窗 / 滚动条间距 / 重命名按钮
+
+负责人复核五点，逐项修正：
+
+1. **问候语强调**：`.chat__empty-greeting` 加粗（`font-weight:600`）+ 颜色升到 `--es-ink-primary`，与下方提示词区分。
+2. **孤儿会话处理**：`conversation.kb_status !== 'active'`（deleted/unavailable）时，在输入框上方展示警示条「这个会话的知识库已被删除或暂无权限，请选择其他知识库继续提问。」（`.chat__orphan-warning`，`role="alert"`）并禁用发送（`canSend` 与 `orphanConversation` 取反）；用户重新选择知识库后（`?conversation=` 清除）警示自动消失。
+3. **重命名弹窗间距**：`.dialog__actions` 增加 `margin-top:20px`，取消/保存按钮不再与输入框挤在一起（RenameDialog/ConfirmDialog 共用修复）。
+4. **消息流滚动条与用户气泡**：`.chat__thread` 右侧 padding 由 4px 增至 14px，右对齐的用户气泡/时间戳不再贴到滚动条。
+5. **问答页重命名按钮**：由 `variant="ghost"`（无边框文字）改为默认 `variant`（有边界按钮），与「← 问答历史」按钮一致。
+
+验证（自动化 GREEN，非负责人验收）：`pnpm build` 通过；vitest 全量 **216 项**（新增孤儿会话警示用例）；ESLint/Prettier 通过。Playwright 未复跑（待负责人验收后统一重建基线）。
+
+### 5.5 第六轮（2026-08-12）markdown 渲染 / 品牌提示词 / 来源定位
+
+负责人复核后提出后端品牌名、回答 markdown 渲染与来源页码问题，逐项修正：
+
+1. **后端品牌提示词 DocMind → EvidSight**：`sse_stream.py::_META_RESPONSE`（Chat meta 固定回复）与 `rag/knowledge_pipeline.py::CASUAL_SYSTEM_PROMPT` 两处。后端无 markitdown——文档解析用 `pymupdf`+`pdfplumber`（PDF）+ `python-docx`（DOCX，标题转 `#`），`markdown-it-py` 仅作 md 解析；docx 的 `page` 字段实为段落序号（技术债）。
+2. **回答正文 markdown 渲染**：接入 `react-markdown@10`（新增前端依赖，替代此前手写轻量渲染器；负责人在场确认）。后端注入的 `[来源N]` 标记预处理为 `#cite-N` 链接占位，由自定义 `a` 组件拦截渲染为内联引用按钮（点击打开来源详情抽屉）；内容含内联标记时不再额外渲染正文下方来源条，无标记时保留来源条兜底。
+3. **来源定位 PDF=页 / 其它=段**：`chatFormat.sourceLocation` 按 `doc_name` 扩展名区分——`.pdf` 显示「第 X 页」，docx/md/txt 显示「第 X 段」，落实 PDF 真实页码、其余为段落序号的技术债。
+
+验证（自动化 GREEN，非负责人验收）：后端 `test_knowledge_pipeline` 7 项通过（`test_chat_generation_service` 的 `doc_uuid_map` 失败为 CHANGELOG 已注明的既有 fixture 漂移，与本次无关）；前端 `pnpm build` 通过、vitest 全量 **222 项**（新增 `chat-markdown.test.tsx` 6 项：内联标记识别/粗体/列表/引用按钮/定位页段）、ESLint/Prettier 通过。Playwright 未复跑。
+
+### 5.6 第七轮（2026-08-12）历史 Ledger 列对齐
+
+负责人反馈「对话/知识库/消息/最近更新/操作」列头与列表行未对齐。用 Playwright probe 实测（1280×720、overlay 滚动条）确认：行与表头列模板/内边距本就一致，唯一缺口是「操作」列头左对齐（知识账本 `.ledger__head span:last-child{justify-self:end}` 已处理，对话账本漏了），且表头与行分属不同滚动上下文（表头在容器外、行在 `overflow-y:auto` 的列表内，经典滚动条下会差一个滚动条宽）。修复：① `.conversation-columns span:last-child` 补 `justify-self:end`，操作列头右缘与按钮列右缘对齐；② 重构 `.conversation-ledger` 为统一滚动容器（`overflow-y:auto` + `scrollbar-gutter:stable`），`.conversation-columns` 改 `position:sticky; top:0` + 白底，表头与行同处一个滚动上下文，任意滚动条模式下列对齐一致。probe 复测：前 4 列 x 完全一致，第 5 列右缘对齐。
+
+验证（自动化 GREEN，非负责人验收）：`pnpm build` 通过、vitest 全量 **222 项**、ESLint/Prettier 通过。
+
+### 5.7 第八轮（2026-08-12）共享模式收口：chat 页复用 route-surface
+
+负责人指出 3B 与切片 4 大量是同一问题反复出现，要求停止重造。审计确认根因：3B 确立的共享视觉模式（白卡片 route-surface、Ledger、行操作收敛、segmented、固定高度内滚）在切片 4 各自复制/重造而非复用共享类。本轮收口：
+
+- **chat 页白卡片复用共享类**：`ChatPage` main 由 `<main class="chat">` 改为 `<main class="chat route-surface">`，删除 `.chat` 里复制的白卡片 CSS（width/max-width/margin/padding/border/radius/bg/height/overflow），`.chat` 只留 `gap:16px` 聊天区特有间距。probe 实测：chatBg `#ffffff`、线程内部滚动、composer 底部 719px，与其它 route-surface 页一致。
+- **行操作收敛**（前几轮已完成）：问答历史用共享 `RowMenu`（⋮ 溢出菜单），对齐知识列表「操作列只留主操作」。
+- **列对齐**（上一轮已完成）：对话账本补 `justify-self:end` + sticky 统一滚动上下文，对齐知识 Ledger。
+
+**待收敛项（不属本轮）**：chat 历史 Ledger 用自定义 `conversation-ledger`/`conversation-row` 类而非共享 `.ledger`/`.ledger__row`（视觉已一致，类未复用，列模板不同）；后续页面新增列表时优先复用 UIDESIGN §6 共享组件，不再新造账本类。
+
+验证（自动化 GREEN，非负责人验收）：`pnpm build` 通过、vitest 全量 **222 项**、ESLint/Prettier 通过。
+
+### 5.8 第九轮（2026-08-12）共享 Ledger 复用：问答历史切到共享 .ledger
+
+负责人指出列表页反复出问题、要求复用共享模式。收口共享 Ledger：
+
+1. **共享 `.ledger` 统一为 sticky 表头 + 单滚动容器**：`.ledger` 由 `margin-top:8px` 改为 `flex:1; min-height:0; overflow-y:auto; scrollbar-gutter:stable`；`.ledger__head` 加 `position:sticky; top:0; background`；新增 `.ledger__head span:last-child{justify-self:end}` 通用操作列头右对齐；新增 `.ledger__cell` 基础样式（min-width/color/font-size）。删除 `.kb-page .ledger` 的 grid 行结构 + `.ledger__body` 滚动覆盖。
+2. **问答历史改用共享 `.ledger` 类**：`ConversationHistoryPage` 由 `conversation-ledger/conversation-columns/conversation-list/conversation-row` 改为 `.ledger/.ledger__head/.ledger__body/.ledger__row`，新增 `chat-history-ledger` 列模板修饰（5 列）+ 紧凑行动作 `.ledger__cell--actions .btn`；删除全部自定义 `conversation-*` Ledger CSS。
+
+probe 实测：知识库列表与问答历史均 `ledger` 单滚动 + sticky 表头，前 N 列精确对齐、末列右缘对齐。此轮后知识库 Ledger 基线（3B 时 head 外置 + body 滚动）结构变化，视觉应几乎一致，待统一 e2e 重建基线时确认。
+
+验证（自动化 GREEN，非负责人验收）：`pnpm build` 通过、vitest 全量 **222 项**、ESLint/Prettier 通过。Playwright 未复跑。
+
+## 6. 文档收敛结果
 
 - FRONTEND 只保留当前行为、权限、状态、失败语义和可执行验收条件；
 - UIDESIGN 只保留当前视觉层级、Frame、对齐、尺寸和组件语义；
@@ -130,7 +229,7 @@ ADR 检查 1–8：否。本文只重新归档已经发生的前端实施与复�
 - CHANGELOG 将 3B 记录合并为一个最终结果条目，并将 §4 的内容拆成“前端全局身份与会话修复”条目；
 - 后续视觉纠偏应先在实施过程记录中收集负责人裁决，页面验收稳定后再一次性升格当前事实，避免每轮复核都改写权威规范和 Changelog。
 
-## 6. 相关文档
+## 7. 相关文档
 
 - [FRONTEND.md](FRONTEND.md)
 - [UIDESIGN.md](UIDESIGN.md)

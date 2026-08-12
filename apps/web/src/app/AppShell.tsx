@@ -191,6 +191,8 @@ export function AppShell({ user, researchApi: api = researchApi, children }: Pro
             <NavLink
               key={to}
               to={to}
+              // 有独立子路由导航项时用精确匹配，避免「据见问答/问答历史」「深度研究/研究任务」同时高亮
+              end={to === '/chat' || to === '/research'}
               className={({ isActive }) => (isActive ? 'active' : undefined)}
             >
               <Icon name={icon} />

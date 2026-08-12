@@ -46,6 +46,20 @@ describe('Conversation v1 API 客户端', () => {
     expect(result.total).toBe(1)
   })
 
+  it('列表透传 q / sort_by / order / 分页参数（服务端搜索排序语义）', async () => {
+    const client = fakeClient()
+    client.get.mockResolvedValue({
+      data: { total: 1, page: 3, page_size: 10, items: [CONVERSATION] },
+    })
+    const api = createConversationsApi(client)
+
+    await api.list({ q: '报销', sort_by: 'last_message_at', order: 'asc', page: 3, page_size: 10 })
+
+    expect(client.get).toHaveBeenCalledWith('/api/v1/conversations', {
+      params: { q: '报销', sort_by: 'last_message_at', order: 'asc', page: 3, page_size: 10 },
+    })
+  })
+
   it('详情直返会话并包含消息历史', async () => {
     const client = fakeClient()
     const detail = {
