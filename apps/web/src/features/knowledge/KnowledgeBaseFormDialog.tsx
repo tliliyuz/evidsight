@@ -135,7 +135,7 @@ export function KnowledgeBaseFormDialog({ initial, api = knowledgeApi, onClose, 
               取消
             </button>
             <button type="submit" className="btn btn--primary" disabled={mutation.isPending}>
-              {mutation.isPending ? '提交中…' : '创建'}
+              {mutation.isPending ? '提交中…' : initial ? '保存' : '创建'}
             </button>
           </div>
         </form>

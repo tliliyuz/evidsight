@@ -1,15 +1,26 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
-import { knowledgeApi, type KnowledgeApi, type KnowledgeScope } from '@/api/knowledge'
+import type { UserSummary } from '@/api/auth'
+import {
+  knowledgeApi,
+  type KnowledgeApi,
+  type KnowledgeBase,
+  type KnowledgeScope,
+} from '@/api/knowledge'
+import { ConfirmDialog } from '@/components/feedback/ConfirmDialog'
 import { EmptyState } from '@/components/feedback/EmptyState'
 import { ErrorState } from '@/components/feedback/ErrorState'
 import { Pagination } from '@/components/feedback/Pagination'
 import { Skeleton } from '@/components/feedback/Skeleton'
 import { StatusBadge, type BadgeTone } from '@/components/feedback/StatusBadge'
+import { useAppToast } from '@/components/feedback/toastContext'
+import { RowMenu } from '@/components/overlay/RowMenu'
+import { useCurrentUser } from '@/features/auth/useCurrentUser'
 import { formatTimestamp } from '@/features/knowledge/format'
 import { KnowledgeBaseFormDialog } from '@/features/knowledge/KnowledgeBaseFormDialog'
+import { canManageKb } from '@/features/knowledge/permissions'
 
 /** 列表每页条数（默认 10 条/页，让分页在中等数据量下可见）。 */
 const PAGE_SIZE = 10
@@ -38,20 +49,45 @@ function IndexStatusBadge({ status }: { status?: string | null }) {
   return <StatusBadge tone={tone}>{label}</StatusBadge>
 }
 
-type Props = { api?: KnowledgeApi }
+type Props = { api?: KnowledgeApi; currentUser?: UserSummary | null }
 
-export function KnowledgeBaseListPage({ api = knowledgeApi }: Props) {
+export function KnowledgeBaseListPage({ api = knowledgeApi, currentUser }: Props) {
   const queryClient = useQueryClient()
+  const user = useCurrentUser(currentUser)
+  const { show: showToast } = useAppToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const scope = (searchParams.get('scope') as KnowledgeScope) ?? 'all'
   const q = searchParams.get('q') ?? ''
   const page = Number(searchParams.get('page') ?? '1')
 
   const [creating, setCreating] = useState(false)
+  const [editingTarget, setEditingTarget] = useState<KnowledgeBase | null>(null)
+  const [deletingTarget, setDeletingTarget] = useState<KnowledgeBase | null>(null)
 
   const listQuery = useQuery({
     queryKey: ['knowledge-bases', scope, q, page],
     queryFn: () => api.listKnowledgeBases({ scope, q, page, page_size: PAGE_SIZE }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (target: KnowledgeBase) => api.deleteKnowledgeBase(target.uuid),
+    onSuccess: (_data, target) => {
+      // 从列表缓存移除该 KB（mine 范围后端仍含 deleting，需前端剔除）
+      queryClient.setQueriesData<{ items: { uuid: string }[] }>(
+        { queryKey: ['knowledge-bases'] },
+        (old) =>
+          old ? { ...old, items: old.items.filter((item) => item.uuid !== target.uuid) } : old,
+      )
+      // 删除当前页最后一项（page>1 且仅一条）后回退一页，避免落在空页
+      if (page > 1 && (listQuery.data?.items.length ?? 0) === 1) {
+        const nextParams = new URLSearchParams(searchParams)
+        nextParams.set('page', String(page - 1))
+        setSearchParams(nextParams)
+      }
+      void queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] })
+      setDeletingTarget(null)
+      showToast(`已删除知识库「${target.name}」`)
+    },
   })
 
   function setScope(next: KnowledgeScope) {
@@ -182,11 +218,24 @@ export function KnowledgeBaseListPage({ api = knowledgeApi }: Props) {
                   <span>{formatTimestamp(item.updated_at ?? item.created_at)}</span>
                   {item.owner_username ? <small>{item.owner_username}</small> : null}
                 </div>
-                {/* 操作列只保留主操作「进入知识库」；编辑/删除知识库在详情页 Hero（权限感知） */}
+                {/* 操作列只保留主操作「进入知识库」；编辑/删除知识库收敛到 ⋮ 溢出菜单（Owner 或管理员治理可见） */}
                 <div className="ledger__cell ledger__cell--actions">
                   <Link to={`/knowledge-bases/${item.uuid}`} className="btn">
                     进入知识库
                   </Link>
+                  {canManageKb(item, user) ? (
+                    <RowMenu
+                      label={`知识库操作 ${item.name}`}
+                      actions={[
+                        { label: '编辑', onSelect: () => setEditingTarget(item) },
+                        {
+                          label: '删除知识库',
+                          danger: true,
+                          onSelect: () => setDeletingTarget(item),
+                        },
+                      ]}
+                    />
+                  ) : null}
                 </div>
               </li>
             ))}
@@ -220,6 +269,32 @@ export function KnowledgeBaseListPage({ api = knowledgeApi }: Props) {
             setCreating(false)
             void queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] })
           }}
+        />
+      ) : null}
+
+      {editingTarget ? (
+        <KnowledgeBaseFormDialog
+          initial={editingTarget}
+          api={api}
+          onClose={() => setEditingTarget(null)}
+          onSaved={() => {
+            setEditingTarget(null)
+            void queryClient.invalidateQueries({ queryKey: ['knowledge-base', editingTarget.uuid] })
+            void queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] })
+          }}
+        />
+      ) : null}
+
+      {deletingTarget ? (
+        <ConfirmDialog
+          title={`确定删除知识库「${deletingTarget.name}」？`}
+          description="删除后文档与索引将异步清理，此操作不可撤销。"
+          confirmLabel="确认删除"
+          tone="danger"
+          pending={deleteMutation.isPending}
+          busyLabel="删除中…"
+          onCancel={() => setDeletingTarget(null)}
+          onConfirm={() => deleteMutation.mutate(deletingTarget)}
         />
       ) : null}
     </main>

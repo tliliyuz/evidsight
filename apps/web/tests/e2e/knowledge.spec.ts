@@ -466,21 +466,21 @@ test.describe('知识中心视觉验收', () => {
     await openList(page)
 
     await expect(page.getByText('产品规划与路线图')).toBeVisible()
-    await expect(page.getByRole('button', { name: '编辑' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '删除知识库' })).toHaveCount(0)
+    // 只读成员行内只保留主操作「进入知识库」，无 ⋮ 溢出菜单
+    await expect(page.getByRole('button', { name: /知识库操作/ })).toHaveCount(0)
     await expect(page).toHaveScreenshot('knowledge-perm-readonly-light.png')
   })
 
   test('权限：管理员非 owner 治理可见编辑/删除 - 浅色', async ({ page }) => {
     await setupKnowledge(page, { theme: 'light', user: ADMIN_USER })
-    // 编辑/删除知识库在详情页 Hero（列表操作列只保留主操作「进入知识库」）
-    await openDetail(page)
+    // 治理编辑/删除收敛到列表 ⋮ 溢出菜单（不再位于详情 Hero）
+    await openList(page)
 
     await expect(page.getByText('产品规划与路线图')).toBeVisible()
-    // 治理权限在详情 Hero：admin 非 owner 可见编辑/删除，但上传为 owner-only，不可见
-    await expect(page.getByRole('button', { name: '编辑' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '删除知识库' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '上传文档' })).toHaveCount(0)
+    // admin 非 owner 可见 ⋮ 菜单内的编辑/删除；上传仍为 owner-only
+    await page.getByRole('button', { name: '知识库操作 产品规划与路线图' }).click()
+    await expect(page.getByRole('menuitem', { name: '编辑' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: '删除知识库' })).toBeVisible()
     await expect(page).toHaveScreenshot('knowledge-perm-admin-governance-light.png')
   })
 

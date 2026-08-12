@@ -438,7 +438,7 @@ describe('知识库详情与文档管理', () => {
     expect(screen.queryByText('还没有文档')).not.toBeInTheDocument()
   })
 
-  it('owner 可见上传、编辑、删除知识库与文档操作', async () => {
+  it('owner 可见上传与文档操作；知识库编辑/删除不在详情页（收敛到列表 ⋮ 菜单）', async () => {
     const api = makeApi({
       listDocuments: vi.fn().mockResolvedValue({
         total: 1,
@@ -451,9 +451,9 @@ describe('知识库详情与文档管理', () => {
 
     await screen.findByText('制度汇编.pdf')
     expect(screen.getByRole('button', { name: '上传文档' })).toBeInTheDocument()
-    // 编辑/删除知识库在详情页 Hero（owner 可见）
-    expect(screen.getByRole('button', { name: '编辑' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
+    // 编辑/删除知识库已收敛到列表 ⋮ 菜单，详情 Hero 不再提供
+    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除知识库' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '删除文档' })).toBeInTheDocument()
   })
@@ -469,7 +469,7 @@ describe('知识库详情与文档管理', () => {
     expect(screen.queryByRole('button', { name: '删除文档' })).not.toBeInTheDocument()
   })
 
-  it('管理员非 owner：治理可见编辑/删除知识库与文档，但不可代替 owner 上传/重试', async () => {
+  it('管理员非 owner：治理可见文档删除，但不可代替 owner 上传/重试', async () => {
     const api = makeApi({
       listDocuments: vi.fn().mockResolvedValue({
         total: 1,
@@ -483,24 +483,10 @@ describe('知识库详情与文档管理', () => {
     await screen.findByText('制度汇编.pdf')
     expect(screen.queryByRole('button', { name: '上传文档' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '重试' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '编辑' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
+    // 知识库编辑/删除不在详情页；文档删除仍按治理权限可见
+    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除知识库' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '删除文档' })).toBeInTheDocument()
-  })
-
-  it('删除知识库：具名确认后调用删除并返回列表', async () => {
-    const api = makeApi()
-    renderPage(api)
-
-    await screen.findByText('制度汇编.pdf')
-    fireEvent.click(screen.getByRole('button', { name: '删除知识库' }))
-    expect(await screen.findByText(/确定删除知识库/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '确认删除' }))
-
-    await waitFor(() => expect(api.deleteKnowledgeBase).toHaveBeenCalledWith(KB_UUID))
-    // 删除成功后返回列表并弹成功反馈
-    expect(await screen.findByText('知识库列表')).toBeInTheDocument()
-    expect(screen.getByText(/已删除知识库「合规资料」/)).toBeInTheDocument()
   })
 
   it('Public KB 的 owner 仍可见上传入口（不按 visibility 判断）', async () => {

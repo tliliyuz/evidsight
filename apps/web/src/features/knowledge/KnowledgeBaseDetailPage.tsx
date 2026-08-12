@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import type { UserSummary } from '@/api/auth'
 import { knowledgeApi, type DocumentStatus, type KnowledgeApi } from '@/api/knowledge'
@@ -13,7 +13,6 @@ import { Skeleton } from '@/components/feedback/Skeleton'
 import { StatusBadge, type BadgeTone } from '@/components/feedback/StatusBadge'
 import { useAppToast } from '@/components/feedback/toastContext'
 import { UploadDrawer } from '@/features/knowledge/UploadDrawer'
-import { KnowledgeBaseFormDialog } from '@/features/knowledge/KnowledgeBaseFormDialog'
 import { useCurrentUser } from '@/features/auth/useCurrentUser'
 import { formatTimestamp } from '@/features/knowledge/format'
 import { canManageKb, canUploadToKb, isOwner } from '@/features/knowledge/permissions'
@@ -55,10 +54,7 @@ export function KnowledgeBaseDetailPage({ api = knowledgeApi, currentUser }: Pro
   const q = searchParams.get('q') ?? ''
   const page = Number(searchParams.get('page') ?? '1')
 
-  const navigate = useNavigate()
   const [uploading, setUploading] = useState(false)
-  const [editingKb, setEditingKb] = useState(false)
-  const [deletingKb, setDeletingKb] = useState(false)
   const [deleting, setDeleting] = useState<{ uuid: string; filename: string } | null>(null)
   const [chunkDoc, setChunkDoc] = useState<string | null>(null)
   const { show: showToast } = useAppToast()
@@ -101,21 +97,6 @@ export function KnowledgeBaseDetailPage({ api = knowledgeApi, currentUser }: Pro
     },
   })
 
-  const deleteKbMutation = useMutation({
-    mutationFn: () => api.deleteKnowledgeBase(kbId),
-    onSuccess: () => {
-      // 从列表缓存移除该 KB，返回列表后立即消失（不依赖刷新；mine 范围后端仍含 deleting，需前端剔除）
-      queryClient.setQueriesData<{ items: { uuid: string }[] }>(
-        { queryKey: ['knowledge-bases'] },
-        (old) => (old ? { ...old, items: old.items.filter((item) => item.uuid !== kbId) } : old),
-      )
-      void queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] })
-      setDeletingKb(false)
-      navigate('/knowledge-bases')
-      showToast(`已删除知识库「${kb?.name ?? ''}」`)
-    },
-  })
-
   function setFilter(next: Partial<Record<'status' | 'q' | 'page', string>>) {
     const nextParams = new URLSearchParams(searchParams)
     for (const [key, value] of Object.entries(next)) {
@@ -137,6 +118,7 @@ export function KnowledgeBaseDetailPage({ api = knowledgeApi, currentUser }: Pro
 
   const kb = kbQuery.data
   const canUpload = kb ? canUploadToKb(kb, user) : false
+  // 文档删除：Owner 或管理员治理（知识库编辑/删除已收敛到列表 ⋮ 菜单，不在此 Hero 提供）
   const canManage = kb ? canManageKb(kb, user) : false
   const ownerCanRetry = kb ? isOwner(kb, user) : false
   // Hero owner 展示名：优先后端权威 owner_username；字段缺失时当前用户恰为 owner 则回退到 /me 用户名
@@ -172,20 +154,6 @@ export function KnowledgeBaseDetailPage({ api = knowledgeApi, currentUser }: Pro
                 <button type="button" className="btn" onClick={() => setUploading(true)}>
                   上传文档
                 </button>
-              ) : null}
-              {canManage ? (
-                <>
-                  <button type="button" className="btn" onClick={() => setEditingKb(true)}>
-                    编辑
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--danger-ghost"
-                    onClick={() => setDeletingKb(true)}
-                  >
-                    删除知识库
-                  </button>
-                </>
               ) : null}
             </div>
             {/* 状态行在右侧动作区下方：owner 创建（可见性徽章左侧）→ 可见性徽章 → 绝对时间戳 */}
@@ -382,32 +350,6 @@ export function KnowledgeBaseDetailPage({ api = knowledgeApi, currentUser }: Pro
           busyLabel="删除中…"
           onCancel={() => setDeleting(null)}
           onConfirm={() => deleteMutation.mutate()}
-        />
-      ) : null}
-
-      {editingKb && kb ? (
-        <KnowledgeBaseFormDialog
-          initial={kb}
-          api={api}
-          onClose={() => setEditingKb(false)}
-          onSaved={() => {
-            setEditingKb(false)
-            void queryClient.invalidateQueries({ queryKey: ['knowledge-base', kbId] })
-            void queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] })
-          }}
-        />
-      ) : null}
-
-      {deletingKb ? (
-        <ConfirmDialog
-          title={`确定删除知识库「${kb?.name ?? ''}」？`}
-          description="删除后文档与索引将异步清理，此操作不可撤销。"
-          confirmLabel="确认删除"
-          tone="danger"
-          pending={deleteKbMutation.isPending}
-          busyLabel="删除中…"
-          onCancel={() => setDeletingKb(false)}
-          onConfirm={() => deleteKbMutation.mutate()}
         />
       ) : null}
 

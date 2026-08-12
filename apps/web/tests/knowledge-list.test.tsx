@@ -1,14 +1,30 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { UserSummary } from '@/api/auth'
+import { ToastProvider } from '@/components/feedback/ToastProvider'
 import { KnowledgeBaseListPage } from '@/features/knowledge/KnowledgeBaseListPage'
 import { formatTimestamp } from '@/features/knowledge/format'
 import type { KnowledgeApi, KnowledgeBase } from '@/api/knowledge'
 
 const KB_UUID = '550e8400-e29b-41d4-a716-446655440100'
 const OWNER_ID = '550e8400-e29b-41d4-a716-446655440001'
+
+const OWNER: UserSummary = { id: OWNER_ID, username: 'linmo', role: 'user', status: 'active' }
+const READONLY_MEMBER: UserSummary = {
+  id: '550e8400-e29b-41d4-a716-446655440099',
+  username: 'other',
+  role: 'user',
+  status: 'active',
+}
+const ADMIN_NON_OWNER: UserSummary = {
+  id: '550e8400-e29b-41d4-a716-446655440098',
+  username: 'admin',
+  role: 'admin',
+  status: 'active',
+}
 
 function kb(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
@@ -52,18 +68,27 @@ function makeApi(overrides: Partial<KnowledgeApi> = {}): KnowledgeApi {
   }
 }
 
-function renderPage(api: KnowledgeApi, initialEntry = '/knowledge-bases') {
+function renderPage(
+  api: KnowledgeApi,
+  initialEntry = '/knowledge-bases',
+  currentUser: UserSummary | null = null,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <Routes>
-          <Route path="/knowledge-bases" element={<KnowledgeBaseListPage api={api} />} />
-          <Route path="/knowledge-bases/:kbId" element={<div>知识库详情</div>} />
-        </Routes>
-      </MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <Routes>
+            <Route
+              path="/knowledge-bases"
+              element={<KnowledgeBaseListPage api={api} currentUser={currentUser} />}
+            />
+            <Route path="/knowledge-bases/:kbId" element={<div>知识库详情</div>} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }
@@ -238,13 +263,82 @@ describe('知识库列表页', () => {
     expect(screen.getAllByRole('button', { name: '新建知识库' }).length).toBeGreaterThanOrEqual(2)
   })
 
-  it('列表行操作列只保留「进入知识库」主操作（编辑/删除知识库在详情页）', async () => {
-    renderPage(makeApi())
+  it('Owner 行操作列：进入知识库 + ⋮ 菜单（编辑/删除知识库）', async () => {
+    renderPage(makeApi(), '/knowledge-bases', OWNER)
+    await screen.findByText('合规资料')
+
+    // 行内主操作仍是「进入知识库」；编辑/删除收敛到 ⋮ 溢出菜单
+    expect(screen.getByRole('link', { name: '进入知识库' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '知识库操作 合规资料' }))
+    expect(screen.getByRole('menuitem', { name: '编辑' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '删除知识库' })).toBeInTheDocument()
+  })
+
+  it('只读成员（非 owner 非 admin）行操作列不显示 ⋮ 溢出菜单', async () => {
+    renderPage(makeApi(), '/knowledge-bases', READONLY_MEMBER)
     await screen.findByText('合规资料')
 
     expect(screen.getByRole('link', { name: '进入知识库' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '删除知识库' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /知识库操作/ })).not.toBeInTheDocument()
+  })
+
+  it('管理员非 owner 治理可见 ⋮ 菜单（编辑/删除知识库）', async () => {
+    renderPage(makeApi(), '/knowledge-bases', ADMIN_NON_OWNER)
+    await screen.findByText('合规资料')
+
+    fireEvent.click(screen.getByRole('button', { name: '知识库操作 合规资料' }))
+    expect(screen.getByRole('menuitem', { name: '编辑' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '删除知识库' })).toBeInTheDocument()
+  })
+
+  it('删除知识库：⋮ → 具名确认 → 调用删除并移除行 + 全局成功反馈', async () => {
+    const api = makeApi()
+    // 删除后列表接口不再返回该 KB（与真实后端一致），验证行从列表消失
+    let deleted = false
+    api.deleteKnowledgeBase = vi.fn().mockImplementation(() => {
+      deleted = true
+      return Promise.resolve(undefined)
+    })
+    api.listKnowledgeBases = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        total: deleted ? 0 : 1,
+        page: 1,
+        page_size: 20,
+        items: deleted ? [] : [kb()],
+      }),
+    )
+    renderPage(api, '/knowledge-bases', OWNER)
+    await screen.findByText('合规资料')
+
+    fireEvent.click(screen.getByRole('button', { name: '知识库操作 合规资料' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '删除知识库' }))
+    expect(await screen.findByText(/确定删除知识库「合规资料」/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '确认删除' }))
+
+    await waitFor(() => expect(api.deleteKnowledgeBase).toHaveBeenCalledWith(KB_UUID))
+    await waitFor(() => expect(screen.queryByText('合规资料')).not.toBeInTheDocument())
+    expect(await screen.findByText(/已删除知识库「合规资料」/)).toBeInTheDocument()
+  })
+
+  it('编辑知识库：⋮ → 抽屉预填并保存后调用 updateKnowledgeBase', async () => {
+    const api = makeApi()
+    renderPage(api, '/knowledge-bases', OWNER)
+    await screen.findByText('合规资料')
+
+    fireEvent.click(screen.getByRole('button', { name: '知识库操作 合规资料' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '编辑' }))
+    const dialog = await screen.findByRole('dialog', { name: '编辑知识库' })
+    const nameInput = within(dialog).getByLabelText('知识库名称')
+    expect(nameInput).toHaveValue('合规资料')
+    fireEvent.change(nameInput, { target: { value: '合规资料 V2' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(api.updateKnowledgeBase).toHaveBeenCalledWith(
+        KB_UUID,
+        expect.objectContaining({ name: '合规资料 V2' }),
+      ),
+    )
   })
 
   it('底部说明哪些文档会参与检索', async () => {
