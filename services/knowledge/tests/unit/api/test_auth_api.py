@@ -738,6 +738,56 @@ class TestAuthMiddleware:
         body = response.json()
         assert body["code"] == "E5004"
 
+    def _expired_access_token(self, jti: str) -> str:
+        """构造签名/Issuer/Audience 均正确、仅 exp 已过的 access token。
+
+        复用 create_access_token 的 Claim 结构；与中间件 decode 使用同一
+        settings 密钥，确保唯一失败原因是「过期」。
+        """
+        from datetime import datetime, timedelta, timezone
+
+        from jose import jwt as jose_jwt
+
+        now = datetime.now(timezone.utc)
+        payload = {
+            "iss": settings.EVIDSIGHT_PLATFORM_JWT_ISSUER,
+            "aud": settings.platform_jwt_audiences,
+            "sub": "550e8400-e29b-41d4-a716-446655440001",
+            "role": "user",
+            "token_type": "access",
+            "jti": jti,
+            "iat": now - timedelta(minutes=20),
+            "nbf": now - timedelta(minutes=20),
+            "exp": now - timedelta(minutes=5),
+        }
+        return jose_jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+    @pytest.mark.asyncio
+    async def test_expired_token_returns_401_E5003(self, async_client):
+        """过期 access token → 401 E5003（legacy 信封）。
+
+        对齐 api_response E5003 契约：中间件必须把「已过期」与「无效」区分，
+        供前端收到 AUTH_TOKEN_EXPIRED 时静默刷新。此前中间件对过期统一返回
+        E5004，导致前端把过期当致命错误直接登出（见 CHANGELOG 2026-08-12）。
+        """
+        response = await async_client.get(
+            "/api/knowledge-bases",
+            headers={"Authorization": f"Bearer {self._expired_access_token('expired-legacy')}"},
+        )
+        assert response.status_code == 401
+        assert response.json()["code"] == "E5003"
+
+    @pytest.mark.asyncio
+    async def test_expired_token_v1_returns_AUTH_TOKEN_EXPIRED(self, async_client):
+        """过期 access token → 401 AUTH_TOKEN_EXPIRED（v1 信封，前端据此静默续期）。"""
+        response = await async_client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {self._expired_access_token('expired-v1')}"},
+        )
+        assert response.status_code == 401
+        body = response.json()
+        assert body["error"]["error_code"] == "AUTH_TOKEN_EXPIRED"
+
     @pytest.mark.asyncio
     async def test_public_route_skips_middleware(self, async_client):
         """公开路由 OPTIONS /api/auth/login 被中间件放行（不要求 Token）"""

@@ -9,7 +9,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.core.api_response import error_envelope
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token_with_status
 
 # 不需要认证的公开路由（已完整覆盖 /docs 及其子路径）
 # 事件③：/api/v1/auth/login 与 /api/v1/auth/refresh 公开（凭据来自 Cookie + CSRF）；
@@ -35,14 +35,24 @@ def _is_public(path: str) -> bool:
     )
 
 
-def _invalid_token_response(request: Request, detail: str) -> JSONResponse:
+def _invalid_token_response(
+    request: Request,
+    detail: str,
+    code: str = "E5004",
+    message: str = "Token 无效或格式错误",
+) -> JSONResponse:
+    """构造 401 认证错误响应。
+
+    code/message 由调用方按失败原因决定：默认 E5004（无效）；已过期传入
+    E5003「Token 已过期」——前端仅在收到 AUTH_TOKEN_EXPIRED 时静默刷新。
+    """
     if request.url.path.startswith("/api/v1/"):
         request_id = request.headers.get("X-Request-ID") or uuid4().hex
         return JSONResponse(
             status_code=401,
             content=error_envelope(
-                code="E5004",
-                message="Token 无效或格式错误",
+                code=code,
+                message=message,
                 request_id=request_id,
                 status_code=401,
                 retryable=False,
@@ -51,7 +61,7 @@ def _invalid_token_response(request: Request, detail: str) -> JSONResponse:
         )
     return JSONResponse(
         status_code=401,
-        content={"code": "E5004", "message": "Token 无效或格式错误", "detail": detail},
+        content={"code": code, "message": message, "detail": detail},
     )
 
 
@@ -83,9 +93,17 @@ class AuthMiddleware:
             return
 
         token = auth_header[7:]
-        payload = decode_access_token(token)
+        payload, status = decode_access_token_with_status(token)
 
-        if not payload:
+        if status == "expired":
+            # 已过期：返回 E5003，前端据此静默刷新（对齐 api_response E5003 契约）。
+            response = _invalid_token_response(
+                request, "Token 已过期", code="E5003", message="Token 已过期"
+            )
+            await response(scope, receive, send)
+            return
+
+        if status == "invalid":
             response = _invalid_token_response(request, "Token 解析失败或已过期")
             await response(scope, receive, send)
             return

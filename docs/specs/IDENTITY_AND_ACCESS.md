@@ -108,7 +108,7 @@ Claims 只能携带稳定身份语义，不嵌入知识库列表、资源权限�
 - 两个服务使用相同 Claim 语义和时间规则；密钥通过部署 Secret 注入，不写入仓库、日志或错误响应。
 - Access Token 的 `aud` 是包含 `evidsight-knowledge` 与 `evidsight-research` 的数组；Knowledge 与 Research 分别从自己的配置读取期望 Audience，并只接受数组中包含自身 Audience 的 Token。
 - 每个受保护请求验证签名、算法、Issuer、Audience、`token_type`、必需 Claims 和时间窗口。
-- Claim 缺失、类型错误、签名失败和过期统一映射为安全认证错误，不向客户端区分密码、密钥或验证器内部细节。
+- Claim 缺失、类型错误、签名失败和过期统一映射为安全认证错误（401），不向客户端区分密码、密钥或验证器内部细节。Token 自身 `exp` 已过是客户端可观测状态，返回明确的「已过期」认证错误（`AUTH_TOKEN_EXPIRED`），供前端静默刷新续期；其余验证失败返回「无效」认证错误（`AUTH_TOKEN_INVALID`）。ADR 检查 1–8：否（记录见 CHANGELOG，2026-08-12）。
 
 Access Token 应采用分钟级短有效期。精确默认值由部署配置权威定义；改变有效期不得改变已签发 Token 的 `exp`，并必须评估禁用传播延迟和刷新压力。
 
