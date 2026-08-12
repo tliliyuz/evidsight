@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 RETRIEVABLE_STATUSES = ["completed", "success_with_warnings", "partial_failed"]
 
 # 闲谈模式 System Prompt（不注入文档上下文）
-CASUAL_SYSTEM_PROMPT = "你是 DocMind，一个企业知识库助手。请友好、简洁地回答用户的问题。"
+CASUAL_SYSTEM_PROMPT = "你是 EvidSight，一个企业知识库助手。请友好、简洁地回答用户的问题。"
 
 
 @dataclass

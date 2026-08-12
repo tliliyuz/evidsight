@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 # META 固定回复模板（对齐 ARCHITECTURE.md §5.1.6）
 _META_RESPONSE = (
-    "我是 DocMind，一个企业知识库智能问答助手。\n\n"
+    "我是 EvidSight，一个企业知识库智能问答助手。\n\n"
     "我可以帮你：\n"
     "1. 查询知识库中的文档信息\n"
     "2. 回答关于公司制度、流程、规范等问题\n"
