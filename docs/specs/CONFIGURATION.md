@@ -72,6 +72,7 @@
 | `JWT_ALGORITHM` | Knowledge/Research | enum | `HS256` | public |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Knowledge/Research | int | `15` | public |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Knowledge/Research | int | `7` | public |
+| `REFRESH_TOKEN_CONCURRENT_GRACE_SECONDS` | Knowledge | int | `10` | public |
 | `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME` | Platform | string | `__Host-evidsight_refresh` | public |
 | `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_PATH` | Platform | string | `/`（`__Host-` 前缀强制 Path=/，RFC 6265bis §5.5） | public |
 | `EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE` | Platform | bool | `true` | public |

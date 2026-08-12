@@ -31,7 +31,16 @@ function errorCode(error: AxiosError): string | undefined {
   return body?.error?.error_code
 }
 
-async function requestFreshAccessToken(): Promise<string> {
+const REFRESH_CONCURRENT_MAX_ATTEMPTS = 2
+const REFRESH_CONCURRENT_RETRY_DELAY_MS = 300
+
+function isConcurrentRefreshConflict(error: AxiosError): boolean {
+  const body = error.response?.data as
+    { error?: { error_code?: string }; code?: string } | undefined
+  return body?.error?.error_code === 'AUTH_REFRESH_CONCURRENT' || body?.code === 'E5011'
+}
+
+async function postRefresh(): Promise<{ access_token: string }> {
   const csrfToken = readCsrfToken()
   if (!csrfToken) {
     throw new Error('缺少 CSRF Token')
@@ -40,7 +49,25 @@ async function requestFreshAccessToken(): Promise<string> {
     headers: { 'X-CSRF-Token': csrfToken },
     withCredentials: true,
   })
-  return response.data.access_token
+  return response.data
+}
+
+/** 刷新 Access Token；并发刷新冲突（409 AUTH_REFRESH_CONCURRENT）时短等后重试一次。
+ *  并发冲突是良性竞态（多标签页同时用同一 Cookie 刷新）：胜者响应已把新 Cookie 写入
+ *  jar，重试即用新值恢复（FRONTEND §11 / IA-011）。其余失败原样抛出交调用方登出。 */
+export async function refreshAccessTokenWithRetry(attempt = 0): Promise<string> {
+  try {
+    const { access_token } = await postRefresh()
+    setAccessToken(access_token)
+    return access_token
+  } catch (error) {
+    const axiosError = error as AxiosError
+    if (isConcurrentRefreshConflict(axiosError) && attempt + 1 < REFRESH_CONCURRENT_MAX_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, REFRESH_CONCURRENT_RETRY_DELAY_MS))
+      return refreshAccessTokenWithRetry(attempt + 1)
+    }
+    throw error
+  }
 }
 
 type RetriableConfig = InternalAxiosRequestConfig & { __authRetried?: boolean }
@@ -86,7 +113,7 @@ export function createApiClient(options: ClientOptions = {}): AxiosInstance {
     // Access Token 过期（E5003）：并发共享单次刷新并携带新 token 重放。
     if (is401 && isExpired && config && !config.__authRetried) {
       config.__authRetried = true
-      refreshInFlight ??= (options.refreshAccessToken ?? requestFreshAccessToken)()
+      refreshInFlight ??= (options.refreshAccessToken ?? refreshAccessTokenWithRetry)()
         .then((token) => {
           setAccessToken(token)
           return token

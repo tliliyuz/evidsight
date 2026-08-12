@@ -133,8 +133,8 @@ Refresh Token 只由 Knowledge Auth API 接收和处理，Research Service、URL
 
 - 数据库只保存 Refresh Token 的抗离线破解哈希、`jti`、Platform User ID、Token Family、签发/过期/撤销时间和必要审计元数据。
 - 每次成功刷新必须签发新的 Access Token 和 Refresh Token，并在同一事务中撤销旧 Refresh Token。
-- 已轮换 Token 再次出现视为重放：撤销整个 Token Family，记录安全审计事件，并要求用户重新登录。
-- 并发刷新只允许一个请求成功；其余请求按已轮换或冲突处理，不能生成多个有效后继。
+- 已轮换 Token 在轮换宽限期（`REFRESH_TOKEN_CONCURRENT_GRACE_SECONDS`，默认 10s）**之外**再次出现视为重放：撤销整个 Token Family，记录安全审计事件，并要求用户重新登录。
+- 并发刷新只允许一个请求成功；其余请求按已轮换或冲突处理，不能生成多个有效后继。被轮换 Token 在宽限期**之内**被复用属于同一客户端多标签页/并发刷新的良性竞态，按并发刷新冲突处理：不撤销 Token Family、不签发新 Token，返回冲突（409 `AUTH_REFRESH_CONCURRENT`）；浏览器 Cookie jar 已由胜者响应更新，客户端重试即用新值恢复。
 - 退出登录撤销当前 Token Family；管理员禁用用户时撤销该用户全部 Token Family。
 
 ### 4.2 浏览器传输
@@ -301,14 +301,14 @@ Knowledge Service 的校验顺序为：
 | IA-001 | 用户登录后调用 Knowledge 与 Research | 两个服务识别为同一 Platform User ID 和角色 |
 | IA-002 | Token Algorithm、Issuer、Audience、类型或时间无效 | 请求被拒绝，不暴露验证细节 |
 | IA-003 | 使用有效 Refresh Token 刷新 | 旧 Token 撤销，仅新后继有效 |
-| IA-004 | 重放已轮换 Refresh Token | 整个 Token Family 撤销并记录安全事件 |
+| IA-004 | 重放已轮换 Refresh Token（宽限期外） | 整个 Token Family 撤销并记录安全事件 |
 | IA-005 | 管理员禁用用户 | 登录、刷新、新任务、Chat、上传、重处理、治理写操作、内部检索和原文访问均失败 |
 | IA-006 | Research 服务凭证有效但用户无 KB 权限 | Knowledge 拒绝，不执行检索 |
 | IA-007 | 报告完成后撤销用户 KB 权限 | 报告历史引用可见，内部原文不可展开 |
 | IA-008 | `hybrid` 任务包含私有内部内容 | 内部内容不进入互联网搜索词 |
 | IA-009 | 外部 LLM 未获私有内容外发许可 | 调用失败关闭并记录策略拒绝 |
 | IA-010 | 签名密钥轮换 | 窗口内按 Key ID 验证新旧 Token，窗口后旧 Key 失效 |
-| IA-011 | 用户并发刷新同一 Token | 至多一个请求成功，不产生两个有效后继 |
+| IA-011 | 用户并发刷新同一 Token（宽限期内复用） | 至多一个请求成功，不产生两个有效后继；复用方按并发冲突返回 409，不撤销 Family |
 | IA-012 | Internal Retrieval 缺少服务身份或用户上下文 | 请求被拒绝且不返回 Evidence |
 | IA-013 | Access Token Claim 不含展示字段 | 用户名、角色和状态从 `/api/v1/auth/me` 当前状态读取 |
 | IA-014 | 调用 `/api/v1/auth/me` | 返回 Platform User UUID 摘要，禁用/不存在统一拒绝 |

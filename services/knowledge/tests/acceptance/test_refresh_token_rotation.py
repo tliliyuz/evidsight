@@ -112,7 +112,9 @@ async def test_ia004_重放已轮换token撤销family并记录安全事件():
         token_hash=hash_token(token_text),
         issued_at=datetime.now(timezone.utc) - timedelta(minutes=1),
         expires_at=datetime.now(timezone.utc) + timedelta(days=7),
-        rotated_at=datetime.now(timezone.utc),
+        # 超过并发宽限期（REFRESH_TOKEN_CONCURRENT_GRACE_SECONDS，默认 10s）才判真重放；
+        # 宽限期内的复用走 test_ia011_* 并发冲突分支，不撤销 Family。
+        rotated_at=datetime.now(timezone.utc) - timedelta(seconds=60),
         replaced_by_id=42,
     )
     db = AsyncMock()
@@ -140,6 +142,64 @@ async def test_ia004_重放已轮换token撤销family并记录安全事件():
     assert token_text not in str(event.details)
     assert hash_token(token_text) not in str(event.details)
     assert not any(isinstance(item, RefreshToken) for item in added)
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_ia011_宽限期内复用被轮换token按并发冲突处理不撤销family():
+    """IA-011：并发刷新同一 Token → 按冲突处理，不产生两个有效后继。
+
+    被轮换 Token 在并发宽限期内（REFRESH_TOKEN_CONCURRENT_GRACE_SECONDS，默认 10s）
+    被再次使用，判定为同一客户端多标签页/并发刷新的良性竞态（IA:137「其余请求按
+    已轮换或冲突处理」），不撤销 Token Family、不签发新 Token，返回并发冲突错误；
+    删除宽限期判定、误撤销 Family 或误签 Token 时必须失败。
+    """
+    from app.core.exceptions import RefreshConcurrentException
+    from app.core.logging_config import request_id_var
+    from app.models.refresh_token_family import RefreshTokenFamily
+    from app.services.auth_service import refresh
+
+    token_text = create_refresh_token(PLATFORM_USER_ID, FAMILY_ID)
+    family = RefreshTokenFamily(
+        id=FAMILY_ID,
+        user_id=PLATFORM_USER_ID,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
+    old_token = RefreshToken(
+        id=41,
+        family_id=FAMILY_ID,
+        token_hash=hash_token(token_text),
+        issued_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        rotated_at=datetime.now(timezone.utc),  # 宽限期内
+        replaced_by_id=42,
+    )
+    db = AsyncMock()
+    db.add = MagicMock()
+    db.execute = AsyncMock(side_effect=[_scalar_result(old_token), _scalar_result(family)])
+
+    request_id_token = request_id_var.set("ia011-request-id")
+    try:
+        with pytest.raises(RefreshConcurrentException) as exc:
+            await refresh(db, token_text)
+    finally:
+        request_id_var.reset(request_id_token)
+
+    assert exc.value.error_code == "E5011"
+    # Family 未被撤销，不产生新的 RefreshToken 后继
+    assert family.revoked_at is None
+    assert family.revoke_reason is None
+    added = [call.args[0] for call in db.add.call_args_list]
+    assert not any(isinstance(item, RefreshToken) for item in added)
+    # 记录并发冲突审计（与重放审计区分，便于观测良性竞态与窃取）
+    audit_events = [item for item in added if type(item).__name__ == "IdentityAuditEvent"]
+    assert len(audit_events) == 1
+    event = audit_events[0]
+    assert event.user_id == PLATFORM_USER_ID
+    assert event.event_type == "refresh_concurrent"
+    assert event.request_id == "ia011-request-id"
+    assert event.outcome == "denied"
+    assert event.details == {"family_id": FAMILY_ID, "action": "concurrent_conflict"}
     db.commit.assert_awaited_once()
 
 

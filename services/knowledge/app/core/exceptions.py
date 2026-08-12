@@ -253,6 +253,24 @@ class TokenLeakDetectedException(AppException):
         )
 
 
+class RefreshConcurrentException(AppException):
+    """并发刷新冲突（IA-011）：被轮换 Token 在宽限期内被再次使用。
+
+    视为同一客户端多标签页/并发刷新的良性竞态，不撤销 Token Family、不签发
+    新 Token，返回 409 由客户端用更新后的 Cookie 重试；clear_auth_cookies 保持
+    False（路由不强制置 True），避免像重放/过期那样清除 Refresh/CSRF Cookie。
+    """
+
+    def __init__(self, detail: str = ""):
+        super().__init__(
+            "E5011",
+            "并发刷新冲突，请重试",
+            409,
+            detail
+            or "refresh_token 在轮换宽限期内被并发使用，已按并发冲突处理（不撤销 Token Family）",
+        )
+
+
 # ==================== 用户管理错误 E7xxx ====================
 
 

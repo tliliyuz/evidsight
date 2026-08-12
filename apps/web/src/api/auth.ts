@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { apiClient, readCsrfToken, setAccessToken } from '@/api/client'
+import { apiClient, readCsrfToken, refreshAccessTokenWithRetry, setAccessToken } from '@/api/client'
 
 export type UserSummary = {
   id: string
@@ -45,12 +45,8 @@ export const authApi = {
   },
 
   async refresh(): Promise<{ access_token: string }> {
-    const { data } = await axios.post<{ access_token: string }>('/api/v1/auth/refresh', null, {
-      headers: csrfHeaders(),
-      withCredentials: true,
-    })
-    setAccessToken(data.access_token)
-    return data
+    const access_token = await refreshAccessTokenWithRetry()
+    return { access_token }
   },
 
   async me(): Promise<UserSummary> {

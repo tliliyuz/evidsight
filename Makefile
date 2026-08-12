@@ -1,7 +1,10 @@
-.PHONY: setup-python-dev test test-knowledge test-research test-web fast-unit contracts-ci openapi-ci type-check type-check-docker build-web config compose-config
+.PHONY: setup-python-dev tls-dev test test-knowledge test-research test-web fast-unit contracts-ci openapi-ci type-check type-check-docker build-web config compose-config
 
 setup-python-dev:
 	bash scripts/setup_python_dev.sh
+
+tls-dev:
+	bash scripts/generate_dev_tls.sh
 
 test:
 	bash scripts/test_all.sh

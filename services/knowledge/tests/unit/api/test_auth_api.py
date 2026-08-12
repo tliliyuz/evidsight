@@ -9,6 +9,7 @@ import pytest
 from app.config import settings
 from app.core.exceptions import (
     InvalidCredentialsException,
+    RefreshConcurrentException,
     RefreshTokenExpiredException,
     TokenLeakDetectedException,
     UserDisabledException,
@@ -467,6 +468,21 @@ class TestV1RefreshAPI:
         cookies = _cookies_from_response(response)
         assert cookies[self.REFRESH_COOKIE]["max-age"] == "0"
         assert cookies[self.CSRF_COOKIE]["max-age"] == "0"
+
+    @pytest.mark.asyncio
+    async def test_refresh_concurrent_409_does_not_clear_cookies(self, async_client):
+        """IA-011：并发刷新冲突（宽限期内复用被轮换 token）→ 409，不清除 Cookie。
+
+        并发冲突是良性竞态：cookie jar 已由胜者响应更新，客户端重试即可恢复，
+        不应像重放/过期那样清除 Refresh/CSRF Cookie。
+        """
+        with patch("app.api.auth.refresh", new_callable=AsyncMock, create=True) as mock_refresh:
+            mock_refresh.side_effect = RefreshConcurrentException()
+            response = await self._post_refresh(async_client)
+
+        assert response.status_code == 409
+        assert response.json()["error"]["error_code"] == "AUTH_REFRESH_CONCURRENT"
+        assert not response.headers.get_list("set-cookie")
 
 
 class TestV1LogoutAPI:

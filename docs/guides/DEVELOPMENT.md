@@ -166,9 +166,15 @@ git status --short
 Mac 的完整 Docker 开发环境继续使用根 Compose，不依赖三台生产云节点。服务 `.venv` 只承载编辑器解析、ruff、mypy、pre-commit 及不依赖 MySQL/Redis/Celery/外部 Provider 的纯单元检查；集成测试、Worker、迁移、smoke 与依赖外部服务的测试一律在 Docker Compose 中执行，不得用本机进程替代：
 
 ```bash
+# 首次启动前生成本地自签 TLS 证书（nginx HTTPS 用；产物在 deploy/secrets/nginx/，git 忽略）
+bash scripts/generate_dev_tls.sh
+# 或 make tls-dev；局域网 IP 访问可附加 --ip <局域网IP> 重新生成
+
 docker compose up -d
 docker compose ps
 ```
+
+本机 Web 通过 **`https://localhost`** 访问（nginx 同时提供 80→443 重定向；刷新/退出所需的 `Secure` Cookie 只在 HTTPS 下可用）。首次访问自签证书会有浏览器「不受信任」提示，点「高级 → 继续」即可；局域网 IP 访问需用 `--ip` 重新生成证书并在浏览器接受该地址的自签提示。
 
 本地环境只使用开发卷、开发密钥和 Compose 服务名；不得注入生产私网地址、生产 Secret 或连接生产 MySQL/Redis。停止服务默认保留本地卷。
 

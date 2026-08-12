@@ -16,6 +16,7 @@ from app.core.exceptions import (
     InvalidCredentialsException,
     InvalidRefreshTokenException,
     PasswordSameAsCurrentException,
+    RefreshConcurrentException,
     RefreshTokenExpiredException,
     RefreshTokenRevokedException,
     TokenLeakDetectedException,
@@ -210,14 +211,43 @@ async def refresh(db: AsyncSession, refresh_token_str: str) -> TokenResponse:
         # token 不在数据库中（可能从未存储或已被清理）
         raise InvalidRefreshTokenException("refresh_token 不存在")
 
-    # 已轮换 Token 再次出现属于重放，安全状态必须在返回 401 前持久化。
+    # 已轮换 Token 再次出现：先判并发宽限期，再判真重放。
+    # IA:137 / IA-011 要求并发刷新按「已轮换或冲突」处理；IA:136 / IA-004 要求真重放撤销 Family。
     if rt.rotated_at is not None:
+        now = datetime.now(timezone.utc)
         family_result = await db.execute(
             select(RefreshTokenFamily).where(RefreshTokenFamily.id == family_id).with_for_update()
         )
         replayed_family = family_result.scalar_one_or_none()
+        within_grace = (now - rt.rotated_at) <= timedelta(
+            seconds=settings.REFRESH_TOKEN_CONCURRENT_GRACE_SECONDS
+        )
+
+        if within_grace:
+            # 并发刷新冲突（IA-011）：同一客户端多标签页/并发刷新竞态（通常两标签页
+            # 同时用同一 Cookie 值刷新）。不撤销 Token Family、不签发新 Token——
+            # 胜者响应已把新 Cookie 写入浏览器，客户端重试即用新值恢复；clear_auth_cookies
+            # 保持 False，路由不强制清除 Refresh/CSRF Cookie。记录并发审计便于与真重放区分。
+            if replayed_family is not None:
+                db.add(
+                    IdentityAuditEvent(
+                        user_id=replayed_family.user_id,
+                        actor_user_id=None,
+                        event_type="refresh_concurrent",
+                        request_id=get_request_id() or None,
+                        outcome="denied",
+                        details={
+                            "family_id": replayed_family.id,
+                            "action": "concurrent_conflict",
+                        },
+                    )
+                )
+                await db.flush()
+                await db.commit()
+            raise RefreshConcurrentException()
+
+        # 真重放（IA-004）：宽限期外复用属于 Token 泄露，安全状态必须在返回 401 前持久化。
         if replayed_family is not None:
-            now = datetime.now(timezone.utc)
             if replayed_family.revoked_at is None:
                 replayed_family.revoked_at = now
                 replayed_family.revoke_reason = "refresh_token_replay"

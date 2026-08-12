@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     EVIDSIGHT_KNOWLEDGE_JWT_AUDIENCE: str = "evidsight-knowledge"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # access_token 短有效期（对齐 API.md §2）
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # refresh_token 长有效期
+    REFRESH_TOKEN_CONCURRENT_GRACE_SECONDS: int = (
+        10  # 并发刷新宽限期：被轮换 token 在此窗口内复用判为并发冲突（IA-011）而非重放撤销
+    )
     REFRESH_TOKEN_SECRET_KEY: str = ""  # 空则回退到 JWT_SECRET_KEY
 
     # ── Refresh Cookie / CSRF（事件③，对齐 ADR-006 / CONFIGURATION.md §3.1）──
