@@ -347,7 +347,7 @@ textarea:focus-visible {
   padding: 6px 12px;
   border: 1px solid var(--es-border-default);
   border-radius: var(--es-radius-control);
-  color: var(--es-moonstone);
+  color: var(--es-ink-secondary);
   background: var(--es-surface);
   font-size: 13px;
   text-decoration: none;
@@ -591,7 +591,7 @@ textarea:focus-visible {
 
 .launcher-card__action {
   flex: none;
-  color: var(--es-moonstone);
+  color: var(--es-ink-primary);
   font-size: 13px;
   white-space: nowrap;
 }
@@ -615,7 +615,7 @@ textarea:focus-visible {
 }
 
 .recent-section__header a {
-  color: var(--es-moonstone);
+  color: var(--es-ink-secondary);
   font-size: 13px;
   text-decoration: none;
 }
@@ -800,23 +800,26 @@ textarea:focus-visible {
   background: var(--es-moonstone);
 }
 
+/* 进行中研究 CTA：与主按钮同口径近黑实底白字（对齐 UIDESIGN §6.1 Luminous Primary），
+   保留「→」文字（不套 .btn--primary 以免与 RECENT RESEARCH 空态「开始研究 ↗」在测试中歧义） */
 .active-mission > a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 40px;
   padding: 0 16px;
-  border: 1px solid var(--es-moonstone);
+  border: 1px solid var(--es-ink-primary);
   border-radius: var(--es-radius-control);
   color: var(--es-canvas);
-  background: var(--es-moonstone);
+  background: var(--es-ink-primary);
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
 }
 
 .active-mission > a:hover {
-  background: var(--es-moonstone-hover);
+  background: var(--es-ink-primary);
+  filter: brightness(1.12);
 }
 
 .knowledge-quick__list {
@@ -937,7 +940,7 @@ textarea:focus-visible {
 
 .btn--ghost {
   border-color: transparent;
-  color: var(--es-moonstone);
+  color: var(--es-ink-secondary);
   background: transparent;
 }
 
@@ -1095,9 +1098,9 @@ textarea:focus-visible {
   letter-spacing: 0.05em;
 }
 
-/* 操作列表头右对齐：与右侧 flex-end 的按钮列对齐 */
+/* 操作列表头：在操作列内居中（对齐下方按钮组视觉重心，避免被推到列最右缘） */
 .ledger__head span:last-child {
-  justify-self: end;
+  justify-self: center;
 }
 
 .ledger__body {
@@ -1171,7 +1174,7 @@ textarea:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  justify-content: flex-end;
+  justify-content: center;
 }
 
 /* 知识库 Ledger 列：知识库/描述 | 可见性 | 文档 | 索引状态 | 最近更新 | 操作 */
@@ -1184,12 +1187,6 @@ textarea:focus-visible {
 .doc-ledger .ledger__head,
 .doc-ledger .ledger__row {
   grid-template-columns: minmax(220px, 2fr) 168px 88px 120px minmax(220px, 1.2fr);
-}
-
-/* 操作列表头右对齐：与右侧 flex-end 的按钮列对齐（知识库：进入/编辑/删除；文档：查看切片/删除/重试） */
-.kb-ledger .ledger__head span:last-child,
-.doc-ledger .ledger__head span:last-child {
-  justify-self: end;
 }
 
 .ledger__cell--state {

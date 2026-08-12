@@ -232,6 +232,30 @@ probe 实测：知识库列表与问答历史均 `ledger` 单滚动 + sticky 表
 
 验证（自动化 GREEN，非负责人验收）：`pnpm build` 通过、vitest 全量 **222 项**、ESLint/Prettier 通过。Playwright 未复跑。
 
+### 5.9 第十轮（2026-08-12）全局按钮颜色统一与废弃目录清理
+
+负责人复核工作台发现「开始研究」仍为品牌蓝，要求所有按钮统一为黑/白。审计定位残留：品牌蓝 `--es-moonstone` 除语义用途（选中态/徽章/进度/hover/焦点环）外仍出现在 5 处按钮控件上，逐项改中性：
+
+- `.active-mission > a`（进行中研究「开始研究/进入研究现场」CTA）→ 近黑实底白字（与 `.btn--primary` 同口径；保留 `→` 文字不套 `.btn--primary`，避免与 RECENT RESEARCH 空态「开始研究 ↗」在测试定位上歧义）；
+- `.launcher-card__action`（「进入问答/定义范围 →」）→ `--es-ink-primary`；
+- `.btn--ghost`（切片抽屉「上一段/下一段」）→ `--es-ink-secondary`；
+- `.recent-section__header a`（「查看全部」）→ `--es-ink-secondary`；
+- `.running-chip`（运行中态文字）→ `--es-ink-secondary`；闲时态本为 `--es-ink-muted` 覆盖，故 chat/history/knowledge 基线无漂移。
+
+验证（自动化 GREEN，非负责人验收）：vitest 225 项、ESLint/Prettier/build/Design Token 通过；DOM 探针确认 launcher 动作 ink-primary、active-mission CTA 近黑实底白字、查看全部 ink-secondary；Playwright 全量重建 10 张工作台基线，landing 深色入口复跑 5/5 通过。另按负责人指示删除 `.opencode/` 目录（2 个跟踪插件文件，opencode 不再使用）。
+
+### 5.10 第十一轮（2026-08-12）Ledger 操作列头居中
+
+负责人反馈问答历史与知识库列表「操作」列头被 `justify-self:end` 推到列最右缘、悬在 ⋮ 图标上方，要求「在正中间」。probe 实测（1280×720）：知识库操作列宽 240px，列头右对齐落在 x=1223–1247 的 ⋮ 正上方；问答历史操作列 141px 同样把列头顶到右缘。收口：
+
+- `.ledger__head span:last-child` 由 `justify-self:end` 改 `justify-self:center`；删除 `.kb-ledger/.doc-ledger .ledger__head span:last-child{justify-self:end}` 的更高优先级覆盖；
+- `.ledger__cell--actions` 由 `justify-content:flex-end` 改 `justify-content:center`，让操作按钮组在列内对称居中；
+- probe 复测：两页列头中心与按钮组中心偏差 **0px**（知识库按钮组在 240px 列内每侧留 49px、问答历史每侧 13px），列头不再悬于 ⋮ 之上。
+
+此改动取代 5.6/5.8 轮「操作列头右缘对齐」的既定口径；权威视觉事实见 UIDESIGN §7.9/§7.10（操作表头与按钮组居中对齐）。
+
+验证（自动化 GREEN，非负责人验收）：vitest 225 项、ESLint/Prettier/build/Design Token 通过；Playwright 全量 **46 项**通过，知识库/问答历史受影响 22 张基线重建（列头居中 + 按钮组居中），其余页面无漂移。
+
 ## 6. 文档收敛结果
 
 - FRONTEND 只保留当前行为、权限、状态、失败语义和可执行验收条件；
