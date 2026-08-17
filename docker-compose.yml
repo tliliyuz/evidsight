@@ -65,6 +65,8 @@ x-research-environment: &research-environment
   EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE: ${EVIDSIGHT_RESEARCH_SERVICE_JWT_PRIVATE_KEY_FILE:-/run/secrets/service_jwt_private.pem}
   EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID: ${EVIDSIGHT_RESEARCH_SERVICE_JWT_ACTIVE_KID:-dev-20260805}
   EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS: ${EVIDSIGHT_PLATFORM_SERVICE_JWT_TTL_SECONDS:-300}
+  # Internal Identity Status 基址（Research → Knowledge，API.md §11.1；创建任务前 fail-closed 复核用户状态，必须直达内部网络不走 Nginx）
+  EVIDSIGHT_KNOWLEDGE_INTERNAL_BASE_URL: ${EVIDSIGHT_KNOWLEDGE_INTERNAL_BASE_URL:-http://knowledge-api:8000}
 
 x-knowledge-service: &knowledge-service
   build:

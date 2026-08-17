@@ -58,8 +58,11 @@ if sys.platform == "win32":
         worker_pool="solo",
     )
 
-# 注册任务模块（导入即注册 @celery_app.task 装饰的任务）
+# 注册任务模块（导入即注册 @celery_app.task 装饰的任务）。
+# research_task 与 periodic 都是副作用导入：import 即注册，不能按“未使用”删掉
+# （lint 曾误删 research_task，导致 worker 收到「未注册任务」被丢弃，回归测试已覆盖）。
 import app.tasks.periodic  # noqa: E402, F401
+import app.tasks.research_task  # noqa: E402, F401
 
 
 @worker_ready.connect
