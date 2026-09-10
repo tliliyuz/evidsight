@@ -28,8 +28,13 @@ COPY requirements.txt ./requirements.txt
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
     && pip install --no-cache-dir --user -r requirements.txt
 
-# ── 运行镜像 ──
-FROM python:3.12-slim AS runtime
+FROM builder AS typecheck-builder
+
+COPY requirements-dev.txt ./requirements-dev.txt
+RUN pip install --no-cache-dir --user -r requirements-dev.txt
+
+# ── 运行镜像公共基座 ──
+FROM python:3.12-slim AS runtime-base
 
 WORKDIR /app
 
@@ -52,7 +57,7 @@ RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/source
 # 从 builder 复制已安装的 Python 包
 COPY --from=builder /root/.local /root/.local
 
-# 复制应用代码
+# 复制应用代码并准备统一入口
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini .
@@ -65,3 +70,9 @@ EXPOSE 8000
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["web"]
+
+FROM runtime-base AS typecheck
+
+COPY --from=typecheck-builder /root/.local /root/.local
+
+FROM runtime-base AS runtime

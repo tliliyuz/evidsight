@@ -1,5 +1,7 @@
 """智能分块模块单元测试 — 覆盖数据类、估算函数、偏移映射、页码定位、核心分块逻辑、§8.7 章节检测"""
 
+from typing import cast
+
 from app.config import settings
 from app.rag.chunker import (
     ChunkingResult,
@@ -334,7 +336,7 @@ class TestDetectSections:
 
     def test_空文本(self):
         assert detect_sections("") == []
-        assert detect_sections(None) == []  # type: ignore
+        assert detect_sections(cast(str, None)) == []
 
     def test_无标题文本(self):
         sections = detect_sections("这是普通文本，没有任何标题。\n还是普通文本。")

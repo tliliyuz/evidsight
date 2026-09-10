@@ -100,6 +100,7 @@ class TestBudgetStop:
             task, steps, evidence_count=0, published_completeness=_published(0.90)
         )
         assert status == "failed"
+        assert err is not None
         assert err["error_code"] == "E3103"
 
     def test_未预算停止_仍走正常运行守卫(self):

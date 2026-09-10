@@ -63,6 +63,11 @@ class KnowledgeBaseResponse(BaseModel):
     chunk_count: int
     created_at: datetime
     updated_at: datetime | None = None
+    index_status: str | None = Field(
+        None,
+        description="权威聚合索引状态：ready（可检索）/ updating（索引更新中）/ recovering（恢复中）",
+    )
+    owner_username: str | None = Field(None, description="owner 用户名（列表/详情 Hero 展示）")
 
     model_config = {"from_attributes": True}
 

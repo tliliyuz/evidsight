@@ -9,6 +9,7 @@
 
 import asyncio
 import json
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -19,6 +20,7 @@ from app.pipeline.sse_bridge import (
     EVENT_AGENT_OBSERVATION,
     EVENT_PHASE_STARTED,
     EVENT_TASK_STATUS_SNAPSHOT,
+    SSEBridge,
     sse_event_stream,
 )
 from app.services.agent_event_service import (
@@ -86,7 +88,7 @@ async def _seed_events(db_session: AsyncSession) -> str:
         )
     )
     await db_session.flush()
-    recorder = AgentEventRecorder("cursor-task-1", db_session, RecordingSSE())
+    recorder = AgentEventRecorder("cursor-task-1", db_session, cast(SSEBridge, RecordingSSE()))
     await recorder.record(
         event_type=EVENT_TYPE_PHASE_ENTER,
         sse_event=EVENT_PHASE_STARTED,

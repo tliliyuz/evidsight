@@ -3,10 +3,12 @@
 import logging
 import time
 import uuid as uuid_lib
+from typing import cast
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.pool import QueuePool
 
 from app.core.database import engine
 from app.core.exceptions import (
@@ -32,7 +34,7 @@ logger = logging.getLogger(__name__)
 def _pool_status() -> str:
     """获取数据库连接池状态（用于诊断连接池耗尽）"""
     try:
-        pool = engine.sync_engine.pool
+        pool = cast(QueuePool, engine.sync_engine.pool)
         return (
             f"pool[size={pool.size()}, checkedin={pool.checkedin()}, "
             f"checkedout={pool.checkedout()}, overflow={pool.overflow()}]"
@@ -133,13 +135,28 @@ async def create_conversation(
 
 
 async def list_conversations(
-    db: AsyncSession, user_id: int, page: int = 1, page_size: int = 20
+    db: AsyncSession,
+    user_id: int,
+    page: int = 1,
+    page_size: int = 20,
+    q: str | None = None,
+    sort_by: str = "last_message_at",
+    order: str = "desc",
 ) -> ConversationListResponse:
-    """获取当前用户会话列表，按 last_message_at DESC 分页"""
+    """获取当前用户会话列表，分页返回。
+
+    查询语义（对齐 API.md §7）：q 标题模糊搜索（可选）；sort_by 允许列表
+    （当前仅 last_message_at）；order=asc|desc 默认 desc；last_message_at 为
+    NULL 的会话恒排末尾（与 order 方向无关）。搜索与排序在服务端执行。
+    """
     t_start = time.time()
 
-    # 总数
-    count_q = select(func.count()).select_from(Conversation).where(Conversation.user_id == user_id)
+    conditions = [Conversation.user_id == user_id]
+    if q:
+        conditions.append(Conversation.title.like(f"%{q}%"))
+
+    # 总数（随 q 过滤）
+    count_q = select(func.count()).select_from(Conversation).where(*conditions)
     t0 = time.time()
     total = (await db.execute(count_q)).scalar() or 0
     t_count = time.time() - t0
@@ -147,32 +164,41 @@ async def list_conversations(
     # 分页查询（selectinload KB 用于 kb_status 填充）
     offset = (page - 1) * page_size
     list_q = (
-        select(Conversation)
-        .options(selectinload(Conversation.knowledge_base))
-        .where(Conversation.user_id == user_id)
-        .order_by(Conversation.last_message_at.desc())
-        .offset(offset)
-        .limit(page_size)
+        select(Conversation).options(selectinload(Conversation.knowledge_base)).where(*conditions)
     )
+    if sort_by == "last_message_at":
+        # NULL 恒末尾：以 IS NULL 标记为第一排序键（非 NULL=0 恒前），再按方向排时间
+        nulls_last = case((Conversation.last_message_at.is_(None), 1), else_=0)
+        col = Conversation.last_message_at
+        if order == "asc":
+            list_q = list_q.order_by(nulls_last.asc(), col.asc())
+        else:
+            list_q = list_q.order_by(nulls_last.asc(), col.desc())
+    list_q = list_q.offset(offset).limit(page_size)
     t0 = time.time()
     rows = (await db.execute(list_q)).scalars().unique().all()
     t_select = time.time() - t0
 
     t0 = time.time()
     # B 类：owner_user_id 输出 Platform User UUID；所有会话同属当前用户，只解析一次
-    owner_uuid = await resolve_user_uuid(db, user_id) if rows else None
     items = []
-    for c in rows:
-        resp = _build_conversation_response(c, owner_uuid)
-        _enrich_kb_status(resp, c, user_id)
-        items.append(resp)
+    if rows:
+        owner_uuid = await resolve_user_uuid(db, user_id)
+        for c in rows:
+            resp = _build_conversation_response(c, owner_uuid)
+            _enrich_kb_status(resp, c, user_id)
+            items.append(resp)
     t_serialize = time.time() - t0
 
     t_total = time.time() - t_start
     logger.info(
-        "list_conversations user=%d page=%d %s → COUNT=%.3fs SELECT=%.3fs SERIALIZE=%.3fs TOTAL=%.3fs %s",
+        "list_conversations user=%d page=%d q=%r sort_by=%s order=%s %s → "
+        "COUNT=%.3fs SELECT=%.3fs SERIALIZE=%.3fs TOTAL=%.3fs %s",
         user_id,
         page,
+        q,
+        sort_by,
+        order,
         _pool_status(),
         t_count,
         t_select,

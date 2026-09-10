@@ -22,7 +22,11 @@ from app.core.csrf import (
     set_refresh_cookie,
     verify_csrf,
 )
-from app.core.exceptions import AppException, InvalidRefreshTokenException
+from app.core.exceptions import (
+    AppException,
+    InvalidRefreshTokenException,
+    RefreshConcurrentException,
+)
 from app.dependencies import get_current_user, get_db
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -121,8 +125,12 @@ async def refresh_token_v1(
             raise InvalidRefreshTokenException("缺少 Refresh Cookie")
     try:
         token = await refresh(db, refresh_token_str)
+    except RefreshConcurrentException:
+        # 并发刷新冲突（IA-011）：不撤销 Cookie（cookie jar 已由胜者响应更新，
+        # 客户端重试即用新值恢复），clear_auth_cookies 保持默认 False。
+        raise
     except AppException as exc:
-        # 刷新失败：标记清除 Cookie，由全局 AppException handler 在错误响应上执行
+        # 其余刷新失败：标记清除 Cookie，由全局 AppException handler 在错误响应上执行
         # （注入的 Response 在抛异常时会被错误响应替换，Cookie 必须挂在错误响应上）。
         exc.clear_auth_cookies = True
         raise
@@ -166,6 +174,17 @@ async def logout_user_v1(
     clear_auth_cookies(response)
     response.status_code = 204
     return response
+
+
+@v1_router.put("/password", status_code=204)
+async def change_user_password_v1(
+    req: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """修改密码并撤销全部 Refresh Family；成功返回 204 无正文。"""
+    await change_password(db, user["user_id"], req.old_password, req.new_password)
+    return Response(status_code=204)
 
 
 @router.post("/register", status_code=201, response_model=dict)

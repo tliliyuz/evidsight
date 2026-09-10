@@ -145,9 +145,36 @@ def extract_citation_indices(text: str) -> set[str]:
     return set(_CITATION_PATTERN.findall(text))
 
 
+_WIRE_SOURCE_KEYS = (
+    "chunk_index",
+    "document_uuid",
+    "segment_id",
+    "doc_name",
+    "score",
+    "page",
+    "section_title",
+    "section_path",
+    "preview_text",
+    "preview_range",
+    "highlight_start",
+    "highlight_end",
+)
+
+
+def project_wire_source(chunk: dict) -> dict:
+    """把来源 chunk 投影为 canonical wire 字段（剔除内部 doc_id 与 content）。
+
+    单一事实（API.md §12）：ChatSourceChunk 完整模型含 doc_id/content，仅供内部与
+    SSE 全量事件使用；持久化（Message.metadata.sources）与 v1 canonical 投影
+    （chat_v1._canonical_stream）统一经此投影，避免两处字段漂移。缺省字段为 None。
+    """
+    return {key: chunk.get(key) for key in _WIRE_SOURCE_KEYS}
+
+
 def build_sources(
     chunks: list,
     doc_map: dict[int, str],
+    doc_uuid_map: dict[int, str] | None = None,
 ) -> list[ChatSourceChunk]:
     """构建 sources 事件的 chunks 列表。
 
@@ -157,7 +184,10 @@ def build_sources(
     - preview_text：Evidence 定位（matched_sentence ±100 字符窗口）
     - highlight_start / highlight_end：证据句在 preview_text 内的偏移，前端纯渲染
     - doc_name 从 doc_map 查询
+    - document_uuid / segment_id：稳定身份（doc_uuid_map + chunk.segment_uuid），
+      前端据此进入文档切片抽屉并展开引用切片；doc_uuid_map 缺省时 document_uuid 为 None
     """
+    uuid_map = doc_uuid_map or {}
     sources = []
     for i, chunk in enumerate(chunks):
         chunk_index = i + 1  # 与 LLM Prompt 中 [来源N] 编号一致
@@ -194,6 +224,8 @@ def build_sources(
                 doc_name=doc_map.get(chunk.doc_id, ""),
                 content=content,
                 score=round(chunk.score, 4),
+                document_uuid=uuid_map.get(chunk.doc_id),
+                segment_id=getattr(chunk, "segment_uuid", None) or None,
                 page=chunk.page,
                 section_title=getattr(chunk, "section_title", None) or None,
                 section_path=getattr(chunk, "section_path", None) or None,

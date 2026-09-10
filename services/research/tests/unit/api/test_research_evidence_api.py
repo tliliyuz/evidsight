@@ -10,6 +10,7 @@
 
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, patch
 
 from app.models.claim import Claim
 from app.models.evidence_item import EvidenceItem
@@ -150,7 +151,7 @@ class TestEvidenceListAPI:
         )
         assert resp.status_code == 200
         body = resp.json()
-        items = body["data"]["items"]
+        items = body["items"]
         assert len(items) == 2
         web = next(i for i in items if i["source_type"] == "web")
         internal = next(i for i in items if i["source_type"] == "internal")
@@ -200,7 +201,7 @@ class TestEvidenceDetailAPI:
         task, report, rev, ev1, section, claim = await _seed_task_with_data(db_session)
         resp = await async_client.get(f"/api/v1/evidence/{ev1.external_id}", headers=auth_headers)
         assert resp.status_code == 200
-        data = resp.json()["data"]
+        data = resp.json()
         assert data["evidence_id"] == ev1.external_id
         assert data["source_type"] == "web"
 
@@ -211,6 +212,18 @@ class TestEvidenceDetailAPI:
         )
         assert resp.status_code in (403, 404)
 
+    async def test_鉴权后证据被删除_返回404(self, db_session, async_client, auth_headers):
+        """依赖鉴权完成后证据消失时，不得返回成功信封 data=null。"""
+        task, report, rev, ev1, section, claim = await _seed_task_with_data(db_session, "e002")
+        with patch(
+            "app.api.research_evidence.report_reader.get_evidence_detail",
+            new=AsyncMock(return_value=None),
+        ):
+            resp = await async_client.get(
+                f"/api/v1/evidence/{ev1.external_id}", headers=auth_headers
+            )
+        assert resp.status_code == 404
+
 
 class TestEvidenceRelationsAPI:
     async def test_证据关系列表(self, db_session, async_client, auth_headers):
@@ -219,11 +232,23 @@ class TestEvidenceRelationsAPI:
             f"/api/v1/evidence/{ev1.external_id}/relations", headers=auth_headers
         )
         assert resp.status_code == 200
-        data = resp.json()["data"]
+        data = resp.json()
         assert len(data["items"]) == 1
         assert data["items"][0]["relation_type"] == "supports"
         assert float(data["items"][0]["confidence"]) == 0.9
         assert data["items"][0]["claim"]["statement"] == "这是结论。"
+
+    async def test_鉴权后证据被删除_返回404(self, db_session, async_client, auth_headers):
+        """关系查询重取不到证据时，不得返回成功信封 data=null。"""
+        task, report, rev, ev1, section, claim = await _seed_task_with_data(db_session, "e003")
+        with patch(
+            "app.api.research_evidence.report_reader.list_evidence_relations",
+            new=AsyncMock(return_value=None),
+        ):
+            resp = await async_client.get(
+                f"/api/v1/evidence/{ev1.external_id}/relations", headers=auth_headers
+            )
+        assert resp.status_code == 404
 
 
 class TestReportAPI:
@@ -231,7 +256,7 @@ class TestReportAPI:
         task, report, rev, ev1, section, claim = await _seed_task_with_data(db_session)
         resp = await async_client.get(f"/api/v1/reports/{report.id}", headers=auth_headers)
         assert resp.status_code == 200
-        data = resp.json()["data"]
+        data = resp.json()
         assert data["report_id"] == report.id
         assert data["task_id"] == task.id
         assert data["revision"] == 1
@@ -247,6 +272,6 @@ class TestReportAPI:
             headers=auth_headers,
         )
         assert resp.status_code == 200
-        data = resp.json()["data"]
+        data = resp.json()
         assert data["section_id"] == section.external_id
         assert data["heading"] == "1. 概述"

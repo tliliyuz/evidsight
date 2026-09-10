@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>EvidSight · 静态交互原型</title>
+  <script>if ('scrollRestoration' in history) history.scrollRestoration = 'manual'</script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="knowledge.css">
+  <link rel="stylesheet" href="redesign.css">
+  <link rel="stylesheet" href="iteration.css">
+  <link rel="stylesheet" href="work.css">
+  <link rel="stylesheet" href="light.css" id="light-theme" disabled>
+  <style>.chat-main,.message-stream{min-height:0}</style>
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <svg class="svg-defs" aria-hidden="true">
+    <symbol id="brand-mark" viewBox="0 0 36 36">
+      <path d="M29.4 10.2A14 14 0 1 0 31.7 23"/>
+      <path d="M9.5 23.8 17.8 18l7.7-7.2M17.8 18l8.6 5.4"/>
+      <circle cx="17.8" cy="18" r="2.5"/>
+      <circle class="signal" cx="29.4" cy="10.2" r="2"/>
+      <circle cx="26.4" cy="23.4" r="1.7"/>
+    </symbol>
+  </svg>
+
+  <div id="landing" class="landing" data-view="landing">
+    <header class="public-header">
+      <a class="brand" href="#landing" aria-label="EvidSight 首页">
+        <svg><use href="#brand-mark"></use></svg>
+        <span>EvidSight</span>
+      </a>
+      <div class="public-header-actions">
+        <nav class="public-nav" aria-label="公共导航">
+          <a href="#narrative">产品能力</a>
+          <a href="#research-method">研究方式</a>
+          <a href="#evidence-story">安全与证据</a>
+        </nav>
+        <button class="ghost-button" data-action="open-login">登录</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <svg class="hero-lines" viewBox="0 0 1440 860" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="trace" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#A9C7D8" stop-opacity="0"/>
+              <stop offset=".5" stop-color="#F4F7FA" stop-opacity=".72"/>
+              <stop offset="1" stop-color="#70D3D0" stop-opacity=".08"/>
+            </linearGradient>
+          </defs>
+          <path class="draw-line primary-trace" d="M-50 676C210 670 265 420 476 443S731 707 931 512s248-306 573-201"/>
+          <path class="draw-line secondary-trace" d="M101 890C210 650 361 599 535 635s270 5 372-178 282-244 590-170"/>
+          <path class="contour" d="M950 93c132 1 251 61 303 160s29 219-58 285-219 67-308 2-109-183-47-286S994 92 950 93Z"/>
+          <path class="contour contour-two" d="M965 142c98 0 187 45 226 119s21 163-44 211-163 49-229 1-82-136-36-212 115-119 83-119Z"/>
+          <circle class="node node-a" cx="477" cy="443" r="4"/>
+          <circle class="node node-b" cx="931" cy="512" r="4"/>
+          <circle class="node node-c" cx="1253" cy="253" r="5"/>
+        </svg>
+
+        <div class="hero-copy">
+          <p class="eyebrow">EVIDENCE-LED INTELLIGENCE · 01</p>
+          <h1 id="hero-title">看见线索之间<br><span>真正重要的联系</span></h1>
+          <p class="hero-lede">在内部知识与开放世界之间，追索、交叉验证，直到答案显出轮廓。</p>
+          <div class="hero-actions">
+            <button class="luminous-button" data-action="open-login">
+              <span>进入据见</span><i aria-hidden="true">↗</i>
+            </button>
+            <a class="text-link" href="#narrative">沿着证据往下看 <span>↓</span></a>
+          </div>
+        </div>
+        <div class="hero-coordinate" aria-hidden="true">31.2304° N<br>121.4737° E</div>
+        <p class="hero-proof">权限在每次取证时复核 · 结论与来源始终相连</p>
+      </section>
+
+      <section id="narrative" class="narrative-section split-section">
+        <div class="section-index">02 / SIGNALS</div>
+        <div class="section-statement">
+          <p class="eyebrow">散落的信息并不等于知识</p>
+          <h2>让内部经验与<br>开放世界彼此印证</h2>
+        </div>
+        <div class="source-orbit" aria-label="内部知识和公开网络汇聚示意">
+          <div class="orbit-label internal">内部知识 <small>12 SOURCES</small></div>
+          <svg viewBox="0 0 560 300" aria-hidden="true">
+            <path d="M-10 91C153 91 163 163 282 163S416 91 570 91"/>
+            <path d="M-10 236C150 236 174 163 282 163s145 73 288 73"/>
+            <circle cx="282" cy="163" r="32"/>
+            <circle class="pulse" cx="282" cy="163" r="5"/>
+          </svg>
+          <div class="orbit-label web">公开网络 <small>48 SOURCES</small></div>
+        </div>
+      </section>
+
+      <section id="research-method" class="narrative-section process-story">
+        <div class="section-index">03 / METHOD</div>
+        <div class="process-heading">
+          <p class="eyebrow">不隐藏过程，也不倾倒思维链</p>
+          <h2>研究，在你看得见的地方发生</h2>
+        </div>
+        <div class="phase-line" aria-label="七阶段研究流程">
+          <span class="done">规划</span><i></i>
+          <span class="done">检索</span><i></i>
+          <span class="done">获取</span><i></i>
+          <span class="active">重排</span><i></i>
+          <span>综合</span><i></i>
+          <span>证据图谱</span><i></i>
+          <span>生成报告</span>
+        </div>
+      </section>
+
+      <section id="evidence-story" class="narrative-section evidence-story">
+        <div class="section-index">04 / EVIDENCE</div>
+        <div class="evidence-quote">
+          <span class="citation">12</span>
+          <p>没有凭据，<br>不立结论。</p>
+          <small>每个关键 Claim 都能回到来源、定位与当前权限。</small>
+        </div>
+        <button class="luminous-button large" data-action="open-login">
+          <span>发起研究</span><i aria-hidden="true">↗</i>
+        </button>
+      </section>
+    </main>
+
+    <footer class="public-footer">
+      <a class="brand small" href="#landing"><svg><use href="#brand-mark"></use></svg><span>EvidSight</span></a>
+      <span>从线索，到可信结论。</span>
+      <span>© 2026</span>
+    </footer>
+  </div>
+
+  <div id="app" class="app-shell" data-view="app" hidden>
+    <aside class="app-sidebar">
+      <a class="brand app-brand" href="#workbench">
+        <svg><use href="#brand-mark"></use></svg><span>EvidSight</span>
+      </a>
+      <nav class="app-nav" aria-label="应用导航">
+        <a href="#workbench" data-route="workbench"><i class="nav-icon fa-solid fa-house"></i>工作台</a>
+        <a href="#chat" data-route="chat"><i class="nav-icon fa-solid fa-message"></i>据见问答</a>
+        <a href="#chat-history" data-route="chat-history"><i class="nav-icon fa-solid fa-clock-rotate-left"></i>问答历史</a>
+        <a href="#knowledge" data-route="knowledge"><i class="nav-icon fa-solid fa-database"></i>知识库</a>
+        <a href="#research-create" data-route="research-create"><i class="nav-icon fa-solid fa-microscope"></i>深度研究</a>
+        <a href="#research-tasks" data-route="research-tasks"><i class="nav-icon fa-solid fa-list-check"></i>研究任务</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <a href="#admin" data-route="admin"><i class="nav-icon fa-solid fa-gear"></i>管理中心</a>
+        <button class="account" data-action="toggle-account-menu" aria-expanded="false"><span class="avatar">林</span><span><b>林默</b><small>研究策略部</small></span><i class="account-caret">⌃</i></button>
+        <div class="account-menu" id="account-menu" aria-hidden="true">
+          <div class="account-menu-head"><b>林默</b><small>linmo@example.com</small></div>
+          <button data-action="open-password"><span><b>修改密码</b><small>更新当前账户凭据</small></span><i>→</i></button>
+          <button data-action="open-theme"><span><b>主题选择</b><small id="theme-current-label">当前：深色</small></span><i>→</i></button>
+          <button class="danger" data-action="open-logout"><span><b>退出登录</b><small>返回据见入口</small></span><i>→</i></button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="app-main">
+      <header class="app-header">
+        <div class="breadcrumb"><span>EVIDSIGHT</span><i>/</i><b id="route-title">工作台</b></div>
+        <div class="header-actions">
+          <button class="running-chip" data-nav="research"><span></span>1 项研究进行中</button>
+          <button class="command">⌘&nbsp;&nbsp;搜索或执行指令 <kbd>⌘ K</kbd></button>
+        </div>
+      </header>
+
+      <main class="route-stage">
+        <section class="route-view" data-route-view="workbench">
+          <div class="page-heading"><div><p class="eyebrow">工作台 · 07/31</p><h1>下午好，林默</h1><p>从一个问题开始，或继续正在形成的结论。</p></div><span class="coordinates">今天 14:32 更新</span></div>
+          <div class="workbench-grid">
+            <div class="primary-column">
+              <article class="workbench-launcher luminous-surface"><p class="eyebrow">开始</p><h2>今天要看清什么？</h2><p>快速询问已有知识，或启动一项可恢复、可追踪的深度研究。</p><div><button data-nav="chat"><small>快速提问</small><b>向企业知识提问</b><span>进入问答 →</span></button><button data-nav="research-create"><small>深度研究</small><b>发起新的研究任务</b><span>定义范围 →</span></button></div></article>
+              <section class="recent-section">
+                <header><p class="eyebrow">最近研究</p><a href="#research-tasks">查看全部</a></header>
+                <div class="task-list">
+                  <button class="task-row" data-nav="research"><span class="channel hybrid">混合</span><span class="task-copy"><b>全球企业级 AI Agent 平台竞争格局</b><small>综合中 · 6 分钟前更新</small></span><span class="row-progress"><i style="--progress:68%"></i></span><span>68%</span><em>→</em></button>
+                  <button class="task-row" data-nav="report"><span class="channel internal">内部</span><span class="task-copy"><b>Q2 客户流失原因与产品机会分析</b><small>部分完成 · 昨天 18:42</small></span><span class="status partial">部分完成</span><em>→</em></button>
+                  <button class="task-row" data-nav="report"><span class="channel web">公开</span><span class="task-copy"><b>2026 数据基础设施趋势观察</b><small>已完成 · 7 月 28 日</small></span><span class="status complete">已完成</span><em>→</em></button>
+                </div>
+              </section>
+            </div>
+            <aside class="context-column">
+              <article class="active-mission">
+                <p class="eyebrow">进行中的研究 <span class="live-dot"></span></p><h3>全球企业级 AI Agent 平台竞争格局</h3><p>正在综合内部客户反馈和 48 个公开来源。</p><div class="thin-progress"><i></i></div><button data-nav="research">进入研究现场 →</button>
+              </article>
+              <article class="knowledge-quick"><p class="eyebrow">最近知识库</p><a href="#knowledge"><b>产品规划与路线图</b><small>216 个文档 · 2 小时前更新</small></a><a href="#knowledge"><b>客户反馈与访谈</b><small>489 个文档 · 昨天更新</small></a><a href="#knowledge"><b>行业与竞品资料</b><small>128 个文档 · 7 月 27 日更新</small></a></article>
+            </aside>
+          </div>
+        </section>
+
+        <section class="route-view research-create-route" data-route-view="research-create" hidden>
+          <div class="research-create-heading"><div><p class="eyebrow">发起研究</p><h1>把一个模糊问题，<br><span>变成可验证的研究。</span></h1><p>定义问题、证据边界和研究方式；提交后任务在后台独立运行。</p></div><a href="#research-tasks" class="text-link">查看研究任务 →</a></div>
+          <div class="research-create-grid"><form class="research-brief" id="research-create-form"><label><span>研究主题</span><textarea id="research-topic">对比三家主流 AI Agent 平台的企业级落地路径，结合内部客户反馈与公开产品资料，分析其差异、风险与进入机会。</textarea></label><div class="brief-row"><label><span>研究类型</span><button type="button" class="select-field">对比研究 <i>展开</i></button></label><label><span>来源策略</span><div class="strategy research-strategy"><button type="button">内部知识</button><button type="button">公开网络</button><button type="button" class="active">混合研究</button></div></label></div><label><span>内部知识范围</span><button type="button" class="select-field"><b>产品规划与路线图、客户反馈与访谈</b><i>2 个知识库</i></button></label><label><span>期望输出</span><textarea class="short">重点比较部署模式、权限治理、工具生态和企业采购风险，形成可引用的结论与建议。</textarea></label><footer><p>预计 8–12 分钟 · 任务创建后可离开页面</p><button class="luminous-button" type="submit"><span>启动深度研究</span><i>↗</i></button></footer></form><aside class="research-principles"><p class="eyebrow">研究约定</p><ol><li><span>01</span><div><b>范围明确</b><p>混合与内部研究必须选择当前可读知识库。</p></div></li><li><span>02</span><div><b>过程可见</b><p>展示阶段、动作与结果，不展示隐藏思维链。</p></div></li><li><span>03</span><div><b>结论有据</b><p>关键判断必须关联当前仍可访问的来源。</p></div></li></ol></aside></div>
+        </section>
+
+        <section class="route-view research-tasks-route" data-route-view="research-tasks" hidden>
+          <div class="tasks-heading"><div><p class="eyebrow">研究任务</p><h1>研究任务</h1><p>查看运行状态、继续研究现场，或管理已经结束的任务。</p></div><button class="luminous-button compact" data-nav="research-create"><span>新建研究</span><i>↗</i></button></div>
+          <div class="tasks-toolbar"><div class="scope-tabs"><button class="active" data-research-filter="all">全部 8</button><button data-research-filter="running">进行中 1</button><button data-research-filter="completed">已完成 5</button><button data-research-filter="issue">异常 2</button></div><label class="archive-search"><span>搜索</span><input id="research-search" type="search" placeholder="搜索研究主题"></label></div>
+          <div class="research-task-ledger"><div class="research-task-columns"><span>研究任务</span><span>来源</span><span>状态</span><span>最近更新</span><span>操作</span></div><button class="research-task-row" data-research-kind="running" data-nav="research"><span class="research-task-name"><b>全球企业级 AI Agent 平台竞争格局</b><small>EV-20260731-042 · 对比研究</small></span><span><em class="channel hybrid">混合</em><small>2 个知识库 + Web</small></span><span><em class="task-state running">综合分析 · 68%</em><i class="task-mini-progress"><b></b></i></span><span><b>刚刚</b><small>已运行 08:43</small></span><span class="row-cta">进入现场</span></button><button class="research-task-row" data-research-kind="completed" data-nav="report"><span class="research-task-name"><b>Q2 客户流失原因与产品机会分析</b><small>EV-20260730-018 · 影响分析</small></span><span><em class="channel internal">内部</em><small>客户反馈</small></span><span><em class="task-state completed">部分完成</em></span><span><b>昨天 18:42</b><small>耗时 11:26</small></span><span class="row-cta">查看报告</span></button><button class="research-task-row" data-research-kind="completed" data-nav="report"><span class="research-task-name"><b>2026 数据基础设施趋势观察</b><small>EV-20260728-006 · 趋势研究</small></span><span><em class="channel web">公开</em><small>公开网络</small></span><span><em class="task-state completed">已完成</em></span><span><b>7 月 28 日</b><small>耗时 09:14</small></span><span class="row-cta">查看报告</span></button><div class="research-task-row" data-research-kind="issue"><span class="research-task-name"><b>亚太区数据合规变化追踪</b><small>EV-20260726-031 · 影响分析</small></span><span><em class="channel web">公开</em><small>公开网络</small></span><span><em class="task-state failed">运行失败</em><small>3 个关键来源持续不可访问</small></span><span><b>7 月 26 日</b><small>最后尝试 16:08</small></span><button class="row-menu row-cta" data-action="task-menu">管理</button></div></div>
+          <p class="task-policy">运行中的任务可取消但不能直接删除；已结束任务可重命名、归档或删除，报告内容保持不可变。</p>
+        </section>
+
+        <section class="route-view" data-route-view="research" hidden>
+          <div class="research-header"><div><a href="#research-tasks" class="back-link">← 研究任务</a><p class="eyebrow">研究任务 · EV-20260731-042</p><h1>全球企业级 AI Agent 平台竞争格局</h1><p>任务在后台持续运行，关闭页面不会中止研究。</p></div><div class="research-actions"><button class="ghost-button danger">取消任务</button><button class="connection"><span></span>实时连接正常</button></div></div>
+          <div class="overall-progress"><div><span>整体进度</span><b>68%</b></div><i><em></em></i><small>已运行 08:43 · 预计剩余 4 分钟</small></div>
+          <div class="research-layout">
+            <div class="execution-column">
+              <ol class="pipeline">
+                <li class="done"><span>01</span><b>规划</b><small>研究计划</small></li><li class="done"><span>02</span><b>检索</b><small>来源检索</small></li><li class="done"><span>03</span><b>获取</b><small>内容获取</small></li><li class="done"><span>04</span><b>重排</b><small>证据排序</small></li><li class="active"><span>05</span><b>综合</b><small>综合分析</small></li><li><span>06</span><b>证据图谱</b><small>证据关系</small></li><li><span>07</span><b>生成</b><small>报告生成</small></li>
+              </ol>
+              <section class="activity-stream"><header><p class="eyebrow">事件流</p><span>自动滚动</span></header><div class="event done"><time>14:21:08</time><i>✓</i><div><b>完成证据重排</b><p>从 96 个候选来源中保留 34 个高相关证据项。</p></div></div><div class="event active"><time>14:22:41</time><i>↻</i><div><b>正在综合平台能力差异</b><p>围绕部署模式、权限边界、工具生态与可观测性整理对比结论。</p></div></div><div class="event warning"><time>14:23:02</time><i>!</i><div><b>一个公开来源不可访问</b><p>已降级使用缓存摘要，并将在报告局限中披露。</p></div></div><div class="event"><time>14:23:19</time><i>◇</i><div><b>检查点已保存</b><p>即使 Worker 重启，也会从当前完成步骤继续。</p></div></div></section>
+            </div>
+            <aside class="task-context"><p class="eyebrow">任务信息</p><dl><div><dt>研究类型</dt><dd>对比研究</dd></div><div><dt>来源策略</dt><dd>混合研究</dd></div><div><dt>知识库</dt><dd>产品规划<br>客户反馈</dd></div><div><dt>当前证据</dt><dd>34 项</dd></div><div><dt>预算</dt><dd>¥ 12.40 / ¥ 20</dd></div></dl><p class="privacy-note">只显示动作和结果，不展示模型隐藏思维链。</p></aside>
+          </div>
+        </section>
+
+        <section class="route-view report-route" data-route-view="report" hidden>
+          <div class="report-toolbar"><a href="#research-tasks" class="back-link">← 研究任务</a><div><span class="status complete">已完成</span><b>修订版本 1</b><small>2026-07-31 14:31 生成</small></div><button class="ghost-button">导出报告</button></div>
+          <div class="report-layout" id="report-layout">
+            <nav class="section-nav" aria-label="报告章节"><p class="eyebrow">目录</p><a class="active" href="#report" data-report-section="summary">01 执行摘要</a><a href="#report" data-report-section="matrix">02 平台对比</a><a href="#report" data-report-section="findings">03 关键发现</a><a href="#report" data-report-section="risks">04 风险判断</a><a href="#report" data-report-section="recommendations">05 行动建议</a><span class="trace-nav-separator">研究附录</span><a class="trace-nav-link" href="#report" data-report-section="trace-summary">06 研究过程与依据</a></nav>
+            <article class="report-article">
+              <header><p class="eyebrow">据见研究报告</p><h1>全球企业级 AI Agent<br>平台竞争格局</h1><p class="report-deck">内部客户反馈与公开产品资料的交叉验证研究</p><div class="report-meta"><span>34 项证据</span><span>12 个关键结论</span><span>完整度 92%</span></div></header>
+              <section id="summary"><h2>执行摘要</h2><p>企业级 Agent 平台的竞争焦点，正从单一模型能力转向<strong>可治理的工具执行、企业知识连接和全过程可观测性</strong><button class="citation-button" data-evidence="12">12</button>。领先产品虽然在入口体验上趋同，但在权限继承、部署边界和生态开放程度上仍有显著差异。</p><blockquote>真正的壁垒不是“能否生成答案”，而是企业是否敢让它执行、是否能够解释结果从何而来。</blockquote><div class="confidence-strip"><span><b>高置信</b> 8 项结论</span><span><b>待验证</b> 3 项判断</span><span><b>证据冲突</b> 1 组</span></div></section>
+              <section id="matrix"><h2>平台对比</h2><div class="comparison-table"><div><b>能力维度</b><b>平台 A</b><b>平台 B</b><b>平台 C</b></div><div><span>私有知识连接</span><span>成熟</span><span>中等</span><span>成熟</span></div><div><span>工具治理</span><span>精细</span><span>基础</span><span>中等</span></div><div><span>部署灵活性</span><span>云优先</span><span>混合部署</span><span>私有化</span></div></div></section>
+              <section id="findings"><h2>关键发现</h2><h3>01 · 权限继承成为采购决策的前置条件</h3><p>受访客户普遍把实时权限复核置于生成质量之前。静态同步权限的方案在跨部门知识库中暴露出较高治理风险<button class="citation-button" data-evidence="07">07</button>。</p><h3>02 · “研究型 Agent”正在脱离聊天框</h3><p>高价值场景需要可恢复任务、分阶段反馈和独立报告对象，而不是无限延长的对话上下文<button class="citation-button" data-evidence="19">19</button>。</p></section>
+              <section id="risks"><h2>风险与证据冲突</h2><p>公开资料对产品路线的描述与部分客户反馈存在冲突。涉及部署能力的结论应在商务验证后再进入采购决策。</p><div class="conflict-card"><span>冲突 · 01</span><div><b>平台 B 私有化部署能力</b><p>厂商文档声明支持完整私有化；两份客户访谈仅验证了混合部署。当前结论标记为“待商务验证”。</p></div><button class="citation-button" data-evidence="21">21</button></div></section>
+              <section id="recommendations"><h2>建议与下一步</h2><ol class="recommendation-list"><li><span>01</span><div><b>先验证权限继承</b><p>使用跨部门知识库测试实时鉴权、撤权生效与引用回溯。</p></div></li><li><span>02</span><div><b>再验证高风险工具治理</b><p>检查审批、审计、幂等和撤销链路。</p></div></li><li><span>03</span><div><b>以真实研究任务验收</b><p>选择内部复盘、竞争研究和影响分析作为三类试点。</p></div></li></ol></section>
+              <section id="trace-summary" class="trace-summary trace-appendix"><div class="trace-boundary"><span>附录 · Trace</span><b>研究附录，不属于报告正文结论</b></div><div class="trace-heading"><div><p class="eyebrow">研究过程 · 19M 42S</p><h2>研究过程与依据</h2></div><span>只显示动作、范围与结果，不展示隐藏思维链</span></div><p class="trace-intro">以下内容用于解释这份报告如何形成，帮助复核研究范围、证据筛选和异常处理；它本身不构成新的业务结论。</p><div class="method-grid trace-method"><div><small>研究方式</small><b>对比研究</b><span>内部材料与公开资料交叉验证</span></div><div><small>知识范围</small><b>2 个知识库</b><span>产品规划、客户反馈与访谈</span></div><div><small>公开来源</small><b>48 个候选来源</b><span>厂商文档、帮助中心与行业报告</span></div><div><small>证据筛选</small><b>34 项有效证据</b><span>检索时间 14:09–14:28</span></div></div><div class="trace-audit"><div><small>检索范围</small><b>2 个知识库 + 48 个公开来源</b></div><div><small>关键决策</small><b>96 个候选中保留 34 项</b></div><div><small>异常与降级</small><b>1 个来源不可访问 · 1 组冲突</b></div></div><details class="trace-details"><summary>展开五阶段研究轨迹 <span>5 个阶段 · 19M 42S</span></summary><div class="trace-stages">
+                <article class="trace-stage"><button data-action="toggle-trace-stage" aria-expanded="false"><span class="trace-index">01</span><span><small>14:09–14:11 · 2M 08S</small><b>问题拆解</b><em>4 个研究维度</em></span><i>＋</i></button><div class="trace-stage-detail"><p>将比较目标拆为部署边界、权限治理、工具生态与可观测性四个维度，并为每个维度定义证据门槛。</p><button data-action="locate-trace-section" data-trace-section="summary">返回执行摘要 →</button></div></article>
+                <article class="trace-stage"><button data-action="toggle-trace-stage" aria-expanded="false"><span class="trace-index">02</span><span><small>14:11–14:18 · 6M 47S</small><b>范围检索</b><em>2 个知识库 · 48 个公开来源</em></span><i>＋</i></button><div class="trace-stage-detail"><p>按当前访问权限检索产品规划、客户反馈与公开厂商资料；一个帮助中心不可访问，已记录降级。</p><button data-action="locate-trace-evidence" data-trace-evidence="12">定位代表证据 12 →</button></div></article>
+                <article class="trace-stage"><button data-action="toggle-trace-stage" aria-expanded="false"><span class="trace-index">03</span><span><small>14:18–14:23 · 4M 56S</small><b>证据筛选</b><em>96 个候选 → 34 项有效证据</em></span><i>＋</i></button><div class="trace-stage-detail"><p>按相关性、来源可信度、时间有效性与权限状态重排，保留 34 项可引用证据。</p><button data-action="locate-trace-evidence" data-trace-evidence="12">定位代表证据 12 →</button></div></article>
+                <article class="trace-stage"><button data-action="toggle-trace-stage" aria-expanded="false"><span class="trace-index">04</span><span><small>14:23–14:26 · 3M 04S</small><b>冲突处理</b><em>识别 1 组证据冲突</em></span><i>＋</i></button><div class="trace-stage-detail"><p>厂商文档与客户访谈对平台 B 私有化能力描述不一致，未强行合并，结论标记为待商务验证。</p><button data-action="locate-trace-evidence" data-trace-evidence="21">定位冲突证据 21 →</button></div></article>
+                <article class="trace-stage"><button data-action="toggle-trace-stage" aria-expanded="false"><span class="trace-index">05</span><span><small>14:26–14:29 · 2M 47S</small><b>结论形成</b><em>12 个结论 · 完整度 92%</em></span><i>＋</i></button><div class="trace-stage-detail"><p>将结论与证据绑定，按置信度区分 8 项高置信结论、3 项待验证判断与 1 组冲突。</p><button data-action="locate-trace-section" data-trace-section="summary">查看执行摘要 →</button></div></article>
+              </div></details><div class="trace-limitations"><p class="eyebrow">范围与局限</p><ul><li>一个厂商帮助中心在研究期间不可访问，相关判断使用缓存摘要。</li><li>内部客户访谈覆盖 2026 年第二季度，不代表全部行业样本。</li><li>两个来源对私有化部署能力描述冲突，报告保留双方证据。</li></ul></div></section>
+            </article>
+            <aside class="evidence-panel evidence-graph" id="evidence-panel" aria-label="证据图谱" aria-hidden="false">
+              <header><div><p class="eyebrow">证据图谱 · 34</p><h2>证据图谱</h2><small>点击正文引用，定位到对应证据</small></div><button class="graph-toggle" data-action="toggle-evidence-graph" aria-label="折叠证据图谱">›</button></header>
+              <div class="evidence-legend"><span><i class="support"></i>支持</span><span><i class="conflict"></i>冲突</span><span><i class="restricted"></i>受限</span></div>
+              <div class="evidence-node-list">
+                <button class="evidence-node active" data-evidence-node="12"><span class="node-index">来源 12</span><em>96%</em><b>企业 AI 平台采购复盘（Q2）</b><small>客户反馈与访谈 · 第 18 页</small><p>权限体系能否原样继承，是进入试点前必须完成的验证。</p><i>用于 2 个章节</i></button>
+                <button class="evidence-node" data-evidence-node="07"><span class="node-index">来源 07</span><em>93%</em><b>集团权限治理实施手册</b><small>安全与合规基线 · § 4.2</small><p>每次检索都必须按当前访问主体重新计算可见范围。</p><i>用于关键发现</i></button>
+                <button class="evidence-node" data-evidence-node="19"><span class="node-index">来源 19</span><em>89%</em><b>Research Agent 产品路线评审</b><small>产品规划与路线图 · 第 31 页</small><p>长任务需要独立状态、检查点以及可持久化的报告对象。</p><i>用于关键发现</i></button>
+                <button class="evidence-node conflict" data-evidence-node="21"><span class="node-index">来源 21</span><em>冲突</em><b>平台 B 部署能力说明</b><small>公开网络 · 厂商文档</small><p>厂商声明与两份客户访谈对私有化能力的描述不一致。</p><i>用于风险判断</i></button>
+              </div>
+              <footer><span>当前定位</span><b>来源 <span id="evidence-number">12</span></b><button class="panel-button">展开证据原文</button></footer>
+            </aside>
+          </div>
+        </section>
+
+        <section class="route-view knowledge-route" data-route-view="knowledge" hidden>
+          <div class="knowledge-heading">
+            <div><p class="eyebrow">知识库</p><h1>让散落的材料<br><span>形成可检索的记忆</span></h1><p>每个知识库拥有独立索引；权限在每次问答与研究时重新确认。</p></div>
+            <button class="luminous-button compact" data-action="open-create-kb"><span>新建知识库</span><i>↗</i></button>
+          </div>
+          <div class="knowledge-toolbar">
+            <div class="scope-tabs" role="tablist"><button class="active" data-kb-filter="all">全部 4</button><button data-kb-filter="mine">我创建的 3</button><button data-kb-filter="public">组织公开 1</button></div>
+            <label class="archive-search"><span>搜索</span><input id="kb-search" type="search" placeholder="搜索名称、描述或所有者"></label>
+          </div>
+          <div class="archive-index" id="archive-index">
+            <div class="archive-columns"><span>知识库 / 描述</span><span>可见性</span><span>文档</span><span>索引状态</span><span>最近更新</span><span>操作</span></div>
+            <button class="archive-row" data-nav="knowledge-detail" data-kb-kind="mine" data-kb-name="产品规划与路线图">
+              <span class="archive-name"><i>01</i><b>产品规划与路线图</b><small>战略、季度规划与关键决策记录</small></span><span><em class="visibility private">私有</em></span><span><b>216</b><small>文档</small></span><span><em class="doc-state completed">可检索</em></span><span><b>2 小时前</b><small>林默</small></span><span class="row-arrow row-cta">进入知识库</span>
+            </button>
+            <button class="archive-row" data-nav="knowledge-detail" data-kb-kind="mine" data-kb-name="客户反馈与访谈">
+              <span class="archive-name"><i>02</i><b>客户反馈与访谈</b><small>访谈纪要、工单摘录与续约复盘</small></span><span><em class="visibility private">私有</em></span><span><b>489</b><small>文档</small></span><span><em class="doc-state processing">索引中 72%</em></span><span><b>昨天</b><small>林默</small></span><span class="row-arrow row-cta">进入知识库</span>
+            </button>
+            <button class="archive-row" data-nav="knowledge-detail" data-kb-kind="mine" data-kb-name="行业与竞品资料">
+              <span class="archive-name"><i>03</i><b>行业与竞品资料</b><small>公开产品资料与内部竞争情报</small></span><span><em class="visibility public">公开</em></span><span><b>128</b><small>文档</small></span><span><em class="doc-state partial">部分可用</em></span><span><b>7 月 27 日</b><small>林默</small></span><span class="row-arrow row-cta">进入知识库</span>
+            </button>
+            <button class="archive-row" data-nav="knowledge-detail" data-kb-kind="public" data-kb-name="安全与合规基线">
+              <span class="archive-name"><i>04</i><b>安全与合规基线</b><small>组织公开的制度、基线与审计手册</small></span><span><em class="visibility public">公开</em></span><span><b>84</b><small>文档</small></span><span><em class="doc-state completed">可检索</em></span><span><b>7 月 25 日</b><small>安全治理组</small></span><span class="row-arrow row-cta">查看知识库</span>
+            </button>
+          </div>
+          <p class="archive-footnote"><span>说明</span>只有已完成或部分完成且具有有效来源的文档会参与检索；失败与等待中的文档不会成为答案依据。</p>
+        </section>
+
+        <section class="route-view knowledge-detail-route" data-route-view="knowledge-detail" hidden>
+          <div class="detail-hero">
+            <div><a class="back-link" href="#knowledge">← 返回知识库</a><p class="eyebrow">知识库 · KB-001</p><h1>产品规划与路线图</h1><p>战略、季度规划与关键决策记录，供产品与研究团队检索。</p><div class="detail-meta"><span>私有</span><span>林默创建</span><span>2026-07-31 12:18 更新</span></div></div>
+            <div class="detail-actions"><button class="ghost-button" data-nav="chat">用它提问</button><button class="luminous-button compact" data-action="open-upload"><span>上传文档</span><i>↗</i></button></div>
+          </div>
+          <div class="knowledge-pulse"><div><small>可检索文档</small><b>213</b><span>98.6% 就绪</span></div><div><small>有效片段</small><b>18,420</b><span>独立 Collection</span></div><div><small>处理中</small><b>2</b><span>后台持续运行</span></div><div><small>需要处理</small><b>1</b><span>可重试</span></div></div>
+          <div class="document-toolbar"><div><p class="eyebrow">文档清单</p><h2>文档与索引状态</h2></div><div class="document-controls"><button class="active" data-doc-filter="all">全部</button><button data-doc-filter="active">处理中</button><button data-doc-filter="issue">需处理</button><label><input id="doc-search" type="search" placeholder="搜索文档"></label></div></div>
+          <div class="document-ledger" id="document-ledger">
+            <div class="document-columns"><span>文档</span><span>状态</span><span>有效片段</span><span>更新时间</span><span></span></div>
+            <div class="document-row" data-doc-kind="completed"><span class="document-name"><b>2026_H2_Product_Roadmap.pdf</b><small>PDF · 12.8 MB · v3</small></span><span><em class="doc-state completed">已完成</em></span><span>1,284</span><span>12:18</span><button data-action="open-chunks" data-document="2026_H2_Product_Roadmap.pdf">查看切片</button></div>
+            <div class="document-row" data-doc-kind="processing"><span class="document-name"><b>Agent_Platform_Strategy.docx</b><small>DOCX · 4.2 MB · v1</small></span><span><em class="doc-state processing">处理中 · 72%</em><i class="inline-progress"><b></b></i></span><span>—</span><span>12:11</span><button disabled>解析中</button></div>
+            <div class="document-row" data-doc-kind="queued"><span class="document-name"><b>Q3_Planning_Notes.md</b><small>MARKDOWN · 680 KB · v2</small></span><span><em class="doc-state queued">等待入库</em></span><span>—</span><span>12:09</span><button disabled>排队中</button></div>
+            <div class="document-row" data-doc-kind="partial"><span class="document-name"><b>Product_Decisions_Archive.pdf</b><small>PDF · 28.4 MB · v4</small></span><span><em class="doc-state partial">部分完成</em><small class="state-reason">第 46–48 页图像无法提取</small></span><span>2,109</span><span>昨天</span><button data-action="open-chunks" data-document="Product_Decisions_Archive.pdf">查看切片</button></div>
+            <div class="document-row" data-doc-kind="failed"><span class="document-name"><b>Legacy_Feature_Matrix.pdf</b><small>PDF · 9.6 MB · v1</small></span><span><em class="doc-state failed">处理失败</em><small class="state-reason">文件已加密，无法解析内容</small></span><span>—</span><span>昨天</span><button class="retry-button" data-action="retry-document">重试</button></div>
+          </div>
+          <p class="background-note">上传完成后即可离开此页。文档解析、分块与索引在后台继续进行，不依赖当前浏览器连接。</p>
+        </section>
+
+        <section class="route-view chat-history-route" data-route-view="chat-history" hidden>
+          <div class="tasks-heading"><div><p class="eyebrow">问答历史</p><h1>问答历史</h1><p>按最近更新查找对话；知识库组合会随对话保留，不会自动扩展。</p></div><button class="luminous-button compact" data-action="new-conversation"><span>新建对话</span><i>↗</i></button></div>
+          <div class="tasks-toolbar"><div class="scope-tabs"><button class="active">全部 12</button><button>今天 3</button><button>本周 7</button></div><label class="archive-search"><span>搜索</span><input id="conversation-search" type="search" placeholder="搜索标题或知识库"></label></div>
+          <div class="conversation-ledger"><div class="conversation-columns"><span>对话</span><span>知识库</span><span>消息</span><span>最近更新</span><span>操作</span></div><button class="conversation-row" data-nav="chat"><span><b>企业级 Agent 采购标准</b><small>CHAT-0731-012 · 林默</small></span><span><b>2 个知识库</b><small>产品规划 · 客户反馈</small></span><span><b>8</b><small>6 个引用来源</small></span><span><b>刚刚</b><small>14:28</small></span><span class="row-cta">打开对话</span></button><button class="conversation-row" data-nav="chat"><span><b>Q2 流失客户共同信号</b><small>CHAT-0730-029 · 林默</small></span><span><b>1 个知识库</b><small>客户反馈与访谈</small></span><span><b>14</b><small>9 个引用来源</small></span><span><b>昨天</b><small>18:06</small></span><span class="row-cta">打开对话</span></button><button class="conversation-row" data-nav="chat"><span><b>私有化部署风险</b><small>CHAT-0729-018 · 林默</small></span><span><b>2 个知识库</b><small>行业资料 · 合规基线</small></span><span><b>11</b><small>7 个引用来源</small></span><span><b>7 月 29 日</b><small>16:40</small></span><span class="row-cta">打开对话</span></button></div>
+          <p class="task-policy">对话可重命名或删除；删除不会影响知识库中的文档与切片。</p>
+        </section>
+
+        <section class="route-view chat-route" data-route-view="chat" hidden>
+          <div class="chat-shell">
+            <div class="chat-main">
+              <header class="chat-header"><div class="chat-title-row"><a class="history-trigger" href="#chat-history">← 问答历史</a><div><p class="eyebrow">据见问答</p><h1>企业级 Agent 采购标准</h1></div></div><div class="chat-header-actions"><button class="scope-trigger" data-action="open-kb-scope"><span>已选知识库</span><b>2</b></button><button class="ghost-button">重命名</button></div></header>
+              <p class="scope-summary">本对话已选择“产品规划与路线图、客户反馈与访谈”；每轮提问会重新确认访问权限。</p>
+              <div class="message-stream" id="message-stream">
+                <article class="message user-message message-right"><span class="message-role">我 · 14:28</span><div class="user-bubble"><p>结合产品规划和客户反馈，企业选择 Agent 平台时最先关注什么？</p></div></article>
+                <article class="message assistant-message message-left"><div class="assistant-sign"><span class="message-role">EVIDSIGHT · 14:28</span></div><div class="assistant-answer"><p>从当前两组材料看，客户最先验证的并不是模型效果，而是<strong>权限继承、工具执行的治理边界，以及结果能否回溯到原始材料</strong>。</p><ol><li>权限体系需要原样继承，并在每次检索时复核。<button class="chat-citation" data-action="open-chat-source" data-source="01">01</button></li><li>高风险工具应具备审批、审计和可撤销能力。<button class="chat-citation" data-action="open-chat-source" data-source="02">02</button></li><li>采购试点倾向先验证内部复盘与竞争研究，而非开放式助理。<button class="chat-citation" data-action="open-chat-source" data-source="03">03</button></li></ol><div class="answer-foot"><span>使用 2 个知识库 · 6 个来源</span><button>复制回答</button></div></div></article>
+              </div>
+              <form class="chat-composer" id="chat-form"><textarea id="chat-input" aria-label="继续提问" placeholder="继续沿着这些证据提问…"></textarea><footer><span>回车发送 · Shift+回车 换行</span><button class="luminous-button compact" type="submit"><span>发送</span><i>↗</i></button></footer></form>
+            </div>
+            <aside class="chat-source-panel" id="chat-source-panel" aria-hidden="true"><header><div><p class="eyebrow">来源 · <span id="chat-source-number">01</span></p><h2>回答依据</h2></div><button data-action="close-chat-source" aria-label="关闭来源">×</button></header><article><span class="channel internal">内部</span><h3>企业 AI 平台采购复盘（Q2）</h3><dl><div><dt>知识库</dt><dd>客户反馈与访谈</dd></div><div><dt>定位</dt><dd>第 18 页 · 采购标准</dd></div><div><dt>当前权限</dt><dd>可读取 · 本次已复核</dd></div></dl><div class="cited-chunk"><span>切片 #184 · 326 Token</span><blockquote>权限体系能否原样继承，是进入试点前必须完成的验证。模型效果反而排在第二阶段，尤其是在跨部门资料参与检索时。</blockquote></div><button class="adjacent-toggle" data-action="toggle-adjacent-chunks">展开相邻切片</button><div class="adjacent-chunks" hidden><div><small>切片 #183 · 上一段</small><p>试点范围覆盖产品、客户成功和安全团队，资料权限随原系统变更。</p></div><div><small>切片 #185 · 下一段</small><p>第二阶段才进入生成质量与任务完成率的对照测试。</p></div></div><button class="panel-button" data-action="open-chunks" data-document="企业 AI 平台采购复盘（Q2）.pdf">查看文档全部切片</button><p class="permission-note">查看切片不会扩大你对原文的访问权限。</p></article></aside>
+            <div class="kb-scope-popover" id="kb-scope-popover" aria-hidden="true"><header><div><p class="eyebrow">选择知识库</p><h2>选择知识库</h2></div><button data-action="close-kb-scope" aria-label="关闭知识库选择">×</button></header><p>只检索明确勾选的知识库；每轮问答都会重新鉴权。</p><label class="kb-picker-search"><span>搜索</span><input id="chat-kb-search" type="search" placeholder="搜索知识库、业务或所有者"></label><div class="kb-picker-tabs"><button class="active" data-chat-kb-filter="all">全部</button><button data-chat-kb-filter="mine">我的知识库</button><button data-chat-kb-filter="public">公开知识库</button></div><div class="kb-picker-list"><label class="scope-option" data-chat-kb-kind="mine"><input type="checkbox" checked><span><b>产品规划与路线图</b><small>产品策略部 · 林默 · 2 小时前更新</small></span><em>私有</em></label><label class="scope-option" data-chat-kb-kind="mine"><input type="checkbox" checked><span><b>客户反馈与访谈</b><small>客户成功部 · 林默 · 昨天更新</small></span><em>私有</em></label><label class="scope-option" data-chat-kb-kind="mine"><input type="checkbox"><span><b>行业与竞品资料</b><small>产品策略部 · 林默 · 7 月 27 日更新</small></span><em>公开</em></label><label class="scope-option" data-chat-kb-kind="public"><input type="checkbox"><span><b>安全与合规基线</b><small>安全治理组 · 7 月 25 日更新</small></span><em>公开</em></label></div><footer><span>已选择 2 个知识库</span><button class="luminous-button compact" data-action="close-kb-scope"><span>应用选择</span><i>↗</i></button></footer></div>
+          </div>
+        </section>
+
+        <section class="route-view admin-route" data-route-view="admin" hidden>
+          <div class="admin-heading">
+            <div><p class="eyebrow">管理中心</p><h1>管理中心</h1><p>查看组织运行状态，并管理成员、权限与系统策略。</p></div>
+            <div class="admin-health"><span></span><div><small>系统状态</small><b>所有服务运行正常</b></div></div>
+          </div>
+          <div class="admin-console-layout">
+            <nav class="admin-tabs admin-primary-sidebar" aria-label="管理中心分区">
+              <a class="admin-brand" href="#admin"><svg><use href="#brand-mark"></use></svg><span><b>EvidSight</b><small>管理中心</small></span></a>
+              <a href="#workbench" class="admin-return">← 返回工作台</a>
+              <span>总览</span>
+              <button class="active" data-admin-tab="overview">运行概览</button>
+              <span>内容运营</span>
+              <button data-admin-tab="kb-admin">知识库管理 <em>12</em></button>
+              <button data-admin-tab="document-admin">文档管理 <em>4,286</em></button>
+              <span>流水线监控</span>
+              <button data-admin-tab="knowledge-traces">Knowledge Trace</button>
+              <button data-admin-tab="research-traces">Research Trace</button>
+              <span>成本控制</span>
+              <button data-admin-tab="billing">成本与计费</button>
+              <span>组织</span>
+              <button data-admin-tab="users">用户管理 <em>24</em></button>
+              <button data-admin-tab="roles">角色与权限 <em>3</em></button>
+              <button data-admin-tab="audit">审计日志</button>
+              <button data-admin-tab="settings">系统设置</button>
+            </nav>
+
+          <div class="admin-panel active" data-admin-panel="overview">
+            <div class="admin-metrics">
+              <article class="admin-metric"><span>活跃成员</span><b>21<small>/ 24</small></b><p>过去 7 天活跃成员</p><i class="positive">+ 3 本周</i></article>
+              <article class="admin-metric"><span>知识库</span><b>12<small> 个知识库</small></b><p>4,286 个文档 · 38.4 GB</p><i>今日新增 46 个文档</i></article>
+              <article class="admin-metric"><span>研究负载</span><b>68<small> 项任务</small></b><p>本月完成 61 项</p><i>1 项正在运行</i></article>
+              <article class="admin-metric"><span>服务健康</span><b>99.96<small>%</small></b><p>近 30 天可用性</p><i class="positive">无待处理告警</i></article>
+            </div>
+            <div class="admin-overview-grid">
+              <section class="admin-activity-panel"><header><div><p class="eyebrow">最近管理活动</p><h2>最近管理活动</h2></div><button data-admin-tab="audit">查看完整日志 →</button></header><div class="admin-activity-list"><article><span class="activity-glyph">＋</span><div><b>陈屿被添加为研究人员</b><p>林默 · 用户管理</p></div><time>12 分钟前</time></article><article><span class="activity-glyph">◇</span><div><b>“客户反馈与访谈”可见性调整</b><p>周岚 · 知识库权限</p></div><time>2 小时前</time></article><article><span class="activity-glyph warning">!</span><div><b>公开检索降级策略被更新</b><p>系统管理员 · 研究策略</p></div><time>昨天 18:40</time></article><article><span class="activity-glyph">✓</span><div><b>月度审计记录已导出</b><p>林默 · 审计日志</p></div><time>7 月 30 日</time></article></div></section>
+              <aside class="admin-capacity"><p class="eyebrow">资源使用</p><h2>资源使用</h2><div class="capacity-ring" style="--usage:64"><span><b>64%</b><small>存储</small></span></div><dl><div><dt>文档存储</dt><dd>38.4 / 60 GB</dd></div><div><dt>向量索引</dt><dd>9.8 / 20 GB</dd></div><div><dt>本月研究预算</dt><dd>¥ 4,286 / 8,000</dd></div></dl><button data-admin-tab="settings">管理资源策略</button></aside>
+            </div>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="kb-admin" hidden>
+            <div class="admin-panel-heading"><div><p class="eyebrow">知识库治理 · 12</p><h2>知识库管理</h2><p>管理全组织知识库的所有者、可见性、容量与索引健康状态。</p></div><button class="ghost-button">导出清单</button></div>
+            <div class="admin-summary-strip"><span><small>总知识库</small><b>12</b></span><span><small>私有 / 公开</small><b>8 / 4</b></span><span><small>索引健康</small><b>11 正常</b></span><span><small>存储占用</small><b>38.4 GB</b></span></div>
+            <div class="admin-toolbar"><div class="scope-tabs"><button class="active">全部 12</button><button>公开 4</button><button>私有 8</button><button>异常 1</button></div><label class="archive-search"><span>搜索</span><input type="search" placeholder="搜索知识库、Owner 或业务"></label></div>
+            <div class="admin-kb-ledger"><div class="admin-kb-columns"><span>知识库</span><span>Owner</span><span>可见性</span><span>文档 / 存储</span><span>索引状态</span><span>操作</span></div><div class="admin-kb-row"><span><b>产品规划与路线图</b><small>kb_91ad · 产品策略部</small></span><span><b>林默</b><small>2 小时前活跃</small></span><span><em class="visibility private">私有</em></span><span><b>216 个文档</b><small>6.8 GB</small></span><span><em class="admin-state active">健康</em><small>v42 · 2 小时前发布</small></span><button class="row-cta">管理</button></div><div class="admin-kb-row"><span><b>客户反馈与访谈</b><small>kb_17cf · 客户成功部</small></span><span><b>周岚</b><small>18 分钟前活跃</small></span><span><em class="visibility private">私有</em></span><span><b>489 个文档</b><small>12.6 GB</small></span><span><em class="admin-state active">健康</em><small>v87 · 昨天发布</small></span><button class="row-cta">管理</button></div><div class="admin-kb-row"><span><b>行业与竞品资料</b><small>kb_b781 · 市场洞察部</small></span><span><b>陈屿</b><small>昨天活跃</small></span><span><em class="visibility public">公开</em></span><span><b>128 个文档</b><small>4.1 GB</small></span><span><em class="admin-state warning">需要关注</em><small>2 个文档索引失败</small></span><button class="row-cta">管理</button></div></div>
+            <p class="admin-policy-note"><b>权限边界</b> 管理员可以治理元数据和运行状态，但不会因此自动获得私有知识库正文读取权限。</p>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="document-admin" hidden>
+            <div class="admin-panel-heading"><div><p class="eyebrow">文档治理 · 4,286</p><h2>文档管理</h2><p>跨知识库定位解析、切片、索引与发布异常。</p></div><button class="ghost-button">批量操作</button></div>
+            <div class="admin-summary-strip"><span><small>文档总数</small><b>4,286</b></span><span><small>处理中</small><b>7</b></span><span><small>部分完成</small><b>3</b></span><span><small>处理失败</small><b>2</b></span></div>
+            <div class="admin-toolbar"><div class="scope-tabs"><button class="active">全部</button><button>处理中 7</button><button>异常 5</button></div><label class="archive-search"><span>搜索</span><input type="search" placeholder="搜索文件名、知识库或 Trace ID"></label></div>
+            <div class="admin-document-ledger"><div class="admin-document-columns"><span>文档</span><span>所属知识库</span><span>Pipeline 状态</span><span>切片 / 索引</span><span>更新时间</span><span>操作</span></div><div class="admin-document-row"><span><b>2026_H2_Product_Roadmap.pdf</b><small>doc_8f21 · 8.4 MB · PDF</small></span><span><b>产品规划与路线图</b><small>林默 · PRIVATE</small></span><span><em class="doc-state completed">已完成</em><small>发布至 Collection v42</small></span><span><b>1,284 切片</b><small>Embedding v3</small></span><span><b>2 小时前</b><small>耗时 01:48</small></span><button class="row-cta" data-action="open-pipeline-trace" data-trace-kind="ingestion">查看 Trace</button></div><div class="admin-document-row"><span><b>Agent_Field_Study.pdf</b><small>doc_3c77 · 18.2 MB · PDF</small></span><span><b>行业与竞品资料</b><small>陈屿 · PUBLIC</small></span><span><em class="doc-state processing">处理中</em><small>嵌入 · 68%</small></span><span><b>842 / 1,216</b><small>临时版本，尚未发布</small></span><span><b>刚刚</b><small>已运行 02:16</small></span><button class="row-cta" data-action="open-pipeline-trace" data-trace-kind="ingestion">查看 Trace</button></div><div class="admin-document-row"><span><b>APAC_Compliance_Update.docx</b><small>doc_6da2 · 2.1 MB · DOCX</small></span><span><b>安全与合规基线</b><small>安全治理组 · PUBLIC</small></span><span><em class="doc-state failed">处理失败</em><small>解析器不支持嵌入对象</small></span><span><b>0 切片</b><small>未写入 Collection</small></span><span><b>今天 11:09</b><small>重试 2 次</small></span><button class="row-cta" data-action="open-pipeline-trace" data-trace-kind="ingestion">查看 Trace</button></div></div>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="knowledge-traces" hidden>
+            <div class="admin-panel-heading"><div><p class="eyebrow">Knowledge Pipeline</p><h2>Knowledge Pipeline Trace</h2><p>诊断问答与内部检索的性能、召回、降级和证据门控。</p></div><span class="trace-retention">保留 30 天 · 不记录正文与隐藏推理</span></div>
+            <div class="admin-summary-strip"><span><small>近 24 小时请求</small><b>1,842</b></span><span><small>P95 延迟</small><b>4.8s</b></span><span><small>降级请求</small><b>27</b></span><span><small>证据通过率</small><b>92.4%</b></span></div>
+            <div class="admin-toolbar"><div class="scope-tabs"><button class="active">全部</button><button>异常 12</button><button>降级 27</button><button>慢请求 19</button></div><label class="archive-search"><span>Trace</span><input type="search" placeholder="输入 Trace ID 或 Request ID"></label></div>
+            <div class="pipeline-trace-ledger knowledge"><div class="pipeline-trace-columns"><span>Trace / 请求</span><span>调用方</span><span>范围</span><span>结果</span><span>耗时 / 重试</span><span>操作</span></div><button class="pipeline-trace-row" data-action="open-pipeline-trace" data-trace-kind="knowledge"><span><b>ktr_7A91F2</b><small>req_21CE · 14:31:08</small></span><span><b>据见问答</b><small>generation_1842</small></span><span><b>2 个 KB</b><small>向量 + BM25</small></span><span><em class="admin-state active">成功</em><small>34 → 8 条证据</small></span><span><b>3.82s</b><small>1 次重排重试</small></span><span class="row-cta">检查</span></button><button class="pipeline-trace-row" data-action="open-pipeline-trace" data-trace-kind="knowledge"><span><b>ktr_7A90D8</b><small>req_21B4 · 14:29:44</small></span><span><b>Research Internal</b><small>task EV-042 · 步骤 18</small></span><span><b>2 个 KB</b><small>跳过 BM25</small></span><span><em class="admin-state warning">降级</em><small>仅向量 · 12 条证据</small></span><span><b>5.91s</b><small>无重试 · 1 项降级</small></span><span class="row-cta">检查</span></button><button class="pipeline-trace-row" data-action="open-pipeline-trace" data-trace-kind="knowledge"><span><b>ktr_7A8FD1</b><small>req_208A · 14:26:19</small></span><span><b>据见问答</b><small>generation_1838</small></span><span><b>1 个 KB</b><small>权限复核失败</small></span><span><em class="admin-state warning">已阻断</em><small>0 证据 · 安全拒绝</small></span><span><b>182ms</b><small>无重试</small></span><span class="row-cta">检查</span></button></div>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="research-traces" hidden>
+            <div class="admin-panel-heading"><div><p class="eyebrow">Research Pipeline</p><h2>Research Pipeline Trace</h2><p>查看 Task、Phase、步骤 的耗时、重试、降级与恢复状态。</p></div><span class="trace-retention">保留 90 天 · 可关联 Knowledge Trace</span></div>
+            <div class="admin-summary-strip"><span><small>近 24 小时任务</small><b>68</b></span><span><small>运行中</small><b>1</b></span><span><small>部分完成</small><b>2</b></span><span><small>失败</small><b>1</b></span></div>
+            <div class="admin-toolbar"><div class="scope-tabs"><button class="active">全部</button><button>运行中 1</button><button>异常 3</button><button>预算停止 1</button></div><label class="archive-search"><span>Trace</span><input type="search" placeholder="输入 Task、Trace 或 Request ID"></label></div>
+            <div class="pipeline-trace-ledger research"><div class="pipeline-trace-columns"><span>Task / Trace</span><span>当前阶段</span><span>步骤 状态</span><span>结果</span><span>耗时 / 重试</span><span>操作</span></div><button class="pipeline-trace-row" data-action="open-pipeline-trace" data-trace-kind="research"><span><b>EV-20260731-042</b><small>rtr_A829D0 · req_21B4</small></span><span><b>综合</b><small>阶段 05 / 07</small></span><span><b>18 / 27</b><small>1 次重试 · 可恢复</small></span><span><em class="admin-state invited">运行中 68%</em><small>34 条证据</small></span><span><b>08:43</b><small>1 次重试 · 当前阶段 02:14</small></span><span class="row-cta">检查</span></button><button class="pipeline-trace-row" data-action="open-pipeline-trace" data-trace-kind="research"><span><b>EV-20260730-018</b><small>rtr_A721B4 · req_1F82</small></span><span><b>已完成</b><small>阶段 07 / 07</small></span><span><b>26 / 27</b><small>1 个来源失败</small></span><span><em class="admin-state warning">部分完成</em><small>局限已披露</small></span><span><b>11:26</b><small>2 次重试 · 获取阶段最慢</small></span><span class="row-cta">检查</span></button><button class="pipeline-trace-row" data-action="open-pipeline-trace" data-trace-kind="research"><span><b>EV-20260726-031</b><small>rtr_A102CD · req_1A91</small></span><span><b>检索</b><small>阶段 02 / 07</small></span><span><b>7 / 27</b><small>3 次重试 · 不可恢复</small></span><span><em class="admin-state warning">失败</em><small>关键来源持续不可访问</small></span><span><b>04:18</b><small>3 次重试后停止</small></span><span class="row-cta">检查</span></button></div>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="billing" hidden>
+            <div class="admin-panel-heading"><div><p class="eyebrow">用量与成本 · 八月</p><h2>成本与计费</h2><p>集中查看模型调用、嵌入向量与研究任务产生的 Token 和估算成本。</p></div><button class="ghost-button">导出用量明细</button></div>
+            <div class="billing-metrics"><article><span>月度 Token</span><b>128.4M</b><p>输入 92.1M · 输出 36.3M</p><i>较上月 +12.8%</i></article><article><span>估算成本</span><b>¥4,286.40</b><p>月度预算 ¥8,000</p><i>已使用 53.6%</i></article><article><span>日均成本</span><b>¥138.27</b><p>最近 7 天均值</p><i>预测月末 ¥6,420</i></article><article><span>单位成本</span><b>¥0.033</b><p>每 1K Token 综合成本</p><i>嵌入已计入</i></article></div>
+            <div class="billing-insights"><section><header><div><p class="eyebrow">近 14 天消耗</p><h3>每日消耗</h3></div><span>¥2,114.60</span></header><div class="billing-bars" aria-label="最近十四天成本柱状图"><i style="--h:42%"><small>19</small></i><i style="--h:55%"><small>20</small></i><i style="--h:48%"><small>21</small></i><i style="--h:68%"><small>22</small></i><i style="--h:61%"><small>23</small></i><i style="--h:38%"><small>24</small></i><i style="--h:44%"><small>25</small></i><i style="--h:72%"><small>26</small></i><i style="--h:66%"><small>27</small></i><i style="--h:81%"><small>28</small></i><i style="--h:74%"><small>29</small></i><i style="--h:58%"><small>30</small></i><i style="--h:88%"><small>31</small></i><i class="active" style="--h:64%"><small>01</small></i>            </div></section><aside><p class="eyebrow">按工作负载</p><h3>成本构成</h3><div class="cost-breakdown"><span><i class="research"></i><b>Research</b><em>¥2,648.80 · 61.8%</em></span><span><i class="knowledge"></i><b>Knowledge</b><em>¥1,124.40 · 26.2%</em></span><span><i class="embedding"></i><b>嵌入</b><em>¥513.20 · 12.0%</em></span></div><div class="cost-stack"><i class="research"></i><i class="knowledge"></i><i class="embedding"></i></div></aside></div>
+            <div class="admin-toolbar billing-toolbar"><div class="scope-tabs"><button class="active">全部用量</button><button>Research</button><button>Knowledge</button><button>嵌入</button></div><label class="archive-search"><span>搜索</span><input type="search" placeholder="Trace、Task、成员或模型"></label></div>
+            <div class="billing-usage-ledger"><div class="billing-usage-columns"><span>关联对象</span><span>工作负载</span><span>模型 / Provider</span><span>输入 / 输出 Token</span><span>估算成本</span><span>时间</span></div><div class="billing-usage-row"><span><b>EV-20260731-042</b><small>rtr_A829D0 · 林默</small></span><span><em class="channel hybrid">研究</em><small>27 个步骤</small></span><span><b>Model Gateway · Pro</b><small>价格版本 2026-07</small></span><span><b>842K / 126K</b><small>合计 968K</small></span><span><b>¥12.40</b><small>预算 ¥20.00</small></span><span><b>今天 14:31</b><small>08:43</small></span></div><div class="billing-usage-row"><span><b>generation_1842</b><small>ktr_7A91F2 · 周岚</small></span><span><em class="channel internal">知识</em><small>2 个知识库</small></span><span><b>Model Gateway · Standard</b><small>价格版本 2026-07</small></span><span><b>1,946 / 472</b><small>合计 2,418</small></span><span><b>¥0.08</b><small>回答生成</small></span><span><b>今天 14:31</b><small>3.82s</small></span></div><div class="billing-usage-row"><span><b>doc_8f21</b><small>itr_82C7 · 产品规划</small></span><span><em class="channel web">嵌入</em><small>1,284 个切片</small></span><span><b>Embedding v3</b><small>38 个批次</small></span><span><b>386K / —</b><small>仅输入计费</small></span><span><b>¥1.72</b><small>索引版本 v42</small></span><span><b>今天 12:14</b><small>01:48</small></span></div></div>
+            <p class="admin-policy-note"><b>计费口径</b> 金额为按 Provider 价格版本计算的估算值；Pipeline Trace 仅负责性能诊断，成本以本页记录为准。</p>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="users" hidden>
+            <div class="admin-panel-heading"><div><p class="eyebrow">成员 · 24</p><h2>用户管理</h2><p>成员账号、角色与最近活动状态。</p></div><button class="luminous-button compact"><span>邀请成员</span><i>＋</i></button></div>
+            <div class="admin-toolbar"><div class="scope-tabs"><button class="active">全部 24</button><button>活跃 21</button><button>已停用 3</button></div><label class="archive-search"><span>搜索</span><input type="search" placeholder="搜索姓名或邮箱"></label></div>
+            <div class="admin-user-ledger"><div class="admin-user-columns"><span>成员</span><span>角色</span><span>状态</span><span>最近活动</span><span>操作</span></div><div class="admin-user-row"><span class="admin-person"><i>林</i><span><b>林默</b><small>linmo@example.com</small></span></span><span><b>系统管理员</b><small>全部管理权限</small></span><span><em class="admin-state active">活跃</em></span><span><b>现在</b><small>上海</small></span><button class="row-cta">管理</button></div><div class="admin-user-row"><span class="admin-person"><i>周</i><span><b>周岚</b><small>zhoulan@example.com</small></span></span><span><b>研究管理员</b><small>研究与知识库</small></span><span><em class="admin-state active">活跃</em></span><span><b>18 分钟前</b><small>北京</small></span><button class="row-cta">管理</button></div><div class="admin-user-row"><span class="admin-person"><i>陈</i><span><b>陈屿</b><small>chenyu@example.com</small></span></span><span><b>研究人员</b><small>标准访问</small></span><span><em class="admin-state invited">待接受邀请</em></span><span><b>—</b><small>12 分钟前邀请</small></span><button class="row-cta">管理</button></div><div class="admin-user-row muted"><span class="admin-person"><i>徐</i><span><b>徐洲</b><small>xuzhou@example.com</small></span></span><span><b>研究人员</b><small>标准访问</small></span><span><em class="admin-state disabled">已停用</em></span><span><b>7 月 19 日</b><small>杭州</small></span><button class="row-cta">管理</button></div></div>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="roles" hidden>
+            <div class="admin-panel-heading"><div><p class="eyebrow">权限模型</p><h2>角色与权限</h2><p>以预设角色控制管理范围；知识库访问仍由资源所有者单独授权。</p></div><button class="ghost-button">权限说明</button></div>
+            <div class="admin-role-grid"><article><header><span>01</span><em>2 人</em></header><h3>系统管理员</h3><p>管理成员、全局策略、审计与系统配置。</p><ul><li>成员与角色管理</li><li>全局系统设置</li><li>完整审计日志</li></ul><button class="row-cta">查看成员</button></article><article><header><span>02</span><em>4 人</em></header><h3>研究管理员</h3><p>管理组织内研究任务与公共知识资源。</p><ul><li>研究任务管理</li><li>公共知识库治理</li><li>研究策略配置</li></ul><button class="row-cta">查看成员</button></article><article><header><span>03</span><em>18 人</em></header><h3>研究人员</h3><p>使用被授权的知识并发起研究与问答。</p><ul><li>创建个人知识库</li><li>发起研究任务</li><li>查看获授权内容</li></ul><button class="row-cta">查看成员</button></article></div>
+            <p class="admin-policy-note"><b>权限原则</b> 管理角色不自动获得私有知识库内容权限；所有读取仍在请求时复核。</p>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="audit" hidden>
+            <div class="admin-panel-heading"><div><p class="eyebrow">审计日志 · 30 天</p><h2>审计日志</h2><p>追踪影响成员、权限、知识与研究策略的管理操作。</p></div><button class="ghost-button">导出 CSV</button></div>
+            <div class="admin-toolbar"><div class="scope-tabs"><button class="active">全部事件</button><button>成员</button><button>权限</button><button>系统</button></div><label class="archive-search"><span>搜索</span><input type="search" placeholder="搜索操作者、对象或事件"></label></div>
+            <div class="admin-audit-ledger"><div class="admin-audit-columns"><span>事件</span><span>操作者</span><span>对象</span><span>时间</span><span>结果</span></div><div class="admin-audit-row"><span><b>成员角色变更</b><small>user.role.updated · 7F2A</small></span><span><b>林默</b><small>192.168.1.24</small></span><span><b>陈屿</b><small>研究人员</small></span><span><b>今天 14:20</b><small>Asia/Shanghai</small></span><em class="admin-state active">成功</em></div><div class="admin-audit-row"><span><b>知识库可见性更新</b><small>kb.visibility.updated · A91C</small></span><span><b>周岚</b><small>192.168.1.31</small></span><span><b>客户反馈与访谈</b><small>PRIVATE → PUBLIC</small></span><span><b>今天 12:08</b><small>Asia/Shanghai</small></span><em class="admin-state active">成功</em></div><div class="admin-audit-row"><span><b>研究策略更新</b><small>research.policy.updated · 42BD</small></span><span><b>系统管理员</b><small>192.168.1.24</small></span><span><b>公开检索降级策略</b><small>组织默认</small></span><span><b>昨天 18:40</b><small>Asia/Shanghai</small></span><em class="admin-state active">成功</em></div><div class="admin-audit-row"><span><b>登录尝试</b><small>session.login.failed · 00E7</small></span><span><b>未知账号</b><small>104.28.12.3</small></span><span><b>管理控制台</b><small>密码错误</small></span><span><b>7 月 30 日 03:12</b><small>UTC+8</small></span><em class="admin-state warning">已拦截</em></div></div>
+          </div>
+
+          <div class="admin-panel" data-admin-panel="settings" hidden>
+            <div class="admin-panel-heading"><div><p class="eyebrow">组织策略</p><h2>系统设置</h2><p>配置组织级默认值；对现有资源的明确设置不会被覆盖。</p></div><span class="settings-saved">上次保存 · 今天 11:42</span></div>
+            <div class="admin-settings"><section><header><div><h3>组织信息</h3><p>显示在邀请、导出文件和审计记录中。</p></div><span>通用</span></header><label><span>组织名称</span><input value="据见研究中心"></label><label><span>默认时区</span><button class="select-field">Asia/Shanghai <i>展开</i></button></label></section><section><header><div><h3>研究默认策略</h3><p>为新建研究任务提供默认边界。</p></div><span>研究</span></header><label><span>单项研究预算上限</span><input value="¥ 20.00"></label><label class="setting-toggle"><span><b>公开网络检索</b><small>允许研究任务按需访问公开来源</small></span><input type="checkbox" checked></label><label class="setting-toggle"><span><b>失败来源降级</b><small>公开来源不可访问时使用缓存摘要并披露</small></span><input type="checkbox" checked></label></section><section><header><div><h3>知识与保留策略</h3><p>控制默认可见性和日志保留周期。</p></div><span>知识</span></header><label><span>新知识库默认可见性</span><button class="select-field">私有 <i>展开</i></button></label><label><span>审计日志保留</span><button class="select-field">180 天 <i>展开</i></button></label></section><footer><p>策略变更会写入审计日志。</p><button class="luminous-button compact"><span>保存设置</span><i>↗</i></button></footer></div>
+          </div>
+          </div>
+
+          <div class="pipeline-trace-backdrop" id="pipeline-trace-backdrop" hidden></div>
+          <aside class="pipeline-trace-drawer" id="pipeline-trace-drawer" aria-hidden="true">
+            <header><div><p class="eyebrow" id="pipeline-trace-kind">Knowledge Trace</p><h2 id="pipeline-trace-title">ktr_7A91F2</h2><small id="pipeline-trace-request">REQUEST · req_21CE</small></div><button data-action="close-pipeline-trace" aria-label="关闭 Pipeline Trace">×</button></header>
+            <div class="trace-drawer-summary"><span><small>状态</small><b id="pipeline-trace-status">成功</b></span><span><small>耗时</small><b id="pipeline-trace-duration">3.82s</b></span><span><small>重试 / 降级</small><b id="pipeline-trace-retries">1 / 0</b></span></div>
+            <p class="trace-privacy">只记录阶段、计数、耗时、版本和安全错误；不记录完整 Prompt、正文、凭据或隐藏推理。</p>
+            <ol class="trace-step-list" id="knowledge-trace-steps"><li class="done"><span>01</span><div><b>意图分类</b><small>对比研究 · 84 毫秒</small></div><em>完成</em></li><li class="done"><span>02</span><div><b>查询改写</b><small>3 个检索查询 · 312 毫秒</small></div><em>完成</em></li><li class="done"><span>03</span><div><b>权限校验</b><small>2 个 KB · 请求时复核</small></div><em>完成</em></li><li class="done"><span>04</span><div><b>混合检索</b><small>向量 62 + BM25 48 · 1.24 秒</small></div><em>完成</em></li><li class="warning"><span>05</span><div><b>融合与重排</b><small>96 → 34 · 重排器 v3</small></div><em>重试 1 次</em></li><li class="done"><span>06</span><div><b>证据审查</b><small>34 → 8 · 完整度 92%</small></div><em>完成</em></li><li class="done"><span>07</span><div><b>生成回答</b><small>模型网关 · 1.06 秒</small></div><em>完成</em></li></ol>
+            <ol class="trace-step-list research-steps" id="research-trace-steps" hidden><li class="done"><span>01</span><div><b>规划</b><small>4 个维度 · 2 分 08 秒</small></div><em>完成</em></li><li class="done"><span>02</span><div><b>检索</b><small>48 个公开来源 · 3 分 16 秒</small></div><em>完成</em></li><li class="done"><span>03</span><div><b>获取</b><small>43 成功 · 1 降级</small></div><em>完成</em></li><li class="done"><span>04</span><div><b>重排</b><small>96 → 34 条证据</small></div><em>完成</em></li><li class="active"><span>05</span><div><b>综合</b><small>步骤 18 / 27 · 可恢复</small></div><em>运行中</em></li><li><span>06</span><div><b>证据图谱</b><small>等待综合分析完成</small></div><em>等待</em></li><li><span>07</span><div><b>生成</b><small>等待证据图谱完成</small></div><em>等待</em></li></ol>
+            <ol class="trace-step-list ingestion-steps" id="ingestion-trace-steps" hidden><li class="done"><span>01</span><div><b>上传与校验</b><small>SHA-256 校验通过 · 142 毫秒</small></div><em>完成</em></li><li class="done"><span>02</span><div><b>解析文档</b><small>PDF 解析器 v4 · 18 页</small></div><em>完成</em></li><li class="done"><span>03</span><div><b>分块</b><small>1,284 切片 · 策略 v7</small></div><em>完成</em></li><li class="done"><span>04</span><div><b>嵌入</b><small>embedding-v3 · 38 批次</small></div><em>完成</em></li><li class="done"><span>05</span><div><b>写入暂存索引</b><small>Collection kb_91ad_staging_v42</small></div><em>完成</em></li><li class="done"><span>06</span><div><b>发布知识库独立索引（per-KB Collection）</b><small>kb_91ad · v41 → v42 · 原子切换</small></div><em>完成</em></li></ol>
+            <footer><span>Trace 保留 · 策略已应用</span><button class="panel-button ghost">复制 Trace ID</button></footer>
+          </aside>
+        </section>
+
+        <section class="route-view placeholder-route" data-route-view="placeholder" hidden><p class="eyebrow">原型</p><h1 id="placeholder-title">页面待展开</h1><p>该模块将在后续原型轮次继续展开。</p><a href="#workbench" class="luminous-button compact"><span>返回工作台</span><i>↗</i></a></section>
+      </main>
+    </div>
+  </div>
+
+  <div class="login-backdrop" id="login-backdrop" hidden></div>
+  <aside class="login-drawer" id="login-drawer" aria-labelledby="login-title" aria-hidden="true">
+    <button class="drawer-close" data-action="close-login" aria-label="关闭登录">×</button>
+    <div class="drawer-brand"><svg><use href="#brand-mark"></use></svg><span>EvidSight</span></div>
+    <div class="login-copy"><p class="eyebrow">账户登录</p><h2 id="login-title">登录据见</h2><p>进入属于你的知识与研究空间。</p></div>
+    <form id="login-form">
+      <label>账号<input name="account" autocomplete="username" value="linmo@example.com"></label>
+      <label>密码<span class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" value="evidsight"><button type="button" data-action="toggle-password">显示</button></span></label>
+      <div class="form-options"><label class="checkbox"><input type="checkbox" checked>记住登录状态</label><a href="#">忘记密码</a></div>
+      <p class="form-error" id="form-error" role="alert" hidden>账号或密码不正确，请重新输入。</p>
+      <button class="luminous-button login-submit" type="submit"><span>进入据见</span><i>↗</i></button>
+    </form>
+    <p class="security-note">登录即表示你同意组织的访问与审计策略。凭据只提交至统一身份服务。</p>
+  </aside>
+
+  <div class="upload-backdrop" id="upload-backdrop" hidden></div>
+  <aside class="upload-drawer" id="upload-drawer" aria-labelledby="upload-title" aria-hidden="true">
+    <header><div><p class="eyebrow">文档入库</p><h2 id="upload-title">把材料放入知识中</h2></div><button data-action="close-upload" aria-label="关闭上传">×</button></header>
+    <p class="upload-intro">文件先完成上传，再由后台依次解析、分块与写入当前知识库的独立索引。</p>
+    <button class="drop-zone" data-action="choose-files"><b>拖入文件，或从设备选择</b><span>PDF · DOCX · MARKDOWN · TXT</span><small>单文件不超过 50 MB</small></button>
+    <div class="upload-queue"><p class="eyebrow">上传队列 · 02</p><div><span><b>Q3_Planning_Notes.md</b><small>680 KB</small></span><em>就绪</em></div><div><span><b>Agent_Field_Study.pdf</b><small>8.4 MB</small></span><em>就绪</em></div></div>
+    <div class="upload-assurance"><b>可以离开页面</b><p>提交成功后，后台处理不会因关闭抽屉或离开当前页面而中止。</p></div>
+    <button class="luminous-button upload-submit" data-action="start-upload"><span>提交 2 个文档</span><i>↗</i></button>
+  </aside>
+
+  <div class="chunk-backdrop" id="chunk-backdrop" hidden></div>
+  <aside class="chunk-drawer" id="chunk-drawer" aria-labelledby="chunk-title" aria-hidden="true">
+    <header><div><p class="eyebrow">文档切片 · 1,284</p><h2 id="chunk-title">2026_H2_Product_Roadmap.pdf</h2></div><button data-action="close-chunks" aria-label="关闭切片">×</button></header>
+    <div class="chunk-context"><span>产品规划与路线图</span><span>仅显示当前可读取内容</span></div>
+    <div class="chunk-list"><article class="chunk-card"><header><b>切片 #183</b><span>298 Token · 第 17 页</span></header><p>企业 Agent 平台试点将首先覆盖产品、客户成功和安全团队，检索权限随原系统同步变化。</p></article><article class="chunk-card active"><header><b>切片 #184</b><span>326 Token · 第 18 页</span></header><p>权限体系能否原样继承，是进入试点前必须完成的验证。模型效果反而排在第二阶段，尤其是在跨部门资料参与检索时。</p><small>本段被当前回答引用</small></article><article class="chunk-card"><header><b>切片 #185</b><span>284 Token · 第 18 页</span></header><p>第二阶段进入生成质量与任务完成率的对照测试，并记录引用覆盖率和人工复核结果。</p></article><article class="chunk-card"><header><b>切片 #186</b><span>311 Token · 第 19 页</span></header><p>高风险工具执行必须经过审批，并保留请求、执行结果与撤销状态的完整审计记录。</p></article></div>
+    <footer><button disabled>← 上一页</button><span>第 1 / 65 页</span><button>下一页 →</button></footer>
+  </aside>
+
+  <div class="password-backdrop" id="password-backdrop" hidden></div>
+  <aside class="password-drawer" id="password-drawer" aria-labelledby="password-title" aria-hidden="true">
+    <header><div><p class="eyebrow">账户安全</p><h2 id="password-title">修改密码</h2></div><button data-action="close-password" aria-label="关闭修改密码">×</button></header>
+    <p class="password-intro">更新后，其他设备上的登录状态将失效。请使用至少 8 位且不易猜测的新密码。</p>
+    <form id="password-form">
+      <label for="current-password">当前密码<input id="current-password" type="password" autocomplete="current-password" value="evidsight"></label>
+      <label for="new-password">新密码<input id="new-password" type="password" autocomplete="new-password" placeholder="至少 8 位字符"></label>
+      <label for="confirm-password">确认新密码<input id="confirm-password" type="password" autocomplete="new-password" placeholder="再次输入新密码"></label>
+      <div class="password-strength"><span></span><span></span><span></span><small>密码强度将在输入后显示</small></div>
+      <p class="password-form-error" id="password-form-error" role="alert" hidden></p>
+      <button class="luminous-button password-submit" type="submit" data-action="submit-password"><span>更新密码</span><i>↗</i></button>
+    </form>
+    <p class="security-note">密码仅用于身份验证，不会出现在研究、问答或审计内容中。</p>
+  </aside>
+
+  <div class="logout-backdrop" id="logout-backdrop" hidden></div>
+  <section class="logout-dialog" id="logout-dialog" role="dialog" aria-modal="true" aria-labelledby="logout-title" aria-hidden="true">
+    <p class="eyebrow">结束会话</p>
+    <h2 id="logout-title">确认退出登录？</h2>
+    <p>当前设备上的会话将结束，后台运行中的研究任务不会中止。</p>
+    <div class="logout-actions"><button class="ghost-button" data-action="close-logout">继续留在据见</button><button class="danger-button" data-action="confirm-logout">退出登录</button></div>
+  </section>
+
+  <div class="logout-backdrop" id="theme-backdrop" hidden></div>
+  <section class="logout-dialog theme-dialog" id="theme-dialog" role="dialog" aria-modal="true" aria-labelledby="theme-title" aria-hidden="true">
+    <p class="eyebrow">外观设置</p>
+    <h2 id="theme-title">选择界面主题</h2>
+    <p>浅色适合明亮办公环境，深色适合暗光环境；切换立即生效。</p>
+    <div class="theme-options">
+      <button class="theme-option" data-theme-choice="light" data-action="pick-theme">
+        <span class="theme-swatch swatch-light"></span>
+        <span class="theme-option-copy"><b>浅色</b><small>白色背景 · 明亮办公</small></span>
+        <i class="theme-check">✓</i>
+      </button>
+      <button class="theme-option" data-theme-choice="dark" data-action="pick-theme">
+        <span class="theme-swatch swatch-dark"></span>
+        <span class="theme-option-copy"><b>深色</b><small>深色背景 · 暗光环境</small></span>
+        <i class="theme-check">✓</i>
+      </button>
+    </div>
+    <div class="theme-actions"><button class="ghost-button" data-action="close-theme">取消</button></div>
+  </section>
+
+  <div class="logout-backdrop" id="theme-confirm-backdrop" hidden></div>
+  <section class="logout-dialog theme-confirm" id="theme-confirm" role="dialog" aria-modal="true" aria-labelledby="theme-confirm-title" aria-hidden="true">
+    <p class="eyebrow">切换确认</p>
+    <h2 id="theme-confirm-title">切换主题？</h2>
+    <p id="theme-confirm-text">确定切换到浅色主题吗？</p>
+    <div class="logout-actions"><button class="ghost-button" data-action="close-theme-confirm">取消</button><button class="luminous-button compact" data-action="confirm-theme">确认切换</button></div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -7,7 +7,7 @@ if [[ "${1:-}" == "--production" ]]; then
   shift
 fi
 
-npm --prefix apps/web run build
+pnpm --dir apps/web run build
 
 compose=(docker compose)
 if [[ "$production" == "true" ]]; then
@@ -16,7 +16,8 @@ fi
 
 "${compose[@]}" config --quiet
 "${compose[@]}" up -d --build
-curl --fail --retry 20 --retry-delay 3 http://localhost/api/health
-curl --fail --retry 20 --retry-delay 3 http://localhost/api/research/health
-test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost/internal/v1/retrieval/search)" = "404"
+# nginx 已启用 HTTPS（80 → 443 重定向），冒烟走 https；自签证书用 -k 跳过校验
+curl -k --fail --retry 20 --retry-delay 3 https://localhost/api/health
+curl -k --fail --retry 20 --retry-delay 3 https://localhost/api/research/health
+test "$(curl -k -sS -o /dev/null -w '%{http_code}' https://localhost/internal/v1/retrieval/search)" = "404"
 "${compose[@]}" ps

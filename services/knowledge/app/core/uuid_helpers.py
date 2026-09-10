@@ -14,6 +14,7 @@ from app.core.exceptions import (
     ConversationNotFoundException,
     DocumentNotFoundException,
     KnowledgeBaseNotFoundException,
+    UserNotFoundException,
 )
 
 # UUID 格式校验（RFC 4122，支持 v1/v3/v4/v5）
@@ -120,4 +121,25 @@ async def resolve_user_uuid(db: AsyncSession, user_id: int) -> str:
     from app.models.user import User
 
     result = await db.execute(select(User.platform_user_id).where(User.id == user_id))
-    return result.scalar_one_or_none()
+    platform_user_id = result.scalar_one_or_none()
+    if platform_user_id is None:
+        raise UserNotFoundException(user_id)
+    return platform_user_id
+
+
+async def resolve_user_display(db: AsyncSession, user_id: int) -> tuple[str, str]:
+    """一次查询返回 (platform_user_id, username)，供外部响应的 owner/owner_username 使用。
+
+    纠偏 3B：知识库列表/详情 Hero 需要展示 owner 用户名，同时 owner 输出仍为
+    Platform User UUID（不暴露内部 users.id）。两个字段在同一行查询取回，
+    避免对每个用户发两次 DB 查询。
+    """
+    from app.models.user import User
+
+    result = await db.execute(
+        select(User.platform_user_id, User.username).where(User.id == user_id)
+    )
+    row = result.first()
+    if row is None:
+        raise UserNotFoundException(user_id)
+    return row[0], row[1]

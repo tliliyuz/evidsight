@@ -12,6 +12,7 @@ from app.agent.memory import ReActEntry, WorkingMemory
 from app.agent.prompts import build_agent_system_prompt, build_phase_instruction
 from app.agent.state import PhaseController
 from app.config import settings
+from app.core.exceptions import AppException, LLMUnknownException
 from app.core.llm import chat_completion
 from app.metrics import emit_agent_loop_iteration
 from app.pipeline.sse_bridge import (
@@ -72,6 +73,7 @@ class AgentLoop:
         """
         agent_ctx = tool_context.agent_context
         iteration = agent_ctx.iteration_count or 0
+        force_primary_tool = False
 
         while not agent_ctx.finished and iteration < self._max_iterations:
             # 每轮迭代开始前检查任务是否已被用户取消，避免取消后继续消耗 LLM 成本
@@ -83,23 +85,39 @@ class AgentLoop:
             iteration += 1
             agent_ctx.iteration_count = iteration
             current_phase = self._phase_controller.current_phase
-            iteration_phase = current_phase
 
             if current_phase is None:
                 logger.info("所有 phase 已完成，结束 Agent Loop")
                 agent_ctx.finished = True
                 break
+            iteration_phase = current_phase
 
             messages = self._build_messages()
             available_tools = self._phase_controller.get_available_tools()
             tool_schemas = [self._tool_to_schema(t) for t in available_tools]
+            primary_tool = next(
+                (tool for tool in available_tools if tool.mapped_phase == current_phase),
+                None,
+            )
+            tool_choice: str | dict[str, Any] = "auto"
+            if force_primary_tool and primary_tool is not None:
+                tool_choice = {
+                    "type": "function",
+                    "function": {"name": primary_tool.name},
+                }
 
             try:
                 llm_result = await chat_completion(
                     messages=messages,
                     tools=tool_schemas,
-                    tool_choice="auto",
+                    tool_choice=tool_choice,
                 )
+            except AppException as exc:
+                # LLM 客户端已经完成 Provider 层重试；结构化业务错误必须交给
+                # Runtime/TaskStateResolver 收口，不能把认证、限流或超时当作
+                # 普通 observation 继续消耗 Agent 迭代预算。
+                logger.error("Agent Loop LLM 调用失败，停止当前任务: %s", exc)
+                raise
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Agent Loop LLM 调用失败: %s", exc)
                 # 记录失败 observation 后继续，给 LLM 机会在下一轮恢复
@@ -119,6 +137,8 @@ class AgentLoop:
             # 在内部保留供断点续跑，但不外发。
             tool_calls = llm_result.tool_calls or []
             if not tool_calls:
+                if force_primary_tool and primary_tool is not None:
+                    raise LLMUnknownException(detail=f"{current_phase} 阶段未返回主工具")
                 # LLM 未返回 Tool 调用，记录 content 为观察后继续
                 self._working_memory.add(
                     ReActEntry(
@@ -128,8 +148,11 @@ class AgentLoop:
                         observation=llm_result.content or "LLM 未返回 Tool 调用",
                     )
                 )
+                # 空响应同样表示当前 phase 没有推进；下一轮必须优先请求主工具。
+                force_primary_tool = primary_tool is not None
                 continue
 
+            primary_tool_succeeded = False
             for tool_call in tool_calls:
                 # §13.2：每次外部调用前检查取消，覆盖同迭代内多个 Tool 之间，
                 # 避免取消后继续执行下一 Tool 调用。
@@ -226,14 +249,20 @@ class AgentLoop:
                 # 当前 phase 的 primary tool 成功执行一次即标记完成
                 if tool is not None and tool.mapped_phase == current_phase and result.success:
                     self._phase_controller.mark_phase_done(current_phase)
+                    primary_tool_succeeded = True
 
             # 本轮 tool calls 处理完后，若当前 phase 已完成则推进
             if self._phase_controller.current_phase_done:
                 advanced = self._phase_controller.advance()
+                force_primary_tool = False
                 if not advanced:
                     logger.info("所有 phase 已完成，Agent Loop 结束")
                     agent_ctx.finished = True
                     break
+            elif not agent_ctx.finished:
+                if force_primary_tool and not primary_tool_succeeded:
+                    raise LLMUnknownException(detail=f"{current_phase} 阶段 Tool 选择未推进")
+                force_primary_tool = not primary_tool_succeeded
 
             emit_agent_loop_iteration(iteration_phase, "iteration")
 

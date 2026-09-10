@@ -1,0 +1,13 @@
+-r requirements.txt
+
+# 1.28 起不再提供 Intel macOS wheel；开发锁需同时支持本地 x86_64 与 CI Linux。
+onnxruntime==1.23.*
+# 50 起不再提供 Intel macOS wheel，约束到仍覆盖本地与 CI 的最新兼容系列。
+cryptography==46.*
+
+# 静态类型检查：仅开发/CI 使用，不进入生产镜像。
+mypy==2.3.*
+types-python-jose==3.5.*
+types-psutil==7.2.*
+types-PyYAML==6.*
+types-jsonschema==4.*

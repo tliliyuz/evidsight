@@ -25,10 +25,11 @@ async def test_disable_increments_status_version():
     # 必须 patch 该目标才会生效（用户裁决 2026-08-04）
     with __import__("unittest.mock", fromlist=["patch"]).patch(
         "app.services.auth_service.revoke_all_user_tokens", new=AsyncMock()
-    ):
+    ) as mock_revoke:
         resp = await change_user_status(db, user.id, "disabled", current_user_id=99)
     assert user.status_version == 1
     assert resp.status == "disabled"
+    mock_revoke.assert_awaited_once_with(db, user.platform_user_id)
 
 
 @pytest.mark.asyncio

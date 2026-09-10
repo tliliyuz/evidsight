@@ -209,7 +209,7 @@ async def list_traces(
 async def get_trace_detail(
     db: AsyncSession,
     trace_id: str,
-) -> TraceDetailResponse | None:
+) -> TraceDetailResponse:
     """获取 Trace 详情（含各阶段 JSON 详情）。
 
     对齐 API.md §7.5：返回完整 Trace 信息含 intent/rewrite/retrieve/rerank/generate JSON。
@@ -385,7 +385,8 @@ async def get_trace_stats(
     )
     intent_dist_rows = (await db.execute(intent_dist_q)).all()
     intent_distribution = [
-        TraceIntentDistItem(type=row.type, count=row.count) for row in intent_dist_rows
+        TraceIntentDistItem(type=row.type, count=int(getattr(row, "count")))
+        for row in intent_dist_rows
     ]
 
     # ===== 5. Response Mode 分布 =====
@@ -397,7 +398,8 @@ async def get_trace_stats(
     )
     response_dist_rows = (await db.execute(response_dist_q)).all()
     response_distribution = [
-        TraceResponseDistItem(mode=row.mode, count=row.count) for row in response_dist_rows
+        TraceResponseDistItem(mode=row.mode, count=int(getattr(row, "count")))
+        for row in response_dist_rows
     ]
 
     return TraceStatsResponse(

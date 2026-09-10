@@ -207,6 +207,7 @@ class TestRerankSuccess:
             with patch("app.pipeline.reranker.chat_completion", new=_capture_and_return):
                 await run_rerank(task, rerank_step, db_session, sse)
 
+            assert captured_messages[-1] is not None
             system_content = captured_messages[-1][0]["content"]
             dimension_map = {
                 "comparison": "属性对齐度",

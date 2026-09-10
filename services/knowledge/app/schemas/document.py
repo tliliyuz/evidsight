@@ -86,7 +86,11 @@ class DocumentBatchUploadResponse(BaseModel):
 class DocumentChunkResponse(BaseModel):
     """文档分块响应"""
 
+    # 内部整数 PK 仅迁移期兼容保留，不作为前端契约；稳定身份使用 segment_id
     id: int
+    segment_id: str = Field(
+        description="Segment 稳定 UUID（chunk.segment_uuid，即 v1 location API 的 location_id）"
+    )
     chunk_index: int
     preview: str = Field(description="分块内容预览（默认截断至 200 字符）")
     token_count: int = 0

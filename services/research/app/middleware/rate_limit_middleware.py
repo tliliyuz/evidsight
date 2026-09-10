@@ -16,11 +16,13 @@
 
 import logging
 import time
+from uuid import uuid4
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.config import settings
+from app.core.api_response import error_envelope
 from app.core.redis_client import get_async_redis
 
 logger = logging.getLogger(__name__)
@@ -175,17 +177,27 @@ class RateLimitMiddleware:
             current,
             limit,
         )
-        response = JSONResponse(
-            status_code=429,
-            content={
+        headers = {
+            "X-RateLimit-Limit": str(limit),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": str(reset_at),
+        }
+        if request.url.path.startswith("/api/v1/"):
+            request_id = request.headers.get("X-Request-ID") or uuid4().hex
+            headers["X-Request-ID"] = request_id
+            content = error_envelope(
+                code="E9004",
+                message="请求频率超限",
+                request_id=request_id,
+                status_code=429,
+                details={"retry_after_seconds": max(0, reset_at - int(time.time()))},
+                retryable=True,
+            )
+        else:
+            content = {
                 "code": "E9004",
                 "message": "请求频率超限",
                 "detail": f"{group} 接口限制 {limit} 次/{window}秒，请稍后重试",
-            },
-            headers={
-                "X-RateLimit-Limit": str(limit),
-                "X-RateLimit-Remaining": "0",
-                "X-RateLimit-Reset": str(reset_at),
-            },
-        )
+            }
+        response = JSONResponse(status_code=429, content=content, headers=headers)
         await response(scope, receive, send)

@@ -8,6 +8,7 @@ from app.agent.exceptions import AgentLoopExhaustedError
 from app.agent.loop import AgentLoop, ToolExecutionResult
 from app.agent.memory import WorkingMemory
 from app.agent.state import PhaseController
+from app.core.exceptions import LLMAuthFailedException, LLMUnknownException
 from app.core.llm import LLMResult, ToolCall
 from app.pipeline.sse_bridge import (
     EVENT_AGENT_ACTION,
@@ -15,6 +16,7 @@ from app.pipeline.sse_bridge import (
     SSEBridge,
 )
 from app.tools.base import Tool, ToolContext, ToolResult
+from app.tools.memory_tool import MemoryTool
 from app.tools.registry import ToolRegistry
 
 
@@ -34,6 +36,7 @@ def setup():
     reg = ToolRegistry()
     reg.register(DummyTool("plan_tool", "planning"))
     reg.register(DummyTool("search_tool", "search"))
+    reg.register(MemoryTool())
     ctx = AgentContext(current_phase="planning")
     memory = WorkingMemory()
     sse = MagicMock(spec=SSEBridge)
@@ -73,6 +76,101 @@ def _callback_factory(agent_ctx):
 
 
 class TestAgentLoop:
+    async def test_辅助tool无进展_下一轮强制当前phase主工具(self, setup, monkeypatch):
+        loop, tool_ctx, sse, reg, agent_ctx = setup
+        responses = [
+            _make_llm_result(
+                tool_calls=[
+                    ToolCall(id="memory-1", name="memory_tool", arguments={"operation": "read"})
+                ]
+            ),
+            _make_llm_result(tool_calls=[ToolCall(id="plan-1", name="plan_tool", arguments={})]),
+            _make_llm_result(
+                tool_calls=[ToolCall(id="finish-1", name="finish_tool", arguments={})]
+            ),
+        ]
+        choices = []
+
+        async def fake_chat(*args, **kwargs):
+            choices.append(kwargs["tool_choice"])
+            return responses.pop(0)
+
+        monkeypatch.setattr("app.agent.loop.chat_completion", fake_chat)
+
+        await loop.run(tool_ctx, _callback_factory(agent_ctx))
+
+        assert choices == [
+            "auto",
+            {"type": "function", "function": {"name": "plan_tool"}},
+            "auto",
+        ]
+        assert agent_ctx.completed_phases == {"planning"}
+        assert agent_ctx.finished is True
+
+    async def test_未返回Tool调用_下一轮强制当前phase主工具(self, setup, monkeypatch):
+        loop, tool_ctx, sse, reg, agent_ctx = setup
+        responses = [
+            _make_llm_result(content="暂时没有可执行动作"),
+            _make_llm_result(tool_calls=[ToolCall(id="plan-1", name="plan_tool", arguments={})]),
+            _make_llm_result(
+                tool_calls=[ToolCall(id="finish-1", name="finish_tool", arguments={})]
+            ),
+        ]
+        choices = []
+
+        async def fake_chat(*args, **kwargs):
+            choices.append(kwargs["tool_choice"])
+            return responses.pop(0)
+
+        monkeypatch.setattr("app.agent.loop.chat_completion", fake_chat)
+
+        await loop.run(tool_ctx, _callback_factory(agent_ctx))
+
+        assert choices == [
+            "auto",
+            {"type": "function", "function": {"name": "plan_tool"}},
+            "auto",
+        ]
+        assert agent_ctx.completed_phases == {"planning"}
+        assert agent_ctx.finished is True
+
+    async def test_强制主工具仍无进展_抛出受控LLM错误(self, setup, monkeypatch):
+        loop, tool_ctx, sse, reg, agent_ctx = setup
+        responses = [
+            _make_llm_result(
+                tool_calls=[
+                    ToolCall(id="memory-1", name="memory_tool", arguments={"operation": "read"})
+                ]
+            ),
+            _make_llm_result(
+                tool_calls=[
+                    ToolCall(id="memory-2", name="memory_tool", arguments={"operation": "read"})
+                ]
+            ),
+        ]
+
+        async def fake_chat(*args, **kwargs):
+            return responses.pop(0)
+
+        monkeypatch.setattr("app.agent.loop.chat_completion", fake_chat)
+
+        with pytest.raises(LLMUnknownException) as exc_info:
+            await loop.run(tool_ctx, _callback_factory(agent_ctx))
+
+        assert exc_info.value.error_code == "E3111"
+        assert agent_ctx.iteration_count == 2
+
+    async def test_LLM认证失败_立即中断不重复调用(self, setup, monkeypatch):
+        loop, tool_ctx, sse, reg, agent_ctx = setup
+        chat_mock = AsyncMock(side_effect=LLMAuthFailedException("API Key 无效"))
+        monkeypatch.setattr("app.agent.loop.chat_completion", chat_mock)
+
+        with pytest.raises(LLMAuthFailedException):
+            await loop.run(tool_ctx, _callback_factory(agent_ctx))
+
+        chat_mock.assert_awaited_once()
+        assert agent_ctx.finished is False
+
     async def test_finish_tool_结束循环(self, setup, monkeypatch):
         loop, tool_ctx, sse, reg, agent_ctx = setup
 

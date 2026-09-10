@@ -13,11 +13,14 @@ from datetime import datetime, timezone
 from typing import AsyncIterator
 from uuid import uuid4
 
+from sqlalchemy import select
+
 from app.config import settings
 from app.core.database import async_session
-from app.core.exceptions import ConversationNotFoundException
+from app.core.exceptions import AppException, ConversationNotFoundException
 from app.core.llm import stream_chat_completion
 from app.core.sse import format_sse_event
+from app.models.chat_generation import ChatGeneration
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.rag.chunker import estimate_tokens
@@ -25,6 +28,7 @@ from app.rag.evidence_auditor import EvidenceAuditResult, audit_evidence
 from app.rag.prompt_builder import PromptBuildResult
 from app.rag.retriever import RetrievalOutput
 from app.rag.trace_recorder import TraceRecorder
+from app.services.chat_generation_service import fail_generation, is_generation_canceled
 from app.services.chat_helpers import (
     _CITATION_PATTERN,
     _NOT_FOUND_KEYWORDS,
@@ -33,13 +37,14 @@ from app.services.chat_helpers import (
     extract_citation_indices,
     generate_title,
     generate_title_llm,
+    project_wire_source,
 )
 
 logger = logging.getLogger(__name__)
 
 # META 固定回复模板（对齐 ARCHITECTURE.md §5.1.6）
 _META_RESPONSE = (
-    "我是 DocMind，一个企业知识库智能问答助手。\n\n"
+    "我是 EvidSight，一个企业知识库智能问答助手。\n\n"
     "我可以帮你：\n"
     "1. 查询知识库中的文档信息\n"
     "2. 回答关于公司制度、流程、规范等问题\n"
@@ -60,6 +65,7 @@ async def _generate_sse_stream(
     prompt_result: PromptBuildResult,
     reranked_output: RetrievalOutput,
     doc_map: dict[int, str],
+    doc_uuid_map: dict[int, str] | None = None,
     recorder: TraceRecorder | None = None,
 ) -> AsyncIterator[str]:
     """SSE 事件流生成器 — LLM 流式调用 + 消息持久化。
@@ -101,6 +107,8 @@ async def _generate_sse_stream(
             messages=messages,
             deep_thinking=deep_thinking,
         ):
+            if await is_generation_canceled(task_id):
+                return
             if chunk.finish_reason:
                 llm_finish_reason = chunk.finish_reason
             if chunk.reasoning_content and deep_thinking:
@@ -190,14 +198,15 @@ async def _generate_sse_stream(
         _error_chunks = prompt_result.used_chunks or reranked_output.results
         if _error_chunks:
             # LLM 失败时无 assistant_content，preview 降级为 None
-            sources = build_sources(_error_chunks, doc_map)
+            sources = build_sources(_error_chunks, doc_map, doc_uuid_map)
             yield format_sse_event("sources", {"chunks": [s.model_dump() for s in sources]})
 
         error_code = "E4002"
         error_msg = "LLM 调用失败"
-        if hasattr(e, "error_code"):
+        if isinstance(e, AppException):
             error_code = e.error_code
             error_msg = e.error_message
+        await fail_generation(task_id, error_code, error_msg)
         # Trace 记录 LLM 错误（独立短 session，对齐 ADR-017）
         if recorder:
             recorder.record_error(error_msg)
@@ -247,6 +256,7 @@ async def _generate_sse_stream(
             "SOURCES_SUPPRESSED: LLM 判定未找到（not_found=True），抑制 sources 发送",
         )
 
+    persisted_sources: list[dict] | None = None
     if reranked_output.results and not _not_found:
         _send_chunks = prompt_result.used_chunks or reranked_output.results
         _cited_indices = extract_citation_indices(_answer_stripped)
@@ -258,9 +268,11 @@ async def _generate_sse_stream(
                 sources = build_sources(
                     [c for _, c in _cited_with_orig_index],
                     doc_map,
+                    doc_uuid_map,
                 )
                 for j, (orig_idx, _) in enumerate(_cited_with_orig_index):
                     sources[j].chunk_index = orig_idx
+                persisted_sources = [project_wire_source(s.model_dump()) for s in sources]
                 yield format_sse_event(
                     "sources",
                     build_sources_event_data(sources, _audit_result),
@@ -272,7 +284,8 @@ async def _generate_sse_stream(
                 "SOURCES_FALLBACK: LLM 未引用 [来源N]，回退发送全部 used_chunks (%d 个)",
                 len(_send_chunks),
             )
-            sources = build_sources(_send_chunks, doc_map)
+            sources = build_sources(_send_chunks, doc_map, doc_uuid_map)
+            persisted_sources = [project_wire_source(s.model_dump()) for s in sources]
             yield format_sse_event(
                 "sources",
                 build_sources_event_data(sources, _audit_result),
@@ -284,6 +297,8 @@ async def _generate_sse_stream(
     # LLM 流式期间不持有 DB 连接，session 仅在最后持久化阶段短暂占用
     title = None
     message_id = 0  # 异常回退时的默认值
+    if await is_generation_canceled(task_id):
+        return
     msg_id, title = await _persist_message(
         conv,
         is_first_turn,
@@ -292,8 +307,12 @@ async def _generate_sse_stream(
         "STREAM",
         recorder,
         token_count=token_usage.get("total", 0),
+        generation_uuid=task_id,
+        persisted_sources=persisted_sources,
     )
     if msg_id is None:
+        if await is_generation_canceled(task_id):
+            return
         yield format_sse_event(
             "error",
             {
@@ -358,6 +377,8 @@ async def _persist_message(
     recorder: TraceRecorder | None = None,
     *,
     token_count: int = 0,
+    generation_uuid: str | None = None,
+    persisted_sources: list[dict] | None = None,
 ) -> tuple[int | None, str | None]:
     """消息公共持久化：创建 Message → 更新 Conversation → 写入 Trace。
 
@@ -372,6 +393,8 @@ async def _persist_message(
         log_label: 日志标识（"STREAM" / "REJECT" / "META"）
         recorder: Trace 收集器
         token_count: Token 用量（流式回答有估算值，固定模板为 0）
+        persisted_sources: canonical wire 来源投影（API.md §12），非空时写入
+            Message.metadata.sources；缺省/空为 None，历史与 REJECT/META 兼容
 
     Returns:
         (message_id, title)：成功时 message_id > 0；异常时返回 (None, None)
@@ -385,12 +408,25 @@ async def _persist_message(
                 logger.error("会话 %d 在 %s 持久化时已不存在", conv.id, log_label)
                 raise ConversationNotFoundException(conv.id)
 
+            generation = None
+            if generation_uuid:
+                result = await s.execute(
+                    select(ChatGeneration)
+                    .where(ChatGeneration.uuid == generation_uuid)
+                    .with_for_update()
+                )
+                generation = result.scalar_one_or_none()
+                if generation is None or generation.status not in {"pending", "running"}:
+                    return None, None
+
             assistant_msg = Message(
                 conversation_id=conv_in.id,
                 role="assistant",
                 content=content,
                 thinking_content=None,
                 token_count=token_count,
+                generation_id=generation.id if generation else None,
+                **({"metadata_": {"sources": persisted_sources}} if persisted_sources else {}),
             )
             s.add(assistant_msg)
             conv_in.message_count += 1
@@ -408,6 +444,11 @@ async def _persist_message(
             if recorder:
                 await recorder.finish(s, commit=False)
 
+            if generation is not None:
+                generation.status = "completed"
+                generation.completed_at = _now
+                generation.output_tokens = token_count
+
             await s.commit()
 
         except Exception:
@@ -423,14 +464,20 @@ async def _generate_reject_response(
     is_first_turn: bool,
     question: str,
     recorder: TraceRecorder | None = None,
+    generation_uuid: str | None = None,
 ) -> AsyncIterator[str]:
     """证据审查 REJECT 时的固定 SSE 响应：不调 LLM，直接返回兜底消息。
 
     SSE 事件序列（对齐 ADR-021 §7b）：
     meta → message("未找到相关信息") → sources(空) → finish
     """
-    yield format_sse_event("meta", {"conversation_id": conv.uuid, "task_id": str(uuid4())})
+    yield format_sse_event(
+        "meta", {"conversation_id": conv.uuid, "task_id": generation_uuid or str(uuid4())}
+    )
     yield format_sse_event("message", {"delta": _REJECT_RESPONSE})
+
+    if generation_uuid and await is_generation_canceled(generation_uuid):
+        return
 
     message_id, title = await _persist_message(
         conv,
@@ -439,8 +486,11 @@ async def _generate_reject_response(
         _REJECT_RESPONSE,
         "REJECT",
         recorder,
+        generation_uuid=generation_uuid,
     )
     if message_id is None:
+        if generation_uuid and await is_generation_canceled(generation_uuid):
+            return
         yield format_sse_event("sources", {"chunks": []})
         yield format_sse_event(
             "finish",
@@ -468,10 +518,16 @@ async def _generate_meta_response(
     is_first_turn: bool,
     question: str,
     recorder: TraceRecorder | None = None,
+    generation_uuid: str | None = None,
 ) -> AsyncIterator[str]:
     """META 意图的固定 SSE 响应：不调 LLM，直接返回模板。"""
-    yield format_sse_event("meta", {"conversation_id": conv.uuid, "task_id": str(uuid4())})
+    yield format_sse_event(
+        "meta", {"conversation_id": conv.uuid, "task_id": generation_uuid or str(uuid4())}
+    )
     yield format_sse_event("message", {"delta": _META_RESPONSE})
+
+    if generation_uuid and await is_generation_canceled(generation_uuid):
+        return
 
     message_id, title = await _persist_message(
         conv,
@@ -480,6 +536,7 @@ async def _generate_meta_response(
         _META_RESPONSE,
         "META",
         recorder,
+        generation_uuid=generation_uuid,
     )
 
     yield format_sse_event("sources", {"chunks": []})

@@ -203,6 +203,62 @@ class TestListConversations:
         assert result.items[0].kb_name == "已删除知识库"
         assert result.items[0].owner_user_id == "550e8400-e29b-41d4-a716-446655440001"
 
+    @pytest.mark.asyncio
+    async def test_q_标题模糊过滤(self):
+        """q 参数按会话标题 LIKE 过滤，count 与列表同条件（对齐 API.md §7）"""
+        from app.services.conversation_service import list_conversations
+
+        db = AsyncMock()
+        kb = _make_kb(kb_id=1, name="我的知识库")
+        conv = _make_conv(conv_id=1, kb_id=1, title="产品调研报告")
+        conv.knowledge_base = kb
+        conv.kb_uuid = kb.uuid
+
+        db.execute = AsyncMock(
+            side_effect=[
+                _make_scalar_mock(1),  # count（带 q 过滤）
+                _make_scalars_unique_all([conv]),  # list query
+                _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),  # owner uuid
+            ]
+        )
+
+        result = await list_conversations(db, user_id=1, page=1, page_size=20, q="调研")
+
+        assert result.total == 1
+        assert len(result.items) == 1
+        # count 与 list 两个语句都应带 LIKE 条件
+        for call in db.execute.call_args_list[:2]:
+            stmt = call.args[0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "LIKE" in sql and "%调研%" in sql
+
+    @pytest.mark.asyncio
+    async def test_last_message_at_NULL恒末尾_与order方向无关(self):
+        """last_message_at 为 NULL 的会话恒排末尾：ORDER BY 以 NULL 标记为第一排序键。"""
+        from app.services.conversation_service import list_conversations
+
+        db = AsyncMock()
+        kb = _make_kb(kb_id=1, name="我的知识库")
+        conv = _make_conv(conv_id=1, kb_id=1, title="无消息会话", last_message_at=None)
+        conv.knowledge_base = kb
+        conv.kb_uuid = kb.uuid
+
+        db.execute = AsyncMock(
+            side_effect=[
+                _make_scalar_mock(1),
+                _make_scalars_unique_all([conv]),
+                _make_scalar_one_or_none_mock("550e8400-e29b-41d4-a716-446655440001"),
+            ]
+        )
+
+        await list_conversations(db, user_id=1, page=1, page_size=20, order="asc")
+
+        stmt = db.execute.call_args_list[1].args[0]
+        sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+        assert "ORDER BY" in sql
+        order_clause = sql[sql.index("ORDER BY") :]
+        assert "CASE" in order_clause and "IS NULL" in order_clause
+
 
 # ==================== create_conversation 测试 ====================
 

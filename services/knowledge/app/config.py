@@ -1,6 +1,7 @@
 """应用配置 — 字段声明与 .env 变量自动映射，提供类型校验和 IDE 补全"""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -61,6 +62,9 @@ class Settings(BaseSettings):
     EVIDSIGHT_KNOWLEDGE_JWT_AUDIENCE: str = "evidsight-knowledge"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # access_token 短有效期（对齐 API.md §2）
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # refresh_token 长有效期
+    REFRESH_TOKEN_CONCURRENT_GRACE_SECONDS: int = (
+        10  # 并发刷新宽限期：被轮换 token 在此窗口内复用判为并发冲突（IA-011）而非重放撤销
+    )
     REFRESH_TOKEN_SECRET_KEY: str = ""  # 空则回退到 JWT_SECRET_KEY
 
     # ── Refresh Cookie / CSRF（事件③，对齐 ADR-006 / CONFIGURATION.md §3.1）──
@@ -69,7 +73,9 @@ class Settings(BaseSettings):
     EVIDSIGHT_PLATFORM_REFRESH_COOKIE_NAME: str = "__Host-evidsight_refresh"
     EVIDSIGHT_PLATFORM_REFRESH_COOKIE_PATH: str = "/"
     EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SECURE: bool = True
-    EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SAMESITE: str = "lax"  # 跨站部署用 none 且必须 Secure
+    EVIDSIGHT_PLATFORM_REFRESH_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = (
+        "lax"  # 跨站部署用 none 且必须 Secure
+    )
     EVIDSIGHT_PLATFORM_CSRF_COOKIE_NAME: str = "evidsight_csrf"
     EVIDSIGHT_PLATFORM_AUTH_ALLOWED_ORIGINS: str = ""  # csv string，生产必填（严格 Origin 校验）
     EVIDSIGHT_PLATFORM_AUTH_BODY_REFRESH_COMPAT: bool = (

@@ -4,6 +4,7 @@
 """
 
 import json
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -44,8 +45,9 @@ class TestRerankerInterface:
 
     def test_base_reranker_是抽象类(self):
         """BaseReranker 不能直接实例化"""
+        base_class: Any = BaseReranker
         with pytest.raises(TypeError):
-            BaseReranker()
+            base_class()
 
     def test_dashscope_reranker_是_base_reranker_子类(self):
         """DashScopeReranker 应继承 BaseReranker"""

@@ -10,6 +10,7 @@ class AppException(HTTPException):
         self.error_code = code
         self.error_message = message
         self.error_detail = detail
+        self.clear_auth_cookies = False
         super().__init__(
             status_code=status_code,
             detail={
@@ -24,7 +25,7 @@ class AppException(HTTPException):
 
 
 class KnowledgeBaseNotFoundException(AppException):
-    def __init__(self, kb_id: int):
+    def __init__(self, kb_id: int | str):
         super().__init__("E1001", "知识库不存在", 404, f"kb_id={kb_id} 不存在或已被删除")
 
 
@@ -37,7 +38,7 @@ class KnowledgeBaseNameExistsException(AppException):
 
 
 class DocumentNotFoundException(AppException):
-    def __init__(self, doc_id: int):
+    def __init__(self, doc_id: int | str):
         super().__init__("E2001", "文档不存在", 404, f"doc_id={doc_id} 不存在或已被删除")
 
 
@@ -184,6 +185,21 @@ class MetaQuestionException(AppException):
         self.is_first_turn = is_first_turn
 
 
+class ChatGenerationNotFoundException(AppException):
+    def __init__(self):
+        super().__init__("CHAT_GENERATION_NOT_FOUND", "生成任务不存在", 404)
+
+
+class ChatGenerationStateConflictException(AppException):
+    def __init__(self, status: str):
+        super().__init__(
+            "CHAT_GENERATION_STATE_CONFLICT",
+            "当前生成状态不支持取消",
+            409,
+            f"status={status}",
+        )
+
+
 # ==================== 认证错误 E5xxx ====================
 
 
@@ -237,6 +253,24 @@ class TokenLeakDetectedException(AppException):
         )
 
 
+class RefreshConcurrentException(AppException):
+    """并发刷新冲突（IA-011）：被轮换 Token 在宽限期内被再次使用。
+
+    视为同一客户端多标签页/并发刷新的良性竞态，不撤销 Token Family、不签发
+    新 Token，返回 409 由客户端用更新后的 Cookie 重试；clear_auth_cookies 保持
+    False（路由不强制置 True），避免像重放/过期那样清除 Refresh/CSRF Cookie。
+    """
+
+    def __init__(self, detail: str = ""):
+        super().__init__(
+            "E5011",
+            "并发刷新冲突，请重试",
+            409,
+            detail
+            or "refresh_token 在轮换宽限期内被并发使用，已按并发冲突处理（不撤销 Token Family）",
+        )
+
+
 # ==================== 用户管理错误 E7xxx ====================
 
 
@@ -246,7 +280,7 @@ class TraceNotFoundException(AppException):
 
 
 class UserNotFoundException(AppException):
-    def __init__(self, user_id: int):
+    def __init__(self, user_id: int | str):
         super().__init__("E7002", "用户不存在", 404, f"user_id={user_id} 不存在")
 
 

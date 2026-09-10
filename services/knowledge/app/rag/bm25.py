@@ -405,14 +405,16 @@ class BM25Retriever:
             for (doc_id, chunk_index), score, si in zip(
                 top_k_pairs, top_k_scores, top_k_section_info
             ):
+                content, segment_uuid = content_map.get((doc_id, chunk_index), ("", None))
                 results.append(
                     RetrievalResult(
                         doc_id=doc_id,
                         chunk_index=chunk_index,
-                        content=content_map.get((doc_id, chunk_index), ""),
+                        content=content,
                         score=score,
                         section_title=si.get("section_title") or None,
                         section_path=si.get("section_path") or None,
+                        segment_uuid=segment_uuid,
                     )
                 )
 
@@ -438,37 +440,48 @@ class BM25Retriever:
 
     async def _fetch_chunk_contents(
         self, pairs: list[tuple[int, int]]
-    ) -> dict[tuple[int, int], str]:
-        """从 MySQL 按 (doc_id, chunk_index) 批量取 chunk 原文。
+    ) -> dict[tuple[int, int], tuple[str, str | None]]:
+        """从 MySQL 按 (doc_id, chunk_index) 批量取 chunk 原文与稳定 segment_uuid。
 
         仅在 BM25 评分后调用，只取 top_k 条（通常 ≤10），
-        避免加载全库 chunk 原文到内存。
+        避免加载全库 chunk 原文到内存。content 与 segment_uuid 取自同一行，
+        只读取 Document Active Version，避免同一 (doc_id, chunk_index) 的历史版本
+        覆盖当前 Segment 稳定身份。
 
         Args:
             pairs: [(doc_id, chunk_index), ...] 需要取内容的 chunk 标识
 
         Returns:
-            {(doc_id, chunk_index): content} 映射
+            {(doc_id, chunk_index): (content, segment_uuid)} 映射
         """
         if not pairs:
             return {}
 
         async with self._session_factory() as db:
             result = await db.execute(
-                select(Chunk.doc_id, Chunk.chunk_index, Chunk.content).where(
-                    tuple_(Chunk.doc_id, Chunk.chunk_index).in_(pairs)
+                select(
+                    Chunk.doc_id,
+                    Chunk.chunk_index,
+                    Chunk.content,
+                    Chunk.segment_uuid,
+                )
+                .join(DocumentVersion, DocumentVersion.id == Chunk.document_version_id)
+                .join(Document, Document.id == DocumentVersion.document_id)
+                .where(
+                    tuple_(Chunk.doc_id, Chunk.chunk_index).in_(pairs),
+                    Document.active_version == DocumentVersion.version,
                 )
             )
             rows = result.all()
 
-        content_map: dict[tuple[int, int], str] = {}
+        content_map: dict[tuple[int, int], tuple[str, str | None]] = {}
         for row in rows:
-            content_map[(row.doc_id, row.chunk_index)] = row.content
+            content_map[(row.doc_id, row.chunk_index)] = (row.content, row.segment_uuid)
 
         # 补全未查到的 pair（理论上不应发生，但做防御性处理）
         for pair in pairs:
             if pair not in content_map:
-                content_map[pair] = ""
+                content_map[pair] = ("", None)
 
         return content_map
 

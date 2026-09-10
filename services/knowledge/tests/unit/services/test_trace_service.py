@@ -602,7 +602,9 @@ class TestListTraces:
         result = await list_traces(db, search="报销")
 
         assert result.total == 1
-        assert "报销" in result.items[0].question
+        question = result.items[0].question
+        assert question is not None
+        assert "报销" in question
 
     @pytest.mark.asyncio
     async def test_list_traces空数据(self):

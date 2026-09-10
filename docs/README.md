@@ -29,6 +29,7 @@
 | 测试执行与发布记录 | [`TEST_EXECUTION.md`](guides/TEST_EXECUTION.md) | [`specs/TESTING.md`](specs/TESTING.md) |
 | 三节点部署与运维 | [`OPERATIONS.md`](guides/OPERATIONS.md) | [`specs/ARCHITECTURE.md`](specs/ARCHITECTURE.md)、[`specs/RELIABILITY.md`](specs/RELIABILITY.md) |
 | 文档治理 | [`DOCUMENT_GOVERNANCE.md`](guides/DOCUMENT_GOVERNANCE.md) | 根 `AGENTS.md` 与 ADR 治理规则 |
+| 文档格式 | [`DOCUMENT_FORMAT.md`](guides/DOCUMENT_FORMAT.md) | 标题、编号、模板、链接与冗余边界 |
 
 ## 维护规则
 
@@ -38,3 +39,4 @@
 4. 新增长期或权威文档必须先获负责人明确批准并确认归属；临时规格、计划和验收记录只能放入 Git 忽略目录，不得提交且任务结束后删除。
 5. 模块专属数据库、Pipeline、前端规范跟随模块维护；跨模块规则才进入 `docs/specs/`。
 6. 发现实现领先、实现偏离、迁移态或权威文档冲突时，先按 [`DOCUMENT_GOVERNANCE.md`](guides/DOCUMENT_GOVERNANCE.md) 完成取证与裁决，再更新测试或实现。
+7. 任何 Markdown 变更先阅读 [`DOCUMENT_FORMAT.md`](guides/DOCUMENT_FORMAT.md) 与 [`DOCUMENT_GOVERNANCE.md`](guides/DOCUMENT_GOVERNANCE.md)，完成后运行文档格式、ADR 索引和 `git diff --check` 门禁。

@@ -1,4 +1,10 @@
-.PHONY: test test-knowledge test-research test-web build-web config compose-config
+.PHONY: setup-python-dev tls-dev test test-knowledge test-research test-web fast-unit contracts-ci openapi-ci type-check type-check-docker build-web config compose-config
+
+setup-python-dev:
+	bash scripts/setup_python_dev.sh
+
+tls-dev:
+	bash scripts/generate_dev_tls.sh
 
 test:
 	bash scripts/test_all.sh
@@ -10,10 +16,25 @@ test-research:
 	services/research/.venv/bin/python -m pytest -c services/research/pytest.ini services/research/tests
 
 test-web:
-	npm --prefix apps/web test
+	pnpm --dir apps/web test
+
+fast-unit:
+	bash scripts/test_fast_unit.sh
+
+contracts-ci:
+	bash scripts/test_contracts_ci.sh
+
+openapi-ci:
+	bash scripts/check_openapi_ci.sh
+
+type-check:
+	bash scripts/check_python_types.sh
+
+type-check-docker:
+	bash scripts/check_python_types_docker.sh
 
 build-web:
-	npm --prefix apps/web run build
+	pnpm --dir apps/web run build
 
 compose-config:
 	docker compose config --quiet

@@ -82,7 +82,7 @@ async def _compute_real_coverage(
     )
     question_coverage = compute_question_coverage(required_questions, len(covered_qids))
 
-    planned_channels = set()
+    planned_channels: set[str] = set()
     for q in required:
         planned_channels.update(q.get("planned_channels") or [])
     succeeded: set[str] = set()

@@ -25,6 +25,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Sequence
 from urllib.parse import urlparse
 
 from sqlalchemy import delete, select
@@ -32,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.exceptions import RerankFailedException
-from app.core.internal_retrieval_client import resolve_retrieval
+from app.core.internal_retrieval_client import ResolvedReference, resolve_retrieval
 from app.core.llm import LLMResult, chat_completion
 from app.core.token_counter import estimate_tokens
 from app.models.evidence_item import EvidenceItem
@@ -339,7 +340,7 @@ async def _load_internal_candidates(
 async def _resolve_internal_candidates(
     task: ResearchTask,
     candidates: list[dict],
-) -> list[tuple[dict, str]]:
+) -> list[tuple[dict, ResolvedReference]]:
     """按稳定身份重取内部候选当前正文（仅当前 Step 内存）。
 
     Returns:
@@ -361,7 +362,7 @@ async def _resolve_internal_candidates(
 
 
 def _internal_to_candidates(
-    pairs: list[tuple[dict, object]],
+    pairs: Sequence[tuple[dict, ResolvedReference]],
     max_candidates: int = 45,
 ) -> list[Candidate]:
     """将 resolve 后的内部候选转为 Candidate（source_type='internal'）。

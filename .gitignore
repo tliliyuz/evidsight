@@ -6,9 +6,11 @@
 .env
 **/.env
 **/.pytest_cache/
+**/.mypy_cache/
 **/__pycache__/
 **/node_modules/
 **/dist/
+.pnpm-store/
 *.pyc
 .coverage
 htmlcov/
@@ -16,3 +18,5 @@ chroma_data/
 /services/knowledge/knowledge_samples/
 /services/knowledge/scripts/.ab/
 deploy/secrets/
+**/test-results/
+**/playwright-report/

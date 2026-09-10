@@ -30,6 +30,8 @@ class RequirementsSchema(BaseModel):
     max_sources: int = Field(10, ge=1, le=50, description="信息源数量上限（1-50）")
     language: str = Field("zh", min_length=2, max_length=10, description="报告语言，如 zh / en")
 
+    model_config = {"extra": "forbid"}
+
 
 # ── 创建请求 ────────────────────────────────────────────────────
 
@@ -53,6 +55,8 @@ class ResearchCreateRequest(BaseModel):
         max_length=50,
         description="所选知识库 UUID 列表（knowledge/hybrid 至少 1 个，web 必须为空）",
     )
+
+    model_config = {"extra": "forbid"}
 
     @field_validator("topic")
     @classmethod
@@ -115,6 +119,7 @@ class ResearchTaskResponse(BaseModel):
     error_code: str | None = Field(None, description="错误码")
     error_message: str | None = Field(None, description="错误详情")
     recoverable: bool | None = Field(None, description="是否可断点续跑")
+    report_id: str | None = Field(None, description="已发布正式报告 UUID；尚未发布时为 null")
     created_at: datetime = Field(..., description="创建时间（ISO 8601 UTC）")
     started_at: datetime | None = Field(None, description="Worker 拾取时间")
     completed_at: datetime | None = Field(None, description="完成时间")
@@ -132,14 +137,21 @@ class ResearchTaskResponse(BaseModel):
 
 
 class ResearchTaskListItem(BaseModel):
-    """研究任务列表项 — 对齐 API.md §3.1 GET /api/research。"""
+    """研究任务列表项 — 对齐 API.md §3.1 GET /api/research。
+
+    工作台 RECENT RESEARCH 依赖 source_strategy（来源类型）与 progress（进度），
+    两者均为向后兼容的既有字段投影，列表项不虚构来源与进度。
+    """
 
     task_id: str = Field(..., description="任务 UUID")
     topic: str = Field(..., description="研究主题")
     status: str = Field(..., description="Task 状态")
     task_type: str = Field(..., description="研究类型")
+    source_strategy: str = Field("web", description="来源策略：knowledge/web/hybrid")
+    progress: float = Field(0.0, ge=0.0, le=1.0, description="任务进度 0-1")
     total_sources: int = Field(0, description="来源总数")
     total_evidence: int = Field(0, description="证据总数")
+    report_id: str | None = Field(None, description="已发布正式报告 UUID；尚未发布时为 null")
     created_at: datetime = Field(..., description="创建时间")
     completed_at: datetime | None = Field(None, description="完成时间")
 
@@ -209,6 +221,7 @@ class ResearchCreateResponse(BaseModel):
     direct_answer: bool = Field(False, description="是否为直接回答（非研究意图）")
     report: ReportSchema | None = Field(None, description="直接回答任务的报告内容")
     idempotent_replayed: bool = Field(False, description="是否为幂等重放命中（同 Key 同指纹）")
+    report_id: str | None = Field(None, description="已发布正式报告 UUID；尚未发布时为 null")
 
 
 class ResearchCancelResponse(BaseModel):

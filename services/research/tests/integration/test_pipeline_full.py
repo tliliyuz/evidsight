@@ -303,9 +303,9 @@ class TestPipelineFullFlow:
         async def _record_event(event_type, data=None, event_id=None):
             published_events.append((event_type, data))
 
-        sse_bridge.publish = AsyncMock(side_effect=_record_event)
+        setattr(sse_bridge, "publish", AsyncMock(side_effect=_record_event))
 
-        trace = TraceRecorder(task_id=task_id, user_id=1, topic=task.topic)
+        trace = TraceRecorder(task_id=task_id, user_id="1", topic=task.topic)
 
         # AgentRuntime 驱动：目标态无 Redis 任务锁，只走 DB lease（切片 1-2），
         # 无需 mock 锁函数；各阶段内部外部依赖由下面 patches 屏蔽。
@@ -465,12 +465,12 @@ class TestPipelineFullFlow:
             started = [
                 e
                 for e in published_events
-                if e[0] == "phase.started" and e[1].get("phase") == phase
+                if e[0] == "phase.started" and e[1] and e[1].get("phase") == phase
             ]
             completed = [
                 e
                 for e in published_events
-                if e[0] == "phase.completed" and e[1].get("phase") == phase
+                if e[0] == "phase.completed" and e[1] and e[1].get("phase") == phase
             ]
             assert len(started) == 1, f"Phase {phase} 缺少 phase.started"
             assert len(completed) == 1, f"Phase {phase} 缺少 phase.completed"
@@ -482,6 +482,7 @@ class TestPipelineFullFlow:
         # task.progress 最终进度 = 1.0
         progress_events = [e for e in published_events if e[0] == "task.progress"]
         final_progress = progress_events[-1][1]
+        assert final_progress is not None
         assert final_progress["completed_steps"] == 7
         assert final_progress["total_steps"] == 7
         assert final_progress["progress"] == 1.0

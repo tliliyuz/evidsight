@@ -130,8 +130,9 @@ uv run --project services/research alembic upgrade head
 uv run --project services/research uvicorn app.main:app --reload --port 8001
 
 # Web 前端
-npm --prefix apps/web ci
-npm --prefix apps/web run dev
+corepack enable
+pnpm --dir apps/web install --frozen-lockfile
+pnpm --dir apps/web run dev
 ```
 
 ### 验证命令
@@ -143,6 +144,9 @@ bash scripts/test_all.sh
 # 前端构建
 make build-web
 
+# 当前 Python 类型检查
+make type-check
+
 # Compose 配置校验
 docker compose config --quiet
 ```
@@ -153,7 +157,7 @@ docker compose config --quiet
 
 ## 项目状态
 
-据见已完成 M0—M3，**M4：统一 Web、报告与证据联动尚未开始**。统一前端、三节点生产部署资产、治理与部署验收、v1.0 发布门禁为后续里程碑。当前前端为 M0 迁入的 Vue 基线，M4 将按前端专项规范迁向 React。里程碑状态与验证记录以 [路线图](docs/plans/ROADMAP.md) 为准。
+据见已完成 M0—M3，M4 正在进行。External OpenAPI 已覆盖 Auth、Knowledge Base、Document、Conversation、Chat、Research、Evidence、Report 及两套 SSE，Knowledge/Research 双 Provider 路由与测试覆盖门禁已收口。工作区中的切片 4 保留并继续完成来源卡片到知识切片抽屉的实时鉴权联动及视觉验收；切片 5 后续只允许消费该 OpenAPI 契约。三节点生产部署资产、治理与部署验收、v1.0 发布门禁仍属于后续里程碑。状态与切片顺序以 [路线图](docs/plans/ROADMAP.md) 为准。
 
 ## 开发说明
 

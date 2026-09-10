@@ -231,6 +231,7 @@ async def _map_hit(
     page = result.page
     if page is None and chunk.metadata_:
         page = chunk.metadata_.get("page")
+    location: dict[str, int | list[str]]
     if page is not None:
         location = {"page_number": int(page)}
     else:
@@ -418,6 +419,7 @@ async def _resolve_one(db: AsyncSession, kb: KnowledgeBase, ref: dict) -> dict:
     page = None
     if chunk.metadata_:
         page = chunk.metadata_.get("page")
+    location: dict[str, int | list[str]]
     if page is not None:
         location = {"page_number": int(page)}
     else:

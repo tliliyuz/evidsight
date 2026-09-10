@@ -1,0 +1,1705 @@
+openapi: 3.1.0
+info:
+  title: EvidSight 外部 API v1
+  version: 1.0.0
+  description: |
+    EvidSight Knowledge 与 Research 服务供 Web 消费的外部 v1 契约。本文件是 Auth、
+    Knowledge Base、Document、Chat、Conversation、Research、Evidence 与 Report 请求、响应
+    和 SSE data 字段与约束的唯一权威来源；API.md 定义行为、
+    权限、状态码与兼容语义，本文只定义 Schema。新增或修改字段必须先修订本文件，
+    再经 FastAPI 路由清单 ↔ OpenAPI 路径清单 ↔ Provider 契约测试三方一致校验
+    （API.md §3.1 / ROADMAP M2 退出门禁）。
+servers:
+  - url: ""
+paths:
+  /api/v1/knowledge-bases:
+    post:
+      summary: 创建知识库
+      description: 创建知识库并返回完整对象。同名冲突返回 409 E1002。
+      tags: [Knowledge Base v1]
+      operationId: createKnowledgeBaseV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeBaseCreate"
+      responses:
+        "201":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBase"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      summary: 知识库可见集合列表
+      description: |
+        以单一分页端点返回当前用户可见的知识库集合，支持「全部 / 我创建的 / 组织公开」
+        范围筛选与名称搜索；同一知识库在可见范围并集中只出现一次。普通用户
+        scope=all 为 mine ∪ public，admin 的 all 返回全部知识库（治理可见）。
+      tags: [Knowledge Base v1]
+      operationId: listKnowledgeBasesV1
+      parameters:
+        - $ref: "#/components/parameters/ScopeParam"
+        - $ref: "#/components/parameters/QParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 可见知识库分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBaseList"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/knowledge-bases/{kb_id}:
+    parameters:
+      - $ref: "#/components/parameters/KbIdParam"
+    get:
+      summary: 知识库详情
+      description: public KB 所有登录用户可读；private KB 仅 owner 或 admin 可读。
+      tags: [Knowledge Base v1]
+      operationId: getKnowledgeBaseV1
+      responses:
+        "200":
+          description: 知识库详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBase"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      summary: 更新知识库元数据
+      description: 部分更新（name/description/visibility 均可选）。owner 可修改自己的 KB，admin 可修正任意 KB。
+      tags: [Knowledge Base v1]
+      operationId: updateKnowledgeBaseV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeBaseUpdate"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBase"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      summary: 删除知识库
+      description: 标记 status=deleting 并分发异步清理任务；返回 204 无正文。
+      tags: [Knowledge Base v1]
+      operationId: deleteKnowledgeBaseV1
+      responses:
+        "204":
+          description: 删除任务已提交，无正文
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/knowledge-bases/{kb_id}/documents:
+    parameters:
+      - $ref: "#/components/parameters/KbIdParam"
+    post:
+      summary: 上传文档
+      description: |
+        单文件上传（multipart/form-data）。提交事务后分发入库任务，返回 202；
+        同名冲突需 force=true 覆盖，终态文档 force 覆盖时旧文档标记 deleting 异步清理。
+      tags: [Document v1]
+      operationId: uploadDocumentV1
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 上传文件（pdf/docx/md/txt）
+                force:
+                  type: boolean
+                  default: false
+                  description: 同名终态文档是否强制覆盖
+      responses:
+        "202":
+          description: 上传已接受，进入处理队列
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentUpload"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      summary: 知识库文档列表
+      description: 按状态/文件名筛选 + 排序 + 分页；public KB 允许任意登录用户只读查看。
+      tags: [Document v1]
+      operationId: listDocumentsV1
+      parameters:
+        - $ref: "#/components/parameters/DocumentStatusParam"
+        - $ref: "#/components/parameters/FilenameParam"
+        - $ref: "#/components/parameters/SortByParam"
+        - $ref: "#/components/parameters/OrderParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 文档分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentList"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/documents/{document_id}:
+    parameters:
+      - $ref: "#/components/parameters/DocumentIdParam"
+    get:
+      summary: 文档详情
+      description: 返回文档状态与安全元数据；KB READ 权限约束。
+      tags: [Document v1]
+      operationId: getDocumentV1
+      responses:
+        "200":
+          description: 文档详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: 删除文档
+      description: 标记 deleting 并分发异步清理任务；返回 204 无正文。
+      tags: [Document v1]
+      operationId: deleteDocumentV1
+      responses:
+        "204":
+          description: 删除任务已提交，无正文
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/documents/{document_id}/chunks:
+    parameters:
+      - $ref: "#/components/parameters/DocumentIdParam"
+    get:
+      summary: 文档分块列表
+      description: 分页返回安全预览与稳定 segment_id；生产环境截断 content 至预览。items 中的 id 为内部整数 PK，仅迁移期兼容保留，不作为契约。
+      tags: [Document v1]
+      operationId: getDocumentChunksV1
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: 分块分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentChunkList"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/documents/{document_id}/retry:
+    parameters:
+      - $ref: "#/components/parameters/DocumentIdParam"
+    post:
+      summary: 重新处理文档
+      description: 仅允许可重试状态（completed/partial/failed），幂等；返回 202。
+      tags: [Document v1]
+      operationId: reprocessDocumentV1
+      responses:
+        "202":
+          description: 重新处理任务已提交
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentReprocess"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/documents/{document_id}/locations/{location_id}:
+    parameters:
+      - $ref: "#/components/parameters/DocumentIdParam"
+      - $ref: "#/components/parameters/LocationIdParam"
+    get:
+      summary: 文档来源位置
+      description: |
+        实时鉴权后返回文档来源位置的最小片段和定位；每次展开原文都按当前用户状态、
+        KB 状态与 READ 权限重新鉴权。location_id 即 Segment 稳定 UUID
+        （chunks.segment_uuid）。权限撤销、文档删除或来源失效返回受限/不可用状态。
+      tags: [Document v1]
+      operationId: getDocumentLocationV1
+      responses:
+        "200":
+          description: 来源位置与最小片段
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentLocation"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/conversations:
+    post:
+      summary: 创建会话
+      description: 创建会话并绑定单个知识库（knowledge_base_id）。与 Chat v1 请求字段一致。
+      tags: [Conversation v1]
+      operationId: createConversationV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationCreateV1"
+      responses:
+        "201":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      summary: 当前用户会话列表
+      description: >-
+        分页返回当前用户会话。支持 q 标题模糊搜索、sort_by 排序字段（允许列表，当前仅
+        last_message_at）、order 排序方向（默认 desc）；last_message_at 为 NULL 的会话恒排末尾。
+      tags: [Conversation v1]
+      operationId: listConversationsV1
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - $ref: "#/components/parameters/ConversationQParam"
+        - $ref: "#/components/parameters/ConversationSortByParam"
+        - $ref: "#/components/parameters/OrderParam"
+      responses:
+        "200":
+          description: 会话分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationList"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/conversations/{conversation_id}:
+    parameters:
+      - $ref: "#/components/parameters/ConversationIdParam"
+    get:
+      summary: 会话详情
+      description: 返回会话元数据与完整消息历史；仅 owner 可访问。
+      tags: [Conversation v1]
+      operationId: getConversationV1
+      responses:
+        "200":
+          description: 会话详情（含消息）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      summary: 重命名会话
+      description: 更新会话标题；仅 owner 可操作。
+      tags: [Conversation v1]
+      operationId: renameConversationV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationUpdate"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      summary: 删除会话
+      description: 硬删除会话及其全部消息；返回 204 无正文。
+      tags: [Conversation v1]
+      operationId: deleteConversationV1
+      responses:
+        "204":
+          description: 会话已删除，无正文
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/auth/register:
+    post:
+      tags: [Auth v1]
+      operationId: registerV1
+      summary: 注册用户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RegisterRequest"}
+      responses:
+        "201":
+          description: 用户已创建
+          content: {application/json: {schema: {$ref: "#/components/schemas/UserSummary"}}}
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/auth/login:
+    post:
+      tags: [Auth v1]
+      operationId: loginV1
+      summary: 登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+      responses:
+        "200":
+          description: 登录成功；Refresh Token 只通过 HttpOnly Cookie 返回
+          content: {application/json: {schema: {$ref: "#/components/schemas/LoginResponse"}}}
+        "401": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth v1]
+      operationId: refreshV1
+      summary: 轮换 Refresh Family
+      responses:
+        "200":
+          description: Access Token 已刷新
+          content: {application/json: {schema: {$ref: "#/components/schemas/RefreshResponse"}}}
+        "401": {$ref: "#/components/responses/Forbidden"}
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth v1]
+      operationId: logoutV1
+      summary: 退出并撤销 Refresh Family
+      responses:
+        "204": {description: 已退出，无正文}
+        "401": {$ref: "#/components/responses/Forbidden"}
+  /api/v1/auth/me:
+    get:
+      tags: [Auth v1]
+      operationId: getCurrentUserV1
+      summary: 当前用户摘要
+      responses:
+        "200":
+          description: 当前用户
+          content: {application/json: {schema: {$ref: "#/components/schemas/UserSummary"}}}
+        "401": {$ref: "#/components/responses/Forbidden"}
+  /api/v1/auth/password:
+    put:
+      tags: [Auth v1]
+      operationId: changePasswordV1
+      summary: 修改密码并撤销全部 Refresh Family
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ChangePasswordRequest"}
+      responses:
+        "204": {description: 密码已修改，无正文}
+        "401": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/chat/stream:
+    post:
+      tags: [Chat v1]
+      operationId: streamChatV1
+      summary: 发起单知识库问答
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ChatStreamRequest"}
+      responses:
+        "200":
+          description: canonical Chat SSE
+          content:
+            text/event-stream:
+              schema: {type: string}
+              x-sse-data-schemas:
+                meta: {$ref: "#/components/schemas/ChatMetaEventData"}
+                message.delta: {$ref: "#/components/schemas/ChatDeltaEventData"}
+                sources: {$ref: "#/components/schemas/ChatSourcesEventData"}
+                error: {$ref: "#/components/schemas/StreamErrorEventData"}
+                done: {$ref: "#/components/schemas/ChatDoneEventData"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+  /api/v1/chat/generations/{generation_id}/cancel:
+    post:
+      tags: [Chat v1]
+      operationId: cancelChatGenerationV1
+      summary: 幂等取消生成
+      parameters:
+        - {name: generation_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "202":
+          description: 取消已接受
+          content: {application/json: {schema: {$ref: "#/components/schemas/ChatCancelResponse"}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/research/tasks:
+    post:
+      tags: [Research v1]
+      operationId: createResearchTaskV1
+      summary: 幂等创建研究任务
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 128}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ResearchTaskCreate"}
+      responses:
+        "202":
+          description: 任务已接受
+          content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTaskCreateResponse"}}}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/ValidationError"}
+    get:
+      tags: [Research v1]
+      operationId: listResearchTasksV1
+      summary: 研究任务列表
+      parameters:
+        - {$ref: "#/components/parameters/PageParam"}
+        - {$ref: "#/components/parameters/PageSizeParam"}
+        - {name: status, in: query, schema: {type: string, enum: [pending, running, completed, partially_completed, failed, canceled, paused]}}
+        - {name: keyword, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: 研究任务分页列表
+          content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTaskList"}}}
+  /api/v1/research/tasks/{task_id}:
+    parameters:
+      - {$ref: "#/components/parameters/TaskIdParam"}
+    get:
+      tags: [Research v1]
+      operationId: getResearchTaskV1
+      summary: 研究任务详情
+      responses:
+        "200":
+          description: 任务详情
+          content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTask"}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+    delete:
+      tags: [Research v1]
+      operationId: deleteResearchTaskV1
+      summary: 删除研究任务
+      responses:
+        "204": {description: 已删除，无正文}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/research/tasks/{task_id}/cancel:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    post:
+      tags: [Research v1]
+      operationId: cancelResearchTaskV1
+      summary: 请求取消研究任务
+      responses:
+        "202": {description: 取消已接受, content: {application/json: {schema: {$ref: "#/components/schemas/ResearchCancelResponse"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/research/tasks/{task_id}/resume:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    post:
+      tags: [Research v1]
+      operationId: resumeResearchTaskV1
+      summary: 断点续跑研究任务
+      responses:
+        "202": {description: 恢复已接受, content: {application/json: {schema: {$ref: "#/components/schemas/ResearchRetryResponse"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/research/tasks/{task_id}/state:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    get:
+      tags: [Research v1]
+      operationId: getResearchTaskStateV1
+      summary: 研究状态轮询快照
+      responses:
+        "200": {description: 状态快照, content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTaskState"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/research/tasks/{task_id}/events:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    get:
+      tags: [Research v1]
+      operationId: streamResearchTaskEventsV1
+      summary: 订阅研究任务事件
+      parameters:
+        - {name: Last-Event-ID, in: header, required: false, schema: {type: string}}
+      responses:
+        "200":
+          description: canonical Research SSE
+          content:
+            text/event-stream:
+              schema: {type: string}
+              x-sse-data-schemas:
+                snapshot: {$ref: "#/components/schemas/ResearchTaskState"}
+                task.updated: {$ref: "#/components/schemas/ResearchTaskUpdatedEventData"}
+                phase.updated: {$ref: "#/components/schemas/ResearchPhaseUpdatedEventData"}
+                step.updated: {$ref: "#/components/schemas/ResearchStepUpdatedEventData"}
+                task.canceled: {$ref: "#/components/schemas/ResearchTaskCanceledEventData"}
+                stream.end: {$ref: "#/components/schemas/ResearchStreamEndEventData"}
+                error: {$ref: "#/components/schemas/StreamErrorEventData"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/research/tasks/{task_id}/report:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    get:
+      deprecated: true
+      tags: [Research v1]
+      operationId: getResearchTaskReportCompatibilityV1
+      summary: 迁移兼容任务报告读取
+      responses:
+        "200":
+          description: 兼容报告对象
+          content: {application/json: {schema: {$ref: "#/components/schemas/ResearchTaskReportResponse"}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/research/tasks/{task_id}/evidence:
+    parameters: [{$ref: "#/components/parameters/TaskIdParam"}]
+    get:
+      tags: [Evidence v1]
+      operationId: listResearchTaskEvidenceV1
+      summary: 任务 Evidence 列表
+      responses:
+        "200": {description: Evidence 列表, content: {application/json: {schema: {$ref: "#/components/schemas/EvidenceList"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/evidence/{evidence_id}:
+    parameters:
+      - {name: evidence_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Evidence v1]
+      operationId: getEvidenceV1
+      summary: Evidence 详情
+      responses:
+        "200": {description: Evidence 详情, content: {application/json: {schema: {$ref: "#/components/schemas/Evidence"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/evidence/{evidence_id}/relations:
+    parameters:
+      - {name: evidence_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Evidence v1]
+      operationId: listEvidenceRelationsV1
+      summary: Evidence 关系
+      responses:
+        "200": {description: 关系列表, content: {application/json: {schema: {$ref: "#/components/schemas/EvidenceRelationList"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/reports/{report_id}:
+    parameters:
+      - {$ref: "#/components/parameters/ReportIdParam"}
+    get:
+      tags: [Report v1]
+      operationId: getReportV1
+      summary: 正式报告详情
+      responses:
+        "200": {description: published Report, content: {application/json: {schema: {$ref: "#/components/schemas/Report"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v1/reports/{report_id}/sections/{section_id}:
+    parameters:
+      - {$ref: "#/components/parameters/ReportIdParam"}
+      - {name: section_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [Report v1]
+      operationId: getReportSectionV1
+      summary: 正式报告章节
+      responses:
+        "200": {description: Report 章节, content: {application/json: {schema: {$ref: "#/components/schemas/ReportSection"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+components:
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      required: false
+      description: 页码，从 1 开始
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSizeParam:
+      name: page_size
+      in: query
+      required: false
+      description: 每页条数
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    ScopeParam:
+      name: scope
+      in: query
+      required: false
+      description: 可见范围筛选：all=可见并集（默认），mine=我创建的，public=组织公开
+      schema:
+        type: string
+        enum: [all, mine, public]
+        default: all
+    QParam:
+      name: q
+      in: query
+      required: false
+      description: 按名称模糊搜索
+      schema:
+        type: string
+        maxLength: 128
+    ConversationQParam:
+      name: q
+      in: query
+      required: false
+      description: 会话标题模糊搜索
+      schema:
+        type: string
+        maxLength: 128
+    ConversationSortByParam:
+      name: sort_by
+      in: query
+      required: false
+      description: 排序字段（允许列表，当前仅 last_message_at）
+      schema:
+        type: string
+        enum: [last_message_at]
+        default: last_message_at
+    KbIdParam:
+      name: kb_id
+      in: path
+      required: true
+      description: 知识库稳定 UUID
+      schema:
+        type: string
+        format: uuid
+    DocumentIdParam:
+      name: document_id
+      in: path
+      required: true
+      description: 文档稳定 UUID
+      schema:
+        type: string
+        format: uuid
+    LocationIdParam:
+      name: location_id
+      in: path
+      required: true
+      description: Segment 稳定 UUID（chunks.segment_uuid）
+      schema:
+        type: string
+        format: uuid
+    ConversationIdParam:
+      name: conversation_id
+      in: path
+      required: true
+      description: 会话稳定 UUID
+      schema:
+        type: string
+        format: uuid
+    TaskIdParam:
+      name: task_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReportIdParam:
+      name: report_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DocumentStatusParam:
+      name: status
+      in: query
+      required: false
+      description: 按文档状态过滤；接受旧状态名（uploaded/parsing/...）映射到 6 值枚举
+      schema:
+        type: string
+    FilenameParam:
+      name: filename
+      in: query
+      required: false
+      description: 按文件名模糊搜索
+      schema:
+        type: string
+    SortByParam:
+      name: sort_by
+      in: query
+      required: false
+      description: 排序字段（created_at/updated_at/filename/file_size/status）
+      schema:
+        type: string
+        default: created_at
+    OrderParam:
+      name: order
+      in: query
+      required: false
+      description: 排序方向
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+  responses:
+    Forbidden:
+      description: 无权限执行此操作（E5005）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: 资源不存在或不可见
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: 状态或名称冲突
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    UnsupportedMediaType:
+      description: 文件格式不支持（E2002）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ValidationError:
+      description: 请求参数校验失败（E9003）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    ErrorEnvelope:
+      type: object
+      description: API.md §4 标准错误信封
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/Error"
+      additionalProperties: false
+    Error:
+      type: object
+      required: [error_code, message, request_id, retryable, details]
+      properties:
+        error_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]+$"
+        message:
+          type: string
+        request_id:
+          type: string
+        retryable:
+          type: boolean
+        details:
+          type: object
+          additionalProperties: true
+          description: 安全、结构化、可操作信息；不含正文、密码、Token、SQL、路径或堆栈
+      additionalProperties: false
+    # ---- Knowledge Base ----
+    KnowledgeBase:
+      type: object
+      required: [uuid, name, owner, visibility, status, doc_count, chunk_count, created_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: 知识库稳定 UUID
+        name:
+          type: string
+          minLength: 2
+          maxLength: 128
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        owner:
+          type: string
+          format: uuid
+          description: owner 用户 Platform User UUID（非内部 users.id）
+        visibility:
+          type: string
+          enum: [private, public]
+        status:
+          type: string
+          enum: [active, deleting]
+        doc_count:
+          type: integer
+          minimum: 0
+        chunk_count:
+          type: integer
+          minimum: 0
+        index_status:
+          type: string
+          nullable: true
+          enum: [ready, updating, recovering]
+          description: 权威聚合索引状态（ADR-007 索引发布锁）：ready 可检索 / updating 索引更新中 / recovering 恢复中
+        owner_username:
+          type: string
+          nullable: true
+          description: owner 用户名（知识库列表/详情 Hero 展示），可空向后兼容
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+    KnowledgeBaseCreate:
+      type: object
+      description: 创建知识库请求
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 128
+          description: 名称不能为纯数字或纯空格
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        visibility:
+          type: string
+          enum: [private, public]
+          default: private
+    KnowledgeBaseUpdate:
+      type: object
+      description: 更新知识库请求（部分更新，至少一个字段）
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 128
+          nullable: true
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        visibility:
+          type: string
+          enum: [private, public]
+          nullable: true
+    KnowledgeBaseList:
+      type: object
+      required: [total, page, page_size, items]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/KnowledgeBase"
+    # ---- Document ----
+    Document:
+      type: object
+      required:
+        [uuid, kb_uuid, filename, file_type, status, chunk_count, created_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        kb_uuid:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        file_type:
+          type: string
+          enum: [pdf, docx, md, txt]
+        file_size:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [queued, processing, completed, partial, failed, deleting]
+        chunk_count:
+          type: integer
+          minimum: 0
+        error_msg:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+    DocumentUpload:
+      type: object
+      required: [uuid, kb_uuid, filename, file_type, status]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        kb_uuid:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        file_type:
+          type: string
+          enum: [pdf, docx, md, txt]
+        file_size:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [queued, processing, completed, partial, failed, deleting]
+    DocumentReprocess:
+      type: object
+      required: [doc_uuid, status]
+      properties:
+        doc_uuid:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, processing, completed, partial, failed, deleting]
+    DocumentList:
+      type: object
+      required: [total, page, page_size, items]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Document"
+    DocumentChunk:
+      type: object
+      description: 文档分块（segment_id 为稳定身份；id 为内部整数 PK，仅迁移期兼容，不作为契约）
+      required: [id, segment_id, chunk_index, preview, token_count]
+      properties:
+        id:
+          type: integer
+          description: 内部整数 PK，仅迁移期兼容保留
+        segment_id:
+          type: string
+          format: uuid
+          description: Segment 稳定 UUID（即 location API 的 location_id）
+        chunk_index:
+          type: integer
+          minimum: 0
+        preview:
+          type: string
+          description: 分块内容安全预览（默认截断至 200 字符）
+        token_count:
+          type: integer
+          minimum: 0
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+    DocumentChunkList:
+      type: object
+      required: [total, page, page_size, items]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentChunk"
+    DocumentLocation:
+      type: object
+      description: 文档来源位置响应 — 最小片段与安全定位
+      required: [document_id, segment_id, minimal_excerpt, location]
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        segment_id:
+          type: string
+          format: uuid
+          description: Segment 稳定 UUID（即 location_id）
+        minimal_excerpt:
+          type: string
+          description: 最小必要片段（临时内容，不持久化）
+        location:
+          type: object
+          description: 安全定位（page_number 或 section_path）
+          properties:
+            page_number:
+              type: integer
+            section_path:
+              type: array
+              items:
+                type: string
+        source_updated_at:
+          type: string
+          format: date-time
+          nullable: true
+    # ---- Conversation ----
+    ConversationCreateV1:
+      type: object
+      description: 创建会话请求（v1，knowledge_base_id 对齐 Chat v1）
+      required: [knowledge_base_id]
+      properties:
+        knowledge_base_id:
+          type: string
+          format: uuid
+          description: 关联知识库稳定 UUID
+        title:
+          type: string
+          maxLength: 256
+          nullable: true
+          description: 会话标题，不传则默认「新对话」
+    ConversationUpdate:
+      type: object
+      description: 重命名会话请求
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+    Message:
+      type: object
+      description: 会话消息
+      required: [id, role, content, created_at]
+      properties:
+        id:
+          type: integer
+          description: 消息内部整数 ID
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+        thinking_content:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        sources:
+          type: array
+          description: 来源引用 canonical wire 投影（SSE sources 持久化，API.md §12）；无来源为 []
+          items:
+            $ref: "#/components/schemas/ChatSource"
+    Conversation:
+      type: object
+      required: [uuid, owner_user_id, title, message_count, created_at, updated_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        owner_user_id:
+          type: string
+          format: uuid
+          description: owner 用户 Platform User UUID（非内部 users.id）
+        kb_uuid:
+          type: string
+          format: uuid
+          nullable: true
+          description: 关联知识库 UUID（KB 删除后为 null）
+        kb_status:
+          type: string
+          enum: [active, deleted, unavailable]
+          nullable: true
+        kb_name:
+          type: string
+          nullable: true
+          description: 关联知识库名称（含已删除/不可访问的）
+        original_kb_uuid:
+          type: string
+          format: uuid
+          nullable: true
+          description: KB 删除前的原始 UUID
+        original_kb_name:
+          type: string
+          nullable: true
+          description: KB 删除前的原始名称
+        title:
+          type: string
+        message_count:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+    ConversationDetail:
+      type: object
+      description: 会话详情（含消息历史）
+      required:
+        [uuid, owner_user_id, title, message_count, created_at, updated_at, messages]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        owner_user_id:
+          type: string
+          format: uuid
+        kb_uuid:
+          type: string
+          format: uuid
+          nullable: true
+        kb_status:
+          type: string
+          enum: [active, deleted, unavailable]
+          nullable: true
+        kb_name:
+          type: string
+          nullable: true
+        original_kb_uuid:
+          type: string
+          format: uuid
+          nullable: true
+        original_kb_name:
+          type: string
+          nullable: true
+        title:
+          type: string
+        message_count:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+    ConversationList:
+      type: object
+      required: [total, page, page_size, items]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Conversation"
+    # ---- Auth ----
+    RegisterRequest:
+      type: object
+      required: [username, password]
+      additionalProperties: false
+      properties:
+        username: {type: string, minLength: 2, maxLength: 64}
+        password: {type: string, minLength: 6, maxLength: 128, writeOnly: true}
+    LoginRequest:
+      type: object
+      required: [username, password]
+      additionalProperties: false
+      properties:
+        username: {type: string, minLength: 2, maxLength: 64}
+        password: {type: string, minLength: 6, maxLength: 128, writeOnly: true}
+    ChangePasswordRequest:
+      type: object
+      required: [old_password, new_password]
+      additionalProperties: false
+      properties:
+        old_password: {type: string, minLength: 6, maxLength: 128, writeOnly: true}
+        new_password: {type: string, minLength: 6, maxLength: 128, writeOnly: true}
+    UserSummary:
+      type: object
+      required: [id, username, role, status]
+      additionalProperties: false
+      properties:
+        id: {type: string, format: uuid}
+        username: {type: string}
+        role: {type: string, enum: [user, admin]}
+        status: {type: string, enum: [active, disabled]}
+    LoginResponse:
+      type: object
+      required: [access_token, token_type, expires_in, user]
+      additionalProperties: false
+      properties:
+        access_token: {type: string, writeOnly: true}
+        token_type: {type: string, const: bearer}
+        expires_in: {type: integer, minimum: 1}
+        user: {$ref: "#/components/schemas/UserSummary"}
+    RefreshResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      additionalProperties: false
+      properties:
+        access_token: {type: string, writeOnly: true}
+        token_type: {type: string, const: bearer}
+        expires_in: {type: integer, minimum: 1}
+    # ---- Chat SSE ----
+    ChatStreamRequest:
+      type: object
+      required: [knowledge_base_id, question]
+      additionalProperties: false
+      properties:
+        conversation_id: {type: [string, "null"], format: uuid}
+        knowledge_base_id: {type: string, format: uuid}
+        question: {type: string, minLength: 1, maxLength: 2000}
+        deep_thinking: {type: boolean, default: false}
+    ChatMetaEventData:
+      type: object
+      required: [generation_id, conversation_id]
+      properties:
+        generation_id: {type: string, format: uuid}
+        conversation_id: {type: string, format: uuid}
+    ChatDeltaEventData:
+      type: object
+      required: [delta]
+      additionalProperties: false
+      properties:
+        delta: {type: string}
+    ChatSource:
+      type: object
+      required: [chunk_index, doc_name, score, document_uuid, segment_id]
+      properties:
+        chunk_index: {type: integer, minimum: 1}
+        doc_name: {type: string}
+        score: {type: number}
+        document_uuid: {type: string, format: uuid, nullable: true}
+        segment_id: {type: string, format: uuid, nullable: true}
+        page: {type: [integer, "null"], minimum: 1}
+        section_title: {type: [string, "null"]}
+        section_path: {type: [string, "null"]}
+        preview_text: {type: [string, "null"]}
+        preview_range: {$ref: "#/components/schemas/PreviewRange"}
+        highlight_start: {type: [integer, "null"], minimum: 0}
+        highlight_end: {type: [integer, "null"], minimum: 0}
+    PreviewRange:
+      type: [object, "null"]
+      required: [start, end]
+      properties:
+        start: {type: integer, minimum: 0}
+        end: {type: integer, minimum: 0}
+    ChatSourcesEventData:
+      type: object
+      required: [chunks]
+      properties:
+        chunks: {type: array, items: {$ref: "#/components/schemas/ChatSource"}}
+        confidence: {type: [string, "null"]}
+        confidence_note: {type: [string, "null"]}
+    StreamErrorEventData:
+      type: object
+      required: [error_code, message, retryable]
+      properties:
+        error_code: {type: string}
+        message: {type: string}
+        retryable: {type: boolean}
+    ChatDoneEventData:
+      type: object
+      required: [message_id, token_usage]
+      properties:
+        message_id: {type: integer}
+        title: {type: [string, "null"]}
+        token_usage:
+          type: object
+          required: [prompt, completion, total]
+          properties:
+            prompt: {type: integer, minimum: 0}
+            completion: {type: integer, minimum: 0}
+            total: {type: integer, minimum: 0}
+    ChatCancelResponse:
+      type: object
+      required: [generation_id, status, idempotent_replayed]
+      properties:
+        generation_id: {type: string, format: uuid}
+        status: {type: string, enum: [canceled]}
+        idempotent_replayed: {type: boolean}
+    # ---- Research ----
+    ResearchRequirements:
+      type: object
+      required: [task_type]
+      additionalProperties: false
+      properties:
+        task_type: {type: string, enum: [comparison, explainer, analysis]}
+        depth: {type: string, enum: [quick], default: quick}
+        max_sources: {type: integer, minimum: 1, maximum: 50, default: 10}
+        language: {type: string, minLength: 2, maxLength: 10, default: zh}
+    ResearchTaskCreate:
+      type: object
+      required: [topic, requirements]
+      additionalProperties: false
+      properties:
+        topic: {type: string, minLength: 1, maxLength: 500}
+        requirements: {$ref: "#/components/schemas/ResearchRequirements"}
+        source_strategy: {type: string, enum: [knowledge, web, hybrid], default: web}
+        knowledge_base_ids:
+          type: array
+          maxItems: 50
+          items: {type: string, format: uuid}
+          default: []
+    ResearchTaskCreateResponse:
+      type: object
+      required: [task_id, status, created_at, direct_answer, idempotent_replayed, report_id]
+      properties:
+        task_id: {type: string, format: uuid}
+        status: {type: string, enum: [pending, running, completed, partially_completed, failed, canceled, paused]}
+        created_at: {type: string, format: date-time}
+        direct_answer: {type: boolean}
+        idempotent_replayed: {type: boolean}
+        report_id: {type: [string, "null"], format: uuid}
+    ResearchProgress:
+      type: object
+      required: [completed_steps, total_steps, progress]
+      properties:
+        completed_steps: {type: integer, minimum: 0}
+        total_steps: {type: integer, minimum: 0}
+        progress: {type: number, minimum: 0, maximum: 1}
+    ResearchTask:
+      type: object
+      required: [task_id, topic, status, requirements, progress, total_sources, total_evidence, created_at, report_id]
+      properties:
+        task_id: {type: string, format: uuid}
+        topic: {type: string}
+        status: {type: string, enum: [pending, running, completed, partially_completed, failed, canceled, paused]}
+        current_phase: {type: [string, "null"]}
+        requirements: {$ref: "#/components/schemas/ResearchRequirements"}
+        progress: {$ref: "#/components/schemas/ResearchProgress"}
+        total_sources: {type: integer, minimum: 0}
+        total_evidence: {type: integer, minimum: 0}
+        error_code: {type: [string, "null"]}
+        error_message: {type: [string, "null"]}
+        recoverable: {type: [boolean, "null"]}
+        report_id: {type: [string, "null"], format: uuid}
+        created_at: {type: string, format: date-time}
+        started_at: {type: [string, "null"], format: date-time}
+        completed_at: {type: [string, "null"], format: date-time}
+    ResearchTaskListItem:
+      type: object
+      required: [task_id, topic, status, task_type, source_strategy, progress, total_sources, total_evidence, created_at, report_id]
+      properties:
+        task_id: {type: string, format: uuid}
+        topic: {type: string}
+        status: {type: string, enum: [pending, running, completed, partially_completed, failed, canceled, paused]}
+        task_type: {type: string}
+        source_strategy: {type: string, enum: [knowledge, web, hybrid], default: web}
+        progress: {type: number, minimum: 0, maximum: 1}
+        total_sources: {type: integer, minimum: 0}
+        total_evidence: {type: integer, minimum: 0}
+        report_id: {type: [string, "null"], format: uuid}
+        created_at: {type: string, format: date-time}
+        completed_at: {type: [string, "null"], format: date-time}
+    ResearchTaskList:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/ResearchTaskListItem"}}
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1}
+        total: {type: integer, minimum: 0}
+    ResearchTaskState:
+      type: object
+      required: [task_id, status, progress, steps, stats, created_at, report_id]
+      properties:
+        task_id: {type: string, format: uuid}
+        topic: {type: string}
+        status: {type: string, enum: [pending, running, completed, partially_completed, failed, canceled, paused]}
+        current_phase: {type: [string, "null"]}
+        progress: {$ref: "#/components/schemas/ResearchProgress"}
+        steps: {type: array, items: {$ref: "#/components/schemas/ResearchTaskStateStep"}}
+        error:
+          type: [object, "null"]
+          properties:
+            error_code: {type: string}
+            error_message: {type: string}
+            recoverable: {type: boolean}
+        stats:
+          type: object
+          required: [total_sources, total_evidence]
+          properties:
+            total_sources: {type: integer, minimum: 0}
+            total_evidence: {type: integer, minimum: 0}
+        report_id: {type: [string, "null"], format: uuid}
+        created_at: {type: string, format: date-time}
+        started_at: {type: [string, "null"], format: date-time}
+        completed_at: {type: [string, "null"], format: date-time}
+    ResearchTaskStateStep:
+      type: object
+      properties:
+        id: {type: string}
+        step_type: {type: string}
+        status: {type: string}
+        label: {type: [string, "null"]}
+        started_at: {type: [string, "null"], format: date-time}
+        completed_at: {type: [string, "null"], format: date-time}
+        sub_questions_count: {type: [integer, "null"], minimum: 0}
+        after_dedup: {type: [integer, "null"], minimum: 0}
+        sources_created: {type: [integer, "null"], minimum: 0}
+        successful: {type: [integer, "null"], minimum: 0}
+        failed: {type: [integer, "null"], minimum: 0}
+        error_code: {type: [string, "null"]}
+        error_message: {type: [string, "null"]}
+        duration_ms: {type: [integer, "null"], minimum: 0}
+        progress_label: {type: [string, "null"]}
+    ResearchEventData:
+      anyOf:
+        - {$ref: "#/components/schemas/ResearchTaskState"}
+        - {$ref: "#/components/schemas/StreamErrorEventData"}
+        - {type: object, additionalProperties: true}
+    ResearchTaskUpdatedEventData:
+      type: object
+      properties:
+        task_id: {type: [string, "null"], format: uuid}
+        status: {type: [string, "null"]}
+        current_phase: {type: [string, "null"]}
+        completed_steps: {type: [integer, "null"], minimum: 0}
+        total_steps: {type: [integer, "null"], minimum: 0}
+        progress: {type: [number, "null"], minimum: 0, maximum: 1}
+        message: {type: [string, "null"]}
+        error_code: {type: [string, "null"]}
+        error_message: {type: [string, "null"]}
+      additionalProperties: true
+    ResearchPhaseUpdatedEventData:
+      type: object
+      properties:
+        phase: {type: [string, "null"]}
+        timestamp: {type: [string, "null"], format: date-time}
+        duration_ms: {type: [integer, "null"], minimum: 0}
+      additionalProperties: true
+    ResearchStepUpdatedEventData:
+      type: object
+      properties:
+        step_id: {type: [string, "null"]}
+        step_type: {type: [string, "null"]}
+        status: {type: [string, "null"]}
+        label: {type: [string, "null"]}
+        timestamp: {type: [string, "null"], format: date-time}
+        phase: {type: [string, "null"]}
+        last_completed_step_id: {type: [string, "null"]}
+        output: {type: [object, "null"], additionalProperties: true}
+        iteration: {type: [integer, "null"]}
+        tool_call_id: {type: [string, "null"]}
+        tool_name: {type: [string, "null"]}
+        arguments: {type: [object, "null"], additionalProperties: true}
+        observation: {type: [string, "null"]}
+        success: {type: [boolean, "null"]}
+      additionalProperties: true
+    ResearchTaskCanceledEventData:
+      type: object
+      required: [task_id, status, cancel_requested]
+      properties:
+        task_id: {type: string, format: uuid}
+        status: {type: string}
+        cancel_requested: {type: boolean}
+    ResearchStreamEndEventData:
+      type: object
+      required: [reason]
+      properties:
+        reason: {type: string}
+    ResearchCancelResponse:
+      type: object
+      required: [task_id, status, cancel_requested]
+      properties:
+        task_id: {type: string, format: uuid}
+        status: {type: string, enum: [pending, running, completed, partially_completed, failed, canceled, paused]}
+        cancel_requested: {type: boolean}
+    ResearchResumeFrom:
+      type: object
+      required: [phase, last_completed_step_id, next_step_type]
+      properties:
+        phase: {type: [string, "null"]}
+        last_completed_step_id: {type: [string, "null"]}
+        next_step_type: {type: [string, "null"]}
+    ResearchRetryResponse:
+      type: object
+      required: [task_id, status, resume_from]
+      properties:
+        task_id: {type: string, format: uuid}
+        status: {type: string, enum: [pending, running, completed, partially_completed, failed, canceled, paused]}
+        resume_from: {$ref: "#/components/schemas/ResearchResumeFrom"}
+    ResearchReportSource:
+      type: object
+      required: [id, url, title, domain]
+      properties:
+        id: {type: integer}
+        url: {type: string}
+        title: {type: string}
+        domain: {type: string}
+    ResearchReportSectionSource:
+      type: object
+      required: [id, evidence_index]
+      properties:
+        id: {type: integer}
+        evidence_index: {type: integer}
+    ResearchReportSection:
+      type: object
+      required: [heading, content, sources]
+      properties:
+        heading: {type: string}
+        content: {type: string}
+        sources: {type: array, items: {$ref: "#/components/schemas/ResearchReportSectionSource"}}
+    ResearchReport:
+      type: object
+      required: [title, generated_at, sections, sources]
+      properties:
+        title: {type: string}
+        generated_at: {type: string, format: date-time}
+        sections: {type: array, items: {$ref: "#/components/schemas/ResearchReportSection"}}
+        sources: {type: array, items: {$ref: "#/components/schemas/ResearchReportSource"}}
+    ResearchTaskReportResponse:
+      type: object
+      required: [task_id, status, report, evidence_graph, trace]
+      properties:
+        task_id: {type: string, format: uuid}
+        status: {type: string, enum: [pending, running, completed, partially_completed, failed, canceled, paused]}
+        report: {$ref: "#/components/schemas/ResearchReport"}
+        evidence_graph: {type: object, additionalProperties: true}
+        trace: {type: [object, "null"], additionalProperties: true}
+    # ---- Evidence / Report ----
+    Evidence:
+      type: object
+      required: [evidence_id, task_id, source_type, display_title, validity, used_in_sections]
+      properties:
+        evidence_id: {type: string, format: uuid}
+        task_id: {type: string, format: uuid}
+        source_type: {type: string, enum: [internal, web]}
+        display_title: {type: [string, "null"]}
+        location_summary: {type: [string, "null"]}
+        source_observed_at: {type: [string, "null"], format: date-time}
+        score_summary: {type: [object, "null"], additionalProperties: true}
+        validity: {type: string}
+        relevance_score: {type: [number, "null"]}
+        used_in_sections: {type: array, items: {type: string}}
+        knowledge_base_id: {type: [string, "null"], format: uuid}
+        document_id: {type: [string, "null"], format: uuid}
+        document_version_id: {type: [string, "null"], format: uuid}
+        segment_id: {type: [string, "null"], format: uuid}
+        document_display_name_snapshot: {type: [string, "null"]}
+        url: {type: [string, "null"], format: uri}
+        fetched_at: {type: [string, "null"], format: date-time}
+        content: {type: [string, "null"]}
+    EvidenceList:
+      type: object
+      required: [items, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Evidence"}}
+        total: {type: integer, minimum: 0}
+    EvidenceRelation:
+      type: object
+      required: [relation_id, relation_type, confidence, claim]
+      properties:
+        relation_id: {type: string, format: uuid}
+        relation_type: {type: string, enum: [supports, contradicts, context]}
+        confidence: {type: number}
+        rationale_summary: {type: [string, "null"]}
+        claim: {type: object, additionalProperties: true}
+    EvidenceRelationList:
+      type: object
+      required: [items, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/EvidenceRelation"}}
+        total: {type: integer, minimum: 0}
+    ReportEvidenceReference:
+      type: object
+      required: [evidence_id, source_type]
+      properties:
+        evidence_id: {type: string, format: uuid}
+        source_type: {type: string, enum: [internal, web]}
+        url: {type: [string, "null"], format: uri}
+        fetched_at: {type: [string, "null"], format: date-time}
+    ReportSection:
+      type: object
+      required: [section_id, heading, content, sequence, evidence]
+      properties:
+        section_id: {type: string, format: uuid}
+        heading: {type: string}
+        content: {type: string}
+        sequence: {type: integer, minimum: 0}
+        evidence: {type: array, items: {$ref: "#/components/schemas/ReportEvidenceReference"}}
+    Report:
+      type: object
+      required: [report_id, task_id, revision, status, title, language, sections]
+      properties:
+        report_id: {type: string, format: uuid}
+        task_id: {type: string, format: uuid}
+        revision: {type: integer, minimum: 1}
+        status: {type: string, enum: [published]}
+        title: {type: string}
+        language: {type: string}
+        evidence_completeness: {type: [object, "null"], additionalProperties: true}
+        limitations_summary: {type: [string, "null"]}
+        published_at: {type: [string, "null"], format: date-time}
+        sections: {type: array, items: {$ref: "#/components/schemas/ReportSection"}}

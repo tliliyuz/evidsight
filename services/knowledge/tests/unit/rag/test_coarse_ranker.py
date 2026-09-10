@@ -289,6 +289,7 @@ class TestCoarseRankerBoundary:
         sims = []
         query_norm = ranker._l2_normalize(QV)
         for r in result.results:
+            assert r.embedding is not None
             emb_norm = ranker._l2_normalize(r.embedding)
             sims.append(ranker._dot_product(query_norm, emb_norm))
 

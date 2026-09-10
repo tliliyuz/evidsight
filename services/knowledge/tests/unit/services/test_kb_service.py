@@ -48,6 +48,13 @@ def _make_scalar_one_or_none_result(value):
     return result
 
 
+def _make_first_result(value):
+    """构造 db.execute() 返回 .first() 的 mock（resolve_user_display 用，返回 (uuid, username)）"""
+    result = MagicMock()
+    result.first = MagicMock(return_value=value)
+    return result
+
+
 def _make_scalars_all_result(rows):
     """构造 db.execute() 返回 .scalars().all() 的 mock（用于多行查询）"""
     scalars_mock = MagicMock()
@@ -74,6 +81,7 @@ def _make_kb(
     status="active",
     chunk_count=10,
     doc_count=3,
+    index_status="ready",
 ):
     """构造 KnowledgeBase ORM 实例（非 mock，用于 .scalar_one_or_none() 返回）"""
     if uuid is None:
@@ -88,6 +96,7 @@ def _make_kb(
         status=status,
         chunk_count=chunk_count,
         doc_count=doc_count,
+        index_status=index_status,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
@@ -125,6 +134,8 @@ def mock_db():
             instance.uuid = f"kb-uuid-{instance.id}"
         if instance.status is None:
             instance.status = "active"
+        if instance.index_status is None:
+            instance.index_status = "ready"
         if instance.doc_count is None:
             instance.doc_count = 0
         if instance.chunk_count is None:
@@ -217,7 +228,7 @@ class TestCreateKB:
         mock_db.flush = AsyncMock()
         # B 类：owner 解析为 Platform User UUID（resolve_user_uuid 的 scalar_one_or_none 查询）
         mock_db.execute = AsyncMock(
-            return_value=_make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),
+            return_value=_make_first_result(("550e8400-e29b-41d4-a716-446655440001", "林默")),
         )
 
         result = await create_kb(
@@ -230,6 +241,9 @@ class TestCreateKB:
         assert result.description == "描述"
         assert result.visibility == "private"
         assert result.owner == "550e8400-e29b-41d4-a716-446655440001"
+        # 纠偏3B：创建响应携带权威索引状态与 owner 用户名
+        assert result.index_status == "ready"
+        assert result.owner_username == "林默"
         # UUID 由 Python 端 uuid4() 生成，应为 36 字符标准格式
         assert len(result.uuid) == 36
         assert result.uuid.count("-") == 4
@@ -257,7 +271,7 @@ class TestCreateKB:
         """不传 visibility 时自动使用 private"""
         mock_db.flush = AsyncMock()
         mock_db.execute = AsyncMock(
-            return_value=_make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),
+            return_value=_make_first_result(("550e8400-e29b-41d4-a716-446655440001", "林默")),
         )
 
         result = await create_kb(
@@ -386,7 +400,7 @@ class TestListKBs:
             _make_scalars_all_result([kb1, kb2]),
             _make_all_result([_make_chunk_count_row(1, 15), _make_chunk_count_row(2, 30)]),
             _make_all_result([_make_doc_count_row(1, 5), _make_doc_count_row(2, 3)]),
-            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),
+            _make_first_result(("550e8400-e29b-41d4-a716-446655440001", "林默")),
         ]
 
         result = await list_kbs(mock_db, user_id=1)
@@ -398,6 +412,9 @@ class TestListKBs:
         assert result.items[1].chunk_count == 30
         assert result.items[1].doc_count == 3
         assert result.items[0].owner == "550e8400-e29b-41d4-a716-446655440001"
+        # 纠偏3B：列表项携带权威索引状态与 owner 用户名
+        assert result.items[0].owner_username == "林默"
+        assert result.items[0].index_status == "ready"
         assert mock_db.execute.call_count == 5
 
     @pytest.mark.asyncio
@@ -511,7 +528,7 @@ class TestUpdateKB:
             _make_scalar_one_or_none_result(kb),  # get_kb: 查 KB
             _make_all_result([_make_chunk_count_row(1, 88)]),  # get_kb: 实时分块
             _make_all_result([_make_doc_count_row(1, 5)]),  # get_kb: 实时文档
-            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),  # owner 解析
+            _make_first_result(("550e8400-e29b-41d4-a716-446655440001", "林默")),  # owner 解析
             _make_all_result([_make_chunk_count_row(1, 88)]),  # update_kb 末尾: chunk 修正
             _make_all_result([_make_doc_count_row(1, 5)]),  # update_kb 末尾: doc 修正
         ]
@@ -527,6 +544,7 @@ class TestUpdateKB:
 
         assert result.name == "新名称"
         assert result.owner == "550e8400-e29b-41d4-a716-446655440001"
+        assert result.owner_username == "林默"  # 纠偏3B：更新响应携带 owner 用户名
         assert result.chunk_count == 88  # 实时值，非 DB 缓存值
         assert result.doc_count == 5  # 实时值，非 DB 缓存值
         mock_db.flush.assert_called_once()
@@ -542,7 +560,7 @@ class TestUpdateKB:
             _make_scalar_one_or_none_result(kb),
             _make_all_result([]),  # get_kb: 实时分块（fallback）
             _make_all_result([]),  # get_kb: 实时文档（fallback）
-            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),  # owner 解析
+            _make_first_result(("550e8400-e29b-41d4-a716-446655440001", "林默")),  # owner 解析
             _make_all_result([]),  # update_kb 末尾: chunk
             _make_all_result([]),  # update_kb 末尾: doc
         ]
@@ -567,7 +585,7 @@ class TestUpdateKB:
             _make_scalar_one_or_none_result(kb),
             _make_all_result([]),
             _make_all_result([]),
-            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),  # owner 解析
+            _make_first_result(("550e8400-e29b-41d4-a716-446655440001", "林默")),  # owner 解析
             _make_all_result([]),
             _make_all_result([]),
         ]
@@ -607,7 +625,7 @@ class TestUpdateKB:
             _make_scalar_one_or_none_result(kb),
             _make_all_result([_make_chunk_count_row(1, 5)]),
             _make_all_result([_make_doc_count_row(1, 3)]),
-            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440099"),  # owner 解析
+            _make_first_result(("550e8400-e29b-41d4-a716-446655440099", "林默")),  # owner 解析
             _make_all_result([_make_chunk_count_row(1, 5)]),
             _make_all_result([_make_doc_count_row(1, 3)]),
         ]
@@ -664,7 +682,7 @@ class TestUpdateKB:
             # get_kb: _get_real_doc_counts → 实际 5
             _make_all_result([_make_doc_count_row(1, 5)]),
             # update_kb: resolve_user_uuid → owner Platform User UUID
-            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),
+            _make_first_result(("550e8400-e29b-41d4-a716-446655440001", "林默")),
             # update_kb 末尾: chunk 再次查询 → 仍为 120
             _make_all_result([_make_chunk_count_row(1, 120)]),
             # update_kb 末尾: doc 再次查询 → 仍为 5
@@ -713,7 +731,7 @@ class TestUpdateKB:
             _make_scalar_one_or_none_result(kb),
             _make_all_result([]),
             _make_all_result([]),
-            _make_scalar_one_or_none_result("550e8400-e29b-41d4-a716-446655440001"),  # owner 解析
+            _make_first_result(("550e8400-e29b-41d4-a716-446655440001", "林默")),  # owner 解析
             _make_all_result([]),
             _make_all_result([]),
         ]

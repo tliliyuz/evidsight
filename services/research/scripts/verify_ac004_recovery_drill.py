@@ -132,7 +132,7 @@ async def run() -> int:
                 details.append(f"#{entry.get('id')}: 任务不存在")
                 outcomes.append(False)
                 continue
-            ok, detail = await _drill_one(session, str(task.id))
+            ok, detail = await _drill_one(str(task.id))
             outcomes.append(ok)
             details.append(detail)
             await session.flush()

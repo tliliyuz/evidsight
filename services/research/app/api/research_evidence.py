@@ -7,7 +7,7 @@
 - GET /api/v1/reports/{report_id}
 - GET /api/v1/reports/{report_id}/sections/{section_id}
 
-信封沿用全平台 {"code","message","data"}（API.md §8.2 迁移态）。
+成功响应直接返回资源；错误使用 API.md §4 标准 error 信封。
 内部 Evidence 不返回正文（ADR-003）；内部原文展开由 Knowledge 来源访问 API 实时鉴权。
 """
 
@@ -30,7 +30,7 @@ router = APIRouter(tags=["Evidence 与 Report"])
 
 
 def _ok(data: dict) -> dict:
-    return {"code": "0", "message": "ok", "data": data}
+    return data
 
 
 async def _require_evidence_accessible(
@@ -67,6 +67,8 @@ async def get_evidence_detail(
 ):
     """单条证据（task READ，按对外 UUID）。"""
     data = await report_reader.get_evidence_detail(db, ev.external_id)
+    if data is None:
+        raise TaskNotFoundException(ev.external_id)
     return _ok(data)
 
 
@@ -77,6 +79,8 @@ async def get_evidence_relations(
 ):
     """证据关系（supports/contradicts/context）。"""
     data = await report_reader.list_evidence_relations(db, ev.external_id)
+    if data is None:
+        raise TaskNotFoundException(ev.external_id)
     return _ok(data)
 
 

@@ -1,0 +1,178 @@
+name: 基础 CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-quality:
+    name: Python 静态与类型
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: 配置 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 配置 uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            services/*/requirements*.txt
+            services/*/requirements*.lock
+      - name: 安装冻结的开发依赖
+        run: make setup-python-dev
+      - name: Ruff 静态检查
+        run: .venv/bin/ruff check services/ scripts/ tests/ packages/contracts/
+      - name: Ruff 格式检查
+        run: .venv/bin/ruff format --check services/ scripts/ tests/ packages/contracts/
+      - name: Python 全量类型检查
+        run: bash scripts/check_python_types.sh
+
+  backend-fast-unit:
+    name: 后端快速单元
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: 配置 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 配置 uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            services/*/requirements*.txt
+            services/*/requirements*.lock
+      - name: 安装冻结的开发依赖
+        run: make setup-python-dev
+      - name: 执行快速单元测试
+        run: bash scripts/test_fast_unit.sh
+
+  contracts:
+    name: Contract Schema 与 Provider/Consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: 配置 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 配置 uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            services/*/requirements*.txt
+            services/*/requirements*.lock
+      - name: 安装冻结的开发依赖
+        run: make setup-python-dev
+      - name: 执行 Contract 门禁
+        run: bash scripts/test_contracts_ci.sh
+
+  architecture-compose:
+    name: Architecture 与 Compose 配置
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: 配置 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 配置 uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - name: 安装根开发依赖
+        run: uv sync --locked --no-install-project
+      - name: 执行 Architecture tests
+        run: .venv/bin/python -m pytest tests/architecture -v
+      - name: 解析开发 Compose
+        run: docker compose config --quiet
+
+  openapi:
+    name: OpenAPI 与路由一致性
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码与基线历史
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: 配置 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 配置 uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - name: 安装根开发依赖
+        run: uv sync --locked --no-install-project
+      - name: 执行 OpenAPI 门禁
+        env:
+          OPENAPI_BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: bash scripts/check_openapi_ci.sh
+
+  web:
+    name: Web 静态、测试与构建
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: 配置 pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: "11.18.0"
+      - name: 配置 Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.13"
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: 冻结安装依赖
+        run: pnpm --dir apps/web install --frozen-lockfile
+      - name: Design Token 与原型基线
+        run: pnpm --dir apps/web run check:design
+      - name: ESLint
+        run: pnpm --dir apps/web run lint
+      - name: Prettier 检查
+        run: pnpm --dir apps/web run format:check
+      - name: Vitest
+        run: pnpm --dir apps/web test
+      - name: TypeScript 与 Vite build
+        run: pnpm --dir apps/web run build

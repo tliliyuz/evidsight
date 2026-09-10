@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_user, get_db
 from app.schemas.chat import ChatRequest
 from app.services.chat_service import chat
+from app.services.legacy_api_observability import record_old_chat_call
 
 router = APIRouter(prefix="/api", tags=["问答"])
 
@@ -27,6 +28,7 @@ async def chat_endpoint(
     - SSE 连接后的检索/LLM 错误通过 event: error 发送
     - 事件序列：meta → thinking(可选) → message → sources → finish
     """
+    await record_old_chat_call("stream")
     return await chat(
         db=db,
         user_id=current_user["user_id"],
@@ -35,4 +37,5 @@ async def chat_endpoint(
         kb_id=req.kb_id,
         question=req.question,
         deep_thinking=req.deep_thinking,
+        platform_user_id=current_user["platform_user_id"],
     )

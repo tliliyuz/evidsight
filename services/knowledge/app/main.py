@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -13,16 +14,22 @@ from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
 from app.api.auth import v1_router
 from app.api.chat import router as chat_router
+from app.api.chat_v1 import router as chat_v1_router
 from app.api.conversation import router as conversation_router
+from app.api.conversation_v1 import router as conversation_v1_router
 from app.api.document import router as doc_router
 from app.api.document import v1_router as doc_v1_router
+from app.api.document_v1 import doc_v1_router as document_v1_router
+from app.api.document_v1 import kb_doc_router as doc_v1_kb_router
 from app.api.internal import router as internal_router
 from app.api.knowledge_base import router as kb_router
+from app.api.knowledge_base_v1 import router as kb_v1_router
 from app.config import settings
+from app.core.api_response import error_envelope
 from app.core.chroma_client import init_chroma
 from app.core.csrf import clear_auth_cookies
 from app.core.exceptions import AppException
-from app.core.logging_config import setup_logging
+from app.core.logging_config import request_id_var, setup_logging
 from app.core.redis_client import close_async_redis, get_async_redis
 from app.core.service_security import public_keys_loadable
 from app.core.startup_checks import validate_production_config
@@ -122,10 +129,15 @@ app.add_middleware(RateLimitMiddleware)
 app.include_router(auth_router)
 app.include_router(v1_router)
 app.include_router(chat_router)
+app.include_router(chat_v1_router)
 app.include_router(conversation_router)
 app.include_router(kb_router)
 app.include_router(doc_router)
 app.include_router(doc_v1_router)
+app.include_router(kb_v1_router)
+app.include_router(doc_v1_kb_router)
+app.include_router(document_v1_router)
+app.include_router(conversation_v1_router)
 app.include_router(admin_router)
 app.include_router(internal_router)
 
@@ -144,14 +156,27 @@ async def app_exception_handler(request: Request, exc: AppException):
         exc.error_message,
         extra={"error_code": exc.error_code, "status_code": exc.status_code},
     )
-    response = JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "code": exc.error_code,
-            "message": exc.error_message,
-            "detail": exc.error_detail,
-        },
-    )
+    if request.url.path.startswith("/api/v1/"):
+        response = JSONResponse(
+            status_code=exc.status_code,
+            content=error_envelope(
+                code=exc.error_code,
+                message=exc.error_message,
+                request_id=request_id_var.get()
+                or request.headers.get("X-Request-ID")
+                or uuid4().hex,
+                status_code=exc.status_code,
+            ),
+        )
+    else:
+        response = JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "code": exc.error_code,
+                "message": exc.error_message,
+                "detail": exc.error_detail,
+            },
+        )
     # 事件③：Refresh 刷新失败（重放、Family 撤销、用户禁用、过期等）必须清除
     # Refresh/CSRF Cookie（ADR-006）。注入的 Response 在抛异常时会被错误响应替换，
     # 因此 Cookie 清除必须在错误响应上执行。
@@ -168,13 +193,31 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         request.url.path,
         extra={"errors": str(exc.errors())},
     )
+    if request.url.path.startswith("/api/v1/"):
+        errors = [
+            {
+                "field": ".".join(str(part) for part in error["loc"]),
+                "message": error["msg"],
+                "type": error["type"],
+            }
+            for error in exc.errors()
+        ]
+        return JSONResponse(
+            status_code=422,
+            content=error_envelope(
+                code="E9003",
+                message="请求参数校验失败",
+                request_id=request_id_var.get()
+                or request.headers.get("X-Request-ID")
+                or uuid4().hex,
+                status_code=422,
+                details={"errors": errors},
+                retryable=False,
+            ),
+        )
     return JSONResponse(
         status_code=422,
-        content={
-            "code": "E9003",
-            "message": "请求参数校验失败",
-            "detail": str(exc.errors()),
-        },
+        content={"code": "E9003", "message": "请求参数校验失败", "detail": str(exc.errors())},
     )
 
 
@@ -194,13 +237,22 @@ async def global_exception_handler(request: Request, exc: Exception):
         detail = f"{type(exc).__name__}: {str(exc)}"
     else:
         detail = "请联系管理员"
+    if request.url.path.startswith("/api/v1/"):
+        return JSONResponse(
+            status_code=500,
+            content=error_envelope(
+                code="E9001",
+                message="服务器内部错误",
+                request_id=request_id_var.get()
+                or request.headers.get("X-Request-ID")
+                or uuid4().hex,
+                status_code=500,
+                retryable=False,
+            ),
+        )
     return JSONResponse(
         status_code=500,
-        content={
-            "code": "E9001",
-            "message": "服务器内部错误",
-            "detail": detail,
-        },
+        content={"code": "E9001", "message": "服务器内部错误", "detail": detail},
     )
 
 

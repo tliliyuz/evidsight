@@ -52,7 +52,7 @@ class TestRequirementsSchema:
 
     def test_task_type非法_抛出ValidationError(self):
         with pytest.raises(ValidationError) as exc_info:
-            RequirementsSchema(task_type="invalid_type")  # type: ignore[arg-type]
+            RequirementsSchema(task_type="invalid_type")
         assert "task_type" in str(exc_info.value)
 
     def test_max_sources小于1_抛出ValidationError(self):
@@ -67,7 +67,7 @@ class TestRequirementsSchema:
 
     def test_三种task_type全部合法(self):
         for tt in ("comparison", "explainer", "analysis"):
-            req = RequirementsSchema(task_type=tt)  # type: ignore[arg-type]
+            req = RequirementsSchema(task_type=tt)
             assert req.task_type == tt
 
 
@@ -125,13 +125,13 @@ class TestResearchCreateRequest:
 
     def test_requirements缺失_抛出ValidationError(self):
         with pytest.raises(ValidationError):
-            ResearchCreateRequest(topic="test")  # type: ignore[call-arg]
+            ResearchCreateRequest(topic="test")
 
     def test_requirements缺少task_type_抛出ValidationError(self):
         with pytest.raises(ValidationError):
             ResearchCreateRequest(
                 topic="test",
-                requirements={"depth": "quick"},  # type: ignore[typeddict-item]
+                requirements={"depth": "quick"},
             )
 
 
@@ -200,6 +200,8 @@ class TestResearchTaskListItem:
             topic="研究主题",
             status="completed",
             task_type="analysis",
+            source_strategy="hybrid",
+            progress=0.5,
             total_sources=10,
             total_evidence=18,
             created_at=datetime.now(timezone.utc),
@@ -207,6 +209,22 @@ class TestResearchTaskListItem:
         assert item.task_id == "uuid-1"
         assert item.status == "completed"
         assert item.task_type == "analysis"
+        assert item.source_strategy == "hybrid"
+        assert item.progress == 0.5
+
+    def test_默认来源策略与进度(self):
+        from datetime import datetime, timezone
+
+        item = ResearchTaskListItem(
+            task_id="uuid-1",
+            topic="研究主题",
+            status="pending",
+            task_type="analysis",
+            created_at=datetime.now(timezone.utc),
+        )
+        # 向后兼容：旧 Consumer 未提供新字段时安全降级
+        assert item.source_strategy == "web"
+        assert item.progress == 0.0
 
 
 # ═══════════════════════════════════════════════════════════════

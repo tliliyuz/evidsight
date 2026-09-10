@@ -57,6 +57,8 @@ queued → parsing → chunking → embedding → indexing → verifying → rea
 
 PDF 使用 PyMuPDF 主解析、pdfplumber 按需提取表格；DOCX、Markdown 和纯文本使用对应确定性解析器。解析输出统一为带页码、章节路径、段落与字符区间的中间结构。解析器不得把临时路径写入业务字段或错误响应。
 
+**定位口径（技术债）**：Chunk 元数据 `page` 只对 PDF 是真实页码；DOCX/Markdown/纯文本 无页码概念，`page` 存的是段落/切片序号。前端来源详情按 `doc_name` 扩展名区分展示：`.pdf` 显示「第 X 页」，其余显示「第 X 段」。改造成真实页码或引入文件类型字段属后续技术债，不属当前契约。
+
 Parse 与 Chunk 之间插入确定性 Clean 阶段（M2 数据清洗）：逐页去除首尾页号/页眉页脚噪声、规整空白与空行（含安全折行拼接修复 PDF 断行）、修复损坏 Unicode（U+FFFD / latin-1 mojibake / 全半角归一）。清洗作用于**页面结构**而非拼接后的 `full_text`，使 Chunk 的 offset→page 映射保持不变。由 `CLEAN_ENABLED` 总开关与 `CLEAN_STRIP_BOILERPLATE` / `CLEAN_NORMALIZE_WHITESPACE` / `CLEAN_REPAIR_UNICODE` 逐项开关控制，可独立关闭实现 A/B 与逐项回滚；仅影响新入库内容，历史 Chunk/向量不动。实现见 `app/rag/cleaner.py`。
 
 分块保留 DocMind 的递归分隔策略和重叠语义；精确默认值属于配置 Schema。每个 Segment 获得稳定 UUID，并携带 Document Version、顺序、Token 估算和受控位置。相同 Version 的 `(document_id, chunk_index)` 唯一。

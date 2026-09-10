@@ -4,7 +4,7 @@
 |:---|:---|
 | 文档版本 | v1.0 |
 | 状态 | 已确认设计 |
-| 最后更新 | 2026-08-07 |
+| 最后更新 | 2026-09-10 |
 | 适用范围 | Research API、Worker、Recovery Scanner 与 Research SSE 投影 |
 
 > 本文是 Research Task/Phase/Step 状态、`knowledge|web|hybrid` 来源策略、Evidence Graph、完整度判定、失败恢复和报告发布的权威规范。持久化结构见 [`DATABASE.md`](DATABASE.md)，HTTP/SSE 表面见 [`docs/specs/API.md`](../../../docs/specs/API.md)，Internal Retrieval 与 Evidence 字段见 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 Knowledge 检索实现、数据库 DDL 或前端布局。
@@ -50,7 +50,7 @@ flowchart LR
 
 | 组件 | 职责 | 禁止事项 |
 |:---|:---|:---|
-| Research Orchestrator | 推进 Phase、创建 Step、检查租约/取消/预算、调用组件 | 不实现检索算法，不直接决定 Task 终态 |
+| Research Orchestrator | 推进 Phase、创建 Step、检查租约/取消/预算、调用组件；当 LLM 未推进当前 Phase 时由运行时保证调用该 Phase 主组件 | 不实现检索算法，不直接决定 Task 终态；辅助 Tool 不得阻断当前 Phase 主组件 |
 | Planner | 生成结构化子问题和各通道查询计划 | 不调用来源，不输出隐藏推理 |
 | Knowledge Channel Adapter | 构造 Contract 请求、调用 Internal Retrieval、转换临时候选 | 不访问 Knowledge 存储，不保存 excerpt |
 | Web Search Adapter | 生成允许外发的查询、调用搜索 Provider、规范化 URL | 不接收私有内部正文 |
@@ -413,6 +413,8 @@ Worker 未拾取的 pending 任务（投递丢失、无 Worker 在线或 Worker 
 
 Task 创建时冻结最大子问题数、搜索结果数、Fetch 数、LLM Token、Provider 调用、估算成本、Agent 迭代和总时限。每次外部调用前预留预算，完成后结算实际用量；无法预留则停止新调用。
 
+所有预算上限均为包含性上限：用量恰好等于上限是合法完成结果，不得仅因达到上限就写入预算停止。`max_sub_questions`、`max_search_results` 和 `max_fetch` 是对应阶段的产出数量上限，由阶段自身的输入/输出校验执行；某阶段达到其上限不得阻断后续阶段。只有下一次外部调用的已知最小用量会使累计值超过上限时，才拒绝该调用并记录预算停止；无外部调用的终态收敛工具不受该预留检查阻断。
+
 预算停止不是自动成功：已有 Evidence 仍需通过完整度硬门槛；达标可 partial，否则 failed。报告必须披露因预算导致的缺失。
 
 v1.0 基线为单 Research Worker、concurrency 1：
@@ -481,6 +483,7 @@ Research SSE 是持久任务订阅，断开不取消 Task。事件由数据库�
 18. Provider 限流遵守 Retry-After 和预算；重试耗尽后按策略进入 paused、partial 或 failed。
 19. Pending 任务超过阈值后由周期扫描重投，重复投递由 DB 租约条件领取收敛；超过最大重投次数后创建受控失败事实，由 `TaskStateResolver` 推导 `failed`，扫描器不直接写终态。
 20. 任意 watchdog、Recovery Scanner 或 Celery 顶层异常都不绕过 `TaskStateResolver` 写终态；`emergency_fail` 仅限数据库损坏等无法进入 Resolver 的极端情况。
+21. Agent Loop 在当前 Phase 未执行主组件时，下一轮必须由运行时强制选择该主组件；连续无进展不得耗尽完整迭代预算，达到迭代上限时按 §14 预算停止语义交由 `TaskStateResolver` 收口，不得直接使用 `E3999`。
 
 ### 17.4 契约与边界
 

@@ -7,6 +7,8 @@
 4. phase_durations_ms / breakdown / phases 完整性
 """
 
+from typing import Any
+
 from app.core.trace_recorder import TraceRecorder
 
 
@@ -23,7 +25,7 @@ class TestCrashRecoveryTraceMerge:
         # ── 第一次运行：Phase 1-3 完成，Phase 4 崩溃 ──
         rec1 = TraceRecorder(
             task_id="task-001",
-            user_id=1,
+            user_id="1",
             topic="测试主题",
         )
 
@@ -78,7 +80,7 @@ class TestCrashRecoveryTraceMerge:
         # ── 第二次运行（恢复）：从 task.trace 读取 previous_trace ──
         rec2 = TraceRecorder(
             task_id="task-001",
-            user_id=1,
+            user_id="1",
             topic="测试主题",
             previous_trace=checkpoint_trace,
         )
@@ -190,7 +192,7 @@ class TestCrashRecoveryTraceMerge:
 
     def test_snapshot_is_idempotent(self):
         """snapshot() 多次调用不改变内部状态"""
-        rec = TraceRecorder(task_id="t1", user_id=1, topic="test")
+        rec = TraceRecorder(task_id="t1", user_id="1", topic="test")
         rec.record_planning(duration_ms=1000, input_tokens=100, output_tokens=50, model="gpt-4")
 
         snap1 = rec.snapshot()
@@ -205,7 +207,7 @@ class TestCrashRecoveryTraceMerge:
 
     def test_finish_without_previous_trace(self):
         """无 previous_trace 时 finish() 正常产出（非续跑场景）"""
-        rec = TraceRecorder(task_id="t1", user_id=1, topic="test")
+        rec = TraceRecorder(task_id="t1", user_id="1", topic="test")
         rec.record_planning(duration_ms=1000, input_tokens=100, output_tokens=50, model="gpt-4")
         rec.record_search(duration_ms=2000, total_results=10, cost_usd=0.01)
 
@@ -221,7 +223,7 @@ class TestCrashRecoveryTraceMerge:
         """previous_trace=None 时不崩溃"""
         rec = TraceRecorder(
             task_id="t1",
-            user_id=1,
+            user_id="1",
             topic="test",
             previous_trace=None,
         )
@@ -234,7 +236,7 @@ class TestCrashRecoveryTraceMerge:
         """previous_trace={} 不崩溃"""
         rec = TraceRecorder(
             task_id="t1",
-            user_id=1,
+            user_id="1",
             topic="test",
             previous_trace={},
         )
@@ -246,7 +248,7 @@ class TestCrashRecoveryTraceMerge:
         """old-format previous_trace (no phases key) 不崩溃"""
         rec = TraceRecorder(
             task_id="t1",
-            user_id=1,
+            user_id="1",
             topic="test",
             previous_trace={"total_duration_ms": 5000},
         )
@@ -273,7 +275,7 @@ class TestCrashRecoveryTraceMerge:
         }
         rec = TraceRecorder(
             task_id="t2",
-            user_id=1,
+            user_id="1",
             topic="test",
             previous_trace=prev_trace,
         )
@@ -289,7 +291,7 @@ class TestCrashRecoveryTraceMerge:
 
     def test_full_pipeline_crash_at_every_phase(self):
         """参数化：在任一 Phase 崩溃，恢复后 trace 均完整"""
-        all_phases = [
+        all_phases: list[tuple[str, str, dict[str, Any]]] = [
             (
                 "planning",
                 "record_planning",
@@ -331,7 +333,7 @@ class TestCrashRecoveryTraceMerge:
             crash_phase_name = all_phases[crash_after_index][0]
 
             # 第一次运行：执行到 crash_after_index（含）
-            rec1 = TraceRecorder(task_id="t-crash", user_id=1, topic="test")
+            rec1 = TraceRecorder(task_id="t-crash", user_id="1", topic="test")
             for i in range(crash_after_index + 1):
                 _, method_name, kwargs = all_phases[i]
                 getattr(rec1, method_name)(**kwargs)
@@ -341,7 +343,7 @@ class TestCrashRecoveryTraceMerge:
             # 恢复：从 checkpoint 开始，执行剩余阶段
             rec2 = TraceRecorder(
                 task_id="t-crash",
-                user_id=1,
+                user_id="1",
                 topic="test",
                 previous_trace=checkpoint_trace,
             )

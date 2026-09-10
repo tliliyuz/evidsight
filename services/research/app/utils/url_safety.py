@@ -74,7 +74,7 @@ async def check_url_safety(url: str) -> str | None:
             None,
             lambda: socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM),
         )
-        ips = {info[4][0] for info in addrinfo}
+        ips = {str(info[4][0]) for info in addrinfo}
     except socket.gaierror:
         # DNS 解析失败交给下游 fetch 层处理，安全层不拦截
         return None

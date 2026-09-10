@@ -8,7 +8,10 @@
 - 越界/非整数 evidence_index 被过滤（防御性），不阻断 Graph 构建。
 """
 
+from typing import cast
+
 from app.pipeline.evidence_graph import run_evidence_graph
+from app.pipeline.sse_bridge import SSEBridge
 
 from .test_evidence_graph import _seed_evidence_graph_task, _valid_synthesis_output
 
@@ -46,7 +49,7 @@ class TestEvidenceGraphClaims:
             evidence_count=3,
             synthesis_output=_claims_synthesis_output(),
         )
-        output = await run_evidence_graph(task, step, db_session, _FakeSSE())
+        output = await run_evidence_graph(task, step, db_session, cast(SSEBridge, _FakeSSE()))
         graph = output["graph"]
         assert len(graph["claims"]) == 2
 
@@ -74,14 +77,14 @@ class TestEvidenceGraphClaims:
         task, step = await _seed_evidence_graph_task(
             db_session, max_sources=2, evidence_count=2, synthesis_output=output
         )
-        result = await run_evidence_graph(task, step, db_session, _FakeSSE())
+        result = await run_evidence_graph(task, step, db_session, cast(SSEBridge, _FakeSSE()))
         assert result["graph"]["claims"][0]["relations"] == []
 
     async def test_claims缺省_输出空数组(self, db_session):
         task, step = await _seed_evidence_graph_task(
             db_session, synthesis_output=_valid_synthesis_output()
         )
-        result = await run_evidence_graph(task, step, db_session, _FakeSSE())
+        result = await run_evidence_graph(task, step, db_session, cast(SSEBridge, _FakeSSE()))
         assert result["graph"]["claims"] == []
 
     async def test_claims非数组_不阻断(self, db_session):
@@ -90,7 +93,7 @@ class TestEvidenceGraphClaims:
         task, step = await _seed_evidence_graph_task(
             db_session, max_sources=2, evidence_count=2, synthesis_output=output
         )
-        result = await run_evidence_graph(task, step, db_session, _FakeSSE())
+        result = await run_evidence_graph(task, step, db_session, cast(SSEBridge, _FakeSSE()))
         assert result["graph"]["claims"] == []
 
 

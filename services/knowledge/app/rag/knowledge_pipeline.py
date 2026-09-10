@@ -11,7 +11,7 @@
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 RETRIEVABLE_STATUSES = ["completed", "success_with_warnings", "partial_failed"]
 
 # 闲谈模式 System Prompt（不注入文档上下文）
-CASUAL_SYSTEM_PROMPT = "你是 DocMind，一个企业知识库助手。请友好、简洁地回答用户的问题。"
+CASUAL_SYSTEM_PROMPT = "你是 EvidSight，一个企业知识库助手。请友好、简洁地回答用户的问题。"
 
 
 @dataclass
@@ -49,6 +49,9 @@ class KnowledgePipelineResult:
     evidence_review: EvidenceReviewResult | None = (
         None  # PRE-LLM 证据审查结果；chat_service 读取 decision 做门控
     )
+    doc_uuid_map: dict[int, str] = field(
+        default_factory=dict
+    )  # doc_id -> documents.uuid（sources 事件 document_uuid）
 
 
 class KnowledgePipeline:
@@ -301,14 +304,19 @@ class KnowledgePipeline:
             logger.exception("检索链路异常")
             raise RetrievalServiceException(detail=str(e))
 
-        # 4. 查询涉及的文档名（用于 sources 事件）
+        # 4. 查询涉及的文档名与稳定 UUID（用于 sources 事件）
         doc_ids = list({c.doc_id for c in reranked_output.results})
         doc_map: dict[int, str] = {}
+        doc_uuid_map: dict[int, str] = {}
         if doc_ids:
             doc_rows = await db.execute(
-                select(Document.id, Document.filename).where(Document.id.in_(doc_ids))
+                select(Document.id, Document.filename, Document.uuid).where(
+                    Document.id.in_(doc_ids)
+                )
             )
-            doc_map = {row.id: row.filename for row in doc_rows.all()}
+            for row in doc_rows.all():
+                doc_map[row.id] = row.filename
+                doc_uuid_map[row.id] = row.uuid
 
         logger.info(
             "KNOWLEDGE_PIPELINE 重写=%.3fs 向量=%.3fs BM25=%.3fs 融合+粗排+Rerank=%.3fs 总计=%.3fs",
@@ -324,6 +332,7 @@ class KnowledgePipeline:
             prompt_result=prompt_result,
             doc_map=doc_map,
             evidence_review=evidence_result,
+            doc_uuid_map=doc_uuid_map,
         )
 
     async def execute_casual(

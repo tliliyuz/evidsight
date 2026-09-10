@@ -1,0 +1,868 @@
+/* ============================================================
+   入口叙事页（固定深色品牌）与登录抽屉（默认浅色）
+   对齐 FRONTEND §5.1 / UIDESIGN §3.3、§4、§6.1、§6.2、§6.6 与
+   跟踪版原型 #landing、#login-drawer 结构。
+   本文件只消费 tokens.css 中登记的 --es-* Token，不含颜色字面量。
+   ============================================================ */
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ---- 入口页外壳与公共头部 ---- */
+.landing {
+  position: relative;
+  min-height: 100vh;
+  color: var(--es-ink-primary);
+  background: var(--es-landing-gradient);
+}
+
+.landing::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.9'/%3E%3C/svg%3E");
+}
+
+.landing__header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  height: 76px;
+  padding: 0 52px;
+  border-bottom: 1px solid var(--es-border-subtle);
+}
+
+.landing__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--es-ink-primary);
+  font-family: var(--es-font-display);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+}
+
+.landing__brand .brand-mark {
+  width: 30px;
+  height: 30px;
+}
+
+.landing__brand--small {
+  font-size: 14px;
+}
+
+.landing__brand--small .brand-mark {
+  width: 22px;
+  height: 22px;
+}
+
+.landing__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+  margin-left: auto;
+}
+
+.landing__nav {
+  display: flex;
+  gap: 34px;
+}
+
+.landing__nav a {
+  color: var(--es-ink-secondary);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.landing__nav a:hover {
+  color: var(--es-ink-primary);
+}
+
+.landing__login {
+  min-width: 74px;
+  padding: 9px 17px;
+  border: 1px solid var(--es-border-strong);
+  border-radius: var(--es-radius-control);
+  color: var(--es-ink-secondary);
+  background: transparent;
+  text-align: center;
+  text-decoration: none;
+  font-size: 13px;
+  transition:
+    border-color 0.18s ease-out,
+    color 0.18s ease-out,
+    background 0.18s ease-out;
+}
+
+.landing__login:hover {
+  border-color: var(--es-moonstone);
+  color: var(--es-ink-primary);
+  background: var(--es-moonstone-soft);
+}
+
+/* ---- Hero ---- */
+.landing__hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 860px;
+  padding: 100px clamp(52px, 9vw, 150px) 70px;
+  border-bottom: 1px solid var(--es-border-subtle);
+  overflow: hidden;
+}
+
+.landing__hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--es-landing-grid);
+  background-size: 92px 92px;
+  -webkit-mask-image: var(--es-landing-grid-mask);
+  mask-image: var(--es-landing-grid-mask);
+  pointer-events: none;
+}
+
+.landing__lines {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.landing__lines path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.landing__lines .primary-trace {
+  stroke: url(#landing-trace);
+  stroke-width: 1.25;
+}
+
+.landing__lines .secondary-trace {
+  stroke: var(--es-landing-trace-secondary);
+  stroke-width: 0.8;
+}
+
+.landing__lines .contour {
+  stroke: var(--es-landing-contour);
+  stroke-width: 0.7;
+}
+
+.landing__lines .contour-two {
+  stroke: color-mix(in srgb, var(--es-moonstone) 10%, transparent);
+}
+
+.landing__lines .draw-line {
+  stroke-dasharray: 1600;
+  stroke-dashoffset: 1600;
+  animation: landing-draw 4.8s cubic-bezier(0.3, 0.4, 0.2, 1) 0.4s forwards;
+}
+
+.landing__lines .node {
+  fill: var(--es-canvas);
+  stroke: var(--es-moonstone);
+  stroke-width: 1;
+}
+
+.landing__lines .node-c {
+  fill: var(--es-spectral-cyan);
+  stroke: var(--es-spectral-cyan);
+  filter: drop-shadow(0 0 11px color-mix(in srgb, var(--es-spectral-cyan) 45%, transparent));
+}
+
+.landing__lines .node-a {
+  animation: landing-drift 7s ease-in-out infinite;
+}
+
+.landing__lines .node-b {
+  animation: landing-drift 9s ease-in-out -2s infinite;
+}
+
+@keyframes landing-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes landing-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(6px);
+  }
+}
+
+.landing__copy {
+  position: relative;
+  z-index: 2;
+  max-width: 920px;
+}
+
+.landing__eyebrow {
+  margin: 0;
+  color: var(--es-ink-muted);
+  font-family: var(--es-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.landing__hero .landing__eyebrow {
+  margin-bottom: 33px;
+}
+
+.landing__hero-title {
+  margin: 0;
+  color: var(--es-ink-primary);
+  font-family: var(--es-font-display);
+  font-size: clamp(64px, 7.2vw, 112px);
+  font-weight: 500;
+  line-height: 0.94;
+  letter-spacing: -0.065em;
+}
+
+.landing__hero-title span {
+  color: var(--es-ink-muted);
+}
+
+.landing__lede {
+  max-width: 590px;
+  margin: 38px 0 0;
+  color: var(--es-ink-secondary);
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.landing__actions {
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  margin-top: 44px;
+}
+
+.landing__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 38px;
+  min-width: 190px;
+  padding: 14px 17px;
+  border: 1px solid var(--es-border-strong);
+  border-radius: var(--es-radius-control);
+  color: var(--es-canvas);
+  background: var(--es-landing-cta-gradient);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--es-moonstone) 16%, transparent);
+  font-family: var(--es-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  transition:
+    transform 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.landing__cta > span {
+  position: relative;
+  z-index: 1;
+}
+
+.landing__cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 42px color-mix(in srgb, var(--es-moonstone) 25%, transparent);
+}
+
+.landing__text-link {
+  color: var(--es-ink-secondary);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.landing__text-link span {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+.landing__text-link:hover {
+  color: var(--es-ink-primary);
+}
+
+.landing__coordinate {
+  position: absolute;
+  right: 52px;
+  bottom: 54px;
+  z-index: 2;
+  color: var(--es-landing-coordinate);
+  font-family: var(--es-font-mono);
+  font-size: 9px;
+  line-height: 1.7;
+  letter-spacing: 0.12em;
+  text-align: right;
+}
+
+.landing__proof {
+  position: absolute;
+  left: 52px;
+  bottom: 50px;
+  z-index: 2;
+  margin: 0;
+  color: var(--es-landing-proof);
+  font-family: var(--es-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+/* ---- 四段纵向叙事 ---- */
+.landing__section {
+  position: relative;
+  min-height: 680px;
+  padding: 110px clamp(52px, 9vw, 150px);
+  border-bottom: 1px solid var(--es-border-subtle);
+  overflow: hidden;
+}
+
+.landing__index {
+  position: absolute;
+  top: 35px;
+  left: 30px;
+  writing-mode: vertical-rl;
+  color: var(--es-landing-proof);
+  font-family: var(--es-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+}
+
+.landing__statement h2,
+.landing__method h2 {
+  margin: 20px 0 0;
+  font-family: var(--es-font-display);
+  font-size: clamp(44px, 5vw, 76px);
+  font-weight: 500;
+  line-height: 1.03;
+  letter-spacing: -0.055em;
+}
+
+/* 02 信息汇聚 */
+.landing__section--signals {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  align-items: center;
+  gap: 8vw;
+}
+
+.landing__orbit {
+  position: relative;
+  min-height: 400px;
+}
+
+.landing__orbit svg {
+  position: absolute;
+  inset: 40px 0;
+  width: 100%;
+  height: 300px;
+  fill: none;
+  stroke: color-mix(in srgb, var(--es-moonstone) 25%, transparent);
+  stroke-width: 1;
+}
+
+.landing__orbit svg circle {
+  stroke: color-mix(in srgb, var(--es-moonstone) 40%, transparent);
+}
+
+.landing__orbit .landing__pulse {
+  fill: var(--es-spectral-cyan);
+  stroke: var(--es-spectral-cyan);
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--es-spectral-cyan) 50%, transparent));
+}
+
+.landing__orbit-label {
+  position: absolute;
+  color: var(--es-ink-secondary);
+  font-family: var(--es-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.landing__orbit-label small {
+  display: block;
+  margin-top: 8px;
+  color: var(--es-ink-muted);
+  font-size: 8px;
+}
+
+.landing__orbit-label--internal {
+  top: 55px;
+  left: 0;
+}
+
+.landing__orbit-label--web {
+  right: 0;
+  bottom: 55px;
+  text-align: right;
+}
+
+/* 03 研究过程：七阶段流程 */
+.landing__section--method {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  background: linear-gradient(
+    145deg,
+    var(--es-surface) 0%,
+    var(--es-canvas) 52%,
+    var(--es-surface) 100%
+  );
+}
+
+.landing__method {
+  max-width: 960px;
+}
+
+.landing__phases {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 70px;
+  overflow-x: auto;
+}
+
+.landing__phases span {
+  color: var(--es-ink-disabled);
+  font-family: var(--es-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
+.landing__phases span.done {
+  color: var(--es-ink-secondary);
+}
+
+.landing__phases span.active {
+  color: var(--es-ink-primary);
+}
+
+.landing__phases i {
+  height: 1px;
+  min-width: 34px;
+  flex: 1;
+  background: var(--es-border-default);
+}
+
+.landing__phases .done + i {
+  background: color-mix(in srgb, var(--es-moonstone) 42%, transparent);
+}
+
+/* 04 证据安全 */
+.landing__section--evidence {
+  display: flex;
+  min-height: 760px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.landing__section--evidence::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 17%;
+  width: 680px;
+  height: 680px;
+  border: 1px solid color-mix(in srgb, var(--es-moonstone) 8%, transparent);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 90px color-mix(in srgb, var(--es-moonstone) 2.5%, transparent),
+    0 0 0 180px color-mix(in srgb, var(--es-moonstone) 1.8%, transparent);
+  transform: translateY(-50%);
+}
+
+.landing__quote {
+  position: relative;
+  z-index: 1;
+}
+
+.landing__citation {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--es-border-strong);
+  color: var(--es-spectral-cyan);
+  font-family: var(--es-font-mono);
+  font-size: 10px;
+  line-height: 28px;
+  text-align: center;
+}
+
+.landing__quote p {
+  margin: 35px 0;
+  color: var(--es-ink-primary);
+  font-family: var(--es-font-display);
+  font-size: clamp(72px, 9vw, 138px);
+  font-weight: 500;
+  line-height: 0.88;
+  letter-spacing: -0.075em;
+}
+
+.landing__quote small {
+  color: var(--es-ink-muted);
+  font-size: 13px;
+}
+
+.landing__section--evidence .landing__cta {
+  position: absolute;
+  right: 10%;
+  bottom: 13%;
+  z-index: 2;
+  min-width: 250px;
+  padding: 18px 21px;
+}
+
+/* ---- 公共页脚 ---- */
+.landing__footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  height: 110px;
+  padding: 0 52px;
+  color: var(--es-landing-proof);
+  font-size: 10px;
+}
+
+.landing__footer > *:nth-child(2) {
+  text-align: center;
+}
+
+.landing__footer > *:last-child {
+  text-align: right;
+}
+
+.landing__footer .landing__brand {
+  color: inherit;
+}
+
+/* ============================================================
+   登录抽屉（默认浅色，对齐 UIDESIGN §6.6）
+   ============================================================ */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: var(--es-overlay);
+}
+
+.login-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 21;
+  display: flex;
+  width: 460px;
+  max-width: 100vw;
+  height: 100vh;
+  flex-direction: column;
+  padding: 54px 48px;
+  border-left: 1px solid var(--es-border-default);
+  background: var(--es-surface);
+  box-shadow: var(--es-shadow-drawer);
+}
+
+.login-drawer__close {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--es-border-default);
+  border-radius: 50%;
+  color: var(--es-ink-muted);
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.login-drawer__close:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.login-drawer__brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--es-ink-primary);
+  font-family: var(--es-font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.login-drawer__brand .brand-mark {
+  width: 28px;
+  height: 28px;
+}
+
+.login-drawer__copy {
+  margin-top: auto;
+}
+
+.login-drawer__copy h2 {
+  margin: 14px 0 8px;
+  color: var(--es-ink-primary);
+  font-family: var(--es-font-display);
+  font-size: 44px;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+
+.login-drawer__copy > p:last-child {
+  color: var(--es-ink-muted);
+  font-size: 13px;
+}
+
+.login-drawer form {
+  margin: 40px 0 25px;
+}
+
+.login-drawer__field {
+  display: block;
+  margin-bottom: 20px;
+}
+
+.login-drawer__field label {
+  display: block;
+  color: var(--es-ink-secondary);
+  font-family: var(--es-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+.login-drawer__field input {
+  display: block;
+  width: 100%;
+  height: 50px;
+  margin-top: 9px;
+  padding: 0 14px;
+  border: 1px solid var(--es-border-strong);
+  border-radius: var(--es-radius-control);
+  color: var(--es-ink-primary);
+  background: var(--es-canvas);
+  font-family: var(--es-font-sans);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.login-drawer__field input:focus {
+  border-color: var(--es-moonstone);
+  box-shadow: 0 0 0 3px var(--es-moonstone-soft);
+  outline: none;
+}
+
+.password-wrap {
+  position: relative;
+  display: block;
+}
+
+.password-wrap input {
+  padding-right: 60px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 17px;
+  right: 8px;
+  border: 0;
+  color: var(--es-ink-muted);
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.login-drawer__options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0 26px;
+  color: var(--es-ink-muted);
+  font-size: 11px;
+}
+
+.login-drawer__check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.login-drawer__check input {
+  accent-color: var(--es-moonstone);
+}
+
+.login-drawer__error {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--es-danger);
+  background: color-mix(in srgb, var(--es-danger) 7%, transparent);
+  color: var(--es-danger);
+  font-size: 11px;
+}
+
+.login-drawer__submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 4px;
+  padding: 14px 17px;
+  border: 0;
+  border-radius: var(--es-radius-control);
+  color: var(--es-canvas);
+  background: var(--es-ink-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-drawer__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.login-drawer__security {
+  margin-top: auto;
+  color: var(--es-ink-disabled);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.login-drawer__mode {
+  margin-top: 20px;
+  border: 0;
+  color: var(--es-moonstone);
+  background: transparent;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ---- 响应式（对齐原型 public-nav/hero/evidence 收敛规则） ---- */
+@media (max-width: 1000px) {
+  .landing__header {
+    padding: 0 24px;
+  }
+
+  .landing__nav {
+    display: none;
+  }
+
+  .landing__hero {
+    padding-right: 34px;
+    padding-left: 34px;
+  }
+
+  .landing__proof {
+    left: 34px;
+  }
+
+  .landing__section--signals {
+    grid-template-columns: 1fr;
+  }
+
+  .landing__orbit {
+    min-height: 340px;
+  }
+}
+
+@media (max-width: 680px) {
+  .landing__header {
+    height: 66px;
+  }
+
+  .landing__hero {
+    min-height: 760px;
+    padding: 90px 22px 100px;
+  }
+
+  .landing__hero-title {
+    font-size: 54px;
+  }
+
+  .landing__actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .landing__coordinate {
+    display: none;
+  }
+
+  .landing__proof {
+    bottom: 28px;
+    left: 22px;
+  }
+
+  .landing__section {
+    min-height: 620px;
+    padding: 90px 24px;
+  }
+
+  .landing__index {
+    display: none;
+  }
+
+  .landing__statement h2,
+  .landing__method h2 {
+    font-size: 42px;
+  }
+
+  .landing__phases {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .landing__phases i {
+    width: 1px;
+    min-width: 1px;
+    min-height: 20px;
+    margin-left: 3px;
+  }
+
+  .landing__quote p {
+    font-size: 68px;
+  }
+
+  .landing__section--evidence .landing__cta {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    margin-top: 60px;
+  }
+
+  .landing__footer {
+    grid-template-columns: 1fr auto;
+    padding: 0 22px;
+  }
+
+  .landing__footer > *:nth-child(2) {
+    display: none;
+  }
+
+  .login-drawer {
+    padding: 44px 26px;
+  }
+}

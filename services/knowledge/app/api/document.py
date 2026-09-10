@@ -178,4 +178,4 @@ async def get_document_location_v1(
         current_user["user_id"],
         current_user["role"],
     )
-    return {"code": "0", "message": "ok", "data": data.model_dump()}
+    return data

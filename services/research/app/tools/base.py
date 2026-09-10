@@ -49,7 +49,7 @@ class ToolContext:
     """Tool 执行上下文。"""
 
     task: ResearchTask
-    step: ResearchStep
+    step: ResearchStep | None
     session: AsyncSession
     sse_bridge: SSEBridge
     trace_recorder: TraceRecorder
@@ -150,7 +150,7 @@ class PhaseHandlerTool:
     ):
         self.name = name
         self.description = description
-        self.mapped_phase = mapped_phase
+        self.mapped_phase: str | None = mapped_phase
         self._handler = handler
         self.parameters_schema = parameters_schema or {"type": "object", "properties": {}}
 

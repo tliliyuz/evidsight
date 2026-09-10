@@ -13,6 +13,7 @@
 """
 
 import asyncio
+from typing import Any
 
 import pytest
 from app.config import settings
@@ -101,8 +102,8 @@ class TestStreamWithHeartbeat:
         """空事件流应正常结束，不抛异常"""
 
         async def empty_gen():
-            return
-            yield  # noqa: 使成为 async generator
+            if False:
+                yield ""
 
         events = []
         async for event in stream_with_heartbeat(empty_gen()):
@@ -396,7 +397,7 @@ class TestFinishEventData:
 
     def test_finish数据结构(self):
         """U7.86 — finish 事件应包含 message_id / title / token_usage"""
-        finish_data = {
+        finish_data: dict[str, Any] = {
             "message_id": 42,
             "title": "测试标题",
             "token_usage": {"prompt": 100, "completion": 50, "total": 150},

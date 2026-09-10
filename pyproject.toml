@@ -20,7 +20,10 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "openapi-spec-validator==0.7.*",
     "pre-commit>=4.6.1",
+    "pytest==8.4.*",
+    "pyyaml==6.*",
     "ruff>=0.16.1",
 ]
 
@@ -55,3 +58,39 @@ exclude = [
     "**/__pycache__",
     "**/.pytest_cache",
 ]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+mypy_path = ["$MYPY_CONFIG_FILE_DIR/packages/contracts/generated/python"]
+check_untyped_defs = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = true
+exclude = [
+    "services/.*/alembic/versions/",
+    ".*/node_modules/",
+    '.*/\.venv/',
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "celery",
+    "celery.*",
+    "fitz",
+    "jieba",
+    "locust",
+    "locust.*",
+    "ragas",
+    "ragas.*",
+    "rank_bm25",
+]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true

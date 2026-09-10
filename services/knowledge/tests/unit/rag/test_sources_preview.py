@@ -104,8 +104,16 @@ class TestEvidencePreviewIntegration:
         # 验证 highlight 区间各自正确
         sources1 = build_sources(matched1.results, {1: "报销制度.md"})
         sources2 = build_sources(matched2.results, {1: "报销制度.md"})
-        h1 = sources1[0].preview_text[sources1[0].highlight_start : sources1[0].highlight_end]
-        h2 = sources2[0].preview_text[sources2[0].highlight_start : sources2[0].highlight_end]
+        source1 = sources1[0]
+        source2 = sources2[0]
+        assert source1.preview_text is not None
+        assert source1.highlight_start is not None
+        assert source1.highlight_end is not None
+        assert source2.preview_text is not None
+        assert source2.highlight_start is not None
+        assert source2.highlight_end is not None
+        h1 = source1.preview_text[source1.highlight_start : source1.highlight_end]
+        h2 = source2.preview_text[source2.highlight_start : source2.highlight_end]
         assert "差旅费" in h1
         assert "办公用品" in h2
 
@@ -134,10 +142,13 @@ class TestEvidencePreviewIntegration:
             assert src.preview_text is not None
             assert src.highlight_start is not None
             assert src.highlight_end is not None
-        # chunk1 的 preview 在 chunk1 中
-        assert sources[0].preview_text in chunk1
-        # chunk2 的 preview 在 chunk2 中
-        assert sources[1].preview_text in chunk2
+        # chunk1/2 的 preview 分别位于原 chunk 中
+        first_preview = sources[0].preview_text
+        second_preview = sources[1].preview_text
+        assert first_preview is not None
+        assert second_preview is not None
+        assert first_preview in chunk1
+        assert second_preview in chunk2
 
 
 # ==================== 降级：无 matched_sentence 时 preview 为 None ====================
@@ -221,6 +232,7 @@ class TestEvidencePreviewShortChunk:
 
         assert sources[0].preview_text is not None
         assert sources[0].preview_text in chunk_content
+        assert sources[0].preview_range is not None
         assert (
             0 <= sources[0].preview_range.start < sources[0].preview_range.end <= len(chunk_content)
         )
@@ -264,11 +276,15 @@ class TestHighlightRange:
         output = RetrievalOutput(results=[_make_result(content)])
         matched = match_sentences(output, "年假申请流程提前几天")
         best_sentence = matched.results[0].matched_sentence
+        assert best_sentence is not None
         assert "年假" in best_sentence
 
         sources = build_sources(matched.results, {1: "test.md"})
         src = sources[0]
 
+        assert src.preview_text is not None
+        assert src.highlight_start is not None
+        assert src.highlight_end is not None
         highlighted = src.preview_text[src.highlight_start : src.highlight_end]
         assert highlighted == best_sentence
 
@@ -284,7 +300,9 @@ class TestHighlightRange:
         src = sources[0]
 
         # "目标句子在这里。" 应被匹配到，highlight 必须存在
+        assert src.preview_text is not None
         assert src.highlight_start is not None, "目标句子应被定位到，highlight_start 不应为 None"
+        assert src.highlight_end is not None
         assert 0 <= src.highlight_start <= len(src.preview_text)
         assert 0 <= src.highlight_end <= len(src.preview_text)
         assert src.highlight_start < src.highlight_end

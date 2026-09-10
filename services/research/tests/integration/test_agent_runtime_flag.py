@@ -1,6 +1,7 @@
 """Agent Runtime feature flag 集成测试。"""
 
 from datetime import datetime, timezone
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -17,6 +18,7 @@ from app.pipeline.sse_bridge import (
     EVENT_CHECKPOINT_SAVED,
     EVENT_STEP_COMPLETED,
     EVENT_TASK_COMPLETED,
+    SSEBridge,
 )
 from app.tools.memory_tool import MemoryTool
 from app.tools.registry import ToolRegistry
@@ -140,7 +142,7 @@ class TestAgentRuntimeFlag:
         runtime = AgentRuntime(
             task=task,
             session=db_session,
-            sse_bridge=sse,
+            sse_bridge=cast(SSEBridge, sse),
             trace_recorder=trace,
             tool_registry=agent_registry,
             max_iterations=20,
@@ -318,7 +320,7 @@ class TestAgentRuntimeFlag:
         runtime = AgentRuntime(
             task=task,
             session=db_session,
-            sse_bridge=sse,
+            sse_bridge=cast(SSEBridge, sse),
             trace_recorder=trace,
             tool_registry=agent_registry,
             max_iterations=10,

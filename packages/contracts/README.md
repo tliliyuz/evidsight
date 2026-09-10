@@ -5,7 +5,7 @@
 | 文档状态 | 已确认设计 |
 | 文档版本 | v1.0 |
 | Contract 设计基线 | `1.0.0-draft`（Schema/Fixture 落地并通过双方测试后发布 `1.0.0`） |
-| 最后更新 | 2026-08-03 |
+| 最后更新 | 2026-08-09 |
 
 > 本文是 `packages/contracts/` 的权威设计入口。HTTP 路由、认证载体和状态码由 [`docs/specs/API.md`](../../docs/specs/API.md) 定义，身份与实时授权由 [`docs/specs/IDENTITY_AND_ACCESS.md`](../../docs/specs/IDENTITY_AND_ACCESS.md) 定义，服务边界由 [`docs/specs/ARCHITECTURE.md`](../../docs/specs/ARCHITECTURE.md) 定义。本文只定义跨服务纯数据 Schema、版本规则与契约测试。
 
@@ -317,6 +317,10 @@ Contract 变更必须依次通过：
 6. Knowledge Provider 与 Research Consumer 契约测试；
 7. 版本兼容矩阵和迁移窗口检查；
 8. 禁止服务实现依赖和敏感字段的静态扫描。
+
+上述门禁按“当前已登记的生成 target”执行生成物复现与差异检查。当前 Python/Pydantic 参考生成物已入库，但仓库内尚无可重复生成命令；TypeScript 生成链亦仍处于未实现状态。两者都不得将缺席视为通过。Python/Pydantic 复现命令与基础 CI 同步补齐；TypeScript 生成链在 M4 落地时必须与复现命令和“重新生成后无差异”检查同步登记。每个 target 从登记之时起成为 Contract 变更的必过项。
+
+基础 CI 只读执行本节已可执行的门禁，不回写生成物或自动提交。Provider 契约测试按 [TESTING.md §4](../../docs/specs/TESTING.md#4-contract-门禁) 在受管服务容器中执行，但基础 CI 不因此启动 MySQL、Redis、Celery 或 Chroma。
 
 发布 Contract 不代表对应服务已经实现或上线。只有 Provider、Consumer、权限拒绝、版本拒绝和端到端 Internal Retrieval 验收全部通过后，才能声明该版本可用。
 

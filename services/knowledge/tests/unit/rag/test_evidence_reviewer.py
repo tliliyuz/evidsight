@@ -175,7 +175,7 @@ class TestDegradation:
         """review_evidence 内部抛异常时降级为 ALLOW"""
         chunks = [_make_chunk(1, 42)]
         output = _make_output(chunks)
-        stats_map = {}  # 这会触发 KeyError
+        stats_map: dict[int, FilterStats] = {}  # 这会触发 KeyError
 
         # Mock _do_review 抛异常
         import app.rag.evidence_reviewer as mod

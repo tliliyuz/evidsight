@@ -9,6 +9,7 @@ ResearchMind FastAPI 入口。
 
 import logging
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -17,8 +18,9 @@ from fastapi.responses import JSONResponse
 
 from app.api import research, research_evidence, research_v1
 from app.config import settings
+from app.core.api_response import error_envelope
 from app.core.exceptions import AppException
-from app.core.logging_config import setup_logging
+from app.core.logging_config import request_id_var, setup_logging
 from app.metrics import (
     CONTENT_TYPE_LATEST,
     get_metrics_output,
@@ -119,6 +121,20 @@ async def validation_exception_handler(
                 "type": error["type"],
             }
         )
+    if request.url.path.startswith("/api/v1/"):
+        return JSONResponse(
+            status_code=422,
+            content=error_envelope(
+                code="E9003",
+                message="请求参数校验失败",
+                request_id=request_id_var.get()
+                or request.headers.get("X-Request-ID")
+                or uuid4().hex,
+                status_code=422,
+                details={"errors": errors},
+                retryable=False,
+            ),
+        )
     return JSONResponse(
         status_code=422,
         content={
@@ -147,16 +163,46 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
         exc.error_message,
         exc.status_code,
     )
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=exc.detail,
-    )
+    if request.url.path.startswith("/api/v1/"):
+        raw_detail = exc.error_detail if isinstance(exc.error_detail, dict) else {}
+        safe_details = {
+            key: raw_detail[key] for key in ("retry_after_ms", "status") if key in raw_detail
+        }
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_envelope(
+                code=exc.error_code,
+                message=exc.error_message,
+                request_id=request_id_var.get()
+                or request.headers.get("X-Request-ID")
+                or uuid4().hex,
+                status_code=exc.status_code,
+                details=safe_details,
+                retryable=bool(raw_detail.get("recoverable"))
+                if "recoverable" in raw_detail
+                else None,
+            ),
+        )
+    return JSONResponse(status_code=exc.status_code, content=exc.detail)
 
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """未预期异常 → E9001 (500)。"""
     logger.exception(f"未预料的服务器内部错误: {type(exc).__name__}: {exc}")
+    if request.url.path.startswith("/api/v1/"):
+        return JSONResponse(
+            status_code=500,
+            content=error_envelope(
+                code="E9001",
+                message="服务器内部错误",
+                request_id=request_id_var.get()
+                or request.headers.get("X-Request-ID")
+                or uuid4().hex,
+                status_code=500,
+                retryable=False,
+            ),
+        )
     return JSONResponse(
         status_code=500,
         content={
@@ -201,7 +247,7 @@ async def worker_health_check():
             },
         }
 
-    workers = []
+    workers: list[str] = []
     for ping in pings:
         if isinstance(ping, dict):
             workers.extend(ping.keys())

@@ -172,7 +172,7 @@ class TestV1ListResearch:
     async def test_空列表_返回total为0(self, async_client: AsyncClient, auth_headers: dict):
         response = await async_client.get("/api/v1/research/tasks", headers=auth_headers)
         assert response.status_code == 200
-        data = response.json()["data"]
+        data = response.json()
         assert data["total"] == 0
         assert data["items"] == []
 
@@ -182,7 +182,7 @@ class TestV1ListResearch:
         await _seed_pending_task(db_session, topic="v1 列表任务")
         response = await async_client.get("/api/v1/research/tasks", headers=auth_headers)
         assert response.status_code == 200
-        data = response.json()["data"]
+        data = response.json()
         assert data["total"] == 1
         assert data["items"][0]["topic"] == "v1 列表任务"
 
@@ -202,11 +202,12 @@ class TestV1DetailResearch:
         task = await _seed_pending_task(db_session, topic="v1 详情")
         response = await async_client.get(f"/api/v1/research/tasks/{task.id}", headers=auth_headers)
         assert response.status_code == 200
-        data = response.json()["data"]
+        data = response.json()
         assert data["task_id"] == task.id
         assert data["topic"] == "v1 详情"
         assert data["status"] == "pending"
         assert "progress" in data
+        assert data["report_id"] is None
 
     async def test_任务不存在_返回404_E2001(self, async_client: AsyncClient, auth_headers: dict):
         response = await async_client.get(
@@ -214,7 +215,7 @@ class TestV1DetailResearch:
             headers=auth_headers,
         )
         assert response.status_code == 404
-        assert response.json()["code"] == "E2001"
+        assert response.json()["error"]["error_code"] == "RS_TASK_NOT_FOUND"
 
     async def test_无权访问他人任务_返回403_E2002(
         self, async_client: AsyncClient, auth_headers: dict, db_session: AsyncSession
@@ -229,7 +230,7 @@ class TestV1DetailResearch:
         await db_session.flush()
         response = await async_client.get(f"/api/v1/research/tasks/{task.id}", headers=auth_headers)
         assert response.status_code == 403
-        assert response.json()["code"] == "E2002"
+        assert response.json()["error"]["error_code"] == "RS_TASK_FORBIDDEN"
 
 
 class TestV1CancelResearch:
@@ -244,8 +245,7 @@ class TestV1CancelResearch:
         )
         assert response.status_code == 202
         body = response.json()
-        assert body["code"] == "0"
-        assert body["data"]["cancel_requested"] is True
+        assert body["cancel_requested"] is True
 
 
 class TestV1ResumeResearch:
@@ -261,8 +261,7 @@ class TestV1ResumeResearch:
             )
         assert response.status_code == 202
         body = response.json()
-        assert body["code"] == "0"
-        assert body["data"]["status"] == "running"
+        assert body["status"] == "running"
         mock_delay.assert_called_once_with(str(task.id))
 
     async def test_不可续跑任务_返回409(
@@ -303,11 +302,12 @@ class TestV1StateResearch:
             f"/api/v1/research/tasks/{task.id}/state", headers=auth_headers
         )
         assert response.status_code == 200
-        snapshot = response.json()["data"]
+        snapshot = response.json()
         assert snapshot["task_id"] == task.id
         assert snapshot["status"] == "pending"
         assert "progress" in snapshot
         assert "steps" in snapshot
+        assert "report_id" in snapshot
 
 
 class TestV1EventsResearch:
@@ -322,7 +322,9 @@ class TestV1EventsResearch:
         )
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
-        assert "task.status.snapshot" in response.text
+        assert "event: snapshot" in response.text
+        assert "event: stream.end" in response.text
+        assert "task.status.snapshot" not in response.text
 
 
 class TestV1ReportResearch:
@@ -336,7 +338,7 @@ class TestV1ReportResearch:
             f"/api/v1/research/tasks/{task.id}/report", headers=auth_headers
         )
         assert response.status_code == 200
-        data = response.json()["data"]
+        data = response.json()
         assert data["task_id"] == task.id
         assert data["status"] == "completed"
         assert data["report"]["title"] == task.topic
@@ -351,4 +353,4 @@ class TestV1ReportResearch:
             headers=auth_headers,
         )
         assert response.status_code == 404
-        assert response.json()["code"] == "E2001"
+        assert response.json()["error"]["error_code"] == "RS_TASK_NOT_FOUND"

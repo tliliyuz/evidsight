@@ -50,7 +50,7 @@ def format_sse_heartbeat() -> str:
 
 async def stream_with_heartbeat(
     event_generator: AsyncIterator[str],
-    interval: int = settings.SSE_HEARTBEAT_INTERVAL,
+    interval: float = settings.SSE_HEARTBEAT_INTERVAL,
 ) -> AsyncIterator[str]:
     """将事件流与心跳流合并输出。
 

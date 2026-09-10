@@ -1,0 +1,82 @@
+:root,
+:root[data-theme='light'] {
+  --es-canvas: #f3f4f6;
+  --es-surface: #ffffff;
+  --es-surface-muted: #f8fafb;
+  --es-ink-primary: #161d24;
+  --es-ink-secondary: #46525f;
+  --es-ink-muted: #6b7682;
+  --es-ink-disabled: #9aa3ad;
+  --es-moonstone: #3d6d94;
+  --es-moonstone-hover: #2b5c85;
+  --es-moonstone-soft: rgb(61 109 148 / 10%);
+  --es-spectral-cyan: #0b8f8b;
+  --es-success: #0a9d6b;
+  --es-warning: #b45309;
+  --es-danger: #d64554;
+  --es-knowledge: #4168c9;
+  --es-border-subtle: rgb(16 21 28 / 8%);
+  --es-border-default: rgb(16 21 28 / 12%);
+  --es-border-strong: rgb(16 21 28 / 22%);
+  --es-focus: #3d6d94;
+  --es-radius-control: 8px;
+  --es-radius-panel: 10px;
+  --es-radius-major: 12px;
+  --es-font-sans: Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --es-font-display: 'Space Grotesk', 'PingFang SC', system-ui, sans-serif;
+  --es-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --es-overlay: rgb(0 0 0 / 40%);
+  /* 主题选择卡片的固定色板：与当前主题无关，浅色/深色选项恒为该表示 */
+  --es-swatch-light: linear-gradient(145deg, #ffffff, #e8ecf0);
+  --es-swatch-dark: linear-gradient(145deg, #0a0e15, #202b38);
+  --es-shadow-drawer: -24px 0 80px rgb(0 0 0 / 16%);
+  --es-shadow-popover: 0 16px 40px rgb(0 0 0 / 14%);
+  --es-shadow-dialog: 0 24px 80px rgb(0 0 0 / 20%);
+  --es-shadow-floating: 0 12px 32px rgb(0 0 0 / 14%);
+}
+
+/* 入口叙事页固定深色品牌（FRONTEND §4.4 / UIDESIGN §3.3）：
+   无论用户工作区主题如何，.landing 子树一律使用深色 Token。 */
+:root[data-theme='dark'],
+.landing,
+.landing[data-theme='light'] {
+  --es-canvas: #07090f;
+  --es-surface: #0d111a;
+  --es-surface-muted: #151a27;
+  --es-ink-primary: #f4f5f8;
+  --es-ink-secondary: #b6c2ca;
+  --es-ink-muted: #8d9ba6;
+  --es-ink-disabled: #505563;
+  --es-moonstone: #a9c7d8;
+  --es-moonstone-hover: #c2d9e5;
+  --es-moonstone-soft: rgb(169 199 216 / 12%);
+  --es-spectral-cyan: #70d3d0;
+  --es-success: #54c99a;
+  --es-warning: #d8a84e;
+  --es-danger: #e7677a;
+  --es-knowledge: #6e8fe8;
+  --es-border-subtle: rgb(244 245 248 / 8%);
+  --es-border-default: rgb(244 245 248 / 12%);
+  --es-border-strong: rgb(244 245 248 / 22%);
+  --es-focus: #c2d9e5;
+
+  /* 入口叙事页专属装饰（来源：跟踪版原型 .landing/.hero 样式） */
+  --es-landing-gradient:
+    radial-gradient(900px 580px at 75% 8%, rgb(86 119 141 / 18%), transparent 66%),
+    radial-gradient(700px 680px at -5% 56%, rgb(35 103 105 / 11%), transparent 65%),
+    linear-gradient(150deg, #070a10 0%, #0a1019 46%, #06090f 100%);
+  --es-landing-grid:
+    linear-gradient(rgb(255 255 255 / 2.5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 2%) 1px, transparent 1px);
+  --es-landing-grid-mask: radial-gradient(circle at 65% 40%, #000 0%, transparent 75%);
+  --es-landing-trace-secondary: rgb(142 171 185 / 20%);
+  --es-landing-contour: rgb(181 204 216 / 16%);
+  --es-landing-coordinate: #53606c;
+  --es-landing-proof: #66727d;
+  --es-landing-cta-gradient: linear-gradient(
+    105deg,
+    rgb(255 255 255 / 96%),
+    rgb(183 205 216 / 90%) 57%,
+    rgb(255 255 255 / 74%)
+  );
+}

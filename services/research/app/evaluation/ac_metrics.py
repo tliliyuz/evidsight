@@ -56,10 +56,13 @@ def evaluate_citation_validity(
     valid = 0
     for section in sections:
         section_id = section.get("id")
-        linked_ids = set(section_evidence.get(section_id, []))
+        linked_ids = (
+            set(section_evidence.get(section_id, [])) if isinstance(section_id, int) else set()
+        )
         # 该 section 实际关联证据在 Graph 中的 index 集合
         linked_indices = {evidence_index.get(eid) for eid in linked_ids if eid in evidence_index}
-        for idx in extract_citations(section.get("content")):
+        content = section.get("content")
+        for idx in extract_citations(content if isinstance(content, str) else ""):
             total += 1
             if idx in linked_indices:
                 valid += 1

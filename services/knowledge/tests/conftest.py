@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
 from app.core.database import async_session
 from app.core.security import create_access_token
 from app.dependencies import get_current_user, get_db
@@ -105,8 +106,19 @@ def other_user_auth_headers():
     return {"Authorization": f"Bearer {token}"}
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="function")
 async def db_session():
-    """真实数据库 session — 连接开发库，测试结束后自动关闭（未提交数据由 DB 回滚）"""
+    """真实数据库 session — 连接开发库，测试结束后回滚并释放连接池。
+
+    测试中 flush 预置行不 commit，session 关闭时事务回滚。loop_scope=function
+    使 fixture 的 setup/teardown 与测试体运行在同一事件循环；否则
+    asyncio_default_fixture_loop_scope=session 会让 fixture 跑在 session 循环、
+    测试体跑在 function 循环，连接跨循环使用在 teardown 时报
+    「Task/Future attached to a different loop」。teardown 显式 dispose 连接池，
+    避免复用上一用例循环遗留的池连接。
+    """
+    from app.core.database import engine
+
     async with async_session() as session:
         yield session
+    await engine.dispose()

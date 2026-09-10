@@ -9,6 +9,7 @@
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -21,6 +22,7 @@ from app.core.llm import ToolCall as LLMToolCall
 from app.core.trace_recorder import TraceRecorder
 from app.models.research_step import ResearchStep
 from app.models.research_task import ResearchTask
+from app.services.task_lifecycle import TaskLeaseHandle
 from app.tools.base import Tool, ToolContext, ToolResult
 from app.tools.registry import ToolRegistry
 
@@ -70,11 +72,14 @@ def runtime(monkeypatch):
         tool_registry=registry,
     )
     # 绑定租约：worker-1 / generation 1（模拟 start_research_task 领取后的状态）
-    runtime._lease_handle = SimpleNamespace(
-        worker_id="worker-1",
-        lease_generation=1,
-        lease_lost=False,
-        release=AsyncMock(),
+    runtime._lease_handle = cast(
+        TaskLeaseHandle,
+        SimpleNamespace(
+            worker_id="worker-1",
+            lease_generation=1,
+            lease_lost=False,
+            release=AsyncMock(),
+        ),
     )
     runtime._agent_context = AgentContext(current_phase="planning")
     runtime._working_memory = WorkingMemory()

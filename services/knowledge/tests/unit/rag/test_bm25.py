@@ -15,6 +15,7 @@
 
 import json
 import time
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jieba
@@ -75,10 +76,20 @@ def _mock_db_rows(chunks=None):
 def _mock_content_rows(chunks):
     """构造 content fetch 查询的 mock 返回值（_fetch_chunk_contents 用）。
 
-    返回 (doc_id, chunk_index, content) 行。
+    返回 (doc_id, chunk_index, content, segment_uuid) 行；chunks 元素可含
+    第 4 位 segment_uuid，缺省 None。
     """
-    rows = [(c[0], c[1], c[2]) for c in chunks]
-    return _make_mock_rows(rows)
+    mock_result = MagicMock()
+    rows = []
+    for chunk in chunks:
+        row = MagicMock()
+        row.doc_id = chunk[0]
+        row.chunk_index = chunk[1]
+        row.content = chunk[2]
+        row.segment_uuid = chunk[3] if len(chunk) > 3 else None
+        rows.append(row)
+    mock_result.all.return_value = rows
+    return mock_result
 
 
 def _mock_count_result(count):
@@ -282,14 +293,14 @@ class TestFetchChunkContents:
 
     @pytest.mark.asyncio
     async def test_正常获取(self):
-        """传入 (doc_id, chunk_index) 对，返回 content 映射"""
-        chunks = [(1, 0, "内容A"), (1, 1, "内容B")]
+        """传入 (doc_id, chunk_index) 对，返回 (content, segment_uuid) 映射"""
+        chunks = [(1, 0, "内容A", "seg-1"), (1, 1, "内容B")]
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
         retriever = BM25Retriever(_mock_async_redis(), session_factory)
 
         result = await retriever._fetch_chunk_contents([(1, 0), (1, 1)])
-        assert result[(1, 0)] == "内容A"
-        assert result[(1, 1)] == "内容B"
+        assert result[(1, 0)] == ("内容A", "seg-1")
+        assert result[(1, 1)] == ("内容B", None)
 
     @pytest.mark.asyncio
     async def test_空列表返回空字典(self):
@@ -303,14 +314,14 @@ class TestFetchChunkContents:
 
     @pytest.mark.asyncio
     async def test_部分未查到补空字符串(self):
-        """DB 未返回的 pair 补充空字符串"""
+        """DB 未返回的 pair 补充 (空内容, None segment_uuid)"""
         chunks = [(1, 0, "内容A")]  # 只有 1 条
         session_factory = _mock_session_factory(_mock_content_rows(chunks))
         retriever = BM25Retriever(_mock_async_redis(), session_factory)
 
         result = await retriever._fetch_chunk_contents([(1, 0), (9, 9)])
-        assert result[(1, 0)] == "内容A"
-        assert result[(9, 9)] == ""  # 未查到，补空
+        assert result[(1, 0)] == ("内容A", None)
+        assert result[(9, 9)] == ("", None)  # 未查到，补空
 
 
 # ==================== BM25Retriever.search ====================
@@ -1108,7 +1119,7 @@ class TestDetectSectionNumbers:
 
     def test_空文本(self):
         assert detect_section_numbers("") == []
-        assert detect_section_numbers(None) == []  # type: ignore
+        assert detect_section_numbers(cast(str, None)) == []
 
     def test_无章节号(self):
         assert detect_section_numbers("报销制度是什么？") == []

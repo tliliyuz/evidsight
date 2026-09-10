@@ -9,6 +9,7 @@ import pytest
 from app.config import settings
 from app.core.exceptions import (
     InvalidCredentialsException,
+    RefreshConcurrentException,
     RefreshTokenExpiredException,
     TokenLeakDetectedException,
     UserDisabledException,
@@ -186,7 +187,7 @@ class TestV1RegisterAPI:
             )
 
         assert response.status_code == 409
-        assert response.json()["code"] == "E5001"
+        assert response.json()["error"]["error_code"] == "AUTH_USERNAME_CONFLICT"
 
     @pytest.mark.asyncio
     async def test_v1_register_username_too_short(self, async_client):
@@ -269,7 +270,7 @@ class TestV1LoginAPI:
             )
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5002"
+        assert response.json()["error"]["error_code"] == "AUTH_INVALID_CREDENTIALS"
         assert not response.headers.get_list("set-cookie")
 
     @pytest.mark.asyncio
@@ -282,7 +283,7 @@ class TestV1LoginAPI:
             )
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5010"
+        assert response.json()["error"]["error_code"] == "AUTH_USER_DISABLED"
         assert not response.headers.get_list("set-cookie")
 
     @pytest.mark.asyncio
@@ -343,6 +344,7 @@ class TestV1RefreshAPI:
 
         assert response.status_code == 200
         mock_refresh.assert_awaited_once()
+        assert mock_refresh.await_args is not None
         # 服务层拿到的是 Refresh Cookie 中的旧 Token（未被 body 覆盖）
         assert mock_refresh.await_args.args[1] == "old-refresh-token"
 
@@ -374,8 +376,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client, csrf_header=False)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
-        assert response.json()["detail"] == "CSRF 校验失败"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
         mock_refresh.assert_not_awaited()
         assert not response.headers.get_list("set-cookie")
 
@@ -385,8 +386,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client, csrf_cookie=False)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
-        assert response.json()["detail"] == "CSRF 校验失败"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
         mock_refresh.assert_not_awaited()
         assert not response.headers.get_list("set-cookie")
 
@@ -403,8 +403,7 @@ class TestV1RefreshAPI:
             )
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
-        assert response.json()["detail"] == "CSRF 校验失败"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
         mock_refresh.assert_not_awaited()
         assert not response.headers.get_list("set-cookie")
 
@@ -419,8 +418,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client, origin="https://evil.example.com")
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
-        assert response.json()["detail"] == "Origin 校验失败"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
         mock_refresh.assert_not_awaited()
         assert not response.headers.get_list("set-cookie")
 
@@ -431,7 +429,7 @@ class TestV1RefreshAPI:
         response = await self._post_refresh(async_client, refresh_token=None)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5008"
+        assert response.json()["error"]["error_code"] == "AUTH_REFRESH_INVALID"
 
     # ---- 刷新失败：对应 401 + 清除 Cookie ----
 
@@ -442,7 +440,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5006"
+        assert response.json()["error"]["error_code"] == "AUTH_REFRESH_EXPIRED"
         cookies = _cookies_from_response(response)
         assert cookies[self.REFRESH_COOKIE]["max-age"] == "0"
         assert cookies[self.CSRF_COOKIE]["max-age"] == "0"
@@ -454,7 +452,7 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5010"
+        assert response.json()["error"]["error_code"] == "AUTH_USER_DISABLED"
         cookies = _cookies_from_response(response)
         assert cookies[self.REFRESH_COOKIE]["max-age"] == "0"
         assert cookies[self.CSRF_COOKIE]["max-age"] == "0"
@@ -466,10 +464,25 @@ class TestV1RefreshAPI:
             response = await self._post_refresh(async_client)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5009"
+        assert response.json()["error"]["error_code"] == "AUTH_REFRESH_REPLAY"
         cookies = _cookies_from_response(response)
         assert cookies[self.REFRESH_COOKIE]["max-age"] == "0"
         assert cookies[self.CSRF_COOKIE]["max-age"] == "0"
+
+    @pytest.mark.asyncio
+    async def test_refresh_concurrent_409_does_not_clear_cookies(self, async_client):
+        """IA-011：并发刷新冲突（宽限期内复用被轮换 token）→ 409，不清除 Cookie。
+
+        并发冲突是良性竞态：cookie jar 已由胜者响应更新，客户端重试即可恢复，
+        不应像重放/过期那样清除 Refresh/CSRF Cookie。
+        """
+        with patch("app.api.auth.refresh", new_callable=AsyncMock, create=True) as mock_refresh:
+            mock_refresh.side_effect = RefreshConcurrentException()
+            response = await self._post_refresh(async_client)
+
+        assert response.status_code == 409
+        assert response.json()["error"]["error_code"] == "AUTH_REFRESH_CONCURRENT"
+        assert not response.headers.get_list("set-cookie")
 
 
 class TestV1LogoutAPI:
@@ -513,6 +526,7 @@ class TestV1LogoutAPI:
 
         assert response.status_code == 204
         mock_logout.assert_awaited_once()
+        assert mock_logout.await_args is not None
         # 服务层拿到 Refresh Cookie 中的 Token 与当前用户的 Platform UUID
         assert mock_logout.await_args.args[1] == "old-refresh-token"
         assert mock_logout.await_args.args[2] == "550e8400-e29b-41d4-a716-446655440001"
@@ -553,8 +567,7 @@ class TestV1LogoutAPI:
             )
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
-        assert response.json()["detail"] == "CSRF 校验失败"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
         mock_logout.assert_not_awaited()
         assert not response.headers.get_list("set-cookie")
 
@@ -563,7 +576,7 @@ class TestV1LogoutAPI:
         """logout 不是公开路由：未携带 Access Token → 中间件 401 E5004。"""
         response = await self._post_logout(async_client)
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
 
 
 class TestCompatAPI:
@@ -599,6 +612,7 @@ class TestCompatAPI:
 
         assert response.status_code == 200
         mock_refresh.assert_awaited_once()
+        assert mock_refresh.await_args is not None
         # 服务层拿到的是 body 中的 Token
         assert mock_refresh.await_args.args[1] == "body-refresh-token"
         # 弃用日志记录调用，但不得包含 Token 明文
@@ -631,6 +645,7 @@ class TestCompatAPI:
 
         assert response.status_code == 200
         mock_refresh.assert_awaited_once()
+        assert mock_refresh.await_args is not None
         assert mock_refresh.await_args.args[1] == "cookie-refresh-token"
 
     @pytest.mark.asyncio
@@ -646,7 +661,7 @@ class TestCompatAPI:
             )
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5008"
+        assert response.json()["error"]["error_code"] == "AUTH_REFRESH_INVALID"
         mock_refresh.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -665,6 +680,7 @@ class TestCompatAPI:
 
         assert response.status_code == 204
         mock_logout.assert_awaited_once()
+        assert mock_logout.await_args is not None
         assert mock_logout.await_args.args[1] == "body-refresh-token"
         cookies = _cookies_from_response(response)
         assert cookies[self.REFRESH_COOKIE]["max-age"] == "0"
@@ -699,7 +715,7 @@ class TestMeAPI:
         """未携带 Token 访问 /me 返回 401 E5004。"""
         response = await async_client.get("/api/v1/auth/me")
         assert response.status_code == 401
-        assert response.json()["code"] == "E5004"
+        assert response.json()["error"]["error_code"] == "AUTH_TOKEN_INVALID"
 
     @pytest.mark.asyncio
     async def test_me_disabled_user_returns_401(self, async_client, auth_headers):
@@ -718,7 +734,7 @@ class TestMeAPI:
             app.dependency_overrides.pop(get_current_user, None)
 
         assert response.status_code == 401
-        assert response.json()["code"] == "E5010"
+        assert response.json()["error"]["error_code"] == "AUTH_USER_DISABLED"
 
 
 class TestAuthMiddleware:
@@ -737,6 +753,56 @@ class TestAuthMiddleware:
         assert response.status_code == 401
         body = response.json()
         assert body["code"] == "E5004"
+
+    def _expired_access_token(self, jti: str) -> str:
+        """构造签名/Issuer/Audience 均正确、仅 exp 已过的 access token。
+
+        复用 create_access_token 的 Claim 结构；与中间件 decode 使用同一
+        settings 密钥，确保唯一失败原因是「过期」。
+        """
+        from datetime import datetime, timedelta, timezone
+
+        from jose import jwt as jose_jwt
+
+        now = datetime.now(timezone.utc)
+        payload = {
+            "iss": settings.EVIDSIGHT_PLATFORM_JWT_ISSUER,
+            "aud": settings.platform_jwt_audiences,
+            "sub": "550e8400-e29b-41d4-a716-446655440001",
+            "role": "user",
+            "token_type": "access",
+            "jti": jti,
+            "iat": now - timedelta(minutes=20),
+            "nbf": now - timedelta(minutes=20),
+            "exp": now - timedelta(minutes=5),
+        }
+        return jose_jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+    @pytest.mark.asyncio
+    async def test_expired_token_returns_401_E5003(self, async_client):
+        """过期 access token → 401 E5003（legacy 信封）。
+
+        对齐 api_response E5003 契约：中间件必须把「已过期」与「无效」区分，
+        供前端收到 AUTH_TOKEN_EXPIRED 时静默刷新。此前中间件对过期统一返回
+        E5004，导致前端把过期当致命错误直接登出（见 CHANGELOG 2026-08-12）。
+        """
+        response = await async_client.get(
+            "/api/knowledge-bases",
+            headers={"Authorization": f"Bearer {self._expired_access_token('expired-legacy')}"},
+        )
+        assert response.status_code == 401
+        assert response.json()["code"] == "E5003"
+
+    @pytest.mark.asyncio
+    async def test_expired_token_v1_returns_AUTH_TOKEN_EXPIRED(self, async_client):
+        """过期 access token → 401 AUTH_TOKEN_EXPIRED（v1 信封，前端据此静默续期）。"""
+        response = await async_client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {self._expired_access_token('expired-v1')}"},
+        )
+        assert response.status_code == 401
+        body = response.json()
+        assert body["error"]["error_code"] == "AUTH_TOKEN_EXPIRED"
 
     @pytest.mark.asyncio
     async def test_public_route_skips_middleware(self, async_client):

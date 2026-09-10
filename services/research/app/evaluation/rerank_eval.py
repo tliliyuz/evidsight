@@ -5,6 +5,7 @@
 """
 
 from collections import Counter
+from collections.abc import Sequence
 from decimal import Decimal
 from statistics import median
 
@@ -19,7 +20,7 @@ def _bin_label(lower: Decimal, upper: Decimal, is_last: bool) -> str:
     return f"[{lower},{upper})"
 
 
-def evaluate_rerank(evidence_items: list[dict] | None) -> RerankMetrics:
+def evaluate_rerank(evidence_items: Sequence[object] | None) -> RerankMetrics:
     """计算 Rerank 阶段的相关性指标。
 
     Args:

@@ -238,6 +238,7 @@ class TestSynthesisSuccess:
         with patch("app.pipeline.synthesizer.chat_completion", new=_capture_and_return):
             await run_synthesis(task, synthesis_step, db_session, sse)
 
+        assert captured_messages[0] is not None
         system_content = captured_messages[0][0]["content"]
         # 0.95 应排在 [来源 0]，0.9 排在 [来源 1]，0.8 排在 [来源 2]
         assert system_content.index("[来源 0]") < system_content.index("[来源 1]")
@@ -265,6 +266,7 @@ class TestSynthesisSuccess:
         with patch("app.pipeline.synthesizer.chat_completion", new=_capture_and_return):
             output = await run_synthesis(task, synthesis_step, db_session, sse)
 
+        assert captured_messages[0] is not None
         system_content = captured_messages[0][0]["content"]
         # 只有 [来源 0/1/2]
         assert "[来源 0]" in system_content
@@ -294,6 +296,7 @@ class TestSynthesisSuccess:
             with patch("app.pipeline.synthesizer.chat_completion", new=_capture_and_return):
                 await run_synthesis(task, synthesis_step, db_session, sse)
 
+            assert captured_messages[-1] is not None
             system_content = captured_messages[-1][0]["content"]
             assert f"研究类型：{task_type}" in system_content
 

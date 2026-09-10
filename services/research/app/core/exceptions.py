@@ -7,6 +7,7 @@
 
 import json
 import re
+from typing import Any
 
 from fastapi import HTTPException
 
@@ -37,18 +38,23 @@ class AppException(HTTPException):
     - str：简单错误描述（兼容旧用法）
     """
 
+    detail: dict[str, Any]
+
     def __init__(self, code: str, message: str, status_code: int = 400, detail: dict | str = ""):
         self.error_code = code
         self.error_message = message
-        self.error_detail = detail
+        # 子类在字符串与结构化 JSON 之间按错误语义选择；FastAPI detail 本身也是动态 JSON。
+        self.error_detail: Any = detail
+        response_detail: dict[str, Any] = {
+            "code": code,
+            "message": message,
+            "detail": detail,
+        }
         super().__init__(
             status_code=status_code,
-            detail={
-                "code": code,
-                "message": message,
-                "detail": detail,
-            },
+            detail=response_detail,
         )
+        self.detail = response_detail
 
 
 def extract_recoverable_from_exception(error: Exception) -> bool:

@@ -33,3 +33,17 @@ def test_租约间隔约束_合法组合通过():
     assert settings.RESEARCH_TASK_LEASE_TTL_SECONDS == 300
     assert settings.RESEARCH_TASK_LEASE_RENEW_INTERVAL == 60
     assert settings.RESEARCH_RECOVERY_SCAN_INTERVAL_SECONDS == 60
+
+
+def test_LLM额外请求头_JSON配置可选且默认为空(monkeypatch):
+    """Provider 专用请求头不配置时为空，配置后按 JSON 对象读取。"""
+    monkeypatch.delenv("LLM_EXTRA_HEADERS_JSON", raising=False)
+    default_settings = Settings(_env_file=None)
+    assert default_settings.LLM_EXTRA_HEADERS_JSON == {}
+
+    monkeypatch.setenv(
+        "LLM_EXTRA_HEADERS_JSON",
+        '{"x-opencode-session":"evidsight-{task_id}"}',
+    )
+    configured = Settings(_env_file=None)
+    assert configured.LLM_EXTRA_HEADERS_JSON == {"x-opencode-session": "evidsight-{task_id}"}

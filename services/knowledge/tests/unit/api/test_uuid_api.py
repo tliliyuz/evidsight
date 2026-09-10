@@ -80,6 +80,7 @@ def _make_kb_orm(
         status=status,
         doc_count=0,
         chunk_count=0,
+        index_status="ready",
         created_at=NOW,
         updated_at=NOW,
     )
@@ -131,11 +132,13 @@ class TestKBUuidAPI:
                 "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
             ) as mock_resolve,
             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get,
-            patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner,
+            patch(
+                "app.api.knowledge_base.resolve_user_display", new_callable=AsyncMock
+            ) as mock_owner,
         ):
             mock_resolve.return_value = 1
             mock_get.return_value = _make_kb_orm()
-            mock_owner.return_value = "550e8400-e29b-41d4-a716-446655440001"
+            mock_owner.return_value = ("550e8400-e29b-41d4-a716-446655440001", "林默")
 
             response = await async_client.get(
                 f"/api/knowledge-bases/{VALID_KB_UUID}",
@@ -248,11 +251,13 @@ class TestKBUuidAPI:
                 "app.api.knowledge_base.resolve_uuid_to_id", new_callable=AsyncMock
             ) as mock_resolve,
             patch("app.api.knowledge_base.get_kb", new_callable=AsyncMock) as mock_get,
-            patch("app.api.knowledge_base.resolve_user_uuid", new_callable=AsyncMock) as mock_owner,
+            patch(
+                "app.api.knowledge_base.resolve_user_display", new_callable=AsyncMock
+            ) as mock_owner,
         ):
             mock_resolve.return_value = 1
             mock_get.return_value = _make_kb_orm(user_id=999, visibility="private")
-            mock_owner.return_value = "550e8400-e29b-41d4-a716-446655440099"
+            mock_owner.return_value = ("550e8400-e29b-41d4-a716-446655440099", "林默")
 
             response = await async_client.get(
                 f"/api/knowledge-bases/{VALID_KB_UUID}",

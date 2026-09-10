@@ -372,7 +372,7 @@ class TestChangeUserStatus:
         assert result.username == "target_user"
         assert user.status == "disabled"
         db.flush.assert_called_once()
-        mock_revoke.assert_called_once_with(db, 3)
+        mock_revoke.assert_awaited_once_with(db, user.platform_user_id)
 
     @pytest.mark.asyncio
     async def test_启用用户(self):
@@ -492,7 +492,7 @@ class TestResetUserPassword:
         mock_hash.assert_called_once_with("NewPass123!")
         assert user.password_hash == "$2b$12$new_hash_value"
         db.flush.assert_called_once()
-        mock_revoke.assert_called_once_with(db, 3)
+        mock_revoke.assert_awaited_once_with(db, user.platform_user_id)
 
     @pytest.mark.asyncio
     async def test_重置密码用户不存在(self):

@@ -1,0 +1,222 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+
+import { knowledgeApi, type KnowledgeApi } from '@/api/knowledge'
+import { ErrorState } from '@/components/feedback/ErrorState'
+import { Skeleton } from '@/components/feedback/Skeleton'
+import { Icon } from '@/components/icons/Icon'
+import { useOverlayFocus } from '@/components/overlay/useOverlayFocus'
+
+type Props = {
+  documentId: string
+  api?: KnowledgeApi
+  onClose: () => void
+  /** 可选：自动展开的引用切片 segment_id（来源卡片联动）。为空或不在分块列表时仅展示列表。 */
+  initialSegmentId?: string | null
+}
+
+type LocationError = Error & {
+  response?: { status?: number; data?: { error?: { error_code?: string } } }
+}
+
+/**
+ * 文档切片抽屉（对齐 FRONTEND §5.4 / UIDESIGN §6.6）。
+ * 分块列表以稳定 segment_id 定位；展开原文时按当前用户与 KB 权限实时鉴权
+ * （GET /api/v1/documents/{document_id}/locations/{location_id}）。
+ * 权限撤销（403/AUTH_FORBIDDEN）、来源不可用（404/E2015）时立即清除已显示正文并展示受限态，
+ * 保留预览与元数据；「相邻切片」只基于当前已加载分块列表（chunk_index ± 1），不新增推测端点。
+ */
+export function ChunkDrawer({
+  documentId,
+  api = knowledgeApi,
+  onClose,
+  initialSegmentId = null,
+}: Props) {
+  const queryClient = useQueryClient()
+  const drawerRef = useRef<HTMLElement>(null)
+  const [expanded, setExpanded] = useState<string | null>(initialSegmentId ?? null)
+  const initialConsumedRef = useRef(false)
+
+  useOverlayFocus({ containerRef: drawerRef, onClose })
+
+  const chunksQuery = useQuery({
+    queryKey: ['document', documentId, 'chunks'],
+    queryFn: () => api.getDocumentChunks(documentId, { page: 1, page_size: 50 }),
+  })
+
+  const locationMutation = useMutation({
+    mutationFn: (segmentId: string) => api.getDocumentLocation(documentId, segmentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['document', documentId, 'chunks'] })
+    },
+  })
+
+  function openSegment(segmentId: string) {
+    setExpanded(segmentId)
+    locationMutation.mutate(segmentId)
+  }
+
+  // 来源卡片联动：分块列表就绪后，对自动展开的引用切片发起实时鉴权原文请求
+  // （initialConsumedRef 保证只执行一次；目标不在分块列表时保持列表态）
+  useEffect(() => {
+    const target = initialSegmentId
+    if (!target || initialConsumedRef.current) return
+    if (chunksQuery.isPending || chunksQuery.isError) return
+    const exists = chunksQuery.data?.items.some((chunk) => chunk.segment_id === target) ?? false
+    if (!exists) return
+    initialConsumedRef.current = true
+    locationMutation.mutate(target)
+  }, [
+    chunksQuery.isPending,
+    chunksQuery.isError,
+    chunksQuery.data,
+    initialSegmentId,
+    locationMutation,
+  ])
+
+  const data = locationMutation.data
+  const locationError = locationMutation.error as LocationError | null
+  const restricted = isRestrictedError(locationError)
+
+  const chunks = chunksQuery.data?.items ?? []
+  const expandedIndex = chunks.findIndex((chunk) => chunk.segment_id === expanded)
+  const prevChunk = expandedIndex > 0 ? chunks[expandedIndex - 1] : null
+  const nextChunk =
+    expandedIndex >= 0 && expandedIndex < chunks.length - 1 ? chunks[expandedIndex + 1] : null
+
+  return (
+    <div className="drawer-overlay" role="presentation">
+      <aside
+        ref={drawerRef}
+        className="drawer drawer--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label="文档切片"
+        tabIndex={-1}
+      >
+        <header className="drawer__header">
+          <h2>文档切片</h2>
+          <button
+            type="button"
+            className="drawer__close"
+            aria-label="关闭"
+            data-overlay-initial-focus
+            onClick={onClose}
+          >
+            <Icon name="close" />
+          </button>
+        </header>
+        <div className="drawer__body">
+          {chunksQuery.isPending ? (
+            <Skeleton />
+          ) : chunksQuery.isError ? (
+            <ErrorState onRetry={() => void chunksQuery.refetch()} />
+          ) : (
+            <ol className="chunk-list">
+              {chunks.map((chunk) => {
+                const isOpen = expanded === chunk.segment_id
+                return (
+                  <li key={chunk.segment_id} className="chunk-item">
+                    <button
+                      type="button"
+                      className="chunk-item__expand"
+                      aria-expanded={isOpen}
+                      aria-label={
+                        isOpen ? '收起' : `展开第${toChineseNumber(chunk.chunk_index + 1)}段`
+                      }
+                      onClick={() => openSegment(chunk.segment_id)}
+                    >
+                      <span className="chunk-item__preview">
+                        {isOpen ? '收起' : `展开第${toChineseNumber(chunk.chunk_index + 1)}段`}
+                      </span>
+                      <span className="chunk-item__meta">
+                        位置 {formatLocation(chunk.metadata)} · <span>{chunk.token_count}</span>{' '}
+                        Token
+                      </span>
+                    </button>
+                    <div className="chunk-item__preview-text">{chunk.preview}</div>
+
+                    {isOpen ? (
+                      <div className="chunk-item__body">
+                        {locationMutation.isPending ? (
+                          <Skeleton />
+                        ) : restricted ? (
+                          <div className="chunk-item__body--restricted" role="alert">
+                            <p>原文已不可访问</p>
+                            <small>
+                              你的访问权限已被撤销，或该来源已失效。预览与元数据仍保留。
+                            </small>
+                          </div>
+                        ) : locationMutation.isError ? (
+                          <div role="alert">
+                            <p>原文加载失败</p>
+                            <small>请稍后重试。</small>
+                          </div>
+                        ) : data ? (
+                          <>
+                            <blockquote>{data.minimal_excerpt}</blockquote>
+                            <small>
+                              位置：
+                              {data.location.page_number
+                                ? `第 ${data.location.page_number} 页`
+                                : (data.location.section_path?.join(' / ') ?? '未知')}
+                            </small>
+                          </>
+                        ) : null}
+                        <nav className="chunk-item__adjacent" aria-label="相邻切片">
+                          {prevChunk ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost"
+                              onClick={() => openSegment(prevChunk.segment_id)}
+                            >
+                              ← 上一段
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+                          {nextChunk ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost"
+                              onClick={() => openSegment(nextChunk.segment_id)}
+                            >
+                              下一段 →
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+                        </nav>
+                      </div>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+/** 受限态判定：403（权限撤销）或 404/E2015（来源不可用）都立即清正文并展示受限态。 */
+function isRestrictedError(error: LocationError | null): boolean {
+  if (!error?.response) return false
+  if (error.response.status === 403 || error.response.status === 404) return true
+  return error.response.data?.error?.error_code === 'E2015'
+}
+
+function formatLocation(metadata: Record<string, unknown> | null | undefined): string {
+  if (!metadata) return '未知'
+  if (typeof metadata.page === 'number') return `第 ${metadata.page} 页`
+  return '未知'
+}
+
+function toChineseNumber(value: number): string {
+  const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+  return String(value)
+    .split('')
+    .map((char) => digits[Number(char)] ?? char)
+    .join('')
+}

@@ -16,6 +16,7 @@ SSE 流生成与固定响应已解耦至 app.services.sse_stream。
 import logging
 import time
 from datetime import datetime, timezone
+from typing import AsyncGenerator, AsyncIterator, cast
 from uuid import uuid4
 
 from fastapi.responses import StreamingResponse
@@ -48,6 +49,7 @@ from app.rag.knowledge_pipeline import (
 )
 from app.rag.trace_recorder import TraceRecorder
 from app.schemas.chat import SelectableKBItem, SelectableKBResponse
+from app.services.chat_generation_service import cancel_generation_on_disconnect, create_generation
 from app.services.chat_helpers import load_history
 from app.services.sse_stream import (
     _generate_meta_response,
@@ -75,6 +77,17 @@ async def _get_bm25_retriever() -> BM25Retriever:
 
 # 知识管线单例：封装检索+上下文构建全流程
 _pipeline = KnowledgePipeline(bm25_retriever_factory=_get_bm25_retriever)
+
+
+async def _guard_generation_stream(
+    event_generator: AsyncIterator[str], generation_uuid: str
+) -> AsyncGenerator[str, None]:
+    """确保正常结束、异常、显式取消和连接断开只留下一个终态。"""
+    try:
+        async for event in event_generator:
+            yield event
+    finally:
+        await cancel_generation_on_disconnect(generation_uuid)
 
 
 async def _validate_and_prepare(
@@ -227,6 +240,7 @@ async def chat(
     kb_id: str,
     question: str,
     deep_thinking: bool,
+    platform_user_id: str | None = None,
 ) -> StreamingResponse:
     """问答核心流程：检索 → RRF → Rerank → Prompt → LLM SSE 流式。
 
@@ -266,15 +280,26 @@ async def chat(
         # 元问题：不调 LLM，直接返回固定模板 SSE 响应
         # 用户消息已保存，_generate_meta_response 会保存 assistant 消息保持成对
         # Trace: META 路径，recorder 已在 _validate_and_prepare 中记录 intent
-        recorder.conversation_id = e.conv.id
-        recorder.kb_id = e.conv.kb_id
+        conv = cast(Conversation, e.conv)
+        recorder.conversation_id = conv.id
+        recorder.kb_id = conv.kb_id
+        generation = await create_generation(
+            db,
+            conv.id,
+            platform_user_id or str(user_id),
+            kb_id,
+        )
         return StreamingResponse(
             stream_with_heartbeat(
-                _generate_meta_response(
-                    conv=e.conv,
-                    is_first_turn=e.is_first_turn,
-                    question=question,
-                    recorder=recorder,
+                _guard_generation_stream(
+                    _generate_meta_response(
+                        conv=conv,
+                        is_first_turn=e.is_first_turn,
+                        question=question,
+                        recorder=recorder,
+                        generation_uuid=generation.uuid,
+                    ),
+                    generation.uuid,
                 )
             ),
             media_type="text/event-stream",
@@ -288,13 +313,23 @@ async def chat(
     if pipeline_result.evidence_review and pipeline_result.evidence_review.decision == "REJECT":
         recorder.conversation_id = conv.id
         recorder.kb_id = conv.kb_id
+        generation = await create_generation(
+            db,
+            conv.id,
+            platform_user_id or str(user_id),
+            kb_id,
+        )
         return StreamingResponse(
             stream_with_heartbeat(
-                _generate_reject_response(
-                    conv=conv,
-                    is_first_turn=is_first_turn,
-                    question=question,
-                    recorder=recorder,
+                _guard_generation_stream(
+                    _generate_reject_response(
+                        conv=conv,
+                        is_first_turn=is_first_turn,
+                        question=question,
+                        recorder=recorder,
+                        generation_uuid=generation.uuid,
+                    ),
+                    generation.uuid,
                 )
             ),
             media_type="text/event-stream",
@@ -308,20 +343,29 @@ async def chat(
     recorder.conversation_id = conv.id
     recorder.kb_id = conv.kb_id
 
-    task_id = str(uuid4())
+    generation = await create_generation(
+        db,
+        conv.id,
+        platform_user_id or str(user_id),
+        kb_id,
+    )
 
     return StreamingResponse(
         stream_with_heartbeat(
-            _generate_sse_stream(
-                conv=conv,
-                task_id=task_id,
-                question=question,
-                deep_thinking=deep_thinking,
-                is_first_turn=is_first_turn,
-                prompt_result=pipeline_result.prompt_result,
-                reranked_output=pipeline_result.reranked_output,
-                doc_map=pipeline_result.doc_map,
-                recorder=recorder,
+            _guard_generation_stream(
+                _generate_sse_stream(
+                    conv=conv,
+                    task_id=generation.uuid,
+                    question=question,
+                    deep_thinking=deep_thinking,
+                    is_first_turn=is_first_turn,
+                    prompt_result=pipeline_result.prompt_result,
+                    reranked_output=pipeline_result.reranked_output,
+                    doc_map=pipeline_result.doc_map,
+                    doc_uuid_map=pipeline_result.doc_uuid_map,
+                    recorder=recorder,
+                ),
+                generation.uuid,
             )
         ),
         media_type="text/event-stream",

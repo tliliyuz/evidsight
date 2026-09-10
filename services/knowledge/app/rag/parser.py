@@ -17,6 +17,7 @@ PDF 解析引擎（对齐 ADR-025）：
 
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -24,6 +25,7 @@ import fitz
 import pdfplumber
 from docx import Document as DocxDocument
 from docx.enum.style import WD_STYLE_TYPE
+from pdfplumber.pdf import PDF
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +131,7 @@ def parse_document(file_path: str, file_type: str | None = None) -> ParseResult:
         )
 
 
-def _table_to_markdown(table_data: list[list[str | None]]) -> str:
+def _table_to_markdown(table_data: Sequence[Sequence[str | None]]) -> str:
     """将 pdfplumber 原始表格数据转换为 GitHub-flavored Markdown 表格。
 
     纯函数。对齐 ADR-025：表格嵌入 page.content 为 Markdown 字符串，
@@ -155,7 +157,7 @@ def _table_to_markdown(table_data: list[list[str | None]]) -> str:
     rows: list[list[str | None]] = []
     for row in table_data:
         if row and any(cell is not None and str(cell).strip() for cell in row):
-            rows.append(row)
+            rows.append(list(row))
 
     if not rows:
         return ""
@@ -191,8 +193,8 @@ def _table_to_markdown(table_data: list[list[str | None]]) -> str:
     # 分隔行
     lines.append("| " + " | ".join(["---"] * max_cols) + " |")
     # 数据行
-    for row in cleaned[1:]:
-        lines.append("| " + " | ".join(row) + " |")
+    for cleaned_row in cleaned[1:]:
+        lines.append("| " + " | ".join(cleaned_row) + " |")
 
     return "\n".join(lines)
 
@@ -214,7 +216,8 @@ def _parse_pdf(file_path: str) -> ParseResult:
 
     pages: list[ParsedPage] = []
     failed = 0
-    pdfplumber_doc = None  # 按需懒加载
+    pdfplumber_doc: PDF | None = None  # 按需懒加载
+    pdfplumber_unavailable = False
 
     for i in range(len(doc)):
         try:
@@ -230,13 +233,13 @@ def _parse_pdf(file_path: str) -> ParseResult:
 
             if fitz_tables:
                 # 按需打开 pdfplumber
-                if pdfplumber_doc is None:
+                if pdfplumber_doc is None and not pdfplumber_unavailable:
                     try:
                         pdfplumber_doc = pdfplumber.open(file_path)
                     except Exception:
-                        pdfplumber_doc = False  # 标记不可用
+                        pdfplumber_unavailable = True
 
-                if pdfplumber_doc and pdfplumber_doc is not False and i < len(pdfplumber_doc.pages):
+                if pdfplumber_doc is not None and i < len(pdfplumber_doc.pages):
                     try:
                         plumber_page = pdfplumber_doc.pages[i]
                         extracted_tables = plumber_page.extract_tables()
@@ -283,7 +286,7 @@ def _parse_pdf(file_path: str) -> ParseResult:
 
     total = len(doc)
 
-    if pdfplumber_doc and pdfplumber_doc is not False:
+    if pdfplumber_doc is not None:
         try:
             pdfplumber_doc.close()
         except Exception:

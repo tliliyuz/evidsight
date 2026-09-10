@@ -466,8 +466,10 @@ class TestSanitizeErrorMessageForClient:
 
     def test_含SQL语句替换为兜底文案(self):
         raw = "Celery Worker 未捕获异常: [SQL: INSERT INTO research_sources ...]"
-        assert sanitize_error_message_for_client(raw) == "未预期的内部错误，请稍后重试"
-        assert "SQL" not in sanitize_error_message_for_client(raw)
+        sanitized = sanitize_error_message_for_client(raw)
+        assert sanitized == "未预期的内部错误，请稍后重试"
+        assert sanitized is not None
+        assert "SQL" not in sanitized
 
     def test_含Traceback替换为兜底文案(self):
         raw = "Traceback (most recent call last):\n  File 'app.py', line 1, in <module>'"
