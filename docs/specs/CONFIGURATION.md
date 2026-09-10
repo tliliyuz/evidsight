@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |:---|:---|
 | 文档状态 | v1.0 配置基线 |
-| 最后更新 | 2026-08-08 |
+| 最后更新 | 2026-09-08 |
 
 ## 1. 规则
 
@@ -59,7 +59,7 @@
 
 本表只登记实现真实读取的键（以两服务 `config.py` 为准）；未实现的规划键见表后说明，不在注册表中登记。
 
-**身份与跨服务契约键**
+### 3.1.1 身份与跨服务契约键
 
 | 键 | 所有者 | 类型 | 必填/默认值 | 安全级别 |
 |:---|:---|:---|:---|:---|
@@ -92,7 +92,7 @@
 | `EVIDSIGHT_INTERNAL_RETRIEVAL_TIMEOUT_SECONDS` | Research | float | `10.0`，范围 0&lt;x≤60 | public |
 | `EVIDSIGHT_INTERNAL_RETRIEVAL_RETRY_MAX` | Research | int | `2`，范围 0—5（可重试的瞬时不可用错误重试上限） | public |
 
-**服务内部键（按服务归属）**
+### 3.1.2 服务内部键（按服务归属）
 
 | 键 | 所有者 | 类型 | 必填/默认值 | 安全级别 |
 |:---|:---|:---|:---|:---|
@@ -114,6 +114,7 @@
 | `CLEAN_REPAIR_UNICODE` | Knowledge | bool | `true` | public |
 | `LLM_BASE_URL` / `LLM_MODEL` / `LLM_FLASH_MODEL` | 服务各自 | URL/string/string | 能力启用时必填（`LLM_FLASH_MODEL` 两服务默认不同） | public |
 | `LLM_API_KEY` | 服务各自 | string | 能力启用时必填 | secret |
+| `LLM_EXTRA_HEADERS_JSON` | Research | JSON object&lt;string,string&gt; | `{}`（可选；值中的 `{task_id}` / `{session_id}` 按当前 Research 任务会话标识展开） | sensitive |
 | `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL` | Knowledge | URL/string | 能力启用时必填 | public |
 | `EMBEDDING_API_KEY` | Knowledge | string | 能力启用时必填 | secret |
 | `RERANK_BASE_URL` / `RERANK_MODEL` | Knowledge | URL/string | 能力启用时必填 | public |
@@ -131,7 +132,7 @@
 | `PENDING_REDELIVERY_THRESHOLD_SECONDS` | Research | int | `300`（pending 重投递阈值，§13.6） | public |
 | `PENDING_REDELIVERY_MAX_RETRIES` | Research | int | `3`（最大重投次数，超限后受控失败 E3118，§13.6） | public |
 
-**规划键（目标态，未实现，暂不登记）**
+### 3.1.3 规划键（目标态，未实现，暂不登记）
 
 以下键被 DATA_RETENTION / OPERATIONS / RESEARCH_PIPELINE 引用，但当前实现尚未读取，属目标态规划；实现落地后再按「新增键」流程登记，落地前不作为部署必填：磁盘保护水位（`EVIDSIGHT_KNOWLEDGE_DISK_PROTECTION_PERCENT`）、Web 正文保留（`EVIDSIGHT_RESEARCH_WEB_CONTENT_TTL_SECONDS`）、失败 Revision 保留（`EVIDSIGHT_RESEARCH_FAILED_REVISION_TTL_SECONDS`）、审计/Trace 保留（`EVIDSIGHT_AUDIT_RETENTION_DAYS`、`EVIDSIGHT_TRACE_RETENTION_DAYS`）、日志级别与 Web 基础路径等。
 
@@ -142,6 +143,9 @@ Refresh Cookie 与 CSRF 传输规则见 [IDENTITY_AND_ACCESS.md](IDENTITY_AND_AC
 Service JWT 只由 Research 签发、由 Knowledge 验证，使用独立于用户 Access/Refresh Token 的密钥材料。JWT Header 必须包含 `kid`；Payload 必须包含 `iss`、`aud`、`sub=research-service`、`token_type=service`、`jti`、`iat`、`nbf` 和 `exp`。Knowledge 只接受算法允许列表、配置的 Issuer、`knowledge-internal` Audience 和已登记 Key ID。公钥文件必须支持当前 Key 与上一 Key 的受控验证窗口；私钥、公钥内容和 Token 不得进入日志或错误响应。
 
 > 键名以 `config.py` 实际读取为准：跨服务身份/契约键使用 `EVIDSIGHT_*` 前缀，服务内部键使用无前缀命名（见 §2）。本注册表只登记实现真实读取的键；规划键不登记，待实现落地后再登记。
+
+`LLM_EXTRA_HEADERS_JSON` 仅由 Research 读取，用于向 OpenAI 兼容 Provider 注入可选 HTTP 请求头；空对象不注入任何额外请求头。请求头值不得进入日志或错误响应。Research 会把 `{task_id}` / `{session_id}` 替换为当前任务会话标识；没有任务上下文时使用进程级稳定标识。OpenCode Go 等要求会话路由的 Provider 可配置 `x-opencode-session`，普通 Provider 保持默认空对象即可。
+
 > ADR 检查（2026-08-06）：命中第 7 项（跨规范影响）。负责人豁免 ADR——配置键命名收敛不改变安全基线、外部契约或服务边界，属文档/部署资产一致性整理；记录见 [CHANGELOG](../CHANGELOG.md)。
 
 ## 4. 约束

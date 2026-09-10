@@ -14,8 +14,12 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, AsyncIterator
+from uuid import uuid4
 
 from openai import AsyncOpenAI
 
@@ -39,6 +43,32 @@ logger = logging.getLogger(__name__)
 
 # 模块级单例：AsyncOpenAI 客户端（避免每次请求新建实例）
 _llm_client: AsyncOpenAI | None = None
+_llm_session_id: ContextVar[str | None] = ContextVar("llm_session_id", default=None)
+_default_llm_session_id = f"evidsight-{uuid4()}"
+
+
+@contextmanager
+def llm_session(session_id: str) -> Iterator[None]:
+    """在当前任务上下文中设置 LLM Provider 会话标识。"""
+    token = _llm_session_id.set(session_id)
+    try:
+        yield
+    finally:
+        _llm_session_id.reset(token)
+
+
+def _build_extra_headers() -> dict[str, str]:
+    """读取配置中的额外请求头，并展开任务会话占位符。"""
+    configured = settings.LLM_EXTRA_HEADERS_JSON
+    if not configured:
+        return {}
+
+    session_id = _llm_session_id.get() or _default_llm_session_id
+    return {
+        name: value.replace("{task_id}", session_id).replace("{session_id}", session_id)
+        for name, value in configured.items()
+        if name and isinstance(value, str)
+    }
 
 
 @dataclass
@@ -175,6 +205,9 @@ async def stream_chat_completion(
         "stream": True,
         "extra_body": extra_body,
     }
+    extra_headers = _build_extra_headers()
+    if extra_headers:
+        request_kwargs["extra_headers"] = extra_headers
     if deep_thinking:
         request_kwargs["reasoning_effort"] = reasoning_effort
     if temperature is not None:
@@ -357,6 +390,9 @@ async def chat_completion(
         "stream": False,
         "extra_body": extra_body,
     }
+    extra_headers = _build_extra_headers()
+    if extra_headers:
+        request_kwargs["extra_headers"] = extra_headers
     if deep_thinking:
         request_kwargs["reasoning_effort"] = reasoning_effort
     if max_tokens is not None:

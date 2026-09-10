@@ -8,6 +8,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from app.config import settings
 from app.core.exceptions import (
     LLMAuthFailedException,
     LLMRateLimitException,
@@ -20,6 +21,7 @@ from app.core.llm import (
     _max_retries,
     _retry_delay,
     chat_completion,
+    llm_session,
     stream_chat_completion,
 )
 
@@ -144,6 +146,21 @@ class TestStreamChatCompletion:
         # 最后一个 chunk 有 finish_reason
         assert chunks[-1].finish_reason == "stop"
 
+    async def test_流式调用透传配置化额外请求头(self, monkeypatch):
+        monkeypatch.setattr(
+            settings,
+            "LLM_EXTRA_HEADERS_JSON",
+            {"x-opencode-session": "evidsight-{session_id}"},
+        )
+        self.mock_client.chat.completions.create.return_value = self._make_stream_chunks(["ok"])
+
+        with llm_session("task-stream"):
+            async for _ in stream_chat_completion([{"role": "user", "content": "Test"}]):
+                pass
+
+        call_kwargs = self.mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["extra_headers"] == {"x-opencode-session": "evidsight-task-stream"}
+
     async def test_timeout错误_重试3次后抛出LLMTimeoutException(self):
         messages = [{"role": "user", "content": "Test"}]
         self.mock_client.chat.completions.create.side_effect = Exception(
@@ -251,6 +268,30 @@ class TestChatCompletion:
 
         assert result.model == "deepseek-v4-pro"
         assert result.duration_ms >= 0
+
+    async def test_额外请求头按任务会话占位符透传(self, monkeypatch):
+        """Provider 专用 header 从配置读取，并按当前任务 session 展开。"""
+        monkeypatch.setattr(
+            settings,
+            "LLM_EXTRA_HEADERS_JSON",
+            {"x-opencode-session": "evidsight-{task_id}"},
+        )
+        self.mock_client.chat.completions.create.return_value = self._make_response()
+
+        with llm_session("task-123"):
+            await chat_completion([{"role": "user", "content": "Test"}])
+
+        call_kwargs = self.mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["extra_headers"] == {"x-opencode-session": "evidsight-task-123"}
+
+    async def test_未配置额外请求头时不注入extra_headers(self, monkeypatch):
+        monkeypatch.setattr(settings, "LLM_EXTRA_HEADERS_JSON", {})
+        self.mock_client.chat.completions.create.return_value = self._make_response()
+
+        await chat_completion([{"role": "user", "content": "Test"}])
+
+        call_kwargs = self.mock_client.chat.completions.create.call_args.kwargs
+        assert "extra_headers" not in call_kwargs
 
     async def test_timeout错误_重试3次后抛异常(self):
         messages = [{"role": "user", "content": "Test"}]

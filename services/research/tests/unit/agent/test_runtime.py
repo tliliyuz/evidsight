@@ -1,5 +1,6 @@
 """AgentRuntime 单元测试。"""
 
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -168,6 +169,8 @@ class TestRunCancel:
     @pytest.mark.asyncio
     async def test_未取消_正常进入最终化(self, runtime, monkeypatch):
         self._prepare_run(runtime, monkeypatch)
+        session_context = MagicMock(side_effect=lambda task_id: nullcontext())
+        monkeypatch.setattr("app.agent.runtime.llm_session", session_context)
 
         async def fake_chat(*args, **kwargs):
             return LLMResult(

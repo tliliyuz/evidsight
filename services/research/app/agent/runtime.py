@@ -25,6 +25,7 @@ from app.core.exceptions import (
     get_safe_error_message,
     is_fail_closed_error,
 )
+from app.core.llm import llm_session
 from app.core.task_state_resolver import TaskStateResolver
 from app.core.trace_recorder import TraceRecorder
 from app.metrics import (
@@ -156,9 +157,10 @@ class AgentRuntime:
                 agent_context=self._agent_context,
                 working_memory=self._working_memory,
             )
-            await self._loop.run(
-                tool_context, self._execute_tool, cancel_check=self._is_task_canceled
-            )
+            with llm_session(task_id):
+                await self._loop.run(
+                    tool_context, self._execute_tool, cancel_check=self._is_task_canceled
+                )
 
             # 捕获 loop 中非 tool 分支（LLM 失败 / 无 tool call）产生的 entries
             await self._persist_memory_entries()
