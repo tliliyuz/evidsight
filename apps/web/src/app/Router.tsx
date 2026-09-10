@@ -11,6 +11,9 @@ import { ConversationHistoryPage } from '@/features/chat/ConversationHistoryPage
 import { KnowledgeBaseDetailPage } from '@/features/knowledge/KnowledgeBaseDetailPage'
 import { KnowledgeBaseListPage } from '@/features/knowledge/KnowledgeBaseListPage'
 import { LandingPage } from '@/features/landing/LandingPage'
+import { ResearchCreatePage } from '@/features/research/ResearchCreatePage'
+import { ResearchRunPage } from '@/features/research/ResearchRunPage'
+import { ResearchTaskListPage } from '@/features/research/ResearchTaskListPage'
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage'
 
 /** 入口页常驻布局：抽屉作为浮层叠加，关闭后入口页滚动位置与焦点保留。 */
@@ -34,15 +37,6 @@ export function RootLayout() {
     <ToastProvider>
       <Outlet />
     </ToastProvider>
-  )
-}
-
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <main>
-      <h1>{title}</h1>
-      <p>该能力将在后续 M4 切片接入。</p>
-    </main>
   )
 }
 
@@ -79,9 +73,9 @@ export const routes: RouteObject[] = [
           { path: '/chat/history', element: <ConversationHistoryPage /> },
           { path: '/knowledge-bases', element: <KnowledgeBaseListPage /> },
           { path: '/knowledge-bases/:kbId', element: <KnowledgeBaseDetailPage /> },
-          { path: '/research/new', element: <PlaceholderPage title="深度研究" /> },
-          { path: '/research', element: <PlaceholderPage title="研究任务" /> },
-          { path: '/research/:taskId', element: <PlaceholderPage title="研究任务" /> },
+          { path: '/research/new', element: <ResearchCreatePage /> },
+          { path: '/research', element: <ResearchTaskListPage /> },
+          { path: '/research/:taskId', element: <ResearchRunPage /> },
         ],
       },
       { path: '*', element: <LandingPage /> },

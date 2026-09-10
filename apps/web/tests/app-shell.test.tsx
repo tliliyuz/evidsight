@@ -37,6 +37,12 @@ function makeResearchApi(runningTotal: number): ResearchApi {
       page_size: 1,
       items: [],
     }),
+    createResearchTask: vi.fn(),
+    getResearchTask: vi.fn(),
+    cancelResearchTask: vi.fn(),
+    resumeResearchTask: vi.fn(),
+    deleteResearchTask: vi.fn(),
+    getResearchTaskState: vi.fn(),
   }
 }
 

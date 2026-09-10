@@ -3116,3 +3116,502 @@ textarea:focus-visible {
     flex-direction: column;
   }
 }
+
+/* ============================================================
+   切片 5 研究：创建 / 任务列表 / 运行态（FRONTEND §5.7–5.9）
+   ============================================================ */
+
+/* ---- 创建研究：表单主列 + Context Rail（UIDESIGN §5.6） ---- */
+.research-create-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 32px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 24px;
+}
+
+/* 表单主列：白色 Route Surface 内嵌套灰色 Inset Panel（对齐工作台 launcher 的灰容器） */
+.research-brief {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-panel);
+  background: var(--es-surface-muted);
+}
+
+.research-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.research-field > span {
+  color: var(--es-ink-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.research-field textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 12px;
+  border: 1px solid var(--es-border-strong);
+  border-radius: var(--es-radius-control);
+  color: var(--es-ink-primary);
+  background: var(--es-surface);
+  font: inherit;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.research-field textarea:focus {
+  border-color: var(--es-focus);
+  outline: none;
+}
+
+.research-field textarea.short {
+  min-height: 72px;
+}
+
+.brief-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.research-brief__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--es-border-subtle);
+}
+
+.research-brief__footer p {
+  margin: 0;
+  color: var(--es-ink-muted);
+  font-size: 13px;
+}
+
+.research-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--es-danger);
+  border-radius: var(--es-radius-control);
+  color: var(--es-danger);
+  background: var(--es-surface-muted);
+  font-size: 13px;
+}
+
+/* 字段级报错：跟随所在输入框下方，无边框小红字 */
+.research-error--field {
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: 12px;
+}
+
+.research-error__action {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--es-ink-primary);
+  font-size: 13px;
+}
+
+/* 研究约定 Context Rail */
+.research-principles {
+  padding-left: 28px;
+  border-left: 1px solid var(--es-border-subtle);
+}
+
+.research-principles ol {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 18px;
+}
+
+.research-principles li {
+  display: flex;
+  gap: 12px;
+}
+
+.research-principles li > span {
+  flex: 0 0 auto;
+  color: var(--es-ink-muted);
+  font-family: var(--es-font-mono);
+  font-size: 12px;
+}
+
+.research-principles li b {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--es-ink-primary);
+  font-size: 14px;
+}
+
+.research-principles li p {
+  margin: 0;
+  color: var(--es-ink-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* 多选知识库已选 chips */
+.research-kb-picker__selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.research-kb-picker__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--es-border-strong);
+  border-radius: var(--es-radius-control);
+  color: var(--es-ink-primary);
+  background: var(--es-surface-muted);
+  font-size: 13px;
+}
+
+.research-kb-picker__chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  color: var(--es-ink-muted);
+  background: transparent;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.research-kb-picker__chip button:hover {
+  color: var(--es-danger);
+  background: var(--es-surface);
+}
+
+/* ---- 任务列表 Ledger 列模板（5 列） ---- */
+.research-ledger .ledger__head,
+.research-ledger .ledger__row {
+  grid-template-columns: minmax(220px, 2fr) minmax(90px, 0.8fr) minmax(150px, 1.2fr) 140px minmax(
+      130px,
+      1fr
+    );
+  gap: 20px;
+}
+
+.research-ledger .ledger__cell--status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.research-ledger .ledger__cell--source .channel {
+  margin-top: 4px;
+}
+
+/* ---- 研究运行态 ---- */
+.research-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.research-header h1 {
+  margin: 4px 0 6px;
+  color: var(--es-ink-primary);
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.research-header__main > p:last-child {
+  margin: 0;
+  color: var(--es-ink-secondary);
+  font-size: 13px;
+}
+
+.research-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.research-connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--es-ink-secondary);
+  font-size: 13px;
+}
+
+.research-connection > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--es-spectral-cyan);
+}
+
+.research-connection--reconnecting > span {
+  background: var(--es-warning);
+}
+
+.research-canceled {
+  color: var(--es-warning);
+  font-size: 13px;
+}
+
+.overall-progress {
+  display: grid;
+  gap: 10px;
+  padding: 16px 20px;
+  border: 1px solid var(--es-border-default);
+  border-radius: var(--es-radius-panel);
+  background: var(--es-surface-muted);
+}
+
+.overall-progress > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.overall-progress > div span {
+  color: var(--es-ink-secondary);
+  font-size: 13px;
+}
+
+.overall-progress > div b {
+  color: var(--es-ink-primary);
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.overall-progress > i {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--es-surface);
+}
+
+.overall-progress > i em {
+  display: block;
+  width: var(--progress, 0%);
+  height: 100%;
+  border-radius: 3px;
+  background: var(--es-moonstone);
+}
+
+.overall-progress > small {
+  color: var(--es-ink-muted);
+  font-size: 12px;
+}
+
+.research-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 32px;
+  flex: 1;
+  min-height: 0;
+}
+
+.execution-column {
+  display: grid;
+  gap: 24px;
+  align-content: start;
+  min-width: 0;
+}
+
+/* 七阶段 Pipeline（UIDESIGN §6.9） */
+.pipeline {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--es-border-subtle);
+}
+
+.pipeline li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  padding: 12px 4px;
+  border-bottom: 2px solid transparent;
+  color: var(--es-ink-muted);
+}
+
+.pipeline li > span {
+  font-family: var(--es-font-mono);
+  font-size: 12px;
+}
+
+.pipeline li b {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pipeline li.done {
+  color: var(--es-ink-primary);
+  border-bottom-color: var(--es-success);
+}
+
+.pipeline li.active {
+  color: var(--es-ink-primary);
+  border-bottom-color: var(--es-moonstone);
+  font-weight: 600;
+}
+
+/* 事件流 */
+.activity-stream {
+  min-width: 0;
+}
+
+.activity-stream > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.activity-stream__empty {
+  margin: 0;
+  color: var(--es-ink-muted);
+  font-size: 13px;
+}
+
+.activity-stream__list {
+  display: grid;
+  gap: 0;
+}
+
+.activity-stream .event {
+  display: grid;
+  grid-template-columns: 72px 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--es-border-subtle);
+}
+
+.activity-stream .event:last-child {
+  border-bottom: none;
+}
+
+.activity-stream .event time {
+  color: var(--es-ink-muted);
+  font-family: var(--es-font-mono);
+  font-size: 12px;
+}
+
+.activity-stream .event > i {
+  width: 8px;
+  height: 8px;
+  align-self: center;
+  border-radius: 50%;
+  background: var(--es-ink-muted);
+}
+
+.activity-stream .event--phase > i {
+  background: var(--es-moonstone);
+}
+
+.activity-stream .event--step > i {
+  background: var(--es-spectral-cyan);
+}
+
+.activity-stream .event--error > i {
+  background: var(--es-danger);
+}
+
+.activity-stream .event--cancel > i {
+  background: var(--es-warning);
+}
+
+.activity-stream .event b {
+  color: var(--es-ink-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.activity-stream .event p {
+  margin: 2px 0 0;
+  color: var(--es-ink-secondary);
+  font-size: 13px;
+}
+
+/* 任务信息 Context Rail */
+.task-context {
+  padding-left: 28px;
+  border-left: 1px solid var(--es-border-subtle);
+}
+
+.task-context dl {
+  margin: 14px 0 0;
+  display: grid;
+  gap: 14px;
+}
+
+.task-context dl > div {
+  display: grid;
+  gap: 4px;
+}
+
+.task-context dt {
+  color: var(--es-ink-muted);
+  font-size: 12px;
+}
+
+.task-context dd {
+  margin: 0;
+  color: var(--es-ink-primary);
+  font-size: 14px;
+  white-space: pre-line;
+}
+
+.task-context .task-context__kb {
+  display: block;
+}
+
+.privacy-note {
+  margin: 18px 0 0;
+  color: var(--es-ink-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.research-run__loading {
+  padding: 8px 0;
+}
+
+.research-run__failure {
+  margin-top: 16px;
+}
+
+.research-run__report {
+  margin-top: 20px;
+}

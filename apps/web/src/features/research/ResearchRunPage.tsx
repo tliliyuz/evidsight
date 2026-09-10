@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 
 import { researchApi } from '@/api/research'
@@ -93,10 +93,10 @@ export function ResearchRunPage() {
   } | null
   const { snapshot, retry } = useResearchSse(taskId)
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [now, setNow] = useState(() => new Date())
 
   const task = snapshot.task
   const topic = task?.topic ?? ''
-  const now = new Date()
 
   const cancelMutation = useMutation({
     mutationFn: () => researchApi.cancelResearchTask(taskId ?? ''),
@@ -116,6 +116,13 @@ export function ResearchRunPage() {
 
   const terminal = isTerminal(task?.status)
   const recoverable = task?.status === 'failed' && task.error?.recoverable === true
+  const hasTask = task !== null
+
+  useEffect(() => {
+    if (terminal || !hasTask) return undefined
+    const timer = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [hasTask, terminal])
 
   let connectionLabel: string | null = null
   if (snapshot.phase === 'live') connectionLabel = '实时连接正常'

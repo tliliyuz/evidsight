@@ -256,7 +256,37 @@ probe 实测：知识库列表与问答历史均 `ledger` 单滚动 + sticky 表
 
 验证（自动化 GREEN，非负责人验收）：vitest 225 项、ESLint/Prettier/build/Design Token 通过；Playwright 全量 **46 项**通过，知识库/问答历史受影响 22 张基线重建（列头居中 + 按钮组居中），其余页面无漂移。
 
-## 6. 文档收敛结果
+## 6. 切片 5 据见研究实现轨迹（2026-08-12）
+
+切片 5「据见研究」：创建深度研究 `/research/new`、研究任务列表 `/research`、研究运行态 `/research/:taskId` + Research SSE。三个路由此前渲染 `PlaceholderPage`；后端 Research v1 CRUD + canonical SSE（API.md §8/§13）已就绪。
+
+### 6.1 架构：镜像 Chat SSE 四件套（独立实现）
+
+Research SSE 是 GET 订阅通道 + `Last-Event-ID` 游标（非 Chat 的 POST 生成流），ROADMAP 明令独立实现。照抄 Chat 的「纯增量解析器 → 纯 reducer 状态机 → API fetch 流客户端 → 生命周期 hook」组织：
+
+- `researchSseParser.ts`：canonical 事件（`snapshot`/`task.updated`/`phase.updated`/`step.updated`/`task.canceled`/`error`/`stream.end{reason}`）增量解析；事件 `id` 为 `number|null`（终态 snapshot/stream.end 无 id）；已知字段 `String()`/`Number()` 安全归一化，未知字段/坏 JSON/心跳注释帧容错；
+- `researchSseMachine.ts`：纯 reducer（FRONTEND §8）：LoadingSnapshot → Subscribing → Live → Reconnecting → subscriptionEnded → Terminal；`stream.end`≠成功、终态以快照为准、断线只进 Reconnecting 绝不产生取消；事件按 id 幂等（时间线按 eventId 去重）；`step.updated` 事件不携带数量/耗时，时间线只输出安全状态说明，不渲染 `arguments`/`observation`/`output`；
+- `api/research.ts`：扩展 `createResearchTask`（`Idempotency-Key` Header）、`getResearchTask`、`cancel`/`resume`/`delete`、`getResearchTaskState`、`openResearchTaskStream`（fetch 流式 + `Last-Event-ID` + `ResearchStreamHttpError`）；
+- `useResearchSse.ts`：挂载先 GET /state（LoadingSnapshot → Subscribing，终态停止订阅）再开 SSE；断线 Reconnecting 自动重连带游标（4xx 不再重连）；abort 归属校验丢弃陈旧回调；卸载关流不取消。`react-hooks/set-state-in-effect` 定向豁免（网络 await 后才 dispatch，订阅必须挂载即启动，同 `useChatAutoScroll` 先例）。
+
+### 6.2 负责人裁决的契约-原型缺口（2026-08-12）
+
+1. **「期望输出」字段**：`ResearchTaskCreate`/`ResearchRequirements` 均 `additionalProperties:false`，发送会 422 → 负责人裁决**表单去掉该字段**（只保留 主题/研究类型/来源策略/知识库）。
+2. **来源策略筛选**：后端 `GET /tasks` 只有 `status`+`keyword` 参数 → 负责人裁决**本轮不做**，FRONTEND §5.8 已降级并留待裁决记录。
+3. **运行态信息栏**：`ResearchTask`/`ResearchTaskState` DTO 不含 `source_strategy` 与 `requirements`（`ResearchTaskState` 也无 `recoverable` 顶层字段）→ 负责人裁决**研究类型/来源策略/知识库走创建表单导航 state 临时传入**（刷新后信息栏降级为只显示 API 字段），**预算不展示**（服务端推导、DTO 未暴露）。
+4. **列表「继续任务」**：`ResearchTaskListItem` 无 `recoverable` → 列表不做继续任务，由运行态页从 `state.error.recoverable` 提供（待裁决记录）。
+
+### 6.3 页面与复用
+
+- **创建页**（Route Surface，表单主列 + Context Rail）：主题/类型/策略 segmented/`ResearchKbPicker` 多选；`Idempotency-Key` useRef 复用；429 展示限制 + 「前往任务列表」入口；默认策略 hybrid（对齐原型）。不展示「预计 8–12 分钟」（禁止虚构）。
+- **任务列表页**（Route Surface，筛选工具栏 + Ledger）：状态 tabs（全部/进行中/已完成/异常 → 单状态参数）+ 关键词；行主操作（进入现场/查看报告→`/reports/:reportId`/查看）；`RowMenu` 终态行删除（具名确认 + 缓存剔除 + 页码回退 + toast）；运行中不提供删除。`/reports/:reportId` 路由属切片 6，本轮未注册（待切片 6 接入）。
+- **运行态页**（Route Surface，执行主列 + Context Rail）：整体进度 Inset Panel、七阶段 Pipeline（规划/检索/获取/重排/综合/证据图谱/生成）、事件时间线、连接状态、取消（具名确认→POST cancel）、可恢复失败「继续任务」（POST resume→重订阅）；信息栏 = 当前证据 + 导航 state 传入的类型/策略/知识库。
+- **样式**：新增 `research-*` 类（创建表单 grid、Ledger 列模板、运行态 header/进度/pipeline/事件流/信息栏），全部 Design Token，`check:design-tokens` 通过。
+- **复用**：`route-surface`/`.ledger`/`segmented`/`channel`/`row-progress`/`kb-picker__*`/`Button`/`StatusBadge`/`Pagination`/`Skeleton`/`EmptyState`/`ErrorState`/`ConfirmDialog`/`RowMenu`/`useAppToast`；`formatTimestamp`。
+
+验证（自动化 GREEN，非负责人验收）：`pnpm build` 通过；vitest 全量 **273 项**全绿（新增 research-sse-parser 6、research-sse-machine 12、research-api 6、research-create 8、research-list 8、research-run 8 共 48 项；app-shell 因 ResearchApi 接口扩展补桩）；ESLint/Prettier/Design Token 通过。Playwright 未复跑（负责人要求「改完即 build」，验收稳定后统一重建基线）。
+
+## 7. 文档收敛结果
 
 - FRONTEND 只保留当前行为、权限、状态、失败语义和可执行验收条件；
 - UIDESIGN 只保留当前视觉层级、Frame、对齐、尺寸和组件语义；

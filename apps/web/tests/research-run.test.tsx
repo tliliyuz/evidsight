@@ -238,6 +238,77 @@ describe('研究运行态页', () => {
     expect(screen.getByText('任务在后台持续运行，关闭页面不会中止研究。')).toBeInTheDocument()
   })
 
+  it('非终态运行时长每秒更新，终态后不再依赖当前时间', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-12T06:00:05Z'))
+    try {
+      renderPage()
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(screen.getByText(/已运行 4 秒/)).toBeInTheDocument()
+      await act(async () => {
+        vi.advanceTimersByTime(2000)
+      })
+      expect(screen.getByText(/已运行 6 秒/)).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('收到失败终态 SSE 后立即收口，不需要刷新页面', async () => {
+    renderPage()
+    await screen.findByText('全球 AI Agent 竞争格局')
+
+    act(() => {
+      streamMock.current?.emit({
+        type: 'task.updated',
+        id: 10,
+        data: {
+          task_id: TASK_ID,
+          status: 'failed',
+          current_phase: null,
+          completed_steps: 0,
+          total_steps: 7,
+          progress: 0,
+          message: null,
+          error_code: 'E3110',
+          error_message: 'LLM 认证失败',
+          completed_at: '2026-08-12T06:00:08Z',
+          recoverable: false,
+        },
+      })
+    })
+
+    expect(await screen.findByText('LLM 认证失败')).toBeInTheDocument()
+    expect(screen.getByText(/运行 7 秒/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /取消任务/ })).not.toBeInTheDocument()
+  })
+
+  it('SSE 自然结束后回读服务端快照并收口', async () => {
+    mockedApi.getResearchTaskState.mockResolvedValueOnce(stateFixture()).mockResolvedValueOnce(
+      stateFixture({
+        status: 'failed',
+        completed_at: '2026-08-12T06:00:08Z',
+        error: { error_code: 'E3110', error_message: 'LLM 认证失败', recoverable: false },
+      }),
+    )
+    renderPage()
+    await screen.findByText('全球 AI Agent 竞争格局')
+
+    const stream = streamMock.current
+    await act(async () => {
+      stream?.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(await screen.findByText('LLM 认证失败')).toBeInTheDocument()
+    expect(mockedApi.getResearchTaskState).toHaveBeenCalledTimes(2)
+  })
+
   it('终态任务展示状态与「查看报告」入口（report_id 非空）', async () => {
     mockedApi.getResearchTaskState.mockResolvedValue(
       stateFixture({
