@@ -112,7 +112,7 @@ class TestResearchExternalOpenAPIRoutes:
     def test_all_operations_have_provider_contract_tests(self):
         missing = _yaml_operations() - set(COVERAGE)
         assert not missing, f"Research OpenAPI 操作缺少 Provider 契约测试登记: {sorted(missing)}"
-        root = Path.cwd()
+        root = Path(__file__).resolve().parents[2]
         for relative_path in set(COVERAGE.values()):
             assert (root / relative_path).is_file(), f"契约测试文件不存在: {relative_path}"
 
