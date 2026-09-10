@@ -119,6 +119,10 @@ evidsight/
 - `packages/contracts` 不导入任何服务 `app` 包；
 - 根目录只负责规范、编排、契约和跨仓库验证，不合并服务依赖。
 
+### 2.3 新增文件与目录结构门禁
+
+创建或移动代码文件前，必须先按本节目录职责选择所属层和既定物理形态。服务实现只能进入对应服务及其既有模块边界；跨服务能力必须通过正式 API 或 `packages/contracts/`；根目录不得新增绕过现有边界的门面层。无法归类、需要新增顶层目录、改变服务边界或新增公共契约时，先补充对应规范并重新执行 ADR 检查，不得直接创建临时目录或重复抽象；结构边界变化必须同步目录契约测试或等价 smoke。
+
 ## 3. 当前可用命令
 
 ```bash
@@ -251,6 +255,8 @@ docker compose config --quiet
 → CHANGELOG/ADR/权威文档同步
 → 代码审查
 ```
+
+Markdown 变更先完整阅读 [DOCUMENT_FORMAT.md](DOCUMENT_FORMAT.md) 与 [DOCUMENT_GOVERNANCE.md](DOCUMENT_GOVERNANCE.md)，按唯一权威来源更新；完成后运行 `bash scripts/check-document-format.sh`、必要时运行 `bash scripts/check-adr-governance.sh`，并执行 `git diff --check`。新增、移动或拆分代码文件前先核对本节目录职责和模块边界；新顶层目录、跨服务边界或公共契约必须先更新对应规范并执行 ADR 检查。
 
 变更入口：
 

@@ -45,6 +45,20 @@ repos:
         files: ^(apps/web/|resource/prototype/|docs/(specs/TESTING|guides/DEVELOPMENT|plans/ROADMAP)\.md$)
         pass_filenames: false
         stages: [pre-commit]
+      - id: document-format
+        name: Markdown 文档格式与根入口镜像
+        entry: bash scripts/check-document-format.sh --staged
+        language: system
+        files: \.md$
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: adr-governance
+        name: ADR 索引与状态治理
+        entry: bash scripts/check-adr-governance.sh
+        language: system
+        files: ^(docs/decisions/|AGENTS\.md$|CLAUDE\.md$)
+        pass_filenames: false
+        stages: [pre-commit]
       - id: commit-msg-lint
         name: commit message format
         entry: bash scripts/check_commit_msg.sh
