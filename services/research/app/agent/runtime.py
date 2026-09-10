@@ -13,20 +13,21 @@ from sqlalchemy.orm import aliased
 
 from app.agent.context import AgentContext
 from app.agent.event_recorder import AgentEventRecorder
-from app.agent.exceptions import BudgetExhaustedError, LeaseLostError
+from app.agent.exceptions import AgentLoopExhaustedError, BudgetExhaustedError, LeaseLostError
 from app.agent.loop import AgentLoop, ToolExecutionResult
 from app.agent.memory import ReActEntry, WorkingMemory
 from app.agent.state import PhaseController
 from app.config import settings
 from app.core.cost_tracker import extract_step_cost
 from app.core.exceptions import (
+    AppException,
     extract_recoverable_from_exception,
     get_error_type,
     get_safe_error_message,
     is_fail_closed_error,
 )
 from app.core.llm import llm_session
-from app.core.task_state_resolver import TaskStateResolver
+from app.core.task_state_resolver import FATAL_STEP_ERROR_CODES, TaskStateResolver
 from app.core.trace_recorder import TraceRecorder
 from app.metrics import (
     emit_llm_tokens,
@@ -56,6 +57,7 @@ from app.services.agent_event_service import EVENT_TYPE_BUDGET_STOP, EVENT_TYPE_
 from app.services.budget_service import (
     budget_stop_reason,
     can_reserve,
+    mark_budget_exhausted,
     settle_budget,
 )
 from app.services.task_lifecycle import (
@@ -170,13 +172,16 @@ class AgentRuntime:
             # partially_completed 终态，不再按旧 status==canceled 短路。
             await self._finalize_task()
 
-        except BudgetExhaustedError:
+        except (BudgetExhaustedError, AgentLoopExhaustedError):
             # 预算停止不是自动成功（§14）：已有 Evidence 仍需通过完整度硬门槛，
             # 由 _finalize_task 经 TaskStateResolver 推导 partial / failed。
             logger.warning(
                 "任务预算停止，安全进入终态推导: task_id=%s",
                 task_id,
             )
+            # Agent Loop 达到迭代上限没有经过 Tool 结算路径，显式补写停止事实，
+            # 让 Resolver 按 §14 预算停止语义收口并披露未完成范围。
+            mark_budget_exhausted(self._task)
             await self._record_budget_stop()
             await self._finalize_task()
         except Exception as e:
@@ -776,6 +781,16 @@ class AgentRuntime:
                 {
                     "task_id": task_id,
                     "status": "completed",
+                    "current_phase": self._task.current_phase,
+                    "completed_steps": self._task.completed_steps or 0,
+                    "total_steps": self._task.total_steps or 0,
+                    "progress": round(
+                        (self._task.completed_steps or 0) / (self._task.total_steps or 1), 2
+                    ),
+                    "completed_at": now.isoformat(),
+                    "error_code": None,
+                    "error_message": None,
+                    "recoverable": None,
                     "trace": {
                         "total_duration_ms": (
                             int((now - task_started_at).total_seconds() * 1000)
@@ -793,6 +808,16 @@ class AgentRuntime:
                 {
                     "task_id": task_id,
                     "status": "partially_completed",
+                    "current_phase": self._task.current_phase,
+                    "completed_steps": self._task.completed_steps or 0,
+                    "total_steps": self._task.total_steps or 0,
+                    "progress": round(
+                        (self._task.completed_steps or 0) / (self._task.total_steps or 1), 2
+                    ),
+                    "completed_at": now.isoformat(),
+                    "error_code": None,
+                    "error_message": None,
+                    "recoverable": None,
                     "trace": trace_data,
                 },
             )
@@ -801,11 +826,21 @@ class AgentRuntime:
                 EVENT_TASK_FAILED,
                 {
                     "task_id": task_id,
+                    "status": "failed",
+                    "current_phase": self._task.current_phase,
+                    "completed_steps": self._task.completed_steps or 0,
+                    "total_steps": self._task.total_steps or 0,
+                    "progress": round(
+                        (self._task.completed_steps or 0) / (self._task.total_steps or 1), 2
+                    ),
                     "error_type": error_info.get("error_code", "Unknown")
                     if error_info
                     else "Unknown",
                     "error_description": error_info.get("error_message", "") if error_info else "",
+                    "error_code": error_info.get("error_code") if error_info else None,
+                    "error_message": error_info.get("error_message") if error_info else None,
                     "recoverable": error_info.get("recoverable", False) if error_info else False,
+                    "completed_at": now.isoformat(),
                     "last_checkpoint": self._get_last_checkpoint(execution_context),
                 },
             )
@@ -828,7 +863,7 @@ class AgentRuntime:
         )
 
     async def _handle_fatal_error(self, error: Exception) -> None:
-        """处理未捕获致命错误：CAS 更新 task 为 failed。"""
+        """处理未捕获致命错误：先落失败 Step，再由 Resolver 推导终态。"""
         task_id = str(self._task.id)
 
         # 失去租约：不写 failed 终态。
@@ -872,19 +907,32 @@ class AgentRuntime:
         error_type = get_error_type(error)
         recoverable = extract_recoverable_from_exception(error)
 
+        # LLM 认证/限流/超时等结构化 Pipeline 错误发生在 AgentLoop 调用
+        # LLM 的边界，尚未必创建 Tool Step。先补齐失败事实，再复用统一
+        # TaskStateResolver；E3999 仍只保留给无法进入 Resolver 的极端兜底。
+        if isinstance(error, AppException) and error_code in FATAL_STEP_ERROR_CODES:
+            try:
+                await self._record_fatal_step(error_code, error_msg)
+                await self._finalize_task()
+            except Exception:
+                logger.exception("记录致命 Step 或 Resolver 终态推导失败: task_id=%s", task_id)
+                await self._emergency_fail_after_resolver_error(task_id, error)
+            return
+
         try:
             trace_data = self._trace.finish()
         except Exception:
             logger.exception("Trace finish 失败: task_id=%s", task_id)
             trace_data = None
 
+        completed_at = datetime.now(timezone.utc)
         try:
             result = await self._session.execute(
                 sa_update(ResearchTask)
                 .where(ResearchTask.id == task_id, ResearchTask.status == "running")
                 .values(
                     status="failed",
-                    completed_at=datetime.now(timezone.utc),
+                    completed_at=completed_at,
                     error_code=error_code,
                     error_message=error_msg,
                     recoverable=recoverable,
@@ -908,13 +956,65 @@ class AgentRuntime:
                     EVENT_TASK_FAILED,
                     {
                         "task_id": task_id,
+                        "status": "failed",
+                        "current_phase": self._task.current_phase,
+                        "completed_steps": self._task.completed_steps or 0,
+                        "total_steps": self._task.total_steps or 0,
+                        "progress": round(
+                            (self._task.completed_steps or 0) / (self._task.total_steps or 1), 2
+                        ),
                         "error_type": error_type,
                         "error_description": error_msg,
+                        "error_code": error_code,
+                        "error_message": error_msg,
                         "recoverable": recoverable,
+                        "completed_at": completed_at.isoformat(),
                     },
                 )
             except Exception:
                 logger.exception("SSE 发送失败: task_id=%s", task_id)
+
+    async def _record_fatal_step(self, error_code: str, error_message: str) -> None:
+        """把 AgentLoop 边界的结构化失败落成 Resolver 可消费的 Step 事实。"""
+        task_id = str(self._task.id)
+        steps = await load_task_steps(self._session, task_id)
+        current_phase = (
+            self._phase_controller.current_phase if self._phase_controller is not None else None
+        ) or (self._agent_context.current_phase if self._agent_context is not None else None)
+        current_phase = current_phase or PHASE_ORDER[0]
+
+        step = next(
+            (
+                candidate
+                for candidate in reversed(steps)
+                if candidate.step_type == current_phase
+                and candidate.status in {"pending", "running"}
+            ),
+            None,
+        )
+        if step is None:
+            step = await self._create_step(current_phase)
+
+        now = datetime.now(timezone.utc)
+        step.status = "failed"
+        step.started_at = step.started_at or now
+        step.completed_at = now
+        step.duration_ms = max(0, int((now - step.started_at).total_seconds() * 1000))
+        step.error_code = error_code
+        step.error_message = error_message
+        self._task.current_phase = current_phase
+        await self._session.flush()
+
+    async def _emergency_fail_after_resolver_error(self, task_id: str, error: Exception) -> None:
+        """Resolver 本身失败时才允许使用 E3999 紧急兜底。"""
+        from app.tasks.research_task import _emergency_fail
+
+        await _emergency_fail(
+            task_id,
+            str(error),
+            recoverable=False,
+            failure_classification="resolver_unreachable",
+        )
 
     async def _record_phase_trace(
         self, step: ResearchStep, duration_ms: int, output: dict[str, Any]

@@ -50,7 +50,7 @@ flowchart LR
 
 | 组件 | 职责 | 禁止事项 |
 |:---|:---|:---|
-| Research Orchestrator | 推进 Phase、创建 Step、检查租约/取消/预算、调用组件 | 不实现检索算法，不直接决定 Task 终态 |
+| Research Orchestrator | 推进 Phase、创建 Step、检查租约/取消/预算、调用组件；当 LLM 未推进当前 Phase 时由运行时保证调用该 Phase 主组件 | 不实现检索算法，不直接决定 Task 终态；辅助 Tool 不得阻断当前 Phase 主组件 |
 | Planner | 生成结构化子问题和各通道查询计划 | 不调用来源，不输出隐藏推理 |
 | Knowledge Channel Adapter | 构造 Contract 请求、调用 Internal Retrieval、转换临时候选 | 不访问 Knowledge 存储，不保存 excerpt |
 | Web Search Adapter | 生成允许外发的查询、调用搜索 Provider、规范化 URL | 不接收私有内部正文 |
@@ -483,6 +483,7 @@ Research SSE 是持久任务订阅，断开不取消 Task。事件由数据库�
 18. Provider 限流遵守 Retry-After 和预算；重试耗尽后按策略进入 paused、partial 或 failed。
 19. Pending 任务超过阈值后由周期扫描重投，重复投递由 DB 租约条件领取收敛；超过最大重投次数后创建受控失败事实，由 `TaskStateResolver` 推导 `failed`，扫描器不直接写终态。
 20. 任意 watchdog、Recovery Scanner 或 Celery 顶层异常都不绕过 `TaskStateResolver` 写终态；`emergency_fail` 仅限数据库损坏等无法进入 Resolver 的极端情况。
+21. Agent Loop 在当前 Phase 未执行主组件时，下一轮必须由运行时强制选择该主组件；连续无进展不得耗尽完整迭代预算，达到迭代上限时按 §14 预算停止语义交由 `TaskStateResolver` 收口，不得直接使用 `E3999`。
 
 ### 17.4 契约与边界
 

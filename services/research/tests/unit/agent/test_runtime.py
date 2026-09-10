@@ -6,12 +6,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.agent.context import AgentContext
+from app.agent.exceptions import AgentLoopExhaustedError
 from app.agent.memory import WorkingMemory
 from app.agent.runtime import AgentRuntime
+from app.core.exceptions import LLMAuthFailedException, LLMUnknownException
 from app.core.llm import LLMResult
 from app.core.llm import ToolCall as LLMToolCall
 from app.core.trace_recorder import TraceRecorder
 from app.models.research_task import ResearchTask
+from app.pipeline.sse_bridge import EVENT_TASK_FAILED
 from app.tools.base import Tool, ToolCall, ToolContext
 from app.tools.registry import ToolRegistry
 
@@ -192,3 +195,76 @@ class TestRunCancel:
         assert runtime._agent_context.finish_reason == "finished_by_llm"
         runtime._finalize_task.assert_awaited_once()
         runtime._lease_handle.release.assert_awaited_once()
+        session_context.assert_called_once_with("runtime-test-task")
+
+    @pytest.mark.asyncio
+    async def test_AgentLoop迭代耗尽_按预算停止并最终化(self, runtime, monkeypatch):
+        self._prepare_run(runtime, monkeypatch)
+
+        async def exhausted_loop(*args, **kwargs):
+            raise AgentLoopExhaustedError(30)
+
+        monkeypatch.setattr("app.agent.runtime.AgentLoop.run", exhausted_loop)
+        runtime._record_budget_stop = AsyncMock()
+
+        await runtime.run()
+
+        runtime._record_budget_stop.assert_awaited_once()
+        assert runtime._task.budget_stopped_at is not None
+        runtime._finalize_task.assert_awaited_once()
+        runtime._lease_handle.release.assert_awaited_once()
+
+
+class TestFatalErrorResolution:
+    """结构化致命错误必须先形成 Step 事实，再由 Resolver 收口。"""
+
+    @pytest.mark.asyncio
+    async def test_LLM认证失败_经失败Step与Resolver收口(self, runtime):
+        record_step = AsyncMock()
+        finalize = AsyncMock()
+        runtime._record_fatal_step = record_step
+        runtime._finalize_task = finalize
+
+        await runtime._handle_fatal_error(LLMAuthFailedException("API Key 无效"))
+
+        record_step.assert_awaited_once_with("E3110", "LLM 认证失败")
+        finalize.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_LLM循环无进展_经失败Step与Resolver收口(self, runtime):
+        record_step = AsyncMock()
+        finalize = AsyncMock()
+        runtime._record_fatal_step = record_step
+        runtime._finalize_task = finalize
+
+        await runtime._handle_fatal_error(
+            LLMUnknownException(detail="planning 阶段 Tool 选择未推进")
+        )
+
+        record_step.assert_awaited_once_with("E3111", "LLM 调用返回未预期错误")
+        finalize.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_失败Resolver终态_发布完整task_failed事件(self, runtime, monkeypatch):
+        step = MagicMock(
+            step_type="planning",
+            status="failed",
+            error_code="E3110",
+            error_message="LLM 认证失败",
+        )
+        monkeypatch.setattr("app.agent.runtime.load_task_steps", AsyncMock(return_value=[step]))
+        runtime._assert_ownership = AsyncMock()
+        runtime._load_published_completeness = AsyncMock(return_value=None)
+        runtime._session.execute = AsyncMock(return_value=MagicMock(rowcount=1))
+        runtime._session.commit = AsyncMock()
+
+        await runtime._finalize_task()
+
+        failed_event = next(
+            call.args[1]
+            for call in runtime._sse.publish.await_args_list
+            if call.args[0] == EVENT_TASK_FAILED
+        )
+        assert failed_event["status"] == "failed"
+        assert failed_event["error_code"] == "E3110"
+        assert failed_event["completed_at"]
