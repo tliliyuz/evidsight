@@ -94,6 +94,7 @@ ADR 候选
 - [ADR-009：统一 Evidence Graph 与报告表达](ADR-009-unified-evidence-graph-report.md)（accepted）
 - [ADR-010：内部知识外发与脱敏](ADR-010-internal-knowledge-egress-redaction.md)（accepted）
 - [ADR-011：三节点云端分布式部署与本地全栈开发并存](ADR-011-three-node-distributed-deployment.md)（accepted）
+- [ADR-012：Research Skill 机制（可扩展研究类型、数据源注册与报告库）](ADR-012-research-skill-mechanism.md)（proposed）
 
 ## 历史记录（非当前权威）
 
