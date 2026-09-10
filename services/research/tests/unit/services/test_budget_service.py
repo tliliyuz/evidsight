@@ -130,9 +130,19 @@ class TestReserveSettle:
         task = _make_task()
         freeze_budget(task, {"max_sources": 10}, "web")
 
-        stopped = settle_budget(task, {"provider_calls": 60})
+        stopped = settle_budget(task, {"provider_calls": 61})
         assert stopped is True
         assert task.budget_stopped_at is not None
+
+    def test_provider_calls恰好达到上限_不标记预算停止(self):
+        from app.services.budget_service import freeze_budget, settle_budget
+
+        task = _make_task()
+        freeze_budget(task, {"max_sources": 10}, "web")
+
+        stopped = settle_budget(task, {"provider_calls": 60})
+        assert stopped is False
+        assert task.budget_stopped_at is None
 
     def test_llm_tokens超限_标记预算停止(self):
         from app.services.budget_service import freeze_budget, settle_budget
@@ -140,9 +150,19 @@ class TestReserveSettle:
         task = _make_task()
         freeze_budget(task, {"max_sources": 10}, "web")
 
-        stopped = settle_budget(task, {"llm_tokens": 100_000})
+        stopped = settle_budget(task, {"llm_tokens": 100_001})
         assert stopped is True
         assert task.budget_stopped_at is not None
+
+    def test_llm_tokens恰好达到上限_不标记预算停止(self):
+        from app.services.budget_service import freeze_budget, settle_budget
+
+        task = _make_task()
+        freeze_budget(task, {"max_sources": 10}, "web")
+
+        stopped = settle_budget(task, {"llm_tokens": 100_000})
+        assert stopped is False
+        assert task.budget_stopped_at is None
 
     def test_cost超限_标记预算停止(self):
         from app.services.budget_service import freeze_budget, settle_budget
@@ -150,15 +170,25 @@ class TestReserveSettle:
         task = _make_task()
         freeze_budget(task, {"max_sources": 10}, "web")
 
-        stopped = settle_budget(task, {"cost_usd": 1.0})
+        stopped = settle_budget(task, {"cost_usd": 1.01})
         assert stopped is True
+
+    def test_cost恰好达到上限_不标记预算停止(self):
+        from app.services.budget_service import freeze_budget, settle_budget
+
+        task = _make_task()
+        freeze_budget(task, {"max_sources": 10}, "web")
+
+        stopped = settle_budget(task, {"cost_usd": 1.0})
+        assert stopped is False
+        assert task.budget_stopped_at is None
 
     def test_预算停止后拒绝新调用(self):
         from app.services.budget_service import can_reserve, freeze_budget, settle_budget
 
         task = _make_task()
         freeze_budget(task, {"max_sources": 10}, "web")
-        settle_budget(task, {"provider_calls": 60})
+        settle_budget(task, {"provider_calls": 61})
 
         assert task.budget_stopped_at is not None
         assert can_reserve(task) is False
@@ -173,6 +203,24 @@ class TestReserveSettle:
         assert stopped is False
         assert task.budget_stopped_at is None
         assert can_reserve(task) is True
+
+    def test_达到阶段产出上限_不标记全局预算停止(self):
+        from app.services.budget_service import freeze_budget, settle_budget
+
+        task = _make_task()
+        freeze_budget(task, {"max_sources": 10}, "web")
+
+        stopped = settle_budget(task, {"sub_questions": 5})
+        assert stopped is False
+        assert task.budget_stopped_at is None
+
+        stopped = settle_budget(task, {"search_results": 25})
+        assert stopped is False
+        assert task.budget_stopped_at is None
+
+        stopped = settle_budget(task, {"fetch": 15})
+        assert stopped is False
+        assert task.budget_stopped_at is None
 
 
 class TestDeadline:

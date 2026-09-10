@@ -175,22 +175,64 @@ def mark_budget_stopped(task: Any) -> bool:
     return True
 
 
-def can_reserve(task: Any) -> bool:
-    """外部调用前预留检查（§14：无法预留则停止新调用）。
+def mark_budget_exhausted(task: Any) -> bool:
+    """记录因下一次调用将超过包含性上限而停止。"""
+    if is_budget_stopped(task):
+        return False
+    task.budget_stopped_at = datetime.now(timezone.utc)
+    return True
 
-    预算已停止或已超过总时限时拒绝新调用。
-    """
+
+def _can_reserve(task: Any, usage_delta: dict | None) -> bool:
+    """带预计用量的内部预留检查。"""
     if is_budget_stopped(task):
         return False
     if _deadline_passed(task):
         return False
+
+    if usage_delta:
+        frozen = _frozen(task)
+        usage = _usage(task)
+        if frozen:
+            mapping = {
+                KEY_USAGE_SUB_QUESTIONS: KEY_MAX_SUB_QUESTIONS,
+                KEY_USAGE_SEARCH_RESULTS: KEY_MAX_SEARCH_RESULTS,
+                KEY_USAGE_FETCH: KEY_MAX_FETCH,
+                KEY_USAGE_LLM_TOKENS: KEY_MAX_LLM_TOKENS,
+                KEY_USAGE_PROVIDER_CALLS: KEY_MAX_PROVIDER_CALLS,
+                KEY_USAGE_COST_USD: KEY_MAX_COST_USD,
+                KEY_USAGE_AGENT_ITERATIONS: KEY_MAX_AGENT_ITERATIONS,
+            }
+            for usage_key, value in usage_delta.items():
+                frozen_key = mapping.get(usage_key)
+                if frozen_key is None:
+                    continue
+                try:
+                    requested = float(value)
+                    used = float(usage.get(usage_key, 0))
+                    cap = float(frozen.get(frozen_key, 0))
+                except (TypeError, ValueError):
+                    continue
+                if cap > 0 and used + requested > cap:
+                    return False
     return True
 
 
-def _dimension_exceeded(task: Any) -> str | None:
-    """检查是否任一冻结维度已被用量触及上限，返回超限维度名或 None。
+def can_reserve(task: Any, usage_delta: dict | None = None) -> bool:
+    """外部调用前预留检查（§14：无法预留则停止新调用）。
 
-    预算停止以「用量 >= 上限」为触发条件（§14：无法预留则停止新调用）。
+    ``usage_delta`` 表示本次调用的已知最小用量。预算上限为包含性上限：
+    当前用量等于上限仍可作为已完成结果，但若本次调用会使累计用量超过上限，
+    则拒绝调用。阶段产出数量（子问题/搜索结果/Fetch）由各阶段自己的输入输出
+    限制负责，不因恰好达到上限而阻断后续阶段。
+    """
+    return _can_reserve(task, usage_delta)
+
+
+def _dimension_exceeded(task: Any) -> str | None:
+    """检查是否任一冻结维度已超过上限，返回超限维度名或 None。
+
+    达到包含性上限是合法结果；只有实际结算超过上限才立即标记预算停止。
     """
     frozen = _frozen(task)
     usage = _usage(task)
@@ -209,7 +251,7 @@ def _dimension_exceeded(task: Any) -> str | None:
     for usage_key, frozen_key in mapping.items():
         used = usage.get(usage_key, 0)
         cap = frozen.get(frozen_key, 0)
-        if isinstance(cap, (int, float)) and cap > 0 and used >= cap:
+        if isinstance(cap, (int, float)) and cap > 0 and used > cap:
             return frozen_key
     return None
 
@@ -257,6 +299,25 @@ def budget_stop_reason(task: Any) -> str | None:
     exceeded = _dimension_exceeded(task)
     if exceeded is not None:
         return exceeded
+    # 预留检查可能在用量恰好达到上限时阻止下一次调用；此时没有实际超量，
+    # 但达到上限的维度仍是可审计的停止原因。
+    frozen = _frozen(task)
+    usage = _usage(task)
+    if frozen:
+        mapping = {
+            KEY_USAGE_SUB_QUESTIONS: KEY_MAX_SUB_QUESTIONS,
+            KEY_USAGE_SEARCH_RESULTS: KEY_MAX_SEARCH_RESULTS,
+            KEY_USAGE_FETCH: KEY_MAX_FETCH,
+            KEY_USAGE_LLM_TOKENS: KEY_MAX_LLM_TOKENS,
+            KEY_USAGE_PROVIDER_CALLS: KEY_MAX_PROVIDER_CALLS,
+            KEY_USAGE_COST_USD: KEY_MAX_COST_USD,
+            KEY_USAGE_AGENT_ITERATIONS: KEY_MAX_AGENT_ITERATIONS,
+        }
+        for usage_key, frozen_key in mapping.items():
+            used = usage.get(usage_key, 0)
+            cap = frozen.get(frozen_key, 0)
+            if isinstance(cap, (int, float)) and cap > 0 and used >= cap:
+                return frozen_key
     if _deadline_passed(task):
         return "总时限"
     return "预算停止"

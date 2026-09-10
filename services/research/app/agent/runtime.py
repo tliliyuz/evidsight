@@ -274,24 +274,29 @@ class AgentRuntime:
                 f"Worker 已失去任务租约（续租失败），停止后续调用: task_id={self._task.id}"
             )
 
-        # 预算预留（§14）：无法预留则停止新调用。
-        # 总时限到期同样视为预算停止（S2）：标记 budget_stopped_at，使 Resolver
-        # 按预算停止推导终态、报告披露缺失，而非走普通路径。
-        if not can_reserve(self._task):
-            from app.services.budget_service import mark_budget_stopped
-
-            if mark_budget_stopped(self._task):
-                logger.warning(
-                    "任务已过总时限，预算停止: task_id=%s",
-                    self._task.id,
-                )
-                await self._record_budget_stop()
-            raise BudgetExhaustedError(f"任务预算已用尽，停止新调用: task_id={self._task.id}")
-
         if tool.mapped_phase is None:
             # finish_tool 等无 phase 映射的 Tool，直接执行，不创建 Step
             result = await tool.execute(self._tool_context_with_step(None), **tool_call.arguments)
             return ToolExecutionResult(result=result, step_id=None)
+
+        # 预算预留（§14）：无法预留则停止新调用。只有有外部调用的阶段才需要
+        # 预留；finish_tool 等本地收敛工具不应被已经达到上限的统计维度阻断。
+        # 总时限到期或下一次调用将超过包含性上限时，标记 budget_stopped_at，
+        # 由 Resolver 按预算停止推导终态、报告披露缺失。
+        if not can_reserve(self._task, {"provider_calls": 1}):
+            from app.services.budget_service import mark_budget_exhausted, mark_budget_stopped
+
+            stopped = mark_budget_stopped(self._task)
+            if not stopped:
+                stopped = mark_budget_exhausted(self._task)
+            if stopped:
+                logger.warning(
+                    "任务预算停止，无法预留下一次调用: task_id=%s, reason=%s",
+                    self._task.id,
+                    budget_stop_reason(self._task),
+                )
+                await self._record_budget_stop()
+            raise BudgetExhaustedError(f"任务预算已用尽，停止新调用: task_id={self._task.id}")
 
         step = await self._create_step(tool.mapped_phase)
         await self._start_step(step)

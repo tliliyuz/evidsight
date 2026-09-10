@@ -4,7 +4,7 @@
 |:---|:---|
 | 文档版本 | v1.0 |
 | 状态 | 已确认设计 |
-| 最后更新 | 2026-08-07 |
+| 最后更新 | 2026-09-10 |
 | 适用范围 | Research API、Worker、Recovery Scanner 与 Research SSE 投影 |
 
 > 本文是 Research Task/Phase/Step 状态、`knowledge|web|hybrid` 来源策略、Evidence Graph、完整度判定、失败恢复和报告发布的权威规范。持久化结构见 [`DATABASE.md`](DATABASE.md)，HTTP/SSE 表面见 [`docs/specs/API.md`](../../../docs/specs/API.md)，Internal Retrieval 与 Evidence 字段见 [`packages/contracts/`](../../../packages/contracts/README.md)。本文不定义 Knowledge 检索实现、数据库 DDL 或前端布局。
@@ -412,6 +412,8 @@ Worker 未拾取的 pending 任务（投递丢失、无 Worker 在线或 Worker 
 ## 14. 预算、背压与资源约束
 
 Task 创建时冻结最大子问题数、搜索结果数、Fetch 数、LLM Token、Provider 调用、估算成本、Agent 迭代和总时限。每次外部调用前预留预算，完成后结算实际用量；无法预留则停止新调用。
+
+所有预算上限均为包含性上限：用量恰好等于上限是合法完成结果，不得仅因达到上限就写入预算停止。`max_sub_questions`、`max_search_results` 和 `max_fetch` 是对应阶段的产出数量上限，由阶段自身的输入/输出校验执行；某阶段达到其上限不得阻断后续阶段。只有下一次外部调用的已知最小用量会使累计值超过上限时，才拒绝该调用并记录预算停止；无外部调用的终态收敛工具不受该预留检查阻断。
 
 预算停止不是自动成功：已有 Evidence 仍需通过完整度硬门槛；达标可 partial，否则 failed。报告必须披露因预算导致的缺失。
 

@@ -149,12 +149,61 @@ class TestRuntimeBudget:
         # 预先把 provider_calls 打到上限，使 reserve 失败
         from app.services.budget_service import settle_budget
 
-        settle_budget(budget_runtime._task, {"provider_calls": 60})
+        settle_budget(budget_runtime._task, {"provider_calls": 61})
 
         # 直接调用预留检查：预算停止后不应再发起外部调用
         from app.services.budget_service import can_reserve
 
         assert can_reserve(budget_runtime._task) is False
+
+    @pytest.mark.asyncio
+    async def test_阶段产出达到上限_仍允许后续工具预留(self, budget_runtime):
+        from app.services.budget_service import can_reserve, settle_budget
+
+        settle_budget(budget_runtime._task, {"sub_questions": 5})
+
+        assert can_reserve(budget_runtime._task, {"provider_calls": 1}) is True
+
+    @pytest.mark.asyncio
+    async def test_provider_calls达到上限_拒绝下一次预留(self, budget_runtime):
+        from app.services.budget_service import can_reserve, settle_budget
+
+        settle_budget(budget_runtime._task, {"provider_calls": 60})
+
+        assert can_reserve(budget_runtime._task, {"provider_calls": 1}) is False
+
+    @pytest.mark.asyncio
+    async def test_本地终态工具_不受已达上限的外部预算阻断(self, budget_runtime):
+        from app.services.budget_service import settle_budget
+
+        settle_budget(budget_runtime._task, {"provider_calls": 60})
+
+        class LocalTool(Tool):
+            name = "local_tool"
+            description = "local"
+            mapped_phase = None
+            parameters_schema = {"type": "object", "properties": {}}
+
+            async def execute(self, ctx: ToolContext, **params):
+                return type(
+                    "R",
+                    (),
+                    {
+                        "success": True,
+                        "output": {"status": "completed"},
+                        "observation": "ok",
+                        "error_message": None,
+                        "cost": None,
+                        "duration_ms": 1,
+                    },
+                )()
+
+        result = await budget_runtime._execute_tool(
+            LocalTool(), ToolCall(id="1", name="local_tool", arguments={})
+        )
+
+        assert result.result.success is True
+        assert budget_runtime._task.budget_stopped_at is None
 
     @pytest.mark.asyncio
     async def test_预算停止_记录budget_stop事件(self, budget_runtime):
